@@ -39,6 +39,6 @@ Notes:
 - [x] Chunk 3 complete
 - [x] Chunk 4 complete
 - [x] Chunk 5 complete
-- [ ] Chunk 6 complete
+- [x] Chunk 6 complete
 - [ ] Chunk 7 complete
 - [ ] Chunk 8 complete

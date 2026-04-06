@@ -54,7 +54,8 @@ Images of generated cities can be downloaded as a `.png` or an `.svg`. There are
 ### Built With
 
 * [Typescript](https://www.typescriptlang.org/)
-* [Gulp](https://gulpjs.com/)
+* [Vite](https://vite.dev/)
+* [pnpm](https://pnpm.io/)
 
 
 ## Getting Started
@@ -63,15 +64,15 @@ To get a local copy up and running follow these steps.
 
 ### Prerequisites
 
-
-* npm
+* Node.js 20+
 ```sh
-npm install npm@latest -g
+node --version
 ```
 
-* Gulp
+* pnpm
 ```
-npm install --global gulp-cli
+corepack enable
+corepack use pnpm@10.29.3
 ```
 
 ### Installation
@@ -80,16 +81,23 @@ npm install --global gulp-cli
 ```sh
 git clone https://github.com/probabletrain/mapgenerator.git
 ```
-2. Install NPM packages
+2. Install dependencies
 ```sh
 cd mapgenerator
-npm install
+pnpm install
 ```
-3. Build with Gulp. This will watch for changes to any Typescript files. If you edit the HTML or CSS you will have to rerun this command. [Gulp Notify](https://github.com/mikaelbr/gulp-notify) sends a notification whenever a build finishes.
+3. Start dev server
 ```
-gulp
+pnpm dev
 ```
-4. Open `dist/index.html` in a web browser, refresh the page whenever the project is rebuilt.
+4. Build production bundle
+```
+pnpm build
+```
+5. Preview production bundle
+```
+pnpm preview
+```
 
 
 
@@ -151,3 +159,5 @@ Project Link: [https://github.com/probabletrain/mapgenerator](https://github.com
 ## License
 
 Distributed under the LGPL-3.0 License. See `COPYING` and `COPYING.LESSER` for more information.
+
+If you redistribute a modified version of this project, keep copyright and license notices intact and make the corresponding source available under LGPL-3.0 terms.
