@@ -1,2 +1,7 @@
 .DS_STORE
+.DS_Store
 node_modules
+pnpm-debug.log*
+npm-debug.log*
+/plans
+/context

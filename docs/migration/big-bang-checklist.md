@@ -34,8 +34,8 @@ Notes:
 
 ## Verification Log
 
-- [ ] Chunk 1 complete
-- [ ] Chunk 2 complete
+- [x] Chunk 1 complete
+- [x] Chunk 2 complete
 - [ ] Chunk 3 complete
 - [ ] Chunk 4 complete
 - [ ] Chunk 5 complete
