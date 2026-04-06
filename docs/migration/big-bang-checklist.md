@@ -21,16 +21,16 @@ Notes:
 
 ## Acceptance Criteria (post-migration)
 
-- [ ] `pnpm install` completes and lockfile is present
-- [ ] `pnpm dev` starts Vite and app loads
-- [ ] `pnpm build` generates production output in `dist/`
-- [ ] `pnpm preview` serves production output correctly
-- [ ] Smoke test validates map surface (`#map-canvas`, `#map-svg`, GUI panel)
-- [ ] Smoke test triggers Generate action without fatal console errors
-- [ ] Manual check: PNG export works
-- [ ] Manual check: SVG export works
-- [ ] Manual check: STL export works
-- [ ] Legacy toolchain artifacts removed (`gulpfile.js`, Browserify/Gulp deps/scripts)
+- [x] `pnpm install` completes and lockfile is present
+- [x] `pnpm dev` starts Vite and app loads
+- [x] `pnpm build` generates production output in `dist/`
+- [x] `pnpm preview` serves production output correctly
+- [x] Smoke test validates map surface (`#map-canvas`, `#map-svg`, GUI panel)
+- [x] Smoke test triggers Generate action without fatal console errors
+- [x] Manual check: PNG export works (validated by Playwright download test)
+- [x] Manual check: SVG export works (validated by Playwright download test)
+- [x] Manual check: STL export works (validated by Playwright download test)
+- [x] Legacy toolchain artifacts removed (`gulpfile.js`, Browserify/Gulp deps/scripts)
 
 ## Verification Log
 
@@ -38,7 +38,7 @@ Notes:
 - [x] Chunk 2 complete
 - [x] Chunk 3 complete
 - [x] Chunk 4 complete
-- [ ] Chunk 5 complete
+- [x] Chunk 5 complete
 - [ ] Chunk 6 complete
 - [ ] Chunk 7 complete
 - [ ] Chunk 8 complete

@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ext .ts",
+    "test:smoke": "pnpm build && playwright test",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "packageManager": "pnpm@10.29.3",
@@ -47,6 +48,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.17.57",
+    "@playwright/test": "^1.56.1",
     "@typescript-eslint/eslint-plugin": "^8.58.0",
     "@typescript-eslint/parser": "^8.58.0",
     "eslint": "^8.57.1",
