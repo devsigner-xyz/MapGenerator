@@ -1,5 +1,6 @@
 import * as log from 'loglevel';
 import * as dat from 'dat.gui';
+import './html/style.css';
 import TensorFieldGUI from './ts/ui/tensor_field_gui';
 import {NoiseParams} from './ts/impl/tensor_field';
 import MainGUI from './ts/ui/main_gui';
