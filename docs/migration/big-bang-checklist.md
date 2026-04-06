@@ -41,4 +41,4 @@ Notes:
 - [x] Chunk 5 complete
 - [x] Chunk 6 complete
 - [x] Chunk 7 complete
-- [ ] Chunk 8 complete
+- [x] Chunk 8 complete
