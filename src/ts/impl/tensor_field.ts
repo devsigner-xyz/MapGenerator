@@ -1,6 +1,6 @@
 import * as log from 'loglevel';
 // import * as noise from 'noisejs';
-import * as SimplexNoise from 'simplex-noise';
+import SimplexNoise from 'simplex-noise';
 import Tensor from './tensor';
 import Vector from '../vector';
 import {Grid, Radial, BasisField} from './basis_field';

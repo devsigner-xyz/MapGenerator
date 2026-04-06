@@ -1,5 +1,7 @@
 import * as log from 'loglevel';
 import * as THREE from 'three'
+import * as exportSTL from 'threejs-export-stl';
+import JSZip from 'jszip';
 import Vector from './vector';
 import { CSG } from 'three-csg-ts';
 import {BuildingModel} from './ui/buildings';
@@ -18,7 +20,7 @@ enum ModelGeneratorStates {
 export default class ModelGenerator {
     private readonly groundLevel = 20;  // Thickness of groundMesh
 
-    private readonly exportSTL = require('threejs-export-stl');
+    private readonly exportSTL = exportSTL;
     private resolve: (blob: any) => void = b => {};
     private zip: any;
     private state: ModelGeneratorStates = ModelGeneratorStates.WAITING;
@@ -47,7 +49,6 @@ export default class ModelGenerator {
     public async getSTL(): Promise<any> {
         return new Promise<any>(resolve => {
             this.resolve = resolve;
-            const JSZip = require("jszip");
             this.zip = new JSZip();
             this.zip.file("model/README.txt", "For a tutorial on putting these models together to create a city, go to https://maps.probabletrain.com/#/stl");
 

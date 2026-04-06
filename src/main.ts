@@ -10,7 +10,7 @@ import DragController from './ts/ui/drag_controller';
 import DomainController from './ts/ui/domain_controller';
 import Style from './ts/ui/style';
 import {ColourScheme, DefaultStyle, RoughStyle} from './ts/ui/style';
-import * as ColourSchemes from './colour_schemes.json';
+import ColourSchemes from './colour_schemes';
 import Vector from './ts/vector';
 import { SVG } from '@svgdotjs/svg.js';
 import ModelGenerator from './ts/model_generator';

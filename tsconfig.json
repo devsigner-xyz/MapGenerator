@@ -1,13 +1,18 @@
 {
     "compilerOptions": {
         "noImplicitAny": true,
-        "target": "es5",
+        "target": "es2018",
+        "module": "esnext",
+        "moduleResolution": "node",
         "skipLibCheck": true,
-        "lib": ["es6", "DOM", "ScriptHost"],
+        "esModuleInterop": true,
+        "allowSyntheticDefaultImports": true,
+        "lib": ["es2018", "DOM", "DOM.Iterable", "ScriptHost"],
         "downlevelIteration": true,
         "resolveJsonModule": true
     },
     "include": [
-        "src/**/*.ts"
+        "src/**/*.ts",
+        "src/**/*.d.ts"
     ]
 }

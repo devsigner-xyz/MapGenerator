@@ -26,7 +26,7 @@
     "@interactjs/types": "^1.9.8",
     "@svgdotjs/svg.js": "^3.0.16",
     "@types/d3-quadtree": "^1.0.7",
-    "@types/dat.gui": "^0.7.5",
+    "@types/dat.gui": "0.7.5",
     "@types/file-saver": "^2.0.1",
     "@types/jsts": "^0.17.2",
     "d3-quadtree": "^1.0.7",
@@ -47,10 +47,10 @@
   },
   "devDependencies": {
     "@types/node": "^20.17.57",
-    "@typescript-eslint/eslint-plugin": "^2.26.0",
-    "@typescript-eslint/parser": "^2.26.0",
-    "eslint": "^6.8.0",
-    "typescript": "^3.8.3",
+    "@typescript-eslint/eslint-plugin": "^8.58.0",
+    "@typescript-eslint/parser": "^8.58.0",
+    "eslint": "^8.57.1",
+    "typescript": "^5.6.3",
     "vite": "^5.4.19"
   }
 }

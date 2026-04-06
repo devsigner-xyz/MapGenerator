@@ -1,6 +1,7 @@
 import * as log from 'loglevel';
 import Vector from '../vector';
 import { SVG } from '@svgdotjs/svg.js';
+import rough from 'roughjs/bundled/rough.esm.js';
 import Util from '../util';
 
 export interface RoughOptions {
@@ -233,7 +234,6 @@ export class DefaultCanvasWrapper extends CanvasWrapper {
 }
 
 export class RoughCanvasWrapper extends CanvasWrapper {
-    private r = require('roughjs/bundled/rough.cjs');
     private rc: any;
         
     private options: RoughOptions = {
@@ -247,12 +247,12 @@ export class RoughCanvasWrapper extends CanvasWrapper {
 
     constructor(canvas: HTMLCanvasElement, scale=1, resizeToWindow=true) {
         super(canvas, scale, resizeToWindow);
-        this.rc = this.r.canvas(canvas);
+        this.rc = rough.canvas(canvas);
     }
 
     createSVG(svgElement: any): void {
         super.createSVG(svgElement);
-        this.rc = this.r.svg(this.svgNode);
+        this.rc = rough.svg(this.svgNode);
     }
 
     drawFrame(left: number, right: number, up: number, down: number): void {
