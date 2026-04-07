@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { assignPubkeysToBuildings, type AssignmentResult } from '../../nostr/domain/assignment';
 import { buildOccupancyState } from '../../nostr/domain/occupancy';
+import { fetchFollowersBestEffort } from '../../nostr/followers';
 import { fetchFollowsByNpub } from '../../nostr/follows';
 import { NdkClient } from '../../nostr/ndk-client';
 import { fetchProfiles } from '../../nostr/profiles';
@@ -11,11 +12,17 @@ type OverlayStatus = 'idle' | 'loading' | 'success' | 'error';
 
 interface OverlayData {
     ownerPubkey?: string;
+    ownerProfile?: NostrProfile;
     follows: string[];
     profiles: Record<string, NostrProfile>;
+    followers: string[];
+    followerProfiles: Record<string, NostrProfile>;
+    followersLoading: boolean;
     assignments: AssignmentResult;
     buildingsCount: number;
     selectedPubkey?: string;
+    activeProfilePubkey?: string;
+    activeProfileBuildingIndex?: number;
 }
 
 interface OverlayState {
@@ -25,9 +32,10 @@ interface OverlayState {
 }
 
 export interface NostrOverlayServices {
-    createClient?: () => NostrClient;
+    createClient?: (relays?: string[]) => NostrClient;
     fetchFollowsByNpubFn?: typeof fetchFollowsByNpub;
     fetchProfilesFn?: typeof fetchProfiles;
+    fetchFollowersBestEffortFn?: typeof fetchFollowersBestEffort;
 }
 
 interface UseNostrOverlayOptions {
@@ -39,6 +47,9 @@ function createInitialData(): OverlayData {
     return {
         follows: [],
         profiles: {},
+        followers: [],
+        followerProfiles: {},
+        followersLoading: false,
         assignments: {
             assignments: [],
             byBuildingIndex: {},
@@ -54,14 +65,21 @@ function dedupe(values: string[]): string[] {
 }
 
 export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions) {
-    const createClient = services?.createClient || (() => new NdkClient());
+    const createClient = services?.createClient || ((relays: string[] = []) => new NdkClient(relays));
     const fetchFollowsByNpubFn = services?.fetchFollowsByNpubFn || fetchFollowsByNpub;
     const fetchProfilesFn = services?.fetchProfilesFn || fetchProfiles;
+    const fetchFollowersBestEffortFn = services?.fetchFollowersBestEffortFn || fetchFollowersBestEffort;
 
     const [state, setState] = useState<OverlayState>({
         status: 'idle',
         data: createInitialData(),
     });
+    const requestIdRef = useRef(0);
+    const latestStateRef = useRef(state);
+
+    useEffect(() => {
+        latestStateRef.current = state;
+    }, [state]);
 
     useEffect(() => {
         if (!mapBridge) {
@@ -108,6 +126,61 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         });
     }, [mapBridge]);
 
+    useEffect(() => {
+        if (!mapBridge) {
+            return;
+        }
+
+        if (state.status !== 'success' || !state.data.activeProfilePubkey) {
+            mapBridge.setModalBuildingHighlight(undefined);
+            return;
+        }
+
+        const highlightedIndex = state.data.activeProfileBuildingIndex ?? state.data.assignments.pubkeyToBuildingIndex[state.data.activeProfilePubkey];
+        mapBridge.setModalBuildingHighlight(highlightedIndex);
+    }, [mapBridge, state.status, state.data.activeProfilePubkey, state.data.activeProfileBuildingIndex, state.data.assignments]);
+
+    useEffect(() => {
+        if (!mapBridge) {
+            return;
+        }
+
+        return mapBridge.onOccupiedBuildingClick(({ buildingIndex, pubkey }) => {
+            const current = latestStateRef.current;
+            if (current.status !== 'success') {
+                return;
+            }
+
+            const occupancy = buildOccupancyState({
+                buildingsCount: current.data.buildingsCount,
+                assignments: current.data.assignments.assignments,
+                selectedPubkey: pubkey,
+            });
+
+            mapBridge.applyOccupancy({
+                byBuildingIndex: occupancy.byBuildingIndex,
+                selectedBuildingIndex: occupancy.selectedBuildingIndex,
+            });
+            mapBridge.focusBuilding(buildingIndex);
+
+            setState((prev) => {
+                if (prev.status !== 'success') {
+                    return prev;
+                }
+
+                return {
+                    ...prev,
+                    data: {
+                        ...prev.data,
+                        selectedPubkey: pubkey,
+                        activeProfilePubkey: pubkey,
+                        activeProfileBuildingIndex: buildingIndex,
+                    },
+                };
+            });
+        });
+    }, [mapBridge]);
+
     const submitNpub = async (npub: string): Promise<void> => {
         if (!mapBridge) {
             setState({
@@ -118,13 +191,20 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             return;
         }
 
+        requestIdRef.current += 1;
+        const requestId = requestIdRef.current;
+
         setState((current) => ({ ...current, status: 'loading', error: undefined }));
 
         try {
             const client = createClient();
             const graph = await fetchFollowsByNpubFn(npub, client);
             const follows = dedupe(graph.follows);
-            const profiles = await fetchProfilesFn(follows, client);
+            const [ownerProfiles, profiles] = await Promise.all([
+                fetchProfilesFn([graph.ownerPubkey], client),
+                fetchProfilesFn(follows, client),
+            ]);
+            const ownerProfile = ownerProfiles[graph.ownerPubkey];
 
             await mapBridge.ensureGenerated();
             const buildings = mapBridge.listBuildings();
@@ -144,17 +224,112 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 selectedBuildingIndex: occupancy.selectedBuildingIndex,
             });
 
+            if (requestIdRef.current !== requestId) {
+                return;
+            }
+
             setState({
                 status: 'success',
                 data: {
                     ownerPubkey: graph.ownerPubkey,
+                    ownerProfile,
                     follows,
                     profiles,
+                    followers: [],
+                    followerProfiles: {},
+                    followersLoading: true,
                     assignments,
                     buildingsCount: buildings.length,
+                    activeProfilePubkey: undefined,
+                    activeProfileBuildingIndex: undefined,
                 },
             });
+
+            void (async () => {
+                const followerSet = new Set<string>();
+                const nextFollowerProfiles: Record<string, NostrProfile> = {};
+
+                try {
+                    const followersClient = createClient(graph.relayHints);
+                    await fetchFollowersBestEffortFn({
+                        targetPubkey: graph.ownerPubkey,
+                        client: followersClient,
+                        candidateAuthors: follows,
+                        onBatch: async (batch) => {
+                            if (requestIdRef.current !== requestId || batch.newFollowers.length === 0) {
+                                return;
+                            }
+
+                            for (const pubkey of batch.newFollowers) {
+                                followerSet.add(pubkey);
+                            }
+
+                            const fetchedProfiles = await fetchProfilesFn(batch.newFollowers, client);
+                            Object.assign(nextFollowerProfiles, fetchedProfiles);
+
+                            if (requestIdRef.current !== requestId) {
+                                return;
+                            }
+
+                            setState((current) => {
+                                if (
+                                    current.status !== 'success' ||
+                                    current.data.ownerPubkey !== graph.ownerPubkey ||
+                                    requestIdRef.current !== requestId
+                                ) {
+                                    return current;
+                                }
+
+                                return {
+                                    ...current,
+                                    data: {
+                                        ...current.data,
+                                        followers: [...followerSet],
+                                        followerProfiles: {
+                                            ...current.data.followerProfiles,
+                                            ...fetchedProfiles,
+                                        },
+                                    },
+                                };
+                            });
+                        },
+                    });
+                } catch {
+                    // Keep follows + profile visible even when follower discovery fails.
+                }
+
+                if (requestIdRef.current !== requestId) {
+                    return;
+                }
+
+                setState((current) => {
+                    if (
+                        current.status !== 'success' ||
+                        current.data.ownerPubkey !== graph.ownerPubkey ||
+                        requestIdRef.current !== requestId
+                    ) {
+                        return current;
+                    }
+
+                    return {
+                        ...current,
+                        data: {
+                            ...current.data,
+                            followers: [...followerSet],
+                            followerProfiles: {
+                                ...current.data.followerProfiles,
+                                ...nextFollowerProfiles,
+                            },
+                            followersLoading: false,
+                        },
+                    };
+                });
+            })();
         } catch (error) {
+            if (requestIdRef.current !== requestId) {
+                return;
+            }
+
             const message = error instanceof Error ? error.message : 'No se pudo cargar la red Nostr';
             setState({
                 status: 'error',
@@ -190,6 +365,19 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             data: {
                 ...current.data,
                 selectedPubkey,
+                activeProfilePubkey: undefined,
+                activeProfileBuildingIndex: undefined,
+            },
+        }));
+    };
+
+    const closeActiveProfileModal = (): void => {
+        setState((current) => ({
+            ...current,
+            data: {
+                ...current.data,
+                activeProfilePubkey: undefined,
+                activeProfileBuildingIndex: undefined,
             },
         }));
     };
@@ -199,12 +387,20 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
     return {
         status: state.status,
         error: state.error,
+        ownerPubkey: state.data.ownerPubkey,
+        ownerProfile: state.data.ownerProfile,
         follows: state.data.follows,
         profiles: state.data.profiles,
+        followers: state.data.followers,
+        followerProfiles: state.data.followerProfiles,
+        followersLoading: state.data.followersLoading,
         selectedPubkey: state.data.selectedPubkey,
+        activeProfilePubkey: state.data.activeProfilePubkey,
+        activeProfile: state.data.activeProfilePubkey ? state.data.profiles[state.data.activeProfilePubkey] : undefined,
         followsCount: state.data.follows.length,
         assignedCount,
         submitNpub,
         selectFollowing,
+        closeActiveProfileModal,
     };
 }

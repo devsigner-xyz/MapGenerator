@@ -18,6 +18,7 @@ import {BuildingRenderState, DefaultStyle, RoughStyle} from './style';
 import CanvasWrapper from './canvas_wrapper';
 import Buildings, {BuildingModel} from './buildings';
 import PolygonUtil from '../impl/polygon_util';
+import { findOccupiedBuildingHit, type OccupiedBuildingHit } from './occupied_building_hit';
 
 /**
  * Handles Map folder, glues together impl
@@ -60,6 +61,8 @@ export default class MainGUI {
     private redraw: boolean = true;
     private occupiedPubkeyByBuildingIndex: Record<number, string> = {};
     private selectedBuildingIndex: number = null;
+    private hoveredBuildingIndex: number = null;
+    private modalHighlightedBuildingIndex: number = null;
 
     constructor(private guiFolder: dat.GUI, private tensorField: TensorField, private closeTensorFolder: () => void) {
         guiFolder.add(this, 'generateEverything');
@@ -325,6 +328,9 @@ export default class MainGUI {
         });
 
         this.occupiedPubkeyByBuildingIndex = nextState;
+        if (this.hoveredBuildingIndex !== null && !this.occupiedPubkeyByBuildingIndex[this.hoveredBuildingIndex]) {
+            this.hoveredBuildingIndex = null;
+        }
         this.redraw = true;
     }
 
@@ -337,15 +343,46 @@ export default class MainGUI {
         this.redraw = true;
     }
 
+    setHoveredBuildingIndex(index?: number): void {
+        const nextHovered = index === undefined || index === null ? null : index;
+        if (this.hoveredBuildingIndex === nextHovered) {
+            return;
+        }
+
+        this.hoveredBuildingIndex = nextHovered;
+        this.redraw = true;
+    }
+
+    setModalHighlightedBuildingIndex(index?: number): void {
+        const nextModal = index === undefined || index === null ? null : index;
+        if (this.modalHighlightedBuildingIndex === nextModal) {
+            return;
+        }
+
+        this.modalHighlightedBuildingIndex = nextModal;
+        this.redraw = true;
+    }
+
     focusBuilding(index: number): boolean {
         const centroid = this.getBuildingCentroidWorld(index);
         if (!centroid) {
             return false;
         }
 
-        this.domainController.centerOnWorldPoint(centroid);
+        this.domainController.animateToWorldPoint(centroid, {
+            zoom: 13,
+            durationMs: 650,
+        });
         this.redraw = true;
         return true;
+    }
+
+    getOccupiedBuildingAtWorldPoint(point: Vector): OccupiedBuildingHit | null {
+        return findOccupiedBuildingHit({
+            point,
+            footprints: this.getBuildingFootprintsWorld(),
+            occupiedPubkeyByBuildingIndex: this.occupiedPubkeyByBuildingIndex,
+        });
     }
 
     // OBJ Export methods
@@ -385,13 +422,23 @@ export default class MainGUI {
     private resetOccupancyState(): void {
         this.occupiedPubkeyByBuildingIndex = {};
         this.selectedBuildingIndex = null;
+        this.hoveredBuildingIndex = null;
+        this.modalHighlightedBuildingIndex = null;
         this.redraw = true;
     }
 
     private getBuildingRenderStates(size: number): BuildingRenderState[] {
         return Array.from({ length: size }, (_, index) => {
+            if (this.modalHighlightedBuildingIndex === index) {
+                return 'hovered';
+            }
+
             if (this.selectedBuildingIndex === index) {
                 return 'selected';
+            }
+
+            if (this.hoveredBuildingIndex === index) {
+                return 'hovered';
             }
 
             if (this.occupiedPubkeyByBuildingIndex[index]) {

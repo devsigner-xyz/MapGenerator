@@ -35,7 +35,7 @@ export interface ColourScheme {
     frameTextColour?: string;
 }
 
-export type BuildingRenderState = 'empty' | 'occupied' | 'selected';
+export type BuildingRenderState = 'empty' | 'occupied' | 'hovered' | 'selected';
 
 export interface BuildingRenderColours {
     fill: string;
@@ -47,6 +47,13 @@ export function resolveBuildingRenderColours(state: BuildingRenderState, colourS
         return {
             fill: 'rgb(255,214,118)',
             stroke: 'rgb(233,166,52)',
+        };
+    }
+
+    if (state === 'hovered') {
+        return {
+            fill: 'rgb(255,151,66)',
+            stroke: 'rgb(229,94,24)',
         };
     }
 

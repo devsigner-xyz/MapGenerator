@@ -26,6 +26,8 @@ export default class DomainController {
 
     private _cameraDirection = Vector.zeroVector();
     private _orthographic = false;
+    private viewAnimationFrame: number | null = null;
+    private viewportInsetLeft = 0;
 
     // Set after pan or zoom
     public moved = false;
@@ -62,8 +64,14 @@ export default class DomainController {
 
     private setScreenDimensions(): void {
         this.moved = true;
-        this._screenDimensions.setX(window.innerWidth);
+        const inset = Math.max(0, Math.min(window.innerWidth, this.viewportInsetLeft));
+        this._screenDimensions.setX(Math.max(1, window.innerWidth - inset));
         this._screenDimensions.setY(window.innerHeight);
+    }
+
+    setViewportInsetLeft(inset: number): void {
+        this.viewportInsetLeft = Math.max(0, inset);
+        this.setScreenDimensions();
     }
 
     public static getInstance(): DomainController {
@@ -109,6 +117,7 @@ export default class DomainController {
     }
 
     set zoom(z: number) {
+        this.stopViewAnimation();
         if (z >= 0.3 && z <= 20) {
             this.moved = true;
             const oldWorldSpaceMidpoint = this.origin.add(this.worldDimensions.divideScalar(2));
@@ -120,9 +129,54 @@ export default class DomainController {
     }
 
     centerOnWorldPoint(point: Vector): void {
+        this.stopViewAnimation();
         const halfWorld = this.worldDimensions.divideScalar(2);
         this._origin = point.clone().sub(halfWorld);
         this.moved = true;
+    }
+
+    animateToWorldPoint(point: Vector, options?: { zoom?: number; durationMs?: number }): void {
+        this.stopViewAnimation();
+
+        const targetZoom = Math.min(20, Math.max(0.3, options?.zoom ?? this._zoom));
+        const durationMs = Math.max(0, options?.durationMs ?? 650);
+
+        const startCenter = this.origin.add(this.worldDimensions.divideScalar(2));
+        const startZoom = this._zoom;
+        const targetCenter = point.clone();
+
+        if (durationMs === 0) {
+            this.applyViewState(targetCenter, targetZoom);
+            return;
+        }
+
+        let startTime: number | null = null;
+
+        const step = (timestamp: number): void => {
+            if (startTime === null) {
+                startTime = timestamp;
+            }
+
+            const elapsed = timestamp - startTime;
+            const progress = Math.min(1, elapsed / durationMs);
+            const eased = this.easeInOutCubic(progress);
+
+            const nextCenter = new Vector(
+                startCenter.x + (targetCenter.x - startCenter.x) * eased,
+                startCenter.y + (targetCenter.y - startCenter.y) * eased,
+            );
+            const nextZoom = startZoom + (targetZoom - startZoom) * eased;
+
+            this.applyViewState(nextCenter, nextZoom);
+
+            if (progress < 1) {
+                this.viewAnimationFrame = requestAnimationFrame(step);
+            } else {
+                this.viewAnimationFrame = null;
+            }
+        };
+
+        this.viewAnimationFrame = requestAnimationFrame(step);
     }
 
     onScreen(v: Vector): boolean {
@@ -163,6 +217,29 @@ export default class DomainController {
         this.zoomCallback = callback;
     }
 
+    private stopViewAnimation(): void {
+        if (this.viewAnimationFrame !== null) {
+            cancelAnimationFrame(this.viewAnimationFrame);
+            this.viewAnimationFrame = null;
+        }
+    }
+
+    private applyViewState(center: Vector, zoom: number): void {
+        this._zoom = zoom;
+        const halfWorld = this.screenDimensions.divideScalar(2 * this._zoom);
+        this._origin = center.clone().sub(halfWorld);
+        this.moved = true;
+        this.zoomCallback();
+    }
+
+    private easeInOutCubic(t: number): number {
+        if (t < 0.5) {
+            return 4 * t * t * t;
+        }
+
+        return 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
     /**
      * Edits vector
      */
@@ -181,7 +258,9 @@ export default class DomainController {
      * Edits vector
      */
     screenToWorld(v: Vector): Vector {
-        return this.zoomToWorld(v).add(this._origin);
+        const inset = Math.max(0, Math.min(window.innerWidth, this.viewportInsetLeft));
+        const localScreen = v.clone().sub(new Vector(inset, 0));
+        return this.zoomToWorld(localScreen).add(this._origin);
     }
 
     /**

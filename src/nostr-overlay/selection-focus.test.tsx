@@ -17,6 +17,9 @@ function createMapBridgeStub(buildingsCount: number): { bridge: MapBridge; trigg
             }))
         ),
         applyOccupancy: vi.fn(),
+        setViewportInsetLeft: vi.fn(),
+        setModalBuildingHighlight: vi.fn(),
+        mountSettingsPanel: vi.fn(),
         focusBuilding: vi.fn(),
         onMapGenerated: vi.fn().mockImplementation((listener: () => void) => {
             listeners.push(listener);
@@ -27,6 +30,7 @@ function createMapBridgeStub(buildingsCount: number): { bridge: MapBridge; trigg
                 }
             };
         }),
+        onOccupiedBuildingClick: vi.fn().mockReturnValue(() => {}),
     };
 
     return {
@@ -132,6 +136,15 @@ describe('Nostr overlay selection map interaction', () => {
             form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
         });
         await flush();
+
+        const followingTab = Array.from(rendered.container.querySelectorAll('button')).find(button =>
+            (button.textContent || '').includes('Sigues (2)')
+        );
+        expect(followingTab).toBeDefined();
+
+        await act(async () => {
+            followingTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
 
         await waitFor(() => (rendered.container.textContent || '').includes('Alice'));
 

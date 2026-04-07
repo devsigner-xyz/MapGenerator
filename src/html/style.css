@@ -4,20 +4,24 @@ html, body {
     overflow: hidden;
 }
 
+:root {
+    --nostr-map-inset-left: 0px;
+}
+
 /* Must match util.ts and index.html */
 #map-canvas {
     position:fixed;
-    left:0;
+    left:var(--nostr-map-inset-left);
     top:0;
-    width:100%;
+    width:calc(100% - var(--nostr-map-inset-left));
     height:100%;
 }
 
 #map-svg {
     position:fixed;
-    left:0;
+    left:var(--nostr-map-inset-left);
     top:0;
-    width:100%;
+    width:calc(100% - var(--nostr-map-inset-left));
     height:100%;
 }
 

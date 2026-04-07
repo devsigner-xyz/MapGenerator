@@ -36,6 +36,14 @@ describe('resolveBuildingRenderColours', () => {
             stroke: 'rgb(233,166,52)',
         });
     });
+
+    test('returns vivid hover colors for hovered occupied buildings', () => {
+        const colours = resolveBuildingRenderColours('hovered' as any, baseScheme);
+        expect(colours).toEqual({
+            fill: 'rgb(255,151,66)',
+            stroke: 'rgb(229,94,24)',
+        });
+    });
 });
 
 describe('DefaultStyle occupied/selected rendering with building models', () => {

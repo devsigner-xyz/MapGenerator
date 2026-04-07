@@ -23,6 +23,7 @@ export default class DragController {
     private currentlyDragging: Draggable = null;  // Tensor field
     private _isDragging = false;
     private disabled: boolean = false;
+    private panModeEnabled: boolean = false;
     private domainController = DomainController.getInstance();
 
     constructor(private gui: dat.GUI) {
@@ -32,21 +33,48 @@ export default class DragController {
             onend: this.dragEnd.bind(this),
             cursorChecker: this.getCursor.bind(this),
         });
+
+        this.updateCanvasCursor();
     }
 
     setDragDisabled(disable: boolean): void {
+        if (this.disabled === disable) {
+            return;
+        }
+
         this.disabled = disable;
+        this.updateCanvasCursor();
+    }
+
+    setPanModeEnabled(enabled: boolean): void {
+        if (this.panModeEnabled === enabled) {
+            return;
+        }
+
+        this.panModeEnabled = enabled;
+        this.updateCanvasCursor();
     }
 
     /**
      * Change cursor style
      */
     getCursor(action: any, interactable: any, element: any, interacting: boolean): string {
+        if (this.disabled && !this.panModeEnabled) {
+            return 'pointer';
+        }
+
         if (interacting) return 'grabbing';
         return 'grab';
     }
 
     dragStart(event: any): void {
+        if (this.disabled && !this.panModeEnabled) {
+            this._isDragging = false;
+            this.currentlyDragging = null;
+            this.updateCanvasCursor();
+            return;
+        }
+
         this._isDragging = true;
         // Transform screen space to world space
         const origin = this.domainController.screenToWorld(new Vector(event.x0, event.y0));
@@ -69,6 +97,8 @@ export default class DragController {
             this.currentlyDragging.startListener();
         }
 
+        this.updateCanvasCursor();
+
 
     }
 
@@ -79,17 +109,21 @@ export default class DragController {
         if (!this.disabled && this.currentlyDragging !== null) {
             // Drag field
             this.currentlyDragging.moveListener(delta);
-        } else {
+        } else if (!this.disabled || this.panModeEnabled) {
             // Move map
             this.domainController.pan(delta);
         }
     }
 
     dragEnd(): void {
+        const wasDragging = this._isDragging;
         this._isDragging = false;
-        this.domainController.pan(Vector.zeroVector());  // Triggers canvas update
+        if (wasDragging) {
+            this.domainController.pan(Vector.zeroVector());  // Triggers canvas update
+        }
         this.currentlyDragging = null;
         Util.updateGui(this.gui);
+        this.updateCanvasCursor();
     }
 
     get isDragging(): boolean {
@@ -119,5 +153,19 @@ export default class DragController {
                 this.draggables.splice(index, 1);
             }
         }).bind(this);
+    }
+
+    private updateCanvasCursor(): void {
+        const canvas = document.getElementById(Util.CANVAS_ID);
+        if (!canvas) {
+            return;
+        }
+
+        if (this.disabled && !this.panModeEnabled) {
+            canvas.style.cursor = 'pointer';
+            return;
+        }
+
+        canvas.style.cursor = this._isDragging ? 'grabbing' : 'grab';
     }
 }

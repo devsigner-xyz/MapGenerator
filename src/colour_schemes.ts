@@ -78,7 +78,7 @@ const colourSchemes = {
         "mainRoadColour": "rgb(255,242,175)",
         "mainRoadOutline": "rgb(246,207,101)",
         "zoomBuildings": true,
-        "buildingModels": true,
+        "buildingModels": false,
         "outlineSize": 2,
     },
     "GoogleNoZoom": {

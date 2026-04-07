@@ -53,8 +53,10 @@ export default abstract class CanvasWrapper {
     abstract drawFrame(left: number, right: number, up: number, down: number): void;
 
     setDimensions(): void {
-        this._width = window.innerWidth * this._scale;
-        this._height = window.innerHeight * this._scale;
+        const elementWidth = this.canvas.clientWidth || this.canvas.getBoundingClientRect().width || window.innerWidth;
+        const elementHeight = this.canvas.clientHeight || this.canvas.getBoundingClientRect().height || window.innerHeight;
+        this._width = elementWidth * this._scale;
+        this._height = elementHeight * this._scale;
     }
 
     get width(): number {
@@ -95,7 +97,7 @@ export class DefaultCanvasWrapper extends CanvasWrapper {
         super(canvas, scale, resizeToWindow);
         this.ctx = canvas.getContext("2d");
         this.ctx.fillStyle = 'black';
-        this.ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+        this.ctx.fillRect(0, 0, this._width / this._scale, this._height / this._scale);
     }
 
     createSVG(svgElement: any): void {
@@ -108,13 +110,15 @@ export class DefaultCanvasWrapper extends CanvasWrapper {
     }
 
     clearCanvas(): void {
+        const logicalWidth = this._width / this._scale;
+        const logicalHeight = this._height / this._scale;
         if (this.svgNode) {
             // Expanded to cover whole drawn area
-            const startW = window.innerWidth * (Util.DRAW_INFLATE_AMOUNT - 1) / 2;
-            const startH = window.innerHeight * (Util.DRAW_INFLATE_AMOUNT - 1) / 2;
-            this.drawRectangle(-startW, -startH, window.innerWidth * Util.DRAW_INFLATE_AMOUNT, window.innerHeight * Util.DRAW_INFLATE_AMOUNT);
+            const startW = logicalWidth * (Util.DRAW_INFLATE_AMOUNT - 1) / 2;
+            const startH = logicalHeight * (Util.DRAW_INFLATE_AMOUNT - 1) / 2;
+            this.drawRectangle(-startW, -startH, logicalWidth * Util.DRAW_INFLATE_AMOUNT, logicalHeight * Util.DRAW_INFLATE_AMOUNT);
         } else {
-            this.drawRectangle(0, 0, window.innerWidth, window.innerHeight);
+            this.drawRectangle(0, 0, logicalWidth, logicalHeight);
         }
     }
 
@@ -267,13 +271,15 @@ export class RoughCanvasWrapper extends CanvasWrapper {
     }
 
     clearCanvas(): void {
+        const logicalWidth = this._width / this._scale;
+        const logicalHeight = this._height / this._scale;
         if (this.svgNode) {
             // Expanded to cover whole drawn area
-            const startW = window.innerWidth * (Util.DRAW_INFLATE_AMOUNT - 1) / 2;
-            const startH = window.innerHeight * (Util.DRAW_INFLATE_AMOUNT - 1) / 2;
-            this.drawRectangle(-startW, -startH, window.innerWidth * Util.DRAW_INFLATE_AMOUNT, window.innerHeight * Util.DRAW_INFLATE_AMOUNT);
+            const startW = logicalWidth * (Util.DRAW_INFLATE_AMOUNT - 1) / 2;
+            const startH = logicalHeight * (Util.DRAW_INFLATE_AMOUNT - 1) / 2;
+            this.drawRectangle(-startW, -startH, logicalWidth * Util.DRAW_INFLATE_AMOUNT, logicalHeight * Util.DRAW_INFLATE_AMOUNT);
         } else {
-            this.drawRectangle(0, 0, window.innerWidth, window.innerHeight);
+            this.drawRectangle(0, 0, logicalWidth, logicalHeight);
         }
     }
 

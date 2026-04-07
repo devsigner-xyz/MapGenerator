@@ -19,7 +19,7 @@ export function StatusPanel({ status, error, followsCount, assignedCount }: Stat
     if (status === 'success') {
         return (
             <p className="nostr-status nostr-status-success">
-                {`Seguidos: ${followsCount}. Edificios ocupados: ${assignedCount}.`}
+                {`${followsCount} / ${assignedCount}`}
             </p>
         );
     }

@@ -16,6 +16,12 @@ import { SVG } from '@svgdotjs/svg.js';
 import ModelGenerator from './ts/model_generator';
 import { saveAs } from 'file-saver';
 import { mountNostrOverlay } from './nostr-overlay/bootstrap';
+import { createMiddlePanState, stopMiddlePanState, type MiddlePanState, updateMiddlePanState } from './ts/ui/middle_pan_drag';
+
+interface OccupiedBuildingClickPayload {
+    buildingIndex: number;
+    pubkey: string;
+}
 
 class Main {
     private readonly STARTING_WIDTH = 1440;  // Initially zooms in if width > STARTING_WIDTH
@@ -45,6 +51,12 @@ class Main {
     private zoomBuildings: boolean = false;  // Show buildings only when zoomed in?
     private buildingModels: boolean = false;  // Draw pseudo-3D buildings?
     private showFrame: boolean = false;
+    private spacePanHeld = false;
+    private middlePanHeld = false;
+    private middlePanState: MiddlePanState = stopMiddlePanState();
+    private leftMouseDown = false;
+    private leftDragDetected = false;
+    private leftMouseDownPosition: Vector | null = null;
 
     // Force redraw of roads when switching from tensor vis to map vis
     private previousFrameDrawTensor = true;
@@ -56,6 +68,8 @@ class Main {
     private firstGenerate = true;  // Don't randomise tensor field on first generate
     private modelGenerator: ModelGenerator;
     private mapGeneratedListeners: Array<() => void> = [];
+    private occupiedBuildingClickListeners: Array<(payload: OccupiedBuildingClickPayload) => void> = [];
+    private viewportInsetLeft = 0;
 
     constructor() {
         // GUI Setup
@@ -72,6 +86,7 @@ class Main {
         // Canvas setup
         this.canvas = document.getElementById(Util.CANVAS_ID) as HTMLCanvasElement;
         this.tensorCanvas = new DefaultCanvasWrapper(this.canvas);
+        this.bindPanModeControls();
         
         // Make sure we're not too zoomed out for large resolutions
         const screenWidth = this.domainController.screenDimensions.x;
@@ -114,6 +129,7 @@ class Main {
 
         this.tensorField = new TensorFieldGUI(this.tensorFolder, this.dragController, true, noiseParamsPlaceholder);
         this.mainGui = new MainGUI(this.roadsFolder, this.tensorField, () => this.tensorFolder.close());
+        this.bindOccupiedBuildingClick();
 
         this.optionsFolder.add(this.tensorField, 'drawCentre');
         this.optionsFolder.add(this, 'highDPI').onChange((high: boolean) => this.changeCanvasScale(high));
@@ -125,6 +141,7 @@ class Main {
         this.downloadsFolder.add({"Heightmap": () => this.downloadHeightmap()}, 'Heightmap');
 
         this.changeColourScheme(this.colourScheme);
+        this.mountSettingsPanel(null);
         this.tensorField.setRecommended();
         requestAnimationFrame(() => this.update());
     }
@@ -173,6 +190,44 @@ class Main {
         this.mainGui.setSelectedBuildingIndex(index);
     }
 
+    setViewportInsetLeft(inset: number): void {
+        const insetPx = Math.max(0, Math.min(window.innerWidth, inset));
+        if (this.viewportInsetLeft === insetPx) {
+            return;
+        }
+
+        this.viewportInsetLeft = insetPx;
+        document.documentElement.style.setProperty('--nostr-map-inset-left', `${insetPx}px`);
+        this.domainController.setViewportInsetLeft(insetPx);
+        this.changeCanvasScale(this.highDPI);
+
+        if (!this.showTensorField() && !this.mainGui.roadsEmpty()) {
+            void this.generateMap();
+        }
+    }
+
+    setModalHighlightedBuildingIndex(index?: number): void {
+        this.mainGui.setModalHighlightedBuildingIndex(index);
+    }
+
+    mountSettingsPanel(container: HTMLElement | null): void {
+        const panel = this.gui.domElement as HTMLElement;
+        panel.classList.add('nostr-map-settings-panel');
+
+        if (container) {
+            if (panel.parentElement !== container) {
+                container.appendChild(panel);
+            }
+            panel.style.display = 'block';
+            return;
+        }
+
+        panel.style.display = 'none';
+        if (panel.parentElement !== document.body) {
+            document.body.appendChild(panel);
+        }
+    }
+
     focusBuilding(index: number): boolean {
         return this.mainGui.focusBuilding(index);
     }
@@ -183,6 +238,16 @@ class Main {
             const index = this.mapGeneratedListeners.indexOf(listener);
             if (index >= 0) {
                 this.mapGeneratedListeners.splice(index, 1);
+            }
+        };
+    }
+
+    subscribeOccupiedBuildingClick(listener: (payload: OccupiedBuildingClickPayload) => void): () => void {
+        this.occupiedBuildingClickListeners.push(listener);
+        return (): void => {
+            const index = this.occupiedBuildingClickListeners.indexOf(listener);
+            if (index >= 0) {
+                this.occupiedBuildingClickListeners.splice(index, 1);
             }
         };
     }
@@ -330,6 +395,171 @@ class Main {
         return !this.tensorFolder.closed || this.mainGui.roadsEmpty();
     }
 
+    private bindPanModeControls(): void {
+        window.addEventListener('keydown', (event: KeyboardEvent): void => {
+            if (event.code !== 'Space' || this.isEditableTarget(event.target)) {
+                return;
+            }
+
+            this.spacePanHeld = true;
+            this.updatePanMode();
+            event.preventDefault();
+        });
+
+        window.addEventListener('keyup', (event: KeyboardEvent): void => {
+            if (event.code !== 'Space') {
+                return;
+            }
+
+            this.spacePanHeld = false;
+            this.updatePanMode();
+        });
+
+        this.canvas.addEventListener('mousedown', (event: MouseEvent): void => {
+            if (event.button !== 1) {
+                return;
+            }
+
+            this.middlePanHeld = true;
+            this.middlePanState = createMiddlePanState(new Vector(event.clientX, event.clientY));
+            this.updatePanMode();
+            event.preventDefault();
+        });
+
+        window.addEventListener('mousemove', (event: MouseEvent): void => {
+            if (!this.middlePanHeld || this.showTensorField()) {
+                return;
+            }
+
+            const result = updateMiddlePanState(this.middlePanState, new Vector(event.clientX, event.clientY));
+            this.middlePanState = result.state;
+
+            if (!result.deltaScreen) {
+                return;
+            }
+
+            this.domainController.zoomToWorld(result.deltaScreen);
+            this.domainController.pan(result.deltaScreen);
+            event.preventDefault();
+        });
+
+        window.addEventListener('mouseup', (event: MouseEvent): void => {
+            if (event.button !== 1) {
+                return;
+            }
+
+            this.middlePanHeld = false;
+            this.middlePanState = stopMiddlePanState();
+            this.updatePanMode();
+        });
+
+        this.canvas.addEventListener('auxclick', (event: MouseEvent): void => {
+            if (event.button === 1) {
+                event.preventDefault();
+            }
+        });
+
+        window.addEventListener('blur', (): void => {
+            this.spacePanHeld = false;
+            this.middlePanHeld = false;
+            this.middlePanState = stopMiddlePanState();
+            this.updatePanMode();
+        });
+    }
+
+    private bindOccupiedBuildingClick(): void {
+        this.canvas.addEventListener('mousedown', (event: MouseEvent): void => {
+            if (event.button !== 0) {
+                return;
+            }
+
+            this.leftMouseDown = true;
+            this.leftDragDetected = false;
+            this.leftMouseDownPosition = new Vector(event.clientX, event.clientY);
+        });
+
+        this.canvas.addEventListener('mousemove', (event: MouseEvent): void => {
+            if (!this.leftMouseDown || !this.leftMouseDownPosition) {
+                if (this.showTensorField() || this.isPanModeActive()) {
+                    this.mainGui.setHoveredBuildingIndex(undefined);
+                    return;
+                }
+
+                const hoverWorldPoint = this.domainController.screenToWorld(new Vector(event.clientX, event.clientY));
+                const hoverHit = this.mainGui.getOccupiedBuildingAtWorldPoint(hoverWorldPoint);
+                this.mainGui.setHoveredBuildingIndex(hoverHit?.index);
+                return;
+            }
+
+            const dx = event.clientX - this.leftMouseDownPosition.x;
+            const dy = event.clientY - this.leftMouseDownPosition.y;
+            if ((dx * dx) + (dy * dy) > 9) {
+                this.leftDragDetected = true;
+            }
+
+            if (this.showTensorField() || this.isPanModeActive()) {
+                this.mainGui.setHoveredBuildingIndex(undefined);
+                return;
+            }
+
+            const hoverWorldPoint = this.domainController.screenToWorld(new Vector(event.clientX, event.clientY));
+            const hoverHit = this.mainGui.getOccupiedBuildingAtWorldPoint(hoverWorldPoint);
+            this.mainGui.setHoveredBuildingIndex(hoverHit?.index);
+        });
+
+        this.canvas.addEventListener('mouseleave', (): void => {
+            this.mainGui.setHoveredBuildingIndex(undefined);
+        });
+
+        window.addEventListener('mouseup', (event: MouseEvent): void => {
+            if (event.button !== 0) {
+                return;
+            }
+
+            this.leftMouseDown = false;
+            this.leftMouseDownPosition = null;
+        });
+
+        this.canvas.addEventListener('click', (event: MouseEvent): void => {
+            if (event.button !== 0 || this.showTensorField() || this.isPanModeActive() || this.leftDragDetected) {
+                this.leftDragDetected = false;
+                return;
+            }
+
+            const worldPoint = this.domainController.screenToWorld(new Vector(event.clientX, event.clientY));
+            const hit = this.mainGui.getOccupiedBuildingAtWorldPoint(worldPoint);
+            if (!hit) {
+                return;
+            }
+
+            this.notifyOccupiedBuildingClick({
+                buildingIndex: hit.index,
+                pubkey: hit.pubkey,
+            });
+        });
+    }
+
+    private updatePanMode(): void {
+        this.dragController.setPanModeEnabled(this.spacePanHeld || this.middlePanHeld);
+    }
+
+    private isPanModeActive(): boolean {
+        return this.spacePanHeld || this.middlePanHeld;
+    }
+
+    private isEditableTarget(target: EventTarget | null): boolean {
+        if (!(target instanceof HTMLElement)) {
+            return false;
+        }
+
+        if (target.isContentEditable) {
+            return true;
+        }
+
+        const tagName = target.tagName.toLowerCase();
+        return tagName === 'input' || tagName === 'textarea' || tagName === 'select';
+    }
+
     draw(): void {
         if (this.showTensorField()) {
             this.previousFrameDrawTensor = true;
@@ -368,6 +598,12 @@ class Main {
     private notifyMapGenerated(): void {
         for (const listener of this.mapGeneratedListeners) {
             listener();
+        }
+    }
+
+    private notifyOccupiedBuildingClick(payload: OccupiedBuildingClickPayload): void {
+        for (const listener of this.occupiedBuildingClickListeners) {
+            listener(payload);
         }
     }
 }
