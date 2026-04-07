@@ -1,4 +1,4 @@
-type OverlayStatus = 'idle' | 'loading' | 'success' | 'error';
+import type { OverlayStatus } from '../hooks/useNostrOverlay';
 
 interface StatusPanelProps {
     status: OverlayStatus;
@@ -8,8 +8,20 @@ interface StatusPanelProps {
 }
 
 export function StatusPanel({ status, error, followsCount, assignedCount }: StatusPanelProps) {
-    if (status === 'loading') {
+    if (status === 'loading_graph') {
         return <p className="nostr-status nostr-status-loading">Cargando red social desde Nostr...</p>;
+    }
+
+    if (status === 'loading_profiles') {
+        return <p className="nostr-status nostr-status-loading">Cargando perfiles de cuentas...</p>;
+    }
+
+    if (status === 'assigning_map') {
+        return <p className="nostr-status nostr-status-loading">Asignando cuentas a edificios...</p>;
+    }
+
+    if (status === 'loading_followers') {
+        return <p className="nostr-status nostr-status-loading">Buscando seguidores en relays...</p>;
     }
 
     if (status === 'error') {

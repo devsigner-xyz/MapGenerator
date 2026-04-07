@@ -1,6 +1,10 @@
-import { describe, expect, test } from 'vitest';
-import { parseFollowsFromKind3 } from './follows';
-import type { NostrEvent } from './types';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { fetchFollowsByNpub, parseFollowsFromKind3, __resetFollowsCacheForTests } from './follows';
+import type { NostrClient, NostrEvent } from './types';
+
+vi.mock('./npub', () => ({
+    decodeNpubToHex: () => 'f'.repeat(64),
+}));
 
 describe('parseFollowsFromKind3', () => {
     test('extracts unique pubkeys from kind 3 p-tags', () => {
@@ -32,5 +36,44 @@ describe('parseFollowsFromKind3', () => {
         };
 
         expect(parseFollowsFromKind3(event)).toEqual([]);
+    });
+});
+
+describe('fetchFollowsByNpub cache', () => {
+    beforeEach(() => {
+        __resetFollowsCacheForTests();
+    });
+
+    test('reuses cached follows result within ttl', async () => {
+        const clientCalls = {
+            connect: 0,
+            fetchLatestReplaceableEvent: 0,
+        };
+
+        const client: NostrClient = {
+            connect: async () => {
+                clientCalls.connect += 1;
+            },
+            fetchLatestReplaceableEvent: async () => {
+                clientCalls.fetchLatestReplaceableEvent += 1;
+                return {
+                    id: '1',
+                    pubkey: 'f'.repeat(64),
+                    kind: 3,
+                    created_at: 1,
+                    tags: [['p', 'a'.repeat(64)]],
+                    content: '',
+                };
+            },
+            fetchEvents: async () => [],
+        };
+
+        const npub = 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw';
+        const first = await fetchFollowsByNpub(npub, client);
+        const second = await fetchFollowsByNpub(npub, client);
+
+        expect(first).toEqual(second);
+        expect(clientCalls.connect).toBe(1);
+        expect(clientCalls.fetchLatestReplaceableEvent).toBe(1);
     });
 });

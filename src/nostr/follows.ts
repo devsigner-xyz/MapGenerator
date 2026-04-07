@@ -1,6 +1,16 @@
+import { createTtlCache } from './cache';
 import { decodeNpubToHex } from './npub';
 import { relayHintsFromKind3Content } from './relay-policy';
 import type { FollowGraphResult, NostrClient, NostrEvent } from './types';
+
+const followsCache = createTtlCache<FollowGraphResult>({
+    ttlMs: 60_000,
+    maxEntries: 200,
+});
+
+export function __resetFollowsCacheForTests(): void {
+    followsCache.clear();
+}
 
 function isHexPubkey(value: string): boolean {
     return /^[a-f0-9]{64}$/.test(value);
@@ -36,20 +46,24 @@ function relayHintsFromKind3Event(event: NostrEvent): string[] {
 
 export async function fetchFollowsByNpub(npub: string, client: NostrClient): Promise<FollowGraphResult> {
     const ownerPubkey = decodeNpubToHex(npub);
-    await client.connect();
+    const cacheKey = `follows:${ownerPubkey}`;
 
-    const kind3 = await client.fetchLatestReplaceableEvent(ownerPubkey, 3);
-    if (!kind3) {
+    return followsCache.getOrLoad(cacheKey, async () => {
+        await client.connect();
+
+        const kind3 = await client.fetchLatestReplaceableEvent(ownerPubkey, 3);
+        if (!kind3) {
+            return {
+                ownerPubkey,
+                follows: [],
+                relayHints: [],
+            };
+        }
+
         return {
             ownerPubkey,
-            follows: [],
-            relayHints: [],
+            follows: parseFollowsFromKind3(kind3),
+            relayHints: relayHintsFromKind3Event(kind3),
         };
-    }
-
-    return {
-        ownerPubkey,
-        follows: parseFollowsFromKind3(kind3),
-        relayHints: relayHintsFromKind3Event(kind3),
-    };
+    });
 }

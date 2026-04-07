@@ -1,4 +1,14 @@
+import { createTtlCache } from './cache';
 import type { NostrClient, NostrEvent, NostrProfile } from './types';
+
+const profileCache = createTtlCache<NostrProfile | null>({
+    ttlMs: 5 * 60_000,
+    maxEntries: 5000,
+});
+
+export function __resetProfileCacheForTests(): void {
+    profileCache.clear();
+}
 
 interface MetadataContent {
     name?: string;
@@ -28,11 +38,31 @@ export async function fetchProfiles(pubkeys: string[], client: NostrClient): Pro
         return {};
     }
 
+    const uniquePubkeys = [...new Set(pubkeys)];
+    const profiles: Record<string, NostrProfile> = {};
+    const missingPubkeys: string[] = [];
+
+    for (const pubkey of uniquePubkeys) {
+        const cached = profileCache.get(`profile:${pubkey}`);
+        if (cached === undefined) {
+            missingPubkeys.push(pubkey);
+            continue;
+        }
+
+        if (cached !== null) {
+            profiles[pubkey] = cached;
+        }
+    }
+
+    if (missingPubkeys.length === 0) {
+        return profiles;
+    }
+
     await client.connect();
     const events = await client.fetchEvents({
-        authors: pubkeys,
+        authors: missingPubkeys,
         kinds: [0],
-        limit: pubkeys.length * 2,
+        limit: missingPubkeys.length * 2,
     });
 
     const latestByPubkey = new Map<string, NostrEvent>();
@@ -43,9 +73,16 @@ export async function fetchProfiles(pubkeys: string[], client: NostrClient): Pro
         }
     }
 
-    const profiles: Record<string, NostrProfile> = {};
-    for (const [pubkey, event] of latestByPubkey) {
-        profiles[pubkey] = parseProfileMetadata(event);
+    for (const pubkey of missingPubkeys) {
+        const latest = latestByPubkey.get(pubkey);
+        if (!latest) {
+            profileCache.set(`profile:${pubkey}`, null);
+            continue;
+        }
+
+        const parsed = parseProfileMetadata(latest);
+        profileCache.set(`profile:${pubkey}`, parsed);
+        profiles[pubkey] = parsed;
     }
 
     return profiles;

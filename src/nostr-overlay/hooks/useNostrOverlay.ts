@@ -7,8 +7,16 @@ import { NdkClient } from '../../nostr/ndk-client';
 import { fetchProfiles } from '../../nostr/profiles';
 import type { NostrClient, NostrProfile } from '../../nostr/types';
 import type { MapBridge } from '../map-bridge';
+import { createFollowerBatcher } from './follower-batcher';
 
-type OverlayStatus = 'idle' | 'loading' | 'success' | 'error';
+export type OverlayStatus =
+    | 'idle'
+    | 'loading_graph'
+    | 'loading_profiles'
+    | 'assigning_map'
+    | 'loading_followers'
+    | 'success'
+    | 'error';
 
 interface OverlayData {
     ownerPubkey?: string;
@@ -64,6 +72,10 @@ function dedupe(values: string[]): string[] {
     return [...new Set(values)];
 }
 
+function hasLoadedOverlayData(status: OverlayStatus): boolean {
+    return status === 'loading_followers' || status === 'success';
+}
+
 export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions) {
     const createClient = services?.createClient || ((relays: string[] = []) => new NdkClient(relays));
     const fetchFollowsByNpubFn = services?.fetchFollowsByNpubFn || fetchFollowsByNpub;
@@ -88,7 +100,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
 
         return mapBridge.onMapGenerated(() => {
             setState((current) => {
-                if (current.status !== 'success' || !current.data.ownerPubkey) {
+                if (!hasLoadedOverlayData(current.status) || !current.data.ownerPubkey) {
                     return current;
                 }
 
@@ -131,7 +143,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             return;
         }
 
-        if (state.status !== 'success' || !state.data.activeProfilePubkey) {
+        if (!hasLoadedOverlayData(state.status) || !state.data.activeProfilePubkey) {
             mapBridge.setModalBuildingHighlight(undefined);
             return;
         }
@@ -147,7 +159,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
 
         return mapBridge.onOccupiedBuildingClick(({ buildingIndex, pubkey }) => {
             const current = latestStateRef.current;
-            if (current.status !== 'success') {
+            if (!hasLoadedOverlayData(current.status)) {
                 return;
             }
 
@@ -164,7 +176,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             mapBridge.focusBuilding(buildingIndex);
 
             setState((prev) => {
-                if (prev.status !== 'success') {
+                if (!hasLoadedOverlayData(prev.status)) {
                     return prev;
                 }
 
@@ -194,17 +206,38 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         requestIdRef.current += 1;
         const requestId = requestIdRef.current;
 
-        setState((current) => ({ ...current, status: 'loading', error: undefined }));
+        setState((current) => ({ ...current, status: 'loading_graph', error: undefined }));
 
         try {
             const client = createClient();
             const graph = await fetchFollowsByNpubFn(npub, client);
             const follows = dedupe(graph.follows);
+
+            if (requestIdRef.current !== requestId) {
+                return;
+            }
+
+            setState((current) => ({
+                ...current,
+                status: 'loading_profiles',
+                error: undefined,
+            }));
+
             const [ownerProfiles, profiles] = await Promise.all([
                 fetchProfilesFn([graph.ownerPubkey], client),
                 fetchProfilesFn(follows, client),
             ]);
             const ownerProfile = ownerProfiles[graph.ownerPubkey];
+
+            if (requestIdRef.current !== requestId) {
+                return;
+            }
+
+            setState((current) => ({
+                ...current,
+                status: 'assigning_map',
+                error: undefined,
+            }));
 
             await mapBridge.ensureGenerated();
             const buildings = mapBridge.listBuildings();
@@ -229,7 +262,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             }
 
             setState({
-                status: 'success',
+                status: 'loading_followers',
                 data: {
                     ownerPubkey: graph.ownerPubkey,
                     ownerProfile,
@@ -248,6 +281,44 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             void (async () => {
                 const followerSet = new Set<string>();
                 const nextFollowerProfiles: Record<string, NostrProfile> = {};
+                const followerBatcher = createFollowerBatcher(async (newFollowers: string[]) => {
+                    if (requestIdRef.current !== requestId || newFollowers.length === 0) {
+                        return;
+                    }
+
+                    for (const pubkey of newFollowers) {
+                        followerSet.add(pubkey);
+                    }
+
+                    const fetchedProfiles = await fetchProfilesFn(newFollowers, client);
+                    Object.assign(nextFollowerProfiles, fetchedProfiles);
+
+                    if (requestIdRef.current !== requestId) {
+                        return;
+                    }
+
+                    setState((current) => {
+                        if (
+                            !hasLoadedOverlayData(current.status) ||
+                            current.data.ownerPubkey !== graph.ownerPubkey ||
+                            requestIdRef.current !== requestId
+                        ) {
+                            return current;
+                        }
+
+                        return {
+                            ...current,
+                            data: {
+                                ...current.data,
+                                followers: [...followerSet],
+                                followerProfiles: {
+                                    ...current.data.followerProfiles,
+                                    ...fetchedProfiles,
+                                },
+                            },
+                        };
+                    });
+                });
 
                 try {
                     const followersClient = createClient(graph.relayHints);
@@ -259,43 +330,15 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                             if (requestIdRef.current !== requestId || batch.newFollowers.length === 0) {
                                 return;
                             }
-
-                            for (const pubkey of batch.newFollowers) {
-                                followerSet.add(pubkey);
-                            }
-
-                            const fetchedProfiles = await fetchProfilesFn(batch.newFollowers, client);
-                            Object.assign(nextFollowerProfiles, fetchedProfiles);
-
-                            if (requestIdRef.current !== requestId) {
-                                return;
-                            }
-
-                            setState((current) => {
-                                if (
-                                    current.status !== 'success' ||
-                                    current.data.ownerPubkey !== graph.ownerPubkey ||
-                                    requestIdRef.current !== requestId
-                                ) {
-                                    return current;
-                                }
-
-                                return {
-                                    ...current,
-                                    data: {
-                                        ...current.data,
-                                        followers: [...followerSet],
-                                        followerProfiles: {
-                                            ...current.data.followerProfiles,
-                                            ...fetchedProfiles,
-                                        },
-                                    },
-                                };
-                            });
+                            followerBatcher.add(batch.newFollowers);
                         },
                     });
+
+                    await followerBatcher.flushNow();
                 } catch {
                     // Keep follows + profile visible even when follower discovery fails.
+                } finally {
+                    followerBatcher.dispose();
                 }
 
                 if (requestIdRef.current !== requestId) {
@@ -304,7 +347,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
 
                 setState((current) => {
                     if (
-                        current.status !== 'success' ||
+                        !hasLoadedOverlayData(current.status) ||
                         current.data.ownerPubkey !== graph.ownerPubkey ||
                         requestIdRef.current !== requestId
                     ) {
@@ -313,6 +356,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
 
                     return {
                         ...current,
+                        status: 'success',
                         data: {
                             ...current.data,
                             followers: [...followerSet],
@@ -340,7 +384,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
     };
 
     const selectFollowing = (pubkey: string): void => {
-        if (!mapBridge || state.status !== 'success') {
+        if (!mapBridge || !hasLoadedOverlayData(state.status)) {
             return;
         }
 

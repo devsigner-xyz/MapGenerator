@@ -113,7 +113,12 @@ export default class TensorField {
      * Noise Angle is in degrees
      */
     getRotationalNoise(point: Vector, noiseSize: number, noiseAngle: number): number {
-        return this.noise2D(point.x / noiseSize, point.y / noiseSize) * noiseAngle * Math.PI / 180;
+        if (noiseAngle === 0) {
+            return 0;
+        }
+
+        const noise = this.noise2D(point.x / noiseSize, point.y / noiseSize) * noiseAngle * Math.PI / 180;
+        return Object.is(noise, -0) ? 0 : noise;
     }
 
     onLand(point: Vector): boolean {

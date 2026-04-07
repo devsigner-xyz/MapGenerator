@@ -1,5 +1,5 @@
-import { describe, expect, test } from 'vitest';
-import { fetchFollowersBestEffort } from './followers';
+import { beforeEach, describe, expect, test } from 'vitest';
+import { __resetFollowersCacheForTests, fetchFollowersBestEffort } from './followers';
 import type { NostrClient, NostrEvent, NostrFilter } from './types';
 
 function kind3Event(input: { pubkey: string; createdAt: number; follows: string[] }): NostrEvent {
@@ -14,6 +14,10 @@ function kind3Event(input: { pubkey: string; createdAt: number; follows: string[
 }
 
 describe('fetchFollowersBestEffort', () => {
+    beforeEach(() => {
+        __resetFollowersCacheForTests();
+    });
+
     test('loads followers in batches with deduplication', async () => {
         const targetPubkey = 'a'.repeat(64);
         const firstFollower = 'b'.repeat(64);
@@ -110,5 +114,43 @@ describe('fetchFollowersBestEffort', () => {
             kinds: [3],
             authors: [candidateFollower, candidateNonFollower],
         });
+    });
+
+    test('reuses cached follower discovery for identical input', async () => {
+        const targetPubkey = '9'.repeat(64);
+        const candidateFollower = '7'.repeat(64);
+        const requestedFilters: NostrFilter[] = [];
+
+        const client: NostrClient = {
+            connect: async () => undefined,
+            fetchLatestReplaceableEvent: async () => null,
+            fetchEvents: async (filter) => {
+                requestedFilters.push(filter);
+                return [
+                    kind3Event({ pubkey: candidateFollower, createdAt: 120, follows: [targetPubkey] }),
+                ];
+            },
+        };
+
+        const first = await fetchFollowersBestEffort({
+            targetPubkey,
+            client,
+            maxBatches: 1,
+            batchLimit: 2,
+            candidateAuthors: [candidateFollower],
+            candidateAuthorBatchSize: 1,
+        });
+
+        const second = await fetchFollowersBestEffort({
+            targetPubkey,
+            client,
+            maxBatches: 1,
+            batchLimit: 2,
+            candidateAuthors: [candidateFollower],
+            candidateAuthorBatchSize: 1,
+        });
+
+        expect(first).toEqual(second);
+        expect(requestedFilters.length).toBe(2);
     });
 });

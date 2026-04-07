@@ -105,6 +105,16 @@ pnpm preview
 
 See the [documentation](https://maps.probabletrain.com).
 
+### Nostr cache policy (time-to-value)
+
+The Nostr overlay uses in-memory TTL cache to improve perceived loading speed when submitting an `npub`.
+
+- follows graph: 60s TTL
+- followers discovery: 2m TTL
+- profile metadata: 5m TTL
+
+This cache is process-local and non-persistent by design for this phase.
+
 
 
 

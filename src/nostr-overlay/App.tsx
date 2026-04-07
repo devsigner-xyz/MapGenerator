@@ -16,6 +16,7 @@ export function App({ mapBridge, services }: AppProps) {
     const overlay = useNostrOverlay({ mapBridge, services });
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [panelCollapsed, setPanelCollapsed] = useState(false);
+    const formDisabled = overlay.status !== 'idle' && overlay.status !== 'success' && overlay.status !== 'error';
 
     useEffect(() => {
         if (!mapBridge) {
@@ -80,7 +81,7 @@ export function App({ mapBridge, services }: AppProps) {
                         </button>
                     </div>
 
-                    <NpubForm disabled={overlay.status === 'loading'} onSubmit={overlay.submitNpub} />
+                    <NpubForm disabled={formDisabled} onSubmit={overlay.submitNpub} />
 
                     <StatusPanel
                         status={overlay.status}

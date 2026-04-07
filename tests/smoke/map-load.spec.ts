@@ -1,4 +1,11 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+async function openSettings(page: Page) {
+  const settingsButton = page.locator('button[aria-label="Abrir ajustes"]').first();
+  await expect(settingsButton).toBeVisible();
+  await settingsButton.click();
+  await expect(page.getByRole('dialog', { name: 'Ajustes' })).toBeVisible();
+}
 
 test('loads map canvases and gui panel', async ({ page }) => {
   const pageErrors: string[] = [];
@@ -10,7 +17,7 @@ test('loads map canvases and gui panel', async ({ page }) => {
   await expect(page.locator('#map-svg')).toBeVisible();
   await expect(page.locator('#nostr-overlay-root')).toBeVisible();
   await expect(page.locator('#nostr-overlay-root input[name="npub"]')).toBeVisible();
-  await expect(page.locator('.dg.main').first()).toBeVisible();
+  await expect(page.locator('button[aria-label="Abrir ajustes"]').first()).toBeVisible();
 
   expect(pageErrors).toEqual([]);
 });
@@ -28,7 +35,9 @@ test('runs generate action without fatal runtime errors', async ({ page }) => {
 
   await page.goto('/');
 
-  const generateButton = page.locator('.dg .cr.function').filter({ hasText: 'generate' }).first();
+  await openSettings(page);
+
+  const generateButton = page.locator('.nostr-settings-host .dg .cr.function').filter({ hasText: /generate/i }).first();
   await expect(generateButton).toBeVisible();
   await generateButton.click();
   await page.waitForTimeout(1500);
@@ -41,16 +50,18 @@ test('runs generate action without fatal runtime errors', async ({ page }) => {
 test('exports PNG, SVG and STL downloads', async ({ page }) => {
   await page.goto('/');
 
-  const generateButton = page.locator('.dg .cr.function').filter({ hasText: 'generate' }).first();
+  await openSettings(page);
+
+  const generateButton = page.locator('.nostr-settings-host .dg .cr.function').filter({ hasText: /generate/i }).first();
   await generateButton.click();
   await page.waitForTimeout(5000);
 
-  const downloadFolder = page.locator('.dg .title').filter({ hasText: 'Download' }).first();
+  const downloadFolder = page.locator('.nostr-settings-host .dg .title').filter({ hasText: 'Download' }).first();
   await downloadFolder.click();
 
-  const pngButton = page.locator('.dg .cr.function').filter({ hasText: 'PNG' }).first();
-  const svgButton = page.locator('.dg .cr.function').filter({ hasText: 'SVG' }).first();
-  const stlButton = page.locator('.dg .cr.function').filter({ hasText: 'STL' }).first();
+  const pngButton = page.locator('.nostr-settings-host .dg .cr.function').filter({ hasText: 'PNG' }).first();
+  const svgButton = page.locator('.nostr-settings-host .dg .cr.function').filter({ hasText: 'SVG' }).first();
+  const stlButton = page.locator('.nostr-settings-host .dg .cr.function').filter({ hasText: 'STL' }).first();
 
   const [pngDownload] = await Promise.all([
     page.waitForEvent('download'),
@@ -69,4 +80,19 @@ test('exports PNG, SVG and STL downloads', async ({ page }) => {
     stlButton.click(),
   ]);
   expect(stlDownload.suggestedFilename().toLowerCase()).toContain('model.zip');
+});
+
+test('npub submit shows progressive status without runtime errors', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(String(error)));
+
+  await page.goto('/');
+
+  await page.locator('#nostr-overlay-root input[name="npub"]').fill('npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
+  await page.locator('#nostr-overlay-root button[type="submit"]').click();
+
+  const status = page.locator('.nostr-status');
+  await expect(status).toContainText(/Cargando|Asignando|Buscando|Error|\d+\s*\/\s*\d+/);
+
+  expect(pageErrors).toEqual([]);
 });

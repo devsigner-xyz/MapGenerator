@@ -1,3 +1,4 @@
+import { createTtlCache } from './cache';
 import { parseFollowsFromKind3 } from './follows';
 import type { NostrClient } from './types';
 
@@ -20,6 +21,15 @@ interface FetchFollowersBestEffortResult {
     followers: string[];
     scannedBatches: number;
     complete: boolean;
+}
+
+const followersCache = createTtlCache<FetchFollowersBestEffortResult>({
+    ttlMs: 2 * 60_000,
+    maxEntries: 200,
+});
+
+export function __resetFollowersCacheForTests(): void {
+    followersCache.clear();
 }
 
 function chunkArray<T>(values: T[], size: number): T[][] {
@@ -63,6 +73,24 @@ function collectFollowersFromEvents(input: {
     };
 }
 
+function followersCacheKey(input: {
+    targetPubkey: string;
+    candidateAuthors: string[];
+    maxBatches: number;
+    batchLimit: number;
+    candidateAuthorBatchSize: number;
+    startUntil?: number;
+}): string {
+    return JSON.stringify({
+        targetPubkey: input.targetPubkey,
+        candidateAuthors: [...new Set(input.candidateAuthors)].sort(),
+        maxBatches: input.maxBatches,
+        batchLimit: input.batchLimit,
+        candidateAuthorBatchSize: input.candidateAuthorBatchSize,
+        startUntil: input.startUntil ?? null,
+    });
+}
+
 export async function fetchFollowersBestEffort(
     input: FetchFollowersBestEffortInput
 ): Promise<FetchFollowersBestEffortResult> {
@@ -71,6 +99,30 @@ export async function fetchFollowersBestEffort(
     const candidateAuthorBatchSize = Math.max(1, input.candidateAuthorBatchSize ?? 40);
     const candidateAuthors = [...new Set(input.candidateAuthors ?? [])].filter((pubkey) => pubkey !== input.targetPubkey);
     let until = input.startUntil;
+
+    const cacheKey = followersCacheKey({
+        targetPubkey: input.targetPubkey,
+        candidateAuthors,
+        maxBatches,
+        batchLimit,
+        candidateAuthorBatchSize,
+        startUntil: input.startUntil,
+    });
+    const cached = followersCache.get(cacheKey);
+    if (cached) {
+        if (cached.followers.length > 0) {
+            await input.onBatch?.({
+                newFollowers: [...cached.followers],
+                totalFollowers: cached.followers.length,
+                done: true,
+            });
+        }
+        return {
+            followers: [...cached.followers],
+            scannedBatches: cached.scannedBatches,
+            complete: cached.complete,
+        };
+    }
 
     const followers = new Set<string>();
     let scannedBatches = 0;
@@ -145,9 +197,12 @@ export async function fetchFollowersBestEffort(
         }
     }
 
-    return {
+    const result = {
         followers: [...followers],
         scannedBatches,
         complete: exhaustedTagSearch,
     };
+
+    followersCache.set(cacheKey, result);
+    return result;
 }
