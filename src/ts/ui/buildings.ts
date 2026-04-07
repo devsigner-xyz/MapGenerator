@@ -8,6 +8,7 @@ import {PolygonParams} from '../impl/polygon_finder';
 
 
 export interface BuildingModel {
+    lotIndex: number;
     height: number;
     lotWorld: Vector[]; // In world space
     lotScreen: Vector[]; // In screen space
@@ -23,8 +24,10 @@ class BuildingModels {
     private _buildingModels: BuildingModel[] = [];
 
     constructor(lots: Vector[][]) {  // Lots in world space
-        for (const lot of lots) {
+        for (let lotIndex = 0; lotIndex < lots.length; lotIndex++) {
+            const lot = lots[lotIndex];
             this._buildingModels.push({
+                lotIndex,
                 height: Math.random() * 20 + 20,
                 lotWorld: lot,
                 lotScreen: [],

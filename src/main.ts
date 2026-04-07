@@ -41,7 +41,7 @@ class Main {
     private canvas: HTMLCanvasElement;
     private tensorCanvas: DefaultCanvasWrapper;
     private _style: Style;
-    private colourScheme: string = "Default";  // See colour_schemes.json
+    private colourScheme: string = "Google";  // See colour_schemes.json
     private zoomBuildings: boolean = false;  // Show buildings only when zoomed in?
     private buildingModels: boolean = false;  // Draw pseudo-3D buildings?
     private showFrame: boolean = false;

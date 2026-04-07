@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'vitest';
-import { resolveBuildingRenderColours, type ColourScheme } from './style';
+import DomainController from './domain_controller';
+import Vector from '../vector';
+import { DefaultStyle, resolveBuildingRenderColours, type ColourScheme } from './style';
+import type { BuildingModel } from './buildings';
 
 const baseScheme: ColourScheme = {
     bgColour: 'rgb(255,255,255)',
@@ -29,6 +32,212 @@ describe('resolveBuildingRenderColours', () => {
     test('returns selected colors for selected buildings', () => {
         const colours = resolveBuildingRenderColours('selected', baseScheme);
         expect(colours).toEqual({
+            fill: 'rgb(255,214,118)',
+            stroke: 'rgb(233,166,52)',
+        });
+    });
+});
+
+describe('DefaultStyle occupied/selected rendering with building models', () => {
+    test('renders occupied lots even below zoom threshold when occupancy exists', () => {
+        const drawCalls: Array<{ fill: string; stroke: string; polygon: Vector[] }> = [];
+        const fakeCanvas = {
+            needsUpdate: false,
+            canvasScale: 1,
+            currentFill: '',
+            currentStroke: '',
+            setFillStyle(colour: string) {
+                this.currentFill = colour;
+            },
+            setStrokeStyle(colour: string) {
+                this.currentStroke = colour;
+            },
+            setLineWidth() {},
+            clearCanvas() {},
+            drawPolyline() {},
+            drawFrame() {},
+            drawPolygon(polygon: Vector[]) {
+                drawCalls.push({
+                    fill: this.currentFill,
+                    stroke: this.currentStroke,
+                    polygon,
+                });
+            },
+        };
+
+        class TestStyle extends DefaultStyle {
+            public createCanvasWrapper() {
+                return fakeCanvas as any;
+            }
+        }
+
+        const scheme: ColourScheme = {
+            ...baseScheme,
+            zoomBuildings: true,
+            buildingModels: false,
+        };
+
+        const style = new TestStyle({} as HTMLCanvasElement, {} as any, { ...scheme });
+        const lot = [new Vector(0, 0), new Vector(2, 0), new Vector(2, 2), new Vector(0, 2)];
+
+        style.lots = [lot];
+        style.buildingRenderStates = ['occupied'];
+
+        const domainController = DomainController.getInstance();
+        domainController.zoom = 1;
+
+        style.draw();
+
+        const lotDraw = drawCalls.find((call) => call.polygon === lot);
+        expect(lotDraw).toBeDefined();
+        expect(lotDraw).toMatchObject({
+            fill: 'rgb(247,240,206)',
+            stroke: 'rgb(228,202,120)',
+        });
+    });
+
+    test('keeps selected roof highlighted when 3D building models are enabled', () => {
+        const drawCalls: Array<{ fill: string; stroke: string; polygon: Vector[] }> = [];
+        const fakeCanvas = {
+            needsUpdate: false,
+            canvasScale: 1,
+            currentFill: '',
+            currentStroke: '',
+            setFillStyle(colour: string) {
+                this.currentFill = colour;
+            },
+            setStrokeStyle(colour: string) {
+                this.currentStroke = colour;
+            },
+            setLineWidth() {},
+            clearCanvas() {},
+            drawPolyline() {},
+            drawFrame() {},
+            drawPolygon(polygon: Vector[]) {
+                drawCalls.push({
+                    fill: this.currentFill,
+                    stroke: this.currentStroke,
+                    polygon,
+                });
+            },
+        };
+
+        class TestStyle extends DefaultStyle {
+            public createCanvasWrapper() {
+                return fakeCanvas as any;
+            }
+        }
+
+        const scheme: ColourScheme = {
+            ...baseScheme,
+            zoomBuildings: true,
+            buildingModels: true,
+        };
+
+        const style = new TestStyle({} as HTMLCanvasElement, {} as any, { ...scheme });
+        const lot = [new Vector(0, 0), new Vector(2, 0), new Vector(2, 2), new Vector(0, 2)];
+        const roof = [new Vector(0.5, 0.5), new Vector(2.5, 0.5), new Vector(2.5, 2.5), new Vector(0.5, 2.5)];
+
+        const buildingModel: BuildingModel = {
+            lotIndex: 0,
+            height: 10,
+            lotWorld: [],
+            lotScreen: lot,
+            roof,
+            sides: [],
+        };
+
+        style.lots = [lot];
+        style.buildingModels = [buildingModel];
+        style.buildingRenderStates = ['selected'];
+
+        const domainController = DomainController.getInstance();
+        domainController.zoom = 3;
+
+        style.draw();
+
+        const roofDraw = drawCalls.find((call) => call.polygon === roof);
+        expect(roofDraw).toBeDefined();
+        expect(roofDraw).toMatchObject({
+            fill: 'rgb(255,214,118)',
+            stroke: 'rgb(233,166,52)',
+        });
+    });
+
+    test('maps selected state to the correct building even when model order differs', () => {
+        const drawCalls: Array<{ fill: string; stroke: string; polygon: Vector[] }> = [];
+        const fakeCanvas = {
+            needsUpdate: false,
+            canvasScale: 1,
+            currentFill: '',
+            currentStroke: '',
+            setFillStyle(colour: string) {
+                this.currentFill = colour;
+            },
+            setStrokeStyle(colour: string) {
+                this.currentStroke = colour;
+            },
+            setLineWidth() {},
+            clearCanvas() {},
+            drawPolyline() {},
+            drawFrame() {},
+            drawPolygon(polygon: Vector[]) {
+                drawCalls.push({
+                    fill: this.currentFill,
+                    stroke: this.currentStroke,
+                    polygon,
+                });
+            },
+        };
+
+        class TestStyle extends DefaultStyle {
+            public createCanvasWrapper() {
+                return fakeCanvas as any;
+            }
+        }
+
+        const scheme: ColourScheme = {
+            ...baseScheme,
+            zoomBuildings: true,
+            buildingModels: true,
+        };
+
+        const style = new TestStyle({} as HTMLCanvasElement, {} as any, { ...scheme });
+        const lotA = [new Vector(0, 0), new Vector(2, 0), new Vector(2, 2), new Vector(0, 2)];
+        const roofA = [new Vector(0.5, 0.5), new Vector(2.5, 0.5), new Vector(2.5, 2.5), new Vector(0.5, 2.5)];
+        const lotB = [new Vector(10, 10), new Vector(12, 10), new Vector(12, 12), new Vector(10, 12)];
+        const roofB = [new Vector(10.5, 10.5), new Vector(12.5, 10.5), new Vector(12.5, 12.5), new Vector(10.5, 12.5)];
+
+        const modelA: BuildingModel = {
+            lotIndex: 0,
+            height: 20,
+            lotWorld: [],
+            lotScreen: lotA,
+            roof: roofA,
+            sides: [],
+        };
+
+        const modelB: BuildingModel = {
+            lotIndex: 1,
+            height: 10,
+            lotWorld: [],
+            lotScreen: lotB,
+            roof: roofB,
+            sides: [],
+        };
+
+        style.lots = [lotA, lotB];
+        style.buildingRenderStates = ['selected', 'empty'];
+        style.buildingModels = [modelB, modelA];
+
+        const domainController = DomainController.getInstance();
+        domainController.zoom = 3;
+
+        style.draw();
+
+        const roofADraw = drawCalls.find((call) => call.polygon === roofA);
+        expect(roofADraw).toBeDefined();
+        expect(roofADraw).toMatchObject({
             fill: 'rgb(255,214,118)',
             stroke: 'rgb(233,166,52)',
         });

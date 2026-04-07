@@ -239,7 +239,8 @@ export class DefaultStyle extends Style {
             }
         } else {
             // Buildings
-            if (!this.colourScheme.zoomBuildings || this.domainController.zoom >= 2) {
+            const hasHighlightedBuildings = this.buildingRenderStates.some((renderState) => renderState !== 'empty');
+            if (!this.colourScheme.zoomBuildings || this.domainController.zoom >= 2 || hasHighlightedBuildings) {
                 for (let i = 0; i < this.lots.length; i++) {
                     const lot = this.lots[i];
                     const state = this.buildingRenderStates[i] || 'empty';
@@ -252,17 +253,25 @@ export class DefaultStyle extends Style {
 
             // Pseudo-3D
             if (this.colourScheme.buildingModels && (!this.colourScheme.zoomBuildings || this.domainController.zoom >= 2.5)) {
-                canvas.setFillStyle(this.colourScheme.buildingSideColour);
-                canvas.setStrokeStyle(this.colourScheme.buildingSideColour);
-
                 // This is a cheap approximation that often creates visual artefacts
                 // Draws building sides, then rooves instead of properly clipping polygons etc.
-                for (const b of this.buildingModels) {
-                    for (const s of b.sides) canvas.drawPolygon(s);
+                for (let i = 0; i < this.buildingModels.length; i++) {
+                    const b = this.buildingModels[i];
+                    const stateIndex = Number.isInteger(b.lotIndex) ? b.lotIndex : i;
+                    const state = this.buildingRenderStates[stateIndex] || 'empty';
+                    const colours = resolveBuildingRenderColours(state, this.colourScheme);
+                    const sideColour = state === 'empty' ? this.colourScheme.buildingSideColour : colours.fill;
+
+                    canvas.setFillStyle(sideColour);
+                    canvas.setStrokeStyle(sideColour);
+                    for (const s of b.sides) {
+                        canvas.drawPolygon(s);
+                    }
+
+                    canvas.setFillStyle(colours.fill);
+                    canvas.setStrokeStyle(colours.stroke);
+                    canvas.drawPolygon(b.roof);
                 }
-                canvas.setFillStyle(this.colourScheme.buildingColour);
-                canvas.setStrokeStyle(this.colourScheme.buildingStroke);
-                for (const b of this.buildingModels) canvas.drawPolygon(b.roof);
             }
         }
 
