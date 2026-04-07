@@ -3,14 +3,14 @@
         "noImplicitAny": true,
         "target": "es2018",
         "module": "esnext",
-        "moduleResolution": "node",
+        "moduleResolution": "bundler",
         "jsx": "react-jsx",
+        "strict": false,
         "skipLibCheck": true,
         "esModuleInterop": true,
         "allowSyntheticDefaultImports": true,
         "lib": ["es2018", "DOM", "DOM.Iterable", "ScriptHost"],
         "types": ["vite/client", "vitest/globals"],
-        "downlevelIteration": true,
         "resolveJsonModule": true
     },
     "include": [

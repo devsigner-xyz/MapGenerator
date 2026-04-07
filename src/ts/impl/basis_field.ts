@@ -73,10 +73,11 @@ export abstract class BasisField {
     setGui(parent: dat.GUI, folder: dat.GUI): void {
         this.parentFolder = parent;
         this.folder = folder;
+        const guiBindings = this as unknown as Record<string, unknown>;
         folder.add(this._centre, 'x');
         folder.add(this._centre, 'y');
-        folder.add(this, '_size');
-        folder.add(this, '_decay', -50, 50);
+        folder.add(guiBindings, '_size');
+        folder.add(guiBindings, '_decay', -50, 50);
     }
 
     /**

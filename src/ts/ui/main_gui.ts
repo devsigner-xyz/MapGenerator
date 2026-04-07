@@ -65,10 +65,11 @@ export default class MainGUI {
     private modalHighlightedBuildingIndex: number = null;
 
     constructor(private guiFolder: dat.GUI, private tensorField: TensorField, private closeTensorFolder: () => void) {
+        const guiBindings = this as unknown as Record<string, unknown>;
         guiFolder.add(this, 'generateEverything');
         // guiFolder.add(this, 'simpleBenchMark');
-        const animateController = guiFolder.add(this, 'animate');
-        guiFolder.add(this, 'animationSpeed');
+        const animateController = guiFolder.add(guiBindings, 'animate');
+        guiFolder.add(guiBindings, 'animationSpeed');
 
         this.coastlineParams = Object.assign({
             coastNoise: {
@@ -115,9 +116,9 @@ export default class MainGUI {
             this.addParks();
             this.redraw = true;
         }}, 'Generate');
-        parks.add(this, 'clusterBigParks');
-        parks.add(this, 'numBigParks');
-        parks.add(this, 'numSmallParks');
+        parks.add(guiBindings, 'clusterBigParks');
+        parks.add(guiBindings, 'numBigParks');
+        parks.add(guiBindings, 'numSmallParks');
 
         const buildingsFolder = guiFolder.addFolder('Buildings');
         this.buildings = new Buildings(tensorField, buildingsFolder, redraw, this.minorParams.dstep, this.animate);

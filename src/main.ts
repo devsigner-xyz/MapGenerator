@@ -95,28 +95,30 @@ class Main {
         }
 
         // Style setup
-        this.styleFolder.add(this, 'colourScheme', Object.keys(ColourSchemes)).onChange((val: string) => this.changeColourScheme(val));
+        const guiBindings = this as unknown as Record<string, unknown>;
 
-        this.styleFolder.add(this, 'zoomBuildings').onChange((val: boolean) => {
+        this.styleFolder.add(guiBindings, 'colourScheme', Object.keys(ColourSchemes)).onChange((val: string) => this.changeColourScheme(val));
+
+        this.styleFolder.add(guiBindings, 'zoomBuildings').onChange((val: boolean) => {
             // Force redraw
             this.previousFrameDrawTensor = true;
             this._style.zoomBuildings = val;
         });
 
-        this.styleFolder.add(this, 'buildingModels').onChange((val: boolean) => {
+        this.styleFolder.add(guiBindings, 'buildingModels').onChange((val: boolean) => {
             // Force redraw
             this.previousFrameDrawTensor = true;
             this._style.showBuildingModels = val;
         });
         
-        this.styleFolder.add(this, 'showFrame').onChange((val: boolean) => {
+        this.styleFolder.add(guiBindings, 'showFrame').onChange((val: boolean) => {
             this.previousFrameDrawTensor = true;
             this._style.showFrame = val;
         });
 
         this.styleFolder.add(this.domainController, 'orthographic');
-        this.styleFolder.add(this, 'cameraX', -15, 15).step(1).onChange(() => this.setCameraDirection());
-        this.styleFolder.add(this, 'cameraY', -15, 15).step(1).onChange(() => this.setCameraDirection());
+        this.styleFolder.add(guiBindings, 'cameraX', -15, 15).step(1).onChange(() => this.setCameraDirection());
+        this.styleFolder.add(guiBindings, 'cameraY', -15, 15).step(1).onChange(() => this.setCameraDirection());
 
 
         const noiseParamsPlaceholder: NoiseParams = {  // Placeholder values for park + water noise
@@ -134,7 +136,7 @@ class Main {
         this.optionsFolder.add(this.tensorField, 'drawCentre');
         this.optionsFolder.add(this, 'highDPI').onChange((high: boolean) => this.changeCanvasScale(high));
         
-        this.downloadsFolder.add(this, 'imageScale', 1, 5).step(1);
+        this.downloadsFolder.add(guiBindings, 'imageScale', 1, 5).step(1);
         this.downloadsFolder.add({"PNG": () => this.downloadPng()}, 'PNG');  // This allows custom naming of button
         this.downloadsFolder.add({"SVG": () => this.downloadSVG()}, 'SVG');
         this.downloadsFolder.add({"STL": () => this.downloadSTL()}, 'STL');
