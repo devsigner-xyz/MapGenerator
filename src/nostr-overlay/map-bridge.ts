@@ -28,6 +28,7 @@ export interface MapMainApi {
 
 export interface MapBridge {
     ensureGenerated(): Promise<void>;
+    regenerateMap(): Promise<void>;
     listBuildings(): MapBuildingSlot[];
     applyOccupancy(input: { byBuildingIndex: Record<number, string>; selectedBuildingIndex?: number }): void;
     setViewportInsetLeft(inset: number): void;
@@ -48,6 +49,10 @@ export function createMapBridge(mainApi: MapMainApi): MapBridge {
             if (mainApi.roadsEmpty()) {
                 await Promise.resolve(mainApi.generateMap());
             }
+        },
+
+        async regenerateMap(): Promise<void> {
+            await Promise.resolve(mainApi.generateMap());
         },
 
         listBuildings(): MapBuildingSlot[] {

@@ -22,6 +22,11 @@ export type OverlayStatus =
     | 'success'
     | 'error';
 
+export type MapLoaderStage =
+    | 'connecting_relay'
+    | 'fetching_data'
+    | 'building_map';
+
 interface OverlayData {
     ownerPubkey?: string;
     ownerProfile?: NostrProfile;
@@ -153,6 +158,8 @@ function hasLoadedOverlayData(status: OverlayStatus): boolean {
 
 export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions) {
     const ACTIVE_PROFILE_POST_LIMIT = 10;
+    const OCCUPANCY_BATCH_SIZE = 8;
+    const OCCUPANCY_BATCH_DELAY_MS = 22;
     const createClient = services?.createClient || ((relays: string[] = []) => new NdkClient(relays));
     const fetchFollowsByNpubFn = services?.fetchFollowsByNpubFn || fetchFollowsByNpub;
     const fetchProfilesFn = services?.fetchProfilesFn || fetchProfiles;
@@ -164,9 +171,77 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         status: 'idle',
         data: createInitialData(),
     });
+    const [mapLoaderStage, setMapLoaderStage] = useState<MapLoaderStage | null>(null);
     const requestIdRef = useRef(0);
     const activeProfileLoadIdRef = useRef(0);
     const latestStateRef = useRef(state);
+    const occupancyAnimationTokenRef = useRef(0);
+    const skipNextMapGeneratedRef = useRef(false);
+
+    const cancelOccupancyAnimation = (): number => {
+        occupancyAnimationTokenRef.current += 1;
+        return occupancyAnimationTokenRef.current;
+    };
+
+    const applyOccupancyProgressively = async (input: {
+        byBuildingIndex: Record<number, string>;
+        selectedBuildingIndex?: number;
+        shouldStop?: () => boolean;
+    }): Promise<void> => {
+        if (!mapBridge) {
+            return;
+        }
+
+        const shouldStop = input.shouldStop || (() => false);
+        const token = cancelOccupancyAnimation();
+        const entries = Object.entries(input.byBuildingIndex)
+            .map(([indexKey, pubkey]) => ({
+                index: Number(indexKey),
+                pubkey,
+            }))
+            .filter((entry) => Number.isInteger(entry.index) && entry.index >= 0 && !!entry.pubkey)
+            .sort((a, b) => a.index - b.index);
+
+        const staged: Record<number, string> = {};
+        mapBridge.applyOccupancy({
+            byBuildingIndex: { ...staged },
+            selectedBuildingIndex: undefined,
+        });
+
+        for (let i = 0; i < entries.length; i++) {
+            if (token !== occupancyAnimationTokenRef.current || shouldStop()) {
+                return;
+            }
+
+            const entry = entries[i];
+            staged[entry.index] = entry.pubkey;
+
+            const shouldFlush = i === entries.length - 1 || ((i + 1) % OCCUPANCY_BATCH_SIZE) === 0;
+            if (!shouldFlush) {
+                continue;
+            }
+
+            mapBridge.applyOccupancy({
+                byBuildingIndex: { ...staged },
+                selectedBuildingIndex: undefined,
+            });
+
+            if (i < entries.length - 1) {
+                await new Promise<void>((resolve) => {
+                    window.setTimeout(resolve, OCCUPANCY_BATCH_DELAY_MS);
+                });
+            }
+        }
+
+        if (token !== occupancyAnimationTokenRef.current || shouldStop()) {
+            return;
+        }
+
+        mapBridge.applyOccupancy({
+            byBuildingIndex: { ...staged },
+            selectedBuildingIndex: input.selectedBuildingIndex,
+        });
+    };
 
     const resolveOverlayRelays = (relayHints: string[]): string[] => {
         const configuredRelays = (() => {
@@ -187,6 +262,11 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         }
 
         return mapBridge.onMapGenerated(() => {
+            if (skipNextMapGeneratedRef.current) {
+                skipNextMapGeneratedRef.current = false;
+                return;
+            }
+
             setState((current) => {
                 if (!hasLoadedOverlayData(current.status) || !current.data.ownerPubkey) {
                     return current;
@@ -489,6 +569,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
 
     const submitNpub = async (npub: string): Promise<void> => {
         if (!mapBridge) {
+            setMapLoaderStage(null);
             setState({
                 status: 'error',
                 error: 'No se pudo conectar la capa Nostr con el mapa',
@@ -499,6 +580,8 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
 
         requestIdRef.current += 1;
         const requestId = requestIdRef.current;
+        cancelOccupancyAnimation();
+        setMapLoaderStage('connecting_relay');
 
         setState((current) => ({ ...current, status: 'loading_graph', error: undefined }));
 
@@ -527,6 +610,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 status: 'loading_profiles',
                 error: undefined,
             }));
+            setMapLoaderStage('fetching_data');
 
             const [ownerProfiles, profiles] = await Promise.all([
                 fetchProfilesFn([graph.ownerPubkey], client),
@@ -543,6 +627,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 status: 'assigning_map',
                 error: undefined,
             }));
+            setMapLoaderStage('building_map');
 
             await mapBridge.ensureGenerated();
             const buildings = mapBridge.listBuildings();
@@ -557,14 +642,17 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 assignments: assignments.assignments,
             });
 
-            mapBridge.applyOccupancy({
+            await applyOccupancyProgressively({
                 byBuildingIndex: occupancy.byBuildingIndex,
                 selectedBuildingIndex: occupancy.selectedBuildingIndex,
+                shouldStop: () => requestIdRef.current !== requestId,
             });
 
             if (requestIdRef.current !== requestId) {
                 return;
             }
+
+            setMapLoaderStage(null);
 
             setState({
                 status: 'loading_followers',
@@ -681,12 +769,81 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 return;
             }
 
+            setMapLoaderStage(null);
             const message = error instanceof Error ? error.message : 'No se pudo cargar la red Nostr';
             setState({
                 status: 'error',
                 error: message,
                 data: createInitialData(),
             });
+        }
+    };
+
+    const regenerateMap = async (): Promise<void> => {
+        if (!mapBridge) {
+            return;
+        }
+
+        const current = latestStateRef.current;
+        cancelOccupancyAnimation();
+        setMapLoaderStage('building_map');
+
+        try {
+            if (!hasLoadedOverlayData(current.status) || !current.data.ownerPubkey) {
+                await mapBridge.regenerateMap();
+                return;
+            }
+
+            skipNextMapGeneratedRef.current = true;
+            await mapBridge.regenerateMap();
+
+            const buildings = mapBridge.listBuildings();
+            const assignments = assignPubkeysToBuildings({
+                pubkeys: current.data.follows,
+                buildingsCount: buildings.length,
+                seed: current.data.ownerPubkey,
+            });
+
+            const occupancy = buildOccupancyState({
+                buildingsCount: buildings.length,
+                assignments: assignments.assignments,
+                selectedPubkey: current.data.selectedPubkey,
+            });
+
+            await applyOccupancyProgressively({
+                byBuildingIndex: occupancy.byBuildingIndex,
+                selectedBuildingIndex: occupancy.selectedBuildingIndex,
+            });
+
+            if (occupancy.selectedBuildingIndex !== undefined) {
+                mapBridge.focusBuilding(occupancy.selectedBuildingIndex);
+            }
+
+            setState((nextState) => {
+                if (!hasLoadedOverlayData(nextState.status) || nextState.data.ownerPubkey !== current.data.ownerPubkey) {
+                    return nextState;
+                }
+
+                return {
+                    ...nextState,
+                    data: {
+                        ...nextState.data,
+                        buildingsCount: buildings.length,
+                        assignments,
+                        ownerBuildingIndex: resolveOwnerBuildingIndex(nextState.data.ownerPubkey, buildings.length),
+                    },
+                };
+            });
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'No se pudo regenerar el mapa';
+            setState((nextState) => ({
+                ...nextState,
+                status: 'error',
+                error: message,
+            }));
+        } finally {
+            skipNextMapGeneratedRef.current = false;
+            setMapLoaderStage(null);
         }
     };
 
@@ -829,6 +986,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
 
     return {
         status: state.status,
+        mapLoaderStage,
         error: state.error,
         ownerPubkey: state.data.ownerPubkey,
         ownerProfile: state.data.ownerProfile,
@@ -859,6 +1017,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         assignedCount,
         occupancyByBuildingIndex: state.data.assignments.byBuildingIndex,
         submitNpub,
+        regenerateMap,
         selectFollowing,
         closeActiveProfileModal,
         loadMoreActiveProfilePosts,

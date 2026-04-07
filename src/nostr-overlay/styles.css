@@ -116,22 +116,73 @@
     cursor: not-allowed;
 }
 
-.nostr-status {
+.nostr-panel-actions {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.nostr-secondary-button {
+    justify-self: start;
+    border: 1px solid rgba(66, 101, 118, 0.72);
+    background: rgba(239, 246, 250, 0.95);
+    color: #26485a;
+    border-radius: 8px;
+    padding: 0.46rem 0.8rem;
+    cursor: pointer;
+}
+
+.nostr-secondary-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.nostr-map-loader-overlay {
+    position: fixed;
+    left: var(--nostr-map-inset-left);
+    top: 0;
+    width: calc(100% - var(--nostr-map-inset-left));
+    height: 100%;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+    z-index: 6;
+}
+
+.nostr-map-loader-card {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    border: 1px solid rgba(170, 188, 198, 0.95);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 12px 24px rgba(14, 32, 44, 0.2);
+    padding: 0.44rem 0.86rem;
+}
+
+.nostr-map-loader-spinner {
+    width: 13px;
+    height: 13px;
+    border-radius: 999px;
+    border: 2px solid rgba(43, 88, 109, 0.25);
+    border-top-color: rgba(43, 88, 109, 0.92);
+    animation: nostr-loader-spin 0.85s linear infinite;
+}
+
+.nostr-map-loader-text {
     margin: 0;
-    font-size: 0.88rem;
-    color: #4f5f69;
+    color: #254758;
+    font-size: 0.86rem;
+    font-weight: 600;
 }
 
-.nostr-status-loading {
-    color: #8c6f2f;
-}
+@keyframes nostr-loader-spin {
+    from {
+        transform: rotate(0deg);
+    }
 
-.nostr-status-error {
-    color: #b1473c;
-}
-
-.nostr-status-success {
-    color: #2b6e45;
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .nostr-empty {

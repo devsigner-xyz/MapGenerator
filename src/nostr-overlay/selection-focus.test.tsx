@@ -10,6 +10,7 @@ function createMapBridgeStub(buildingsCount: number): { bridge: MapBridge; trigg
 
     const bridge: MapBridge = {
         ensureGenerated: vi.fn().mockResolvedValue(undefined),
+        regenerateMap: vi.fn().mockResolvedValue(undefined),
         listBuildings: vi.fn().mockReturnValue(
             Array.from({ length: buildingsCount }, (_, index) => ({
                 index,

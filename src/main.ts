@@ -12,6 +12,7 @@ import Style from './ts/ui/style';
 import {ColourScheme, DefaultStyle, RoughStyle} from './ts/ui/style';
 import ColourSchemes from './colour_schemes';
 import Vector from './ts/vector';
+import { applyMapFirstStartup, shouldShowTensorField } from './ts/ui/startup_mode';
 import { SVG } from '@svgdotjs/svg.js';
 import ModelGenerator from './ts/model_generator';
 import { saveAs } from 'file-saver';
@@ -147,6 +148,10 @@ class Main {
         this.mountSettingsPanel(null);
         this.tensorField.setRecommended();
         requestAnimationFrame(() => this.update());
+        void applyMapFirstStartup({
+            closeTensorFolder: () => this.tensorFolder.close(),
+            generateMap: () => this.generateMap(),
+        });
     }
 
     /**
@@ -417,7 +422,7 @@ class Main {
     }
 
     private showTensorField(): boolean {
-        return !this.tensorFolder.closed || this.mainGui.roadsEmpty();
+        return shouldShowTensorField(this.tensorFolder.closed);
     }
 
     private bindPanModeControls(): void {

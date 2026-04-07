@@ -13,6 +13,7 @@ interface RenderResult {
 function createMapBridgeStub(zoom: number): MapBridge {
     return {
         ensureGenerated: vi.fn().mockResolvedValue(undefined),
+        regenerateMap: vi.fn().mockResolvedValue(undefined),
         listBuildings: vi.fn().mockReturnValue([
             {
                 index: 0,

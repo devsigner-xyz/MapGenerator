@@ -25,6 +25,7 @@ async function renderElement(element: ReactElement): Promise<RenderResult> {
 function createBridgeStub(): MapBridge {
     return {
         ensureGenerated: vi.fn().mockResolvedValue(undefined),
+        regenerateMap: vi.fn().mockResolvedValue(undefined),
         listBuildings: vi.fn().mockReturnValue([]),
         applyOccupancy: vi.fn(),
         setViewportInsetLeft: vi.fn(),

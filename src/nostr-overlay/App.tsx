@@ -5,13 +5,28 @@ import { NpubForm } from './components/NpubForm';
 import { MapSettingsModal } from './components/MapSettingsModal';
 import { OccupantProfileModal } from './components/OccupantProfileModal';
 import { SocialSidebar } from './components/SocialSidebar';
-import { StatusPanel } from './components/StatusPanel';
-import { useNostrOverlay, type NostrOverlayServices } from './hooks/useNostrOverlay';
+import { useNostrOverlay, type MapLoaderStage, type NostrOverlayServices } from './hooks/useNostrOverlay';
 import type { MapBridge } from './map-bridge';
 
 interface AppProps {
     mapBridge: MapBridge | null;
     services?: NostrOverlayServices;
+}
+
+function mapLoaderStageLabel(stage: MapLoaderStage | null): string | null {
+    if (stage === 'connecting_relay') {
+        return 'Conectando a relay...';
+    }
+
+    if (stage === 'fetching_data') {
+        return 'Obteniendo datos...';
+    }
+
+    if (stage === 'building_map') {
+        return 'Construyendo mapa...';
+    }
+
+    return null;
 }
 
 export function App({ mapBridge, services }: AppProps) {
@@ -20,6 +35,8 @@ export function App({ mapBridge, services }: AppProps) {
     const [panelCollapsed, setPanelCollapsed] = useState(false);
     const [uiSettings, setUiSettings] = useState<UiSettingsState>(() => loadUiSettings());
     const formDisabled = overlay.status !== 'idle' && overlay.status !== 'success' && overlay.status !== 'error';
+    const mapLoaderText = mapLoaderStageLabel(overlay.mapLoaderStage);
+    const regenerateDisabled = !mapBridge || overlay.mapLoaderStage !== null;
 
     useEffect(() => {
         if (!mapBridge) {
@@ -86,12 +103,22 @@ export function App({ mapBridge, services }: AppProps) {
 
                     <NpubForm disabled={formDisabled} onSubmit={overlay.submitNpub} />
 
-                    <StatusPanel
-                        status={overlay.status}
-                        error={overlay.error}
-                        followsCount={overlay.followsCount}
-                        assignedCount={overlay.assignedCount}
-                    />
+                    <div className="nostr-panel-actions">
+                        <button
+                            type="button"
+                            className="nostr-secondary-button"
+                            onClick={() => {
+                                void overlay.regenerateMap();
+                            }}
+                            disabled={regenerateDisabled}
+                        >
+                            Regenerar mapa
+                        </button>
+
+                        {overlay.status === 'error' && overlay.error ? (
+                            <p className="nostr-error">{overlay.error}</p>
+                        ) : null}
+                    </div>
 
                     <SocialSidebar
                         ownerPubkey={overlay.ownerPubkey}
@@ -106,6 +133,15 @@ export function App({ mapBridge, services }: AppProps) {
                     />
                 </section>
             )}
+
+            {mapLoaderText ? (
+                <div className="nostr-map-loader-overlay" role="status" aria-live="polite">
+                    <div className="nostr-map-loader-card">
+                        <span className="nostr-map-loader-spinner" aria-hidden="true" />
+                        <p className="nostr-map-loader-text">{mapLoaderText}</p>
+                    </div>
+                </div>
+            ) : null}
 
             {settingsOpen ? (
                 <MapSettingsModal

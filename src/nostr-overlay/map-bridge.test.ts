@@ -34,6 +34,15 @@ describe('createMapBridge', () => {
         expect(nonEmptyRoadsApi.generateMap).not.toHaveBeenCalled();
     });
 
+    test('regenerateMap always triggers map generation', async () => {
+        const api = createMainApiStub({ roadsEmpty: vi.fn().mockReturnValue(false) });
+        const bridge = createMapBridge(api);
+
+        await bridge.regenerateMap();
+
+        expect(api.generateMap).toHaveBeenCalledTimes(1);
+    });
+
     test('listBuildings returns indexed centroid slots from map api', () => {
         const api = createMainApiStub({
             getBuildingCentroidsWorld: vi.fn().mockReturnValue([{ x: 1, y: 2 }, { x: 3, y: 4 }]),

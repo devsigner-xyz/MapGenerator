@@ -16,11 +16,41 @@ interface MapBridgeStub {
     triggerOccupiedBuildingClick: (payload: { buildingIndex: number; pubkey: string }) => void;
 }
 
-function createMapBridgeStub(): MapBridgeStub {
+interface Deferred<T> {
+    promise: Promise<T>;
+    resolve: (value: T) => void;
+    reject: (error?: unknown) => void;
+}
+
+function createDeferred<T>(): Deferred<T> {
+    let resolve!: (value: T) => void;
+    let reject!: (error?: unknown) => void;
+    const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+        resolve = resolvePromise;
+        reject = rejectPromise;
+    });
+
+    return {
+        promise,
+        resolve,
+        reject,
+    };
+}
+
+function createMapBridgeStub(buildingsCount = 0): MapBridgeStub {
     const occupiedBuildingClickListeners: Array<(payload: { buildingIndex: number; pubkey: string }) => void> = [];
     const bridge = {
         ensureGenerated: vi.fn().mockResolvedValue(undefined),
-        listBuildings: vi.fn().mockReturnValue([]),
+        regenerateMap: vi.fn().mockResolvedValue(undefined),
+        listBuildings: vi.fn().mockReturnValue(
+            Array.from({ length: buildingsCount }, (_, index) => ({
+                index,
+                centroid: {
+                    x: (index + 1) * 10,
+                    y: (index + 1) * 8,
+                },
+            }))
+        ),
         applyOccupancy: vi.fn(),
         setViewportInsetLeft: vi.fn(),
         setModalBuildingHighlight: vi.fn(),
@@ -108,6 +138,151 @@ describe('Nostr overlay App', () => {
         expect(content).toContain('Sigues (0)');
         expect(content).toContain('Seguidores (0)');
         expect(content).toContain('Introduce una npub para ver el perfil.');
+    });
+
+    test('renders regenerate map button and calls bridge regenerateMap', async () => {
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(<App mapBridge={bridge} />);
+        mounted.push(rendered);
+
+        const regenerateButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Regenerar mapa')
+        ) as HTMLButtonElement;
+
+        expect(regenerateButton).toBeDefined();
+
+        await act(async () => {
+            regenerateButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(bridge.regenerateMap).toHaveBeenCalledTimes(1);
+    });
+
+    test('shows map loader stage messages while processing npub', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+
+        const followsDeferred = createDeferred<{ ownerPubkey: string; follows: string[]; relayHints: string[] }>();
+        const profilesDeferred = createDeferred<Record<string, { pubkey: string; displayName: string }>>();
+        const mapDeferred = createDeferred<void>();
+
+        const { bridge } = createMapBridgeStub(6);
+        (bridge.ensureGenerated as any).mockImplementation(() => mapDeferred.promise);
+
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByNpubFn: vi.fn().mockImplementation(async () => followsDeferred.promise),
+                    fetchProfilesFn: vi.fn().mockImplementation(async () => profilesDeferred.promise),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+        const form = rendered.container.querySelector('form');
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
+            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Conectando a relay'));
+
+        await act(async () => {
+            followsDeferred.resolve({
+                ownerPubkey,
+                follows: [followedPubkey],
+                relayHints: [],
+            });
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Obteniendo datos'));
+
+        await act(async () => {
+            profilesDeferred.resolve({
+                [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                [followedPubkey]: { pubkey: followedPubkey, displayName: 'Alice' },
+            });
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Construyendo mapa'));
+
+        await act(async () => {
+            mapDeferred.resolve();
+        });
+    });
+
+    test('applies occupancy progressively after city is generated', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const follows = Array.from({ length: 8 }, (_, index) => `${(index + 1).toString(16).repeat(64)}`);
+        const { bridge } = createMapBridgeStub(20);
+
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByNpubFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows,
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue(
+                        Object.fromEntries([
+                            [ownerPubkey, { pubkey: ownerPubkey, displayName: 'Owner' }],
+                            ...follows.map((pubkey, index) => [pubkey, { pubkey, displayName: `User-${index}` }]),
+                        ])
+                    ),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+        const form = rendered.container.querySelector('form');
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
+            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        });
+
+        await waitFor(() => (bridge.applyOccupancy as any).mock.calls.length > 1);
+
+        const firstCall = (bridge.applyOccupancy as any).mock.calls[0][0];
+        expect(firstCall.byBuildingIndex).toEqual({});
     });
 
     test('loads profile and followers in tabs after npub submit', async () => {
