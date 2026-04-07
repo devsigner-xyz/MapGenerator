@@ -82,7 +82,11 @@ describe('MapSettingsModal UI settings', () => {
 
         const zoomInput = rendered.container.querySelector('input[aria-label="Occupied labels zoom level"]') as HTMLInputElement;
         expect(zoomInput).toBeDefined();
+        expect(zoomInput.type).toBe('range');
         expect(zoomInput.value).toBe('8');
+
+        const sliderMarks = Array.from(rendered.container.querySelectorAll('.nostr-ui-slider-marks span')).map((node) => node.textContent || '');
+        expect(sliderMarks).toEqual(['1', '8', '20']);
 
         await act(async () => {
             const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;

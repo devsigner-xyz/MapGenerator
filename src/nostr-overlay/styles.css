@@ -485,6 +485,28 @@
     color: #334f5d;
 }
 
+.nostr-ui-slider-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+}
+
+.nostr-ui-slider-value {
+    min-width: 2ch;
+    font-size: 0.82rem;
+    color: #2f4957;
+    font-weight: 600;
+}
+
+.nostr-ui-slider-marks {
+    display: flex;
+    justify-content: space-between;
+    color: #5a6d78;
+    font-size: 0.74rem;
+    margin-top: -0.15rem;
+}
+
 .nostr-relays-content {
     display: grid;
     gap: 0.6rem;

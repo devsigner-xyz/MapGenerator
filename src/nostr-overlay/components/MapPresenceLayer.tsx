@@ -90,7 +90,13 @@ export function MapPresenceLayer({
         : null;
 
     return (
-        <div className="nostr-map-presence-layer" aria-hidden="true">
+        <div
+            className="nostr-map-presence-layer"
+            aria-hidden="true"
+            style={{
+                clipPath: `inset(0 0 0 ${insetLeft}px)`,
+            }}
+        >
             {occupiedEntries.map(([indexKey, pubkey]) => {
                 const index = Number(indexKey);
                 const building = buildingsByIndex[index];

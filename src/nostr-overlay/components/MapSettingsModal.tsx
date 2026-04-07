@@ -145,11 +145,14 @@ export function MapSettingsModal({ mapBridge, suggestedRelays = [], onUiSettings
                 ) : view === 'ui' ? (
                     <div className="nostr-shortcuts-content">
                         <p>Configura el zoom minimo para mostrar avatar y nombre en edificios ocupados.</p>
-                        <label className="nostr-label" htmlFor="nostr-occupied-zoom-level">Occupied labels zoom level</label>
+                        <div className="nostr-ui-slider-row">
+                            <label className="nostr-label" htmlFor="nostr-occupied-zoom-level">Occupied labels zoom level</label>
+                            <span className="nostr-ui-slider-value">{uiSettings.occupiedLabelsZoomLevel}</span>
+                        </div>
                         <input
                             id="nostr-occupied-zoom-level"
                             className="nostr-input"
-                            type="number"
+                            type="range"
                             min={1}
                             max={20}
                             step={1}
@@ -167,6 +170,11 @@ export function MapSettingsModal({ mapBridge, suggestedRelays = [], onUiSettings
                                 });
                             }}
                         />
+                        <div className="nostr-ui-slider-marks" aria-hidden="true">
+                            <span>1</span>
+                            <span>8</span>
+                            <span>20</span>
+                        </div>
                     </div>
                 ) : view === 'relays' ? (
                     <div className="nostr-relays-content">

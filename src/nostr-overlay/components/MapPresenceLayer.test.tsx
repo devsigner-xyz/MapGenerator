@@ -128,4 +128,25 @@ describe('MapPresenceLayer', () => {
 
         expect(rendered.container.textContent || '').toContain('Alice');
     });
+
+    test('clips labels out of left panel inset area', async () => {
+        const bridge = createMapBridgeStub(10);
+        (bridge.getViewportInsetLeft as any).mockReturnValue(180);
+        const rendered = await renderElement(
+            <MapPresenceLayer
+                mapBridge={bridge}
+                occupancyByBuildingIndex={{ 0: occupantPubkey }}
+                profiles={profiles}
+                ownerPubkey={ownerPubkey}
+                ownerProfile={{ pubkey: ownerPubkey, displayName: 'Owner' }}
+                ownerBuildingIndex={0}
+                occupiedLabelsZoomLevel={8}
+            />
+        );
+        mounted.push(rendered);
+
+        const layer = rendered.container.querySelector('.nostr-map-presence-layer') as HTMLDivElement;
+        expect(layer).toBeDefined();
+        expect(layer.style.clipPath).toBe('inset(0 0 0 180px)');
+    });
 });
