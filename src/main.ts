@@ -13,6 +13,7 @@ import {ColourScheme, DefaultStyle, RoughStyle} from './ts/ui/style';
 import ColourSchemes from './colour_schemes';
 import Vector from './ts/vector';
 import { applyMapFirstStartup, shouldShowTensorField } from './ts/ui/startup_mode';
+import { shouldRegenerateMapOnViewportInsetChange } from './ts/ui/viewport_inset';
 import { SVG } from '@svgdotjs/svg.js';
 import ModelGenerator from './ts/model_generator';
 import { saveAs } from 'file-saver';
@@ -209,7 +210,10 @@ class Main {
         this.domainController.setViewportInsetLeft(insetPx);
         this.changeCanvasScale(this.highDPI);
 
-        if (!this.showTensorField() && !this.mainGui.roadsEmpty()) {
+        if (shouldRegenerateMapOnViewportInsetChange({
+            tensorFieldVisible: this.showTensorField(),
+            roadsEmpty: this.mainGui.roadsEmpty(),
+        })) {
             void this.generateMap();
         }
     }
