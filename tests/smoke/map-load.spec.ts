@@ -8,6 +8,8 @@ test('loads map canvases and gui panel', async ({ page }) => {
 
   await expect(page.locator('#map-canvas')).toBeVisible();
   await expect(page.locator('#map-svg')).toBeVisible();
+  await expect(page.locator('#nostr-overlay-root')).toBeVisible();
+  await expect(page.locator('#nostr-overlay-root input[name="npub"]')).toBeVisible();
   await expect(page.locator('.dg.main').first()).toBeVisible();
 
   expect(pageErrors).toEqual([]);

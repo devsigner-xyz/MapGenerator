@@ -1,0 +1,144 @@
+.nostr-overlay-shell {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 5;
+    width: min(360px, calc(100vw - 32px));
+    pointer-events: none;
+}
+
+.nostr-panel {
+    pointer-events: auto;
+    display: grid;
+    gap: 0.75rem;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(185, 194, 202, 0.95);
+    padding: 0.95rem;
+    backdrop-filter: blur(6px);
+    box-shadow: 0 12px 28px rgba(15, 37, 48, 0.14);
+}
+
+.nostr-header {
+    margin: 0;
+}
+
+.nostr-kicker {
+    margin: 0;
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #2f627b;
+}
+
+.nostr-title {
+    margin: 0.24rem 0 0;
+    font-size: 1rem;
+    color: #1f2f39;
+}
+
+.nostr-form {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.nostr-label {
+    font-size: 0.84rem;
+    color: #425764;
+}
+
+.nostr-input {
+    width: 100%;
+    border: 1px solid #c6d0d7;
+    border-radius: 8px;
+    padding: 0.6rem 0.75rem;
+    font-size: 0.92rem;
+}
+
+.nostr-submit {
+    justify-self: start;
+    border: 1px solid #2a6178;
+    background: #36758f;
+    color: #ffffff;
+    border-radius: 8px;
+    padding: 0.52rem 0.88rem;
+    cursor: pointer;
+}
+
+.nostr-submit:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.nostr-status {
+    margin: 0;
+    font-size: 0.88rem;
+    color: #4f5f69;
+}
+
+.nostr-status-loading {
+    color: #8c6f2f;
+}
+
+.nostr-status-error {
+    color: #b1473c;
+}
+
+.nostr-status-success {
+    color: #2b6e45;
+}
+
+.nostr-empty {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #53646f;
+}
+
+.nostr-people-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.42rem;
+    max-height: min(42vh, 360px);
+    overflow: auto;
+}
+
+.nostr-person {
+    width: 100%;
+    border: 1px solid rgba(196, 205, 214, 0.95);
+    border-radius: 8px;
+    background: rgba(253, 254, 255, 0.96);
+    padding: 0.48rem 0.54rem;
+    text-align: left;
+    display: grid;
+    gap: 0.16rem;
+    cursor: pointer;
+}
+
+.nostr-person:hover {
+    background: rgba(245, 250, 253, 0.96);
+}
+
+.nostr-person-active {
+    border-color: #2f6f89;
+    background: rgba(231, 242, 248, 0.96);
+}
+
+.nostr-person-name {
+    font-size: 0.86rem;
+    color: #223944;
+}
+
+.nostr-person-key {
+    font-size: 0.74rem;
+    color: #60727d;
+}
+
+@media (max-width: 720px) {
+    .nostr-overlay-shell {
+        top: 10px;
+        left: 10px;
+        width: auto;
+    }
+}

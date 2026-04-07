@@ -14,7 +14,7 @@ import {PolygonParams} from '../impl/polygon_finder';
 import StreamlineGenerator from '../impl/streamlines';
 import WaterGenerator from '../impl/water_generator';
 import Style from './style';
-import {DefaultStyle, RoughStyle} from './style';
+import {BuildingRenderState, DefaultStyle, RoughStyle} from './style';
 import CanvasWrapper from './canvas_wrapper';
 import Buildings, {BuildingModel} from './buildings';
 import PolygonUtil from '../impl/polygon_util';
@@ -58,6 +58,8 @@ export default class MainGUI {
     };
 
     private redraw: boolean = true;
+    private occupiedPubkeyByBuildingIndex: Record<number, string> = {};
+    private selectedBuildingIndex: number = null;
 
     constructor(private guiFolder: dat.GUI, private tensorField: TensorField, private closeTensorFolder: () => void) {
         guiFolder.add(this, 'generateEverything');
@@ -106,6 +108,7 @@ export default class MainGUI {
         const parks = guiFolder.addFolder('Parks');
         parks.add({Generate: () => {
             this.buildings.reset();
+            this.resetOccupancyState();
             this.addParks();
             this.redraw = true;
         }}, 'Generate');
@@ -141,6 +144,7 @@ export default class MainGUI {
             this.bigParks = [];
             this.smallParks = [];
             this.buildings.reset();
+            this.resetOccupancyState();
             tensorField.parks = [];
             tensorField.sea = [];
             tensorField.river = [];
@@ -152,6 +156,7 @@ export default class MainGUI {
             this.bigParks = [];
             this.smallParks = [];
             this.buildings.reset();
+            this.resetOccupancyState();
             tensorField.parks = [];
             tensorField.ignoreRiver = true;
         });
@@ -165,6 +170,7 @@ export default class MainGUI {
             this.bigParks = [];
             this.smallParks = [];
             this.buildings.reset();
+            this.resetOccupancyState();
             tensorField.parks = [];
             tensorField.ignoreRiver = true;
         });
@@ -177,6 +183,7 @@ export default class MainGUI {
 
         this.minorRoads.setPreGenerateCallback(() => {
             this.buildings.reset();
+            this.resetOccupancyState();
             this.smallParks = [];
             tensorField.parks = this.bigParks;
         });
@@ -271,6 +278,7 @@ export default class MainGUI {
         style.coastline = this.coastline.coastline;
         style.river = this.coastline.river;
         style.lots = this.buildings.lots;
+        style.buildingRenderStates = this.getBuildingRenderStates(style.lots.length);
 
         if (style instanceof DefaultStyle && style.showBuildingModels || style instanceof RoughStyle) {
             style.buildingModels = this.buildings.models;    
@@ -292,6 +300,52 @@ export default class MainGUI {
             && this.minorRoads.roadsEmpty()
             && this.mainRoads.roadsEmpty()
             && this.coastline.roadsEmpty();
+    }
+
+    getBuildingFootprintsWorld(): Vector[][] {
+        return this.buildings.lotWorlds;
+    }
+
+    getBuildingCentroidsWorld(): Vector[] {
+        return this.buildings.lotWorldCentroids;
+    }
+
+    getBuildingCentroidWorld(index: number): Vector | null {
+        return this.buildings.getLotWorldCentroid(index);
+    }
+
+    setOccupancyByBuildingIndex(byBuildingIndex: Record<number, string>): void {
+        const nextState: Record<number, string> = {};
+        Object.keys(byBuildingIndex).forEach((indexKey) => {
+            const index = Number(indexKey);
+            if (!Number.isInteger(index) || index < 0 || !byBuildingIndex[index]) {
+                return;
+            }
+            nextState[index] = byBuildingIndex[index];
+        });
+
+        this.occupiedPubkeyByBuildingIndex = nextState;
+        this.redraw = true;
+    }
+
+    setSelectedBuildingIndex(index?: number): void {
+        if (index === undefined || index === null) {
+            this.selectedBuildingIndex = null;
+        } else {
+            this.selectedBuildingIndex = index;
+        }
+        this.redraw = true;
+    }
+
+    focusBuilding(index: number): boolean {
+        const centroid = this.getBuildingCentroidWorld(index);
+        if (!centroid) {
+            return false;
+        }
+
+        this.domainController.centerOnWorldPoint(centroid);
+        this.redraw = true;
+        return true;
     }
 
     // OBJ Export methods
@@ -326,5 +380,25 @@ export default class MainGUI {
 
     public get coastlinePolygon(): Vector[] {
         return PolygonUtil.resizeGeometry(this.coastline.coastline, 15 * this.domainController.zoom, false);
+    }
+
+    private resetOccupancyState(): void {
+        this.occupiedPubkeyByBuildingIndex = {};
+        this.selectedBuildingIndex = null;
+        this.redraw = true;
+    }
+
+    private getBuildingRenderStates(size: number): BuildingRenderState[] {
+        return Array.from({ length: size }, (_, index) => {
+            if (this.selectedBuildingIndex === index) {
+                return 'selected';
+            }
+
+            if (this.occupiedPubkeyByBuildingIndex[index]) {
+                return 'occupied';
+            }
+
+            return 'empty';
+        });
     }
 }

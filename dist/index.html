@@ -1,16 +1,18 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <meta charset="UTF-8" />
-        <title>Map Generator</title>
-        <link rel="stylesheet" href="style.css">
-    </head>
-    <body style="background-color:grey;">
-        <svg id="map-svg"></svg>
-        <div>
-            <canvas id="map-canvas"></canvas>  <!-- Must match util.ts and style.css -->
-            <canvas id="img-canvas"></canvas>
-        </div>
-        <script src="bundle.js"></script>
-    </body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Map Generator</title>
+    <script type="module" crossorigin src="/assets/index-DiTZ-x72.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-8BOnXwxz.css">
+  </head>
+  <body style="background-color:grey;">
+    <svg id="map-svg"></svg>
+    <div>
+      <canvas id="map-canvas"></canvas>
+      <canvas id="img-canvas"></canvas>
+    </div>
+    <div id="nostr-overlay-root"></div>
+  </body>
 </html>

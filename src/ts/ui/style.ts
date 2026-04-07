@@ -35,6 +35,34 @@ export interface ColourScheme {
     frameTextColour?: string;
 }
 
+export type BuildingRenderState = 'empty' | 'occupied' | 'selected';
+
+export interface BuildingRenderColours {
+    fill: string;
+    stroke: string;
+}
+
+export function resolveBuildingRenderColours(state: BuildingRenderState, colourScheme: ColourScheme): BuildingRenderColours {
+    if (state === 'selected') {
+        return {
+            fill: 'rgb(255,214,118)',
+            stroke: 'rgb(233,166,52)',
+        };
+    }
+
+    if (state === 'occupied') {
+        return {
+            fill: 'rgb(247,240,206)',
+            stroke: 'rgb(228,202,120)',
+        };
+    }
+
+    return {
+        fill: colourScheme.buildingColour || colourScheme.bgColour,
+        stroke: colourScheme.buildingStroke || colourScheme.bgColour,
+    };
+}
+
 /**
  * Controls how screen-space data is drawn
  */
@@ -50,6 +78,7 @@ export default abstract class Style {
     public seaPolygon: Vector[] = [];
     public lots: Vector[][] = [];
     public buildingModels: BuildingModel[] = [];
+    public buildingRenderStates: BuildingRenderState[] = [];
     public parks: Vector[][] = [];
 
     // Polylines
@@ -211,9 +240,14 @@ export class DefaultStyle extends Style {
         } else {
             // Buildings
             if (!this.colourScheme.zoomBuildings || this.domainController.zoom >= 2) {
-                canvas.setFillStyle(this.colourScheme.buildingColour);
-                canvas.setStrokeStyle(this.colourScheme.buildingStroke);
-                for (const b of this.lots) canvas.drawPolygon(b);
+                for (let i = 0; i < this.lots.length; i++) {
+                    const lot = this.lots[i];
+                    const state = this.buildingRenderStates[i] || 'empty';
+                    const colours = resolveBuildingRenderColours(state, this.colourScheme);
+                    canvas.setFillStyle(colours.fill);
+                    canvas.setStrokeStyle(colours.stroke);
+                    canvas.drawPolygon(lot);
+                }
             }
 
             // Pseudo-3D
@@ -336,14 +370,18 @@ export class RoughStyle extends Style {
         if (!this.dragging) {
             // Lots
             if (!this.colourScheme.zoomBuildings || this.domainController.zoom >= 2) {
-                // Lots
-                canvas.setOptions({
-                    roughness: 1.2,
-                    stroke: this.colourScheme.buildingStroke,
-                    strokeWidth: 1,
-                    fill: '',
-                });
-                for (const b of this.lots) canvas.drawPolygon(b);
+                for (let i = 0; i < this.lots.length; i++) {
+                    const lot = this.lots[i];
+                    const state = this.buildingRenderStates[i] || 'empty';
+                    const colours = resolveBuildingRenderColours(state, this.colourScheme);
+                    canvas.setOptions({
+                        roughness: 1.2,
+                        stroke: colours.stroke,
+                        strokeWidth: 1,
+                        fill: colours.fill,
+                    });
+                    canvas.drawPolygon(lot);
+                }
             }
 
             // Pseudo-3D

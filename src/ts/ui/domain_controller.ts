@@ -119,6 +119,12 @@ export default class DomainController {
         }
     }
 
+    centerOnWorldPoint(point: Vector): void {
+        const halfWorld = this.worldDimensions.divideScalar(2);
+        this._origin = point.clone().sub(halfWorld);
+        this.moved = true;
+    }
+
     onScreen(v: Vector): boolean {
         const screenSpace = this.worldToScreen(v.clone());
         return screenSpace.x >= 0 && screenSpace.y >= 0

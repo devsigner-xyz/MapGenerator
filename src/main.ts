@@ -15,6 +15,7 @@ import Vector from './ts/vector';
 import { SVG } from '@svgdotjs/svg.js';
 import ModelGenerator from './ts/model_generator';
 import { saveAs } from 'file-saver';
+import { mountNostrOverlay } from './nostr-overlay/bootstrap';
 
 class Main {
     private readonly STARTING_WIDTH = 1440;  // Initially zooms in if width > STARTING_WIDTH
@@ -54,6 +55,7 @@ class Main {
 
     private firstGenerate = true;  // Don't randomise tensor field on first generate
     private modelGenerator: ModelGenerator;
+    private mapGeneratedListeners: Array<() => void> = [];
 
     constructor() {
         // GUI Setup
@@ -131,13 +133,58 @@ class Main {
      * Generate an entire map with no control over the process
      */
     generate(): void {
+        void this.generateMap();
+    }
+
+    async generateMap(): Promise<void> {
         if (!this.firstGenerate) {
             this.tensorField.setRecommended();
         } else {
             this.firstGenerate = false;
         }
         
-        this.mainGui.generateEverything();
+        await this.mainGui.generateEverything();
+        this.notifyMapGenerated();
+    }
+
+    async ensureGenerated(): Promise<void> {
+        if (this.mainGui.roadsEmpty()) {
+            await this.generateMap();
+        }
+    }
+
+    roadsEmpty(): boolean {
+        return this.mainGui.roadsEmpty();
+    }
+
+    getBuildingCentroidsWorld(): Vector[] {
+        return this.mainGui.getBuildingCentroidsWorld();
+    }
+
+    getBuildingFootprintsWorld(): Vector[][] {
+        return this.mainGui.getBuildingFootprintsWorld();
+    }
+
+    setOccupancyByBuildingIndex(byBuildingIndex: Record<number, string>): void {
+        this.mainGui.setOccupancyByBuildingIndex(byBuildingIndex);
+    }
+
+    setSelectedBuildingIndex(index?: number): void {
+        this.mainGui.setSelectedBuildingIndex(index);
+    }
+
+    focusBuilding(index: number): boolean {
+        return this.mainGui.focusBuilding(index);
+    }
+
+    subscribeMapGenerated(listener: () => void): () => void {
+        this.mapGeneratedListeners.push(listener);
+        return (): void => {
+            const index = this.mapGeneratedListeners.indexOf(listener);
+            if (index >= 0) {
+                this.mapGeneratedListeners.splice(index, 1);
+            }
+        };
     }
 
     /**
@@ -317,10 +364,18 @@ class Main {
         this.draw();
         requestAnimationFrame(this.update.bind(this));
     }
+
+    private notifyMapGenerated(): void {
+        for (const listener of this.mapGeneratedListeners) {
+            listener();
+        }
+    }
 }
 
 // Add log to window so we can use log.setlevel from the console
 (window as any).log = log;
 window.addEventListener('load', (): void => {
-    new Main();
+    const main = new Main();
+    (window as any).mapGeneratorMain = main;
+    mountNostrOverlay();
 });

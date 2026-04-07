@@ -114,6 +114,23 @@ export default class Buildings {
         return this.polygonFinder.polygons.map(p => p.map(v => this.domainController.worldToScreen(v.clone())));
     }
 
+    get lotWorlds(): Vector[][] {
+        return this.polygonFinder.polygons.map(p => p.map(v => v.clone()));
+    }
+
+    get lotWorldCentroids(): Vector[] {
+        return this.lotWorlds.map(polygon => this.polygonCentroid(polygon));
+    }
+
+    getLotWorldCentroid(index: number): Vector | null {
+        const polygon = this.polygonFinder.polygons[index];
+        if (!polygon || polygon.length === 0) {
+            return null;
+        }
+
+        return this.polygonCentroid(polygon);
+    }
+
     /**
      * Only used when creating the 3D model to 'fake' the roads
      */
@@ -168,5 +185,21 @@ export default class Buildings {
 
     setPostGenerateCallback(callback: () => any): void {
         this.postGenerateCallback = callback;
+    }
+
+    private polygonCentroid(polygon: Vector[]): Vector {
+        if (polygon.length === 0) {
+            return Vector.zeroVector();
+        }
+
+        let x = 0;
+        let y = 0;
+
+        for (const point of polygon) {
+            x += point.x;
+            y += point.y;
+        }
+
+        return new Vector(x / polygon.length, y / polygon.length);
     }
 }

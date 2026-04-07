@@ -4,15 +4,19 @@
         "target": "es2018",
         "module": "esnext",
         "moduleResolution": "node",
+        "jsx": "react-jsx",
         "skipLibCheck": true,
         "esModuleInterop": true,
         "allowSyntheticDefaultImports": true,
         "lib": ["es2018", "DOM", "DOM.Iterable", "ScriptHost"],
+        "types": ["vite/client", "vitest/globals"],
         "downlevelIteration": true,
         "resolveJsonModule": true
     },
     "include": [
         "src/**/*.ts",
+        "src/**/*.tsx",
+        "tests/**/*.ts",
         "src/**/*.d.ts"
     ]
 }
