@@ -21,6 +21,9 @@ function createMapBridgeStub(buildingsCount: number): { bridge: MapBridge; trigg
         setModalBuildingHighlight: vi.fn(),
         mountSettingsPanel: vi.fn(),
         focusBuilding: vi.fn(),
+        getZoom: vi.fn().mockReturnValue(1),
+        worldToScreen: vi.fn().mockImplementation((point: { x: number; y: number }) => point),
+        getViewportInsetLeft: vi.fn().mockReturnValue(0),
         onMapGenerated: vi.fn().mockImplementation((listener: () => void) => {
             listeners.push(listener);
             return () => {
@@ -31,6 +34,7 @@ function createMapBridgeStub(buildingsCount: number): { bridge: MapBridge; trigg
             };
         }),
         onOccupiedBuildingClick: vi.fn().mockReturnValue(() => {}),
+        onViewChanged: vi.fn().mockReturnValue(() => {}),
     };
 
     return {

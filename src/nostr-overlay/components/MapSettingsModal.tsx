@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { addRelay, loadRelaySettings, removeRelay, saveRelaySettings, type RelaySettingsState } from '../../nostr/relay-settings';
 import { normalizeRelayUrl } from '../../nostr/relay-policy';
+import { loadUiSettings, saveUiSettings, type UiSettingsState } from '../../nostr/ui-settings';
 import type { MapBridge } from '../map-bridge';
 
 interface MapSettingsModalProps {
     mapBridge: MapBridge | null;
     suggestedRelays?: string[];
+    onUiSettingsChange?: (nextState: UiSettingsState) => void;
     onClose: () => void;
 }
 
-type SettingsView = 'settings' | 'shortcuts' | 'relays';
+type SettingsView = 'settings' | 'ui' | 'shortcuts' | 'relays';
 
 function normalizeRelayInput(value: string): string | null {
     const trimmed = value.trim();
@@ -24,9 +26,10 @@ function normalizeRelayInput(value: string): string | null {
     return normalizeRelayUrl(`wss://${trimmed}`);
 }
 
-export function MapSettingsModal({ mapBridge, suggestedRelays = [], onClose }: MapSettingsModalProps) {
+export function MapSettingsModal({ mapBridge, suggestedRelays = [], onUiSettingsChange, onClose }: MapSettingsModalProps) {
     const [view, setView] = useState<SettingsView>('settings');
     const [relaySettings, setRelaySettings] = useState<RelaySettingsState>(() => loadRelaySettings());
+    const [uiSettings, setUiSettings] = useState<UiSettingsState>(() => loadUiSettings());
     const [newRelayInput, setNewRelayInput] = useState('');
     const [invalidRelayInputs, setInvalidRelayInputs] = useState<string[]>([]);
     const settingsHostRef = useRef<HTMLDivElement | null>(null);
@@ -34,6 +37,12 @@ export function MapSettingsModal({ mapBridge, suggestedRelays = [], onClose }: M
     const persistRelaySettings = (nextState: RelaySettingsState): void => {
         const savedState = saveRelaySettings(nextState);
         setRelaySettings(savedState);
+    };
+
+    const persistUiSettings = (nextState: UiSettingsState): void => {
+        const savedState = saveUiSettings(nextState);
+        setUiSettings(savedState);
+        onUiSettingsChange?.(savedState);
     };
 
     const handleAddRelays = (): void => {
@@ -100,7 +109,7 @@ export function MapSettingsModal({ mapBridge, suggestedRelays = [], onClose }: M
         <div className="nostr-modal-backdrop" role="presentation" onClick={onClose}>
             <div className="nostr-modal nostr-settings-modal" role="dialog" aria-modal="true" aria-label="Ajustes" onClick={(event) => event.stopPropagation()}>
                 <div className="nostr-settings-header">
-                    {view === 'shortcuts' || view === 'relays' ? (
+                    {view === 'ui' || view === 'shortcuts' || view === 'relays' ? (
                         <button type="button" className="nostr-settings-back" onClick={() => setView('settings')}>
                             Volver
                         </button>
@@ -109,7 +118,7 @@ export function MapSettingsModal({ mapBridge, suggestedRelays = [], onClose }: M
                     )}
 
                     <p className="nostr-settings-title">
-                        {view === 'settings' ? 'Settings' : view === 'shortcuts' ? 'Shortcuts' : 'Relays'}
+                        {view === 'settings' ? 'Settings' : view === 'ui' ? 'UI' : view === 'shortcuts' ? 'Shortcuts' : 'Relays'}
                     </p>
 
                     <button type="button" className="nostr-modal-close" onClick={onClose} aria-label="Cerrar ajustes">
@@ -119,6 +128,10 @@ export function MapSettingsModal({ mapBridge, suggestedRelays = [], onClose }: M
 
                 {view === 'settings' ? (
                     <div className="nostr-settings-content">
+                        <button type="button" className="nostr-settings-item" onClick={() => setView('ui')}>
+                            UI
+                        </button>
+
                         <button type="button" className="nostr-settings-item" onClick={() => setView('shortcuts')}>
                             Shortcuts
                         </button>
@@ -128,6 +141,32 @@ export function MapSettingsModal({ mapBridge, suggestedRelays = [], onClose }: M
                         </button>
 
                         <div ref={settingsHostRef} className="nostr-settings-host" />
+                    </div>
+                ) : view === 'ui' ? (
+                    <div className="nostr-shortcuts-content">
+                        <p>Configura el zoom minimo para mostrar avatar y nombre en edificios ocupados.</p>
+                        <label className="nostr-label" htmlFor="nostr-occupied-zoom-level">Occupied labels zoom level</label>
+                        <input
+                            id="nostr-occupied-zoom-level"
+                            className="nostr-input"
+                            type="number"
+                            min={1}
+                            max={20}
+                            step={1}
+                            aria-label="Occupied labels zoom level"
+                            value={uiSettings.occupiedLabelsZoomLevel}
+                            onChange={(event) => {
+                                const nextValue = Number(event.target.value);
+                                if (!Number.isFinite(nextValue)) {
+                                    return;
+                                }
+
+                                persistUiSettings({
+                                    ...uiSettings,
+                                    occupiedLabelsZoomLevel: nextValue,
+                                });
+                            }}
+                        />
                     </div>
                 ) : view === 'relays' ? (
                     <div className="nostr-relays-content">

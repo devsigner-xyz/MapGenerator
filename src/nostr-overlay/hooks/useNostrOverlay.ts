@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { assignPubkeysToBuildings, type AssignmentResult } from '../../nostr/domain/assignment';
+import { assignPubkeysToBuildings, hashPubkeyToIndex, type AssignmentResult } from '../../nostr/domain/assignment';
 import { buildOccupancyState } from '../../nostr/domain/occupancy';
 import { fetchFollowersBestEffort } from '../../nostr/followers';
 import { fetchFollowsByNpub, parseFollowsFromKind3 } from '../../nostr/follows';
@@ -25,6 +25,7 @@ export type OverlayStatus =
 interface OverlayData {
     ownerPubkey?: string;
     ownerProfile?: NostrProfile;
+    ownerBuildingIndex?: number;
     follows: string[];
     profiles: Record<string, NostrProfile>;
     followers: string[];
@@ -114,6 +115,7 @@ function createEmptyActiveProfileState(): Pick<
 
 function createInitialData(): OverlayData {
     return {
+        ownerBuildingIndex: undefined,
         follows: [],
         profiles: {},
         followers: [],
@@ -130,6 +132,15 @@ function createInitialData(): OverlayData {
         suggestedRelays: [],
         ...createEmptyActiveProfileState(),
     };
+}
+
+function resolveOwnerBuildingIndex(ownerPubkey: string | undefined, buildingsCount: number): number | undefined {
+    if (!ownerPubkey) {
+        return undefined;
+    }
+
+    const index = hashPubkeyToIndex(ownerPubkey, buildingsCount, ownerPubkey);
+    return index >= 0 ? index : undefined;
 }
 
 function dedupe(values: string[]): string[] {
@@ -209,6 +220,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                         ...current.data,
                         buildingsCount: buildings.length,
                         assignments,
+                        ownerBuildingIndex: resolveOwnerBuildingIndex(current.data.ownerPubkey, buildings.length),
                     },
                 };
             });
@@ -559,6 +571,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 data: {
                     ownerPubkey: graph.ownerPubkey,
                     ownerProfile,
+                    ownerBuildingIndex: resolveOwnerBuildingIndex(graph.ownerPubkey, buildings.length),
                     follows,
                     profiles,
                     followers: [],
@@ -819,6 +832,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         error: state.error,
         ownerPubkey: state.data.ownerPubkey,
         ownerProfile: state.data.ownerProfile,
+        ownerBuildingIndex: state.data.ownerBuildingIndex,
         follows: state.data.follows,
         profiles: state.data.profiles,
         followers: state.data.followers,
@@ -843,6 +857,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         activeProfileNetworkError: state.data.activeProfileNetworkError,
         followsCount: state.data.follows.length,
         assignedCount,
+        occupancyByBuildingIndex: state.data.assignments.byBuildingIndex,
         submitNpub,
         selectFollowing,
         closeActiveProfileModal,

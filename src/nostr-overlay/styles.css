@@ -686,6 +686,116 @@
     justify-self: start;
 }
 
+.nostr-map-presence-layer {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 3;
+}
+
+.nostr-map-occupant-tag {
+    position: absolute;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    transform: translate(-50%, -115%);
+    border: 1px solid rgba(170, 188, 198, 0.95);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 8px 16px rgba(14, 32, 44, 0.2);
+    padding: 0.2rem 0.5rem 0.2rem 0.22rem;
+    max-width: 200px;
+}
+
+.nostr-map-occupant-avatar {
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    object-fit: cover;
+    border: 1px solid rgba(122, 146, 160, 0.52);
+    flex: 0 0 auto;
+}
+
+.nostr-map-occupant-avatar-fallback {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(209, 225, 233, 0.95);
+    color: #2d5a6d;
+    font-size: 0.66rem;
+    font-weight: 700;
+}
+
+.nostr-map-occupant-name {
+    display: block;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #1f3340;
+    font-size: 0.76rem;
+    font-weight: 600;
+}
+
+.nostr-map-owner-tooltip {
+    position: absolute;
+    display: grid;
+    gap: 0.16rem;
+    justify-items: center;
+    transform: translate(-50%, -165%);
+}
+
+.nostr-map-owner-headline {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.nostr-map-owner-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    object-fit: cover;
+    border: 1px solid rgba(122, 146, 160, 0.52);
+    flex: 0 0 auto;
+    box-shadow: 0 8px 16px rgba(14, 32, 44, 0.2);
+}
+
+.nostr-map-owner-avatar-fallback {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #2d5a6d;
+    background: rgba(209, 225, 233, 0.95);
+    font-size: 0.66rem;
+    font-weight: 700;
+}
+
+.nostr-map-owner-badge {
+    border: 1px solid rgba(227, 182, 70, 0.98);
+    background: rgba(255, 231, 171, 0.98);
+    color: #714d0f;
+    border-radius: 999px;
+    padding: 0.2rem 0.46rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    box-shadow: 0 8px 16px rgba(14, 32, 44, 0.2);
+}
+
+.nostr-map-owner-name {
+    color: #203641;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(170, 188, 198, 0.95);
+    border-radius: 999px;
+    padding: 0.1rem 0.4rem;
+    font-size: 0.68rem;
+    font-weight: 600;
+    max-width: 170px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 @media (max-width: 720px) {
     .nostr-overlay-shell {
         width: 100vw;

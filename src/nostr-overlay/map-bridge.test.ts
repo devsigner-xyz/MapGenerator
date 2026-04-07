@@ -12,8 +12,12 @@ function createMainApiStub(overrides: Partial<MapMainApi> = {}): MapMainApi {
         setModalHighlightedBuildingIndex: vi.fn(),
         mountSettingsPanel: vi.fn(),
         focusBuilding: vi.fn().mockReturnValue(true),
+        getZoom: vi.fn().mockReturnValue(8),
+        worldToScreen: vi.fn().mockImplementation((point: { x: number; y: number }) => ({ x: point.x + 1, y: point.y + 2 })),
+        getViewportInsetLeft: vi.fn().mockReturnValue(120),
         subscribeMapGenerated: vi.fn().mockReturnValue(() => {}),
         subscribeOccupiedBuildingClick: vi.fn().mockReturnValue(() => {}),
+        subscribeViewChanged: vi.fn().mockReturnValue(() => {}),
         ...overrides,
     };
 }
@@ -91,6 +95,35 @@ describe('createMapBridge', () => {
         expect(api.setViewportInsetLeft).toHaveBeenNthCalledWith(2, 0);
     });
 
+    test('getZoom delegates to map api', () => {
+        const api = createMainApiStub({ getZoom: vi.fn().mockReturnValue(11) });
+        const bridge = createMapBridge(api);
+
+        expect(bridge.getZoom()).toBe(11);
+        expect(api.getZoom).toHaveBeenCalledTimes(1);
+    });
+
+    test('worldToScreen delegates point projection to map api', () => {
+        const api = createMainApiStub({
+            worldToScreen: vi.fn().mockImplementation((point: { x: number; y: number }) => ({
+                x: point.x * 2,
+                y: point.y * 2,
+            })),
+        });
+        const bridge = createMapBridge(api);
+
+        expect(bridge.worldToScreen({ x: 4, y: 7 })).toEqual({ x: 8, y: 14 });
+        expect(api.worldToScreen).toHaveBeenCalledWith({ x: 4, y: 7 });
+    });
+
+    test('getViewportInsetLeft delegates to map api', () => {
+        const api = createMainApiStub({ getViewportInsetLeft: vi.fn().mockReturnValue(300) });
+        const bridge = createMapBridge(api);
+
+        expect(bridge.getViewportInsetLeft()).toBe(300);
+        expect(api.getViewportInsetLeft).toHaveBeenCalledTimes(1);
+    });
+
     test('mountSettingsPanel delegates container to map api', () => {
         const api = createMainApiStub();
         const bridge = createMapBridge(api);
@@ -125,6 +158,20 @@ describe('createMapBridge', () => {
         const listener = vi.fn();
 
         const off = bridge.onOccupiedBuildingClick(listener);
+
+        expect(subscribe).toHaveBeenCalledWith(listener);
+        off();
+        expect(unsubscribe).toHaveBeenCalledTimes(1);
+    });
+
+    test('onViewChanged subscribes and unsubscribes using map api listener hooks', () => {
+        const unsubscribe = vi.fn();
+        const subscribe = vi.fn().mockReturnValue(unsubscribe);
+        const api = createMainApiStub({ subscribeViewChanged: subscribe });
+        const bridge = createMapBridge(api);
+        const listener = vi.fn();
+
+        const off = bridge.onViewChanged(listener);
 
         expect(subscribe).toHaveBeenCalledWith(listener);
         off();

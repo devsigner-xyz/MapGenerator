@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { loadUiSettings, type UiSettingsState } from '../nostr/ui-settings';
+import { MapPresenceLayer } from './components/MapPresenceLayer';
 import { NpubForm } from './components/NpubForm';
 import { MapSettingsModal } from './components/MapSettingsModal';
 import { OccupantProfileModal } from './components/OccupantProfileModal';
@@ -16,6 +18,7 @@ export function App({ mapBridge, services }: AppProps) {
     const overlay = useNostrOverlay({ mapBridge, services });
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [panelCollapsed, setPanelCollapsed] = useState(false);
+    const [uiSettings, setUiSettings] = useState<UiSettingsState>(() => loadUiSettings());
     const formDisabled = overlay.status !== 'idle' && overlay.status !== 'success' && overlay.status !== 'error';
 
     useEffect(() => {
@@ -108,9 +111,20 @@ export function App({ mapBridge, services }: AppProps) {
                 <MapSettingsModal
                     mapBridge={mapBridge}
                     suggestedRelays={overlay.suggestedRelays}
+                    onUiSettingsChange={setUiSettings}
                     onClose={() => setSettingsOpen(false)}
                 />
             ) : null}
+
+            <MapPresenceLayer
+                mapBridge={mapBridge}
+                occupancyByBuildingIndex={overlay.occupancyByBuildingIndex}
+                profiles={overlay.profiles}
+                ownerPubkey={overlay.ownerPubkey}
+                ownerProfile={overlay.ownerProfile}
+                ownerBuildingIndex={overlay.ownerBuildingIndex}
+                occupiedLabelsZoomLevel={uiSettings.occupiedLabelsZoomLevel}
+            />
 
             {overlay.activeProfilePubkey ? (
                 <OccupantProfileModal

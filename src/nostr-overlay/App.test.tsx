@@ -26,6 +26,9 @@ function createMapBridgeStub(): MapBridgeStub {
         setModalBuildingHighlight: vi.fn(),
         mountSettingsPanel: vi.fn(),
         focusBuilding: vi.fn(),
+        getZoom: vi.fn().mockReturnValue(1),
+        worldToScreen: vi.fn().mockImplementation((point: { x: number; y: number }) => point),
+        getViewportInsetLeft: vi.fn().mockReturnValue(0),
         onMapGenerated: vi.fn().mockReturnValue(() => {}),
         onOccupiedBuildingClick: vi.fn().mockImplementation((listener: (payload: { buildingIndex: number; pubkey: string }) => void) => {
             occupiedBuildingClickListeners.push(listener);
@@ -36,6 +39,7 @@ function createMapBridgeStub(): MapBridgeStub {
                 }
             };
         }),
+        onViewChanged: vi.fn().mockReturnValue(() => {}),
     } as unknown as MapBridge;
 
     return {

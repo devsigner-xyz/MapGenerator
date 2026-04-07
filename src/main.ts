@@ -69,6 +69,7 @@ class Main {
     private modelGenerator: ModelGenerator;
     private mapGeneratedListeners: Array<() => void> = [];
     private occupiedBuildingClickListeners: Array<(payload: OccupiedBuildingClickPayload) => void> = [];
+    private viewChangedListeners: Array<() => void> = [];
     private viewportInsetLeft = 0;
 
     constructor() {
@@ -234,6 +235,18 @@ class Main {
         return this.mainGui.focusBuilding(index);
     }
 
+    getZoom(): number {
+        return this.domainController.zoom;
+    }
+
+    worldToScreen(point: { x: number; y: number }): Vector {
+        return this.domainController.worldToScreen(new Vector(point.x, point.y));
+    }
+
+    getViewportInsetLeft(): number {
+        return this.viewportInsetLeft;
+    }
+
     subscribeMapGenerated(listener: () => void): () => void {
         this.mapGeneratedListeners.push(listener);
         return (): void => {
@@ -250,6 +263,16 @@ class Main {
             const index = this.occupiedBuildingClickListeners.indexOf(listener);
             if (index >= 0) {
                 this.occupiedBuildingClickListeners.splice(index, 1);
+            }
+        };
+    }
+
+    subscribeViewChanged(listener: () => void): () => void {
+        this.viewChangedListeners.push(listener);
+        return (): void => {
+            const index = this.viewChangedListeners.indexOf(listener);
+            if (index >= 0) {
+                this.viewChangedListeners.splice(index, 1);
             }
         };
     }
@@ -591,6 +614,10 @@ class Main {
             }
         }
 
+        if (this.domainController.moved) {
+            this.notifyViewChanged();
+        }
+
         this._style.update();
         this.mainGui.update();
         this.draw();
@@ -606,6 +633,12 @@ class Main {
     private notifyOccupiedBuildingClick(payload: OccupiedBuildingClickPayload): void {
         for (const listener of this.occupiedBuildingClickListeners) {
             listener(payload);
+        }
+    }
+
+    private notifyViewChanged(): void {
+        for (const listener of this.viewChangedListeners) {
+            listener();
         }
     }
 }

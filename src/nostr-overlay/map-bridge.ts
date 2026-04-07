@@ -18,8 +18,12 @@ export interface MapMainApi {
     setModalHighlightedBuildingIndex(index?: number): void;
     mountSettingsPanel(container: HTMLElement | null): void;
     focusBuilding(index: number): boolean | void;
+    getZoom(): number;
+    worldToScreen(point: WorldPoint): WorldPoint;
+    getViewportInsetLeft(): number;
     subscribeMapGenerated?(listener: () => void): (() => void) | void;
     subscribeOccupiedBuildingClick?(listener: (payload: { buildingIndex: number; pubkey: string }) => void): (() => void) | void;
+    subscribeViewChanged?(listener: () => void): (() => void) | void;
 }
 
 export interface MapBridge {
@@ -30,8 +34,12 @@ export interface MapBridge {
     setModalBuildingHighlight(index?: number): void;
     mountSettingsPanel(container: HTMLElement | null): void;
     focusBuilding(index: number): void;
+    getZoom(): number;
+    worldToScreen(point: WorldPoint): WorldPoint;
+    getViewportInsetLeft(): number;
     onMapGenerated(listener: () => void): () => void;
     onOccupiedBuildingClick(listener: (payload: { buildingIndex: number; pubkey: string }) => void): () => void;
+    onViewChanged(listener: () => void): () => void;
 }
 
 export function createMapBridge(mainApi: MapMainApi): MapBridge {
@@ -73,6 +81,18 @@ export function createMapBridge(mainApi: MapMainApi): MapBridge {
             mainApi.focusBuilding(index);
         },
 
+        getZoom(): number {
+            return mainApi.getZoom();
+        },
+
+        worldToScreen(point: WorldPoint): WorldPoint {
+            return mainApi.worldToScreen(point);
+        },
+
+        getViewportInsetLeft(): number {
+            return mainApi.getViewportInsetLeft();
+        },
+
         onMapGenerated(listener: () => void): () => void {
             if (!mainApi.subscribeMapGenerated) {
                 return () => {};
@@ -92,6 +112,19 @@ export function createMapBridge(mainApi: MapMainApi): MapBridge {
             }
 
             const maybeUnsubscribe = mainApi.subscribeOccupiedBuildingClick(listener);
+            if (typeof maybeUnsubscribe === 'function') {
+                return maybeUnsubscribe;
+            }
+
+            return () => {};
+        },
+
+        onViewChanged(listener: () => void): () => void {
+            if (!mainApi.subscribeViewChanged) {
+                return () => {};
+            }
+
+            const maybeUnsubscribe = mainApi.subscribeViewChanged(listener);
             if (typeof maybeUnsubscribe === 'function') {
                 return maybeUnsubscribe;
             }
