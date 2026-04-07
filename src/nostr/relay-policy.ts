@@ -1,3 +1,5 @@
+import type { NostrEvent } from './types';
+
 const DEFAULT_BOOTSTRAP_RELAYS = [
     'wss://relay.damus.io',
     'wss://relay.primal.net',
@@ -54,4 +56,16 @@ export function relayHintsFromKind3Content(content: string): string[] {
     } catch {
         return [];
     }
+}
+
+export function relayListFromKind10002Event(event: NostrEvent | null): string[] {
+    if (!event || event.kind !== 10002) {
+        return [];
+    }
+
+    const candidates = event.tags
+        .filter((tag) => tag[0] === 'r' && typeof tag[1] === 'string' && tag[1].length > 0)
+        .map((tag) => tag[1]);
+
+    return mergeRelaySets(candidates);
 }

@@ -115,6 +115,14 @@ The Nostr overlay uses in-memory TTL cache to improve perceived loading speed wh
 
 This cache is process-local and non-persistent by design for this phase.
 
+### Nostr overlay settings and profile modal
+
+- Relay settings are available inside the overlay settings modal (`Settings -> Relays`).
+- You can add multiple relays at once (one URL per line); values are normalized and deduplicated.
+- Relay settings are persisted in browser localStorage under `nostr.overlay.relays.v1`.
+- Occupant profile modal now includes recent posts plus followers/following counters.
+- Recent posts are loaded incrementally (initial batch + on-demand load more).
+
 
 
 

@@ -1,16 +1,89 @@
 import { useEffect, useRef, useState } from 'react';
+import { addRelay, loadRelaySettings, removeRelay, saveRelaySettings, type RelaySettingsState } from '../../nostr/relay-settings';
+import { normalizeRelayUrl } from '../../nostr/relay-policy';
 import type { MapBridge } from '../map-bridge';
 
 interface MapSettingsModalProps {
     mapBridge: MapBridge | null;
+    suggestedRelays?: string[];
     onClose: () => void;
 }
 
-type SettingsView = 'settings' | 'shortcuts';
+type SettingsView = 'settings' | 'shortcuts' | 'relays';
 
-export function MapSettingsModal({ mapBridge, onClose }: MapSettingsModalProps) {
+function normalizeRelayInput(value: string): string | null {
+    const trimmed = value.trim();
+    if (!trimmed) {
+        return null;
+    }
+
+    if (trimmed.startsWith('ws://') || trimmed.startsWith('wss://')) {
+        return normalizeRelayUrl(trimmed);
+    }
+
+    return normalizeRelayUrl(`wss://${trimmed}`);
+}
+
+export function MapSettingsModal({ mapBridge, suggestedRelays = [], onClose }: MapSettingsModalProps) {
     const [view, setView] = useState<SettingsView>('settings');
+    const [relaySettings, setRelaySettings] = useState<RelaySettingsState>(() => loadRelaySettings());
+    const [newRelayInput, setNewRelayInput] = useState('');
+    const [invalidRelayInputs, setInvalidRelayInputs] = useState<string[]>([]);
     const settingsHostRef = useRef<HTMLDivElement | null>(null);
+
+    const persistRelaySettings = (nextState: RelaySettingsState): void => {
+        const savedState = saveRelaySettings(nextState);
+        setRelaySettings(savedState);
+    };
+
+    const handleAddRelays = (): void => {
+        const lines = newRelayInput
+            .split('\n')
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0);
+
+        if (lines.length === 0) {
+            setInvalidRelayInputs([]);
+            return;
+        }
+
+        let nextState = relaySettings;
+        const invalid: string[] = [];
+
+        for (const line of lines) {
+            const normalized = normalizeRelayInput(line);
+            if (!normalized) {
+                invalid.push(line);
+                continue;
+            }
+
+            nextState = addRelay(nextState, normalized);
+        }
+
+        persistRelaySettings(nextState);
+        setInvalidRelayInputs(invalid);
+        setNewRelayInput('');
+    };
+
+    const handleRemoveRelay = (relayUrl: string): void => {
+        const nextState = removeRelay(relaySettings, relayUrl);
+        persistRelaySettings(nextState);
+    };
+
+    const handleAddSuggestedRelay = (relayUrl: string): void => {
+        const nextState = addRelay(relaySettings, relayUrl);
+        persistRelaySettings(nextState);
+    };
+
+    const handleAddAllSuggestedRelays = (): void => {
+        let nextState = relaySettings;
+        for (const relayUrl of suggestedRelays) {
+            nextState = addRelay(nextState, relayUrl);
+        }
+        persistRelaySettings(nextState);
+    };
+
+    const suggestedNotAdded = suggestedRelays.filter((relayUrl) => !relaySettings.relays.includes(relayUrl));
 
     useEffect(() => {
         if (!mapBridge || view !== 'settings' || !settingsHostRef.current) {
@@ -27,7 +100,7 @@ export function MapSettingsModal({ mapBridge, onClose }: MapSettingsModalProps) 
         <div className="nostr-modal-backdrop" role="presentation" onClick={onClose}>
             <div className="nostr-modal nostr-settings-modal" role="dialog" aria-modal="true" aria-label="Ajustes" onClick={(event) => event.stopPropagation()}>
                 <div className="nostr-settings-header">
-                    {view === 'shortcuts' ? (
+                    {view === 'shortcuts' || view === 'relays' ? (
                         <button type="button" className="nostr-settings-back" onClick={() => setView('settings')}>
                             Volver
                         </button>
@@ -35,7 +108,9 @@ export function MapSettingsModal({ mapBridge, onClose }: MapSettingsModalProps) 
                         <span className="nostr-settings-spacer" aria-hidden="true" />
                     )}
 
-                    <p className="nostr-settings-title">{view === 'settings' ? 'Settings' : 'Shortcuts'}</p>
+                    <p className="nostr-settings-title">
+                        {view === 'settings' ? 'Settings' : view === 'shortcuts' ? 'Shortcuts' : 'Relays'}
+                    </p>
 
                     <button type="button" className="nostr-modal-close" onClick={onClose} aria-label="Cerrar ajustes">
                         x
@@ -48,7 +123,83 @@ export function MapSettingsModal({ mapBridge, onClose }: MapSettingsModalProps) 
                             Shortcuts
                         </button>
 
+                        <button type="button" className="nostr-settings-item" onClick={() => setView('relays')}>
+                            Relays
+                        </button>
+
                         <div ref={settingsHostRef} className="nostr-settings-host" />
+                    </div>
+                ) : view === 'relays' ? (
+                    <div className="nostr-relays-content">
+                        <p className="nostr-relays-help">Conecta varios relays. Puedes agregar uno por linea.</p>
+
+                        <ul className="nostr-relay-list">
+                            {relaySettings.relays.map((relayUrl) => (
+                                <li key={relayUrl} className="nostr-relay-item">
+                                    <span className="nostr-relay-url">{relayUrl}</span>
+                                    <button
+                                        type="button"
+                                        className="nostr-relay-remove"
+                                        aria-label={`Eliminar relay ${relayUrl}`}
+                                        onClick={() => handleRemoveRelay(relayUrl)}
+                                    >
+                                        Remove
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+
+                        <textarea
+                            className="nostr-input nostr-relay-editor"
+                            placeholder="wss://relay.example\nwss://nos.lol"
+                            rows={4}
+                            value={newRelayInput}
+                            onChange={(event) => setNewRelayInput(event.target.value)}
+                        />
+
+                        <button type="button" className="nostr-submit nostr-relay-add" onClick={handleAddRelays}>
+                            Add relays
+                        </button>
+
+                        {invalidRelayInputs.length > 0 ? (
+                            <p className="nostr-settings-error">
+                                Entradas invalidas: {invalidRelayInputs.join(', ')}
+                            </p>
+                        ) : null}
+
+                        {suggestedRelays.length > 0 ? (
+                            <section className="nostr-relay-suggested">
+                                <div className="nostr-relay-suggested-header">
+                                    <p>Relays sugeridos (NIP-65)</p>
+                                    {suggestedNotAdded.length > 0 ? (
+                                        <button type="button" className="nostr-relay-add-suggested" onClick={handleAddAllSuggestedRelays}>
+                                            Agregar todos
+                                        </button>
+                                    ) : null}
+                                </div>
+
+                                {suggestedNotAdded.length > 0 ? (
+                                    <ul className="nostr-relay-list">
+                                        {suggestedNotAdded.map((relayUrl) => (
+                                            <li key={`suggested-${relayUrl}`} className="nostr-relay-item">
+                                                <span className="nostr-relay-url">{relayUrl}</span>
+                                                <button
+                                                    type="button"
+                                                    className="nostr-relay-remove"
+                                                    onClick={() => handleAddSuggestedRelay(relayUrl)}
+                                                >
+                                                    Agregar
+                                                </button>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <p className="nostr-relays-help">Todos los relays sugeridos ya estan agregados.</p>
+                                )}
+                            </section>
+                        ) : (
+                            <p className="nostr-relays-help">No hay relays sugeridos todavia. Carga una npub para intentar descubrirlos via NIP-65.</p>
+                        )}
                     </div>
                 ) : (
                     <div className="nostr-shortcuts-content">

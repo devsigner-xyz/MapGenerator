@@ -29,11 +29,7 @@ export function StatusPanel({ status, error, followsCount, assignedCount }: Stat
     }
 
     if (status === 'success') {
-        return (
-            <p className="nostr-status nostr-status-success">
-                {`${followsCount} / ${assignedCount}`}
-            </p>
-        );
+        return null;
     }
 
     return <p className="nostr-status">Introduce una npub para vincular seguidos con edificios.</p>;

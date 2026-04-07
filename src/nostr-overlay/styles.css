@@ -146,6 +146,12 @@
     color: #53646f;
 }
 
+.nostr-error {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #b1473c;
+}
+
 .nostr-social-sidebar {
     display: flex;
     flex-direction: column;
@@ -477,6 +483,207 @@
     margin: 0;
     font-size: 0.88rem;
     color: #334f5d;
+}
+
+.nostr-relays-content {
+    display: grid;
+    gap: 0.6rem;
+}
+
+.nostr-relays-help {
+    margin: 0;
+    font-size: 0.86rem;
+    color: #425764;
+}
+
+.nostr-relay-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.4rem;
+    max-height: 32vh;
+    overflow: auto;
+}
+
+.nostr-relay-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    border: 1px solid rgba(206, 214, 222, 0.95);
+    border-radius: 8px;
+    padding: 0.42rem 0.5rem;
+    background: rgba(253, 254, 255, 0.96);
+}
+
+.nostr-relay-url {
+    font-size: 0.8rem;
+    color: #223944;
+    word-break: break-all;
+}
+
+.nostr-relay-remove {
+    border: 1px solid rgba(185, 197, 206, 0.95);
+    background: rgba(248, 251, 253, 0.98);
+    color: #304e5d;
+    border-radius: 7px;
+    height: 28px;
+    padding: 0 0.55rem;
+    cursor: pointer;
+}
+
+.nostr-relay-editor {
+    font-family: inherit;
+    resize: vertical;
+}
+
+.nostr-relay-add {
+    justify-self: start;
+}
+
+.nostr-settings-error {
+    margin: 0;
+    color: #b1473c;
+    font-size: 0.82rem;
+}
+
+.nostr-relay-suggested {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.nostr-relay-suggested-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+}
+
+.nostr-relay-suggested-header p {
+    margin: 0;
+    font-size: 0.84rem;
+    color: #3f5562;
+}
+
+.nostr-relay-add-suggested {
+    border: 1px solid rgba(145, 164, 176, 0.75);
+    border-radius: 8px;
+    background: rgba(249, 251, 253, 0.95);
+    color: #28424f;
+    font-size: 0.76rem;
+    padding: 0.3rem 0.5rem;
+    cursor: pointer;
+}
+
+.nostr-profile-modal {
+    width: min(520px, calc(100vw - 32px));
+    max-height: min(82vh, 760px);
+    padding: 0.85rem;
+}
+
+.nostr-profile-modal-body {
+    max-height: calc(82vh - 1.8rem);
+    overflow: auto;
+    display: grid;
+    gap: 0.8rem;
+    padding-right: 0.1rem;
+}
+
+.nostr-profile-metrics,
+.nostr-profile-posts {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.nostr-profile-metrics h4,
+.nostr-profile-posts h4 {
+    margin: 0;
+    font-size: 0.9rem;
+    color: #1f3340;
+}
+
+.nostr-profile-metrics dl {
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+}
+
+.nostr-profile-metrics dt {
+    margin: 0;
+    font-size: 0.76rem;
+    color: #5b6f7b;
+}
+
+.nostr-profile-metrics dd {
+    margin: 0.18rem 0 0;
+    font-size: 0.96rem;
+    font-weight: 600;
+    color: #1f3340;
+}
+
+.nostr-profile-network-columns {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
+}
+
+.nostr-profile-network-columns h5 {
+    margin: 0;
+    font-size: 0.82rem;
+    color: #3b5360;
+}
+
+.nostr-profile-network-list {
+    list-style: none;
+    margin: 0.3rem 0 0;
+    padding: 0;
+    display: grid;
+    gap: 0.25rem;
+}
+
+.nostr-profile-network-list li {
+    font-size: 0.8rem;
+    color: #233a45;
+    border: 1px solid rgba(215, 222, 228, 0.95);
+    border-radius: 7px;
+    background: rgba(251, 253, 255, 0.95);
+    padding: 0.32rem 0.42rem;
+    word-break: break-word;
+}
+
+.nostr-profile-post-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.46rem;
+}
+
+.nostr-profile-post-item {
+    border: 1px solid rgba(210, 218, 225, 0.95);
+    border-radius: 9px;
+    background: rgba(250, 252, 254, 0.96);
+    padding: 0.5rem 0.58rem;
+    display: grid;
+    gap: 0.34rem;
+}
+
+.nostr-profile-post-content {
+    margin: 0;
+    font-size: 0.84rem;
+    color: #213943;
+    word-break: break-word;
+}
+
+.nostr-profile-post-date {
+    font-size: 0.74rem;
+    color: #60727d;
+}
+
+.nostr-posts-load-more {
+    justify-self: start;
 }
 
 @media (max-width: 720px) {

@@ -26,6 +26,11 @@
       "sourceType": "github",
       "computedHash": "320eaf861e3a0a923bfaad0726cb311a3fe30093378f8d26c89b9c5ae5c42b35"
     },
+    "tanstack-start-best-practices": {
+      "source": "deckardger/tanstack-agent-skills",
+      "sourceType": "github",
+      "computedHash": "8b073187405a10f9997158f9139a9664cc801595d2fe63d542a0bac9bf2152f5"
+    },
     "threejs-fundamentals": {
       "source": "cloudai-x/threejs-skills",
       "sourceType": "github",

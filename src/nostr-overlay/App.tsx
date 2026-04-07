@@ -107,6 +107,7 @@ export function App({ mapBridge, services }: AppProps) {
             {settingsOpen ? (
                 <MapSettingsModal
                     mapBridge={mapBridge}
+                    suggestedRelays={overlay.suggestedRelays}
                     onClose={() => setSettingsOpen(false)}
                 />
             ) : null}
@@ -115,6 +116,20 @@ export function App({ mapBridge, services }: AppProps) {
                 <OccupantProfileModal
                     pubkey={overlay.activeProfilePubkey}
                     profile={overlay.activeProfile}
+                    followsCount={overlay.activeProfileFollowsCount}
+                    followersCount={overlay.activeProfileFollowersCount}
+                    statsLoading={overlay.activeProfileStatsLoading}
+                    statsError={overlay.activeProfileStatsError}
+                    posts={overlay.activeProfilePosts}
+                    postsLoading={overlay.activeProfilePostsLoading}
+                    postsError={overlay.activeProfilePostsError}
+                    hasMorePosts={overlay.activeProfilePostsHasMore}
+                    follows={overlay.activeProfileFollows}
+                    followers={overlay.activeProfileFollowers}
+                    networkProfiles={overlay.activeProfileNetworkProfiles}
+                    networkLoading={overlay.activeProfileNetworkLoading}
+                    networkError={overlay.activeProfileNetworkError}
+                    onLoadMorePosts={overlay.loadMoreActiveProfilePosts}
                     onClose={overlay.closeActiveProfileModal}
                 />
             ) : null}
