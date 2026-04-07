@@ -12,6 +12,7 @@ function createMainApiStub(overrides: Partial<MapMainApi> = {}): MapMainApi {
         setModalHighlightedBuildingIndex: vi.fn(),
         mountSettingsPanel: vi.fn(),
         focusBuilding: vi.fn().mockReturnValue(true),
+        getParkCount: vi.fn().mockReturnValue(3),
         getZoom: vi.fn().mockReturnValue(8),
         worldToScreen: vi.fn().mockImplementation((point: { x: number; y: number }) => ({ x: point.x + 1, y: point.y + 2 })),
         getViewportInsetLeft: vi.fn().mockReturnValue(120),
@@ -131,6 +132,14 @@ describe('createMapBridge', () => {
 
         expect(bridge.getViewportInsetLeft()).toBe(300);
         expect(api.getViewportInsetLeft).toHaveBeenCalledTimes(1);
+    });
+
+    test('getParkCount delegates to map api', () => {
+        const api = createMainApiStub({ getParkCount: vi.fn().mockReturnValue(9) });
+        const bridge = createMapBridge(api);
+
+        expect(bridge.getParkCount()).toBe(9);
+        expect(api.getParkCount).toHaveBeenCalledTimes(1);
     });
 
     test('mountSettingsPanel delegates container to map api', () => {

@@ -45,6 +45,7 @@
     "polyk": "^0.24.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "recharts": "^3.8.1",
     "roughjs": "^4.2.0",
     "simplex-noise": "^4.0.3",
     "simplify-js": "^1.2.4",

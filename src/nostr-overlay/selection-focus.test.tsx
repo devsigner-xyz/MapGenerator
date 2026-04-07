@@ -22,6 +22,7 @@ function createMapBridgeStub(buildingsCount: number): { bridge: MapBridge; trigg
         setModalBuildingHighlight: vi.fn(),
         mountSettingsPanel: vi.fn(),
         focusBuilding: vi.fn(),
+        getParkCount: vi.fn().mockReturnValue(0),
         getZoom: vi.fn().mockReturnValue(1),
         worldToScreen: vi.fn().mockImplementation((point: { x: number; y: number }) => point),
         getViewportInsetLeft: vi.fn().mockReturnValue(0),

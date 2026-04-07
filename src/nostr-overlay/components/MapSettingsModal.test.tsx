@@ -32,6 +32,7 @@ function createBridgeStub(): MapBridge {
         setModalBuildingHighlight: vi.fn(),
         mountSettingsPanel: vi.fn(),
         focusBuilding: vi.fn(),
+        getParkCount: vi.fn().mockReturnValue(0),
         onMapGenerated: vi.fn().mockReturnValue(() => {}),
         onOccupiedBuildingClick: vi.fn().mockReturnValue(() => {}),
         getZoom: vi.fn().mockReturnValue(1),

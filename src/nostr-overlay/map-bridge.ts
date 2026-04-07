@@ -18,6 +18,7 @@ export interface MapMainApi {
     setModalHighlightedBuildingIndex(index?: number): void;
     mountSettingsPanel(container: HTMLElement | null): void;
     focusBuilding(index: number): boolean | void;
+    getParkCount(): number;
     getZoom(): number;
     setZoom?(zoom: number): void;
     worldToScreen(point: WorldPoint): WorldPoint;
@@ -36,6 +37,7 @@ export interface MapBridge {
     setModalBuildingHighlight(index?: number): void;
     mountSettingsPanel(container: HTMLElement | null): void;
     focusBuilding(index: number): void;
+    getParkCount(): number;
     getZoom(): number;
     setZoom?(zoom: number): void;
     worldToScreen(point: WorldPoint): WorldPoint;
@@ -86,6 +88,10 @@ export function createMapBridge(mainApi: MapMainApi): MapBridge {
 
         focusBuilding(index: number): void {
             mainApi.focusBuilding(index);
+        },
+
+        getParkCount(): number {
+            return mainApi.getParkCount();
         },
 
         getZoom(): number {

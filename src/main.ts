@@ -244,6 +244,10 @@ class Main {
         return this.mainGui.focusBuilding(index);
     }
 
+    getParkCount(): number {
+        return this.mainGui.getParkCount();
+    }
+
     getZoom(): number {
         return this.domainController.zoom;
     }

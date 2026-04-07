@@ -6,6 +6,7 @@ import { MapSettingsModal } from './components/MapSettingsModal';
 import { OccupantProfileModal } from './components/OccupantProfileModal';
 import { SocialSidebar } from './components/SocialSidebar';
 import { MapZoomControls } from './components/MapZoomControls';
+import { CityStatsModal } from './components/CityStatsModal';
 import { useNostrOverlay, type MapLoaderStage, type NostrOverlayServices } from './hooks/useNostrOverlay';
 import type { MapBridge } from './map-bridge';
 
@@ -33,6 +34,7 @@ function mapLoaderStageLabel(stage: MapLoaderStage | null): string | null {
 export function App({ mapBridge, services }: AppProps) {
     const overlay = useNostrOverlay({ mapBridge, services });
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const [cityStatsOpen, setCityStatsOpen] = useState(false);
     const [panelCollapsed, setPanelCollapsed] = useState(false);
     const [uiSettings, setUiSettings] = useState<UiSettingsState>(() => loadUiSettings());
     const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -104,16 +106,12 @@ export function App({ mapBridge, services }: AppProps) {
                     <button
                         type="button"
                         className="nostr-settings-button"
-                        aria-label="Regenerar mapa"
-                        title="New map"
-                        onClick={() => {
-                            void overlay.regenerateMap();
-                        }}
-                        disabled={regenerateDisabled}
+                        aria-label="Mostrar panel"
+                        title="Show panel"
+                        onClick={() => setPanelCollapsed(false)}
                     >
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                            <path d="M20 12a8 8 0 1 1-2.34-5.66" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                            <path d="M20 4v6h-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5v-13zm3 0v13h11v-13H7zm2.2 6.7h5.6l-2.3 2.3a1 1 0 1 0 1.4 1.4l4-4a1 1 0 0 0 0-1.4l-4-4a1 1 0 0 0-1.4 1.4l2.3 2.3H9.2a1 1 0 1 0 0 2z" />
                         </svg>
                     </button>
 
@@ -132,18 +130,52 @@ export function App({ mapBridge, services }: AppProps) {
                     <button
                         type="button"
                         className="nostr-settings-button"
-                        aria-label="Mostrar panel"
-                        title="Show panel"
-                        onClick={() => setPanelCollapsed(false)}
+                        aria-label="Regenerar mapa"
+                        title="New map"
+                        onClick={() => {
+                            void overlay.regenerateMap();
+                        }}
+                        disabled={regenerateDisabled}
                     >
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                            <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5v-13zm3 0v13h11v-13H7zm2.2 6.7h5.6l-2.3 2.3a1 1 0 1 0 1.4 1.4l4-4a1 1 0 0 0 0-1.4l-4-4a1 1 0 0 0-1.4 1.4l2.3 2.3H9.2a1 1 0 1 0 0 2z" />
+                            <path d="M20 12a8 8 0 1 1-2.34-5.66" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            <path d="M20 4v6h-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                    </button>
+
+                    <button
+                        type="button"
+                        className="nostr-settings-button"
+                        aria-label="Abrir estadisticas de la ciudad"
+                        title="City stats"
+                        onClick={() => setCityStatsOpen(true)}
+                    >
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path d="M5 20h14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                            <path d="M8 20v-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                            <path d="M12 20v-11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                            <path d="M16 20v-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                         </svg>
                     </button>
                 </div>
             ) : (
                 <section className="nostr-panel">
                     <div className="nostr-panel-toolbar">
+                        <button
+                            type="button"
+                            className="nostr-settings-button"
+                            aria-label="Abrir estadisticas de la ciudad"
+                            title="City stats"
+                            onClick={() => setCityStatsOpen(true)}
+                        >
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                <path d="M5 20h14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                                <path d="M8 20v-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                                <path d="M12 20v-11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                                <path d="M16 20v-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                            </svg>
+                        </button>
+
                         <button
                             type="button"
                             className="nostr-settings-button"
@@ -230,6 +262,19 @@ export function App({ mapBridge, services }: AppProps) {
                     suggestedRelays={overlay.suggestedRelays}
                     onUiSettingsChange={setUiSettings}
                     onClose={() => setSettingsOpen(false)}
+                />
+            ) : null}
+
+            {cityStatsOpen ? (
+                <CityStatsModal
+                    buildingsCount={overlay.buildingsCount}
+                    occupiedBuildingsCount={overlay.assignedCount}
+                    assignedResidentsCount={overlay.assignedCount}
+                    followsCount={overlay.followsCount}
+                    followersCount={overlay.followersCount}
+                    parkCount={overlay.parkCount}
+                    unhousedResidentsCount={overlay.unassignedCount}
+                    onClose={() => setCityStatsOpen(false)}
                 />
             ) : null}
 

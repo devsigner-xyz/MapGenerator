@@ -38,6 +38,7 @@ interface OverlayData {
     followersLoading: boolean;
     assignments: AssignmentResult;
     buildingsCount: number;
+    parkCount: number;
     selectedPubkey?: string;
     relayHints: string[];
     suggestedRelays: string[];
@@ -133,6 +134,7 @@ function createInitialData(): OverlayData {
             unassignedPubkeys: [],
         },
         buildingsCount: 0,
+        parkCount: 0,
         relayHints: [],
         suggestedRelays: [],
         ...createEmptyActiveProfileState(),
@@ -299,6 +301,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                     data: {
                         ...current.data,
                         buildingsCount: buildings.length,
+                        parkCount: mapBridge.getParkCount(),
                         assignments,
                         ownerBuildingIndex: resolveOwnerBuildingIndex(current.data.ownerPubkey, buildings.length),
                     },
@@ -667,6 +670,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                     followersLoading: true,
                     assignments,
                     buildingsCount: buildings.length,
+                    parkCount: mapBridge.getParkCount(),
                     relayHints: graph.relayHints,
                     suggestedRelays,
                     ...createEmptyActiveProfileState(),
@@ -829,6 +833,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                     data: {
                         ...nextState.data,
                         buildingsCount: buildings.length,
+                        parkCount: mapBridge.getParkCount(),
                         assignments,
                         ownerBuildingIndex: resolveOwnerBuildingIndex(nextState.data.ownerPubkey, buildings.length),
                     },
@@ -1014,6 +1019,10 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         activeProfileNetworkLoading: state.data.activeProfileNetworkLoading,
         activeProfileNetworkError: state.data.activeProfileNetworkError,
         followsCount: state.data.follows.length,
+        followersCount: state.data.followers.length,
+        buildingsCount: state.data.buildingsCount,
+        parkCount: state.data.parkCount,
+        unassignedCount: state.data.assignments.unassignedPubkeys.length,
         assignedCount,
         occupancyByBuildingIndex: state.data.assignments.byBuildingIndex,
         submitNpub,

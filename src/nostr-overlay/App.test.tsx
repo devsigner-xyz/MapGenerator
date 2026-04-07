@@ -57,6 +57,7 @@ function createMapBridgeStub(buildingsCount = 0): MapBridgeStub {
         setModalBuildingHighlight: vi.fn(),
         mountSettingsPanel: vi.fn(),
         focusBuilding: vi.fn(),
+        getParkCount: vi.fn().mockReturnValue(0),
         getZoom: vi.fn().mockReturnValue(1),
         worldToScreen: vi.fn().mockImplementation((point: { x: number; y: number }) => point),
         getViewportInsetLeft: vi.fn().mockReturnValue(0),
@@ -207,21 +208,30 @@ describe('Nostr overlay App', () => {
         expect(fallback.textContent || '').toContain('OW');
     });
 
-    test('renders regenerate map icon button before settings and calls bridge regenerateMap', async () => {
+    test('renders city stats icon button before regenerate and opens stats modal', async () => {
         const { bridge } = createMapBridgeStub();
         const rendered = await renderApp(<App mapBridge={bridge} />);
         mounted.push(rendered);
 
         const toolbarButtons = Array.from(rendered.container.querySelectorAll('.nostr-panel-toolbar button')) as HTMLButtonElement[];
-        expect(toolbarButtons.length).toBeGreaterThanOrEqual(2);
-        expect(toolbarButtons[0].getAttribute('aria-label')).toBe('Regenerar mapa');
+        expect(toolbarButtons.length).toBeGreaterThanOrEqual(3);
+        expect(toolbarButtons[0].getAttribute('aria-label')).toBe('Abrir estadisticas de la ciudad');
+        expect(toolbarButtons[1].getAttribute('aria-label')).toBe('Regenerar mapa');
 
+        const statsButton = rendered.container.querySelector('button[aria-label="Abrir estadisticas de la ciudad"]') as HTMLButtonElement;
         const regenerateButton = rendered.container.querySelector('button[aria-label="Regenerar mapa"]') as HTMLButtonElement;
 
+        expect(statsButton).toBeDefined();
         expect(regenerateButton).toBeDefined();
         expect(regenerateButton.getAttribute('title')).toBe('New map');
         const settingsButton = rendered.container.querySelector('button[aria-label="Abrir ajustes"]') as HTMLButtonElement;
         expect(settingsButton.getAttribute('title')).toBe('Settings');
+
+        await act(async () => {
+            statsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(rendered.container.textContent || '').toContain('Estadisticas de la ciudad');
 
         await act(async () => {
             regenerateButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -758,6 +768,12 @@ describe('Nostr overlay App', () => {
         expect(showPanelButton).toBeDefined();
         expect(showPanelButton.getAttribute('title')).toBe('Show panel');
         expect(rendered.container.querySelector('button[aria-label="Abrir ajustes"]')).not.toBeNull();
+        const compactButtons = Array.from(rendered.container.querySelectorAll('.nostr-compact-toolbar button')) as HTMLButtonElement[];
+        expect(compactButtons.length).toBe(4);
+        expect(compactButtons[0].getAttribute('aria-label')).toBe('Mostrar panel');
+        expect(compactButtons[1].getAttribute('aria-label')).toBe('Abrir ajustes');
+        expect(compactButtons[2].getAttribute('aria-label')).toBe('Regenerar mapa');
+        expect(compactButtons[3].getAttribute('aria-label')).toBe('Abrir estadisticas de la ciudad');
         expect((bridge.setViewportInsetLeft as any).mock.calls[(bridge.setViewportInsetLeft as any).mock.calls.length - 1][0]).toBe(0);
 
         await act(async () => {

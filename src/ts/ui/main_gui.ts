@@ -378,6 +378,10 @@ export default class MainGUI {
         return true;
     }
 
+    getParkCount(): number {
+        return this.bigParks.length + this.smallParks.length;
+    }
+
     getOccupiedBuildingAtWorldPoint(point: Vector): OccupiedBuildingHit | null {
         return findOccupiedBuildingHit({
             point,
