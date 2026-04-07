@@ -12,8 +12,21 @@ interface MapPresenceLayerProps {
     occupiedLabelsZoomLevel: number;
 }
 
+function sanitizeLabel(value: string | undefined): string | undefined {
+    if (!value) {
+        return undefined;
+    }
+
+    const normalized = value.trim();
+    return normalized.length > 0 ? normalized : undefined;
+}
+
+function resolveDisplayName(profile?: NostrProfile): string | undefined {
+    return sanitizeLabel(profile?.displayName) ?? sanitizeLabel(profile?.name);
+}
+
 function resolveName(pubkey: string, profile?: NostrProfile): string {
-    return profile?.displayName ?? profile?.name ?? `${pubkey.slice(0, 10)}...${pubkey.slice(-6)}`;
+    return resolveDisplayName(profile) ?? `${pubkey.slice(0, 10)}...${pubkey.slice(-6)}`;
 }
 
 function resolveInitials(pubkey: string, profile?: NostrProfile): string {
@@ -106,11 +119,12 @@ export function MapPresenceLayer({
 
                 const profile = profiles[pubkey];
                 const position = mapBridge.worldToScreen(building.centroid);
+                const displayName = resolveDisplayName(profile);
 
                 return (
                     <div
                         key={`${pubkey}-${index}`}
-                        className="nostr-map-occupant-tag"
+                        className={`nostr-map-occupant-tag${displayName ? '' : ' nostr-map-occupant-tag-no-name'}`}
                         style={{
                             left: `${position.x + insetLeft}px`,
                             top: `${position.y}px`,
@@ -124,7 +138,9 @@ export function MapPresenceLayer({
                             </span>
                         )}
 
-                        <span className="nostr-map-occupant-name">{resolveName(pubkey, profile)}</span>
+                        {displayName ? (
+                            <span className="nostr-map-occupant-name">{displayName}</span>
+                        ) : null}
                     </div>
                 );
             })}

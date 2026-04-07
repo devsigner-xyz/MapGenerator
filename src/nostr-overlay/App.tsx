@@ -5,6 +5,7 @@ import { NpubForm } from './components/NpubForm';
 import { MapSettingsModal } from './components/MapSettingsModal';
 import { OccupantProfileModal } from './components/OccupantProfileModal';
 import { SocialSidebar } from './components/SocialSidebar';
+import { MapZoomControls } from './components/MapZoomControls';
 import { useNostrOverlay, type MapLoaderStage, type NostrOverlayServices } from './hooks/useNostrOverlay';
 import type { MapBridge } from './map-bridge';
 
@@ -34,6 +35,7 @@ export function App({ mapBridge, services }: AppProps) {
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [panelCollapsed, setPanelCollapsed] = useState(false);
     const [uiSettings, setUiSettings] = useState<UiSettingsState>(() => loadUiSettings());
+    const [toastMessage, setToastMessage] = useState<string | null>(null);
     const formDisabled = overlay.status !== 'idle' && overlay.status !== 'success' && overlay.status !== 'error';
     const mapLoaderText = mapLoaderStageLabel(overlay.mapLoaderStage);
     const regenerateDisabled = !mapBridge || overlay.mapLoaderStage !== null;
@@ -49,6 +51,52 @@ export function App({ mapBridge, services }: AppProps) {
         };
     }, [mapBridge, panelCollapsed]);
 
+    useEffect(() => {
+        if (!toastMessage) {
+            return;
+        }
+
+        const timer = window.setTimeout(() => {
+            setToastMessage(null);
+        }, 1600);
+
+        return () => window.clearTimeout(timer);
+    }, [toastMessage]);
+
+    const copyOwnerIdentifier = async (value: string): Promise<void> => {
+        if (!value) {
+            return;
+        }
+
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(value);
+            setToastMessage('npub copiada');
+            return;
+        }
+
+        const textarea = document.createElement('textarea');
+        textarea.value = value;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+            document.execCommand('copy');
+            setToastMessage('npub copiada');
+        } finally {
+            textarea.remove();
+        }
+    };
+
+    const locateOwnerOnMap = (): void => {
+        if (!mapBridge || overlay.ownerBuildingIndex === undefined) {
+            return;
+        }
+
+        mapBridge.focusBuilding(overlay.ownerBuildingIndex);
+    };
+
     return (
         <div className={`nostr-overlay-shell${panelCollapsed ? ' nostr-overlay-shell-collapsed' : ''}`}>
             {panelCollapsed ? (
@@ -56,7 +104,24 @@ export function App({ mapBridge, services }: AppProps) {
                     <button
                         type="button"
                         className="nostr-settings-button"
+                        aria-label="Regenerar mapa"
+                        title="New map"
+                        onClick={() => {
+                            void overlay.regenerateMap();
+                        }}
+                        disabled={regenerateDisabled}
+                    >
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path d="M20 12a8 8 0 1 1-2.34-5.66" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            <path d="M20 4v6h-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                    </button>
+
+                    <button
+                        type="button"
+                        className="nostr-settings-button"
                         aria-label="Abrir ajustes"
+                        title="Settings"
                         onClick={() => setSettingsOpen(true)}
                     >
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -68,6 +133,7 @@ export function App({ mapBridge, services }: AppProps) {
                         type="button"
                         className="nostr-settings-button"
                         aria-label="Mostrar panel"
+                        title="Show panel"
                         onClick={() => setPanelCollapsed(false)}
                     >
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -81,7 +147,24 @@ export function App({ mapBridge, services }: AppProps) {
                         <button
                             type="button"
                             className="nostr-settings-button"
+                            aria-label="Regenerar mapa"
+                            title="New map"
+                            onClick={() => {
+                                void overlay.regenerateMap();
+                            }}
+                            disabled={regenerateDisabled}
+                        >
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                <path d="M20 12a8 8 0 1 1-2.34-5.66" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                <path d="M20 4v6h-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                        </button>
+
+                        <button
+                            type="button"
+                            className="nostr-settings-button"
                             aria-label="Abrir ajustes"
+                            title="Settings"
                             onClick={() => setSettingsOpen(true)}
                         >
                             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -93,6 +176,7 @@ export function App({ mapBridge, services }: AppProps) {
                             type="button"
                             className="nostr-settings-button"
                             aria-label="Ocultar panel"
+                            title="Hide panel"
                             onClick={() => setPanelCollapsed(true)}
                         >
                             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -103,22 +187,9 @@ export function App({ mapBridge, services }: AppProps) {
 
                     <NpubForm disabled={formDisabled} onSubmit={overlay.submitNpub} />
 
-                    <div className="nostr-panel-actions">
-                        <button
-                            type="button"
-                            className="nostr-secondary-button"
-                            onClick={() => {
-                                void overlay.regenerateMap();
-                            }}
-                            disabled={regenerateDisabled}
-                        >
-                            Regenerar mapa
-                        </button>
-
-                        {overlay.status === 'error' && overlay.error ? (
-                            <p className="nostr-error">{overlay.error}</p>
-                        ) : null}
-                    </div>
+                    {overlay.status === 'error' && overlay.error ? (
+                        <p className="nostr-error">{overlay.error}</p>
+                    ) : null}
 
                     <SocialSidebar
                         ownerPubkey={overlay.ownerPubkey}
@@ -130,9 +201,13 @@ export function App({ mapBridge, services }: AppProps) {
                         followersLoading={overlay.followersLoading}
                         selectedFollowingPubkey={overlay.selectedPubkey}
                         onSelectFollowing={overlay.selectFollowing}
+                        onLocateOwner={locateOwnerOnMap}
+                        onCopyOwnerNpub={copyOwnerIdentifier}
                     />
                 </section>
             )}
+
+            <MapZoomControls mapBridge={mapBridge} />
 
             {mapLoaderText ? (
                 <div className="nostr-map-loader-overlay" role="status" aria-live="polite">
@@ -140,6 +215,12 @@ export function App({ mapBridge, services }: AppProps) {
                         <span className="nostr-map-loader-spinner" aria-hidden="true" />
                         <p className="nostr-map-loader-text">{mapLoaderText}</p>
                     </div>
+                </div>
+            ) : null}
+
+            {toastMessage ? (
+                <div className="nostr-toast" role="status" aria-live="polite">
+                    {toastMessage}
                 </div>
             ) : null}
 

@@ -1,5 +1,16 @@
 import { describe, expect, test } from 'vitest';
-import { decodeNpubToHex } from './npub';
+import { decodeNpubToHex, encodeHexToNpub } from './npub';
+
+describe('encodeHexToNpub', () => {
+    test('returns npub for valid 64-char hex pubkey', () => {
+        const result = encodeHexToNpub('f'.repeat(64));
+        expect(result.startsWith('npub1')).toBe(true);
+    });
+
+    test('throws for invalid pubkey format', () => {
+        expect(() => encodeHexToNpub('not-hex')).toThrow();
+    });
+});
 
 describe('decodeNpubToHex', () => {
     test('returns 64-char hex pubkey for valid npub', () => {

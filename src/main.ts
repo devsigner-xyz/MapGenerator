@@ -248,6 +248,10 @@ class Main {
         return this.domainController.zoom;
     }
 
+    setZoom(zoom: number): void {
+        this.domainController.zoom = zoom;
+    }
+
     worldToScreen(point: { x: number; y: number }): Vector {
         return this.domainController.worldToScreen(new Vector(point.x, point.y));
     }

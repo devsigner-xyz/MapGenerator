@@ -24,18 +24,22 @@ export function NpubForm({ disabled = false, onSubmit }: NpubFormProps) {
             <label className="nostr-label" htmlFor="nostr-npub-input">
                 Nostr npub
             </label>
-            <input
-                id="nostr-npub-input"
-                name="npub"
-                className="nostr-input"
-                placeholder="npub1..."
-                value={npub}
-                disabled={disabled}
-                onChange={(event) => setNpub(event.target.value)}
-            />
-            <button className="nostr-submit" type="submit" disabled={disabled || npub.trim().length === 0}>
-                Cargar seguidos
-            </button>
+
+            <div className="nostr-npub-row">
+                <input
+                    id="nostr-npub-input"
+                    name="npub"
+                    className="nostr-input"
+                    placeholder="npub1..."
+                    value={npub}
+                    disabled={disabled}
+                    onChange={(event) => setNpub(event.target.value)}
+                />
+
+                <button className="nostr-submit" type="submit" disabled={disabled || npub.trim().length === 0}>
+                    Visualize
+                </button>
+            </div>
         </form>
     );
 }

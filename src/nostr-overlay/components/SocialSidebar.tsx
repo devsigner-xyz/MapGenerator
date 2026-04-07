@@ -15,6 +15,8 @@ interface SocialSidebarProps {
     followersLoading?: boolean;
     selectedFollowingPubkey?: string;
     onSelectFollowing?: (pubkey: string) => void;
+    onLocateOwner?: () => void;
+    onCopyOwnerNpub?: (value: string) => void | Promise<void>;
 }
 
 export function SocialSidebar({
@@ -27,6 +29,8 @@ export function SocialSidebar({
     followersLoading = false,
     selectedFollowingPubkey,
     onSelectFollowing,
+    onLocateOwner,
+    onCopyOwnerNpub,
 }: SocialSidebarProps) {
     const [activeTab, setActiveTab] = useState<SocialTab>('profile');
     const [followingSearch, setFollowingSearch] = useState('');
@@ -91,6 +95,8 @@ export function SocialSidebar({
                         followsCount={followingPeople.length}
                         followersCount={followerPeople.length}
                         followersLoading={followersLoading}
+                        onLocateOwner={onLocateOwner}
+                        onCopyOwnerNpub={onCopyOwnerNpub}
                     />
                 ) : null}
 

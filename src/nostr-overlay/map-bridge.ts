@@ -19,6 +19,7 @@ export interface MapMainApi {
     mountSettingsPanel(container: HTMLElement | null): void;
     focusBuilding(index: number): boolean | void;
     getZoom(): number;
+    setZoom?(zoom: number): void;
     worldToScreen(point: WorldPoint): WorldPoint;
     getViewportInsetLeft(): number;
     subscribeMapGenerated?(listener: () => void): (() => void) | void;
@@ -36,6 +37,7 @@ export interface MapBridge {
     mountSettingsPanel(container: HTMLElement | null): void;
     focusBuilding(index: number): void;
     getZoom(): number;
+    setZoom?(zoom: number): void;
     worldToScreen(point: WorldPoint): WorldPoint;
     getViewportInsetLeft(): number;
     onMapGenerated(listener: () => void): () => void;
@@ -88,6 +90,10 @@ export function createMapBridge(mainApi: MapMainApi): MapBridge {
 
         getZoom(): number {
             return mainApi.getZoom();
+        },
+
+        setZoom(zoom: number): void {
+            mainApi.setZoom?.(zoom);
         },
 
         worldToScreen(point: WorldPoint): WorldPoint {

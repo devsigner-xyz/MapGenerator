@@ -53,6 +53,7 @@ function createMapBridgeStub(buildingsCount = 0): MapBridgeStub {
         ),
         applyOccupancy: vi.fn(),
         setViewportInsetLeft: vi.fn(),
+        setZoom: vi.fn(),
         setModalBuildingHighlight: vi.fn(),
         mountSettingsPanel: vi.fn(),
         focusBuilding: vi.fn(),
@@ -138,24 +139,205 @@ describe('Nostr overlay App', () => {
         expect(content).toContain('Sigues (0)');
         expect(content).toContain('Seguidores (0)');
         expect(content).toContain('Introduce una npub para ver el perfil.');
+        expect(content).toContain('Visualize');
+        expect(content).not.toContain('Cargar seguidos');
     });
 
-    test('renders regenerate map button and calls bridge regenerateMap', async () => {
+    test('shows profile avatar initials fallback when image fails to load', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+        const { bridge } = createMapBridgeStub(1);
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByNpubFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [followedPubkey],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: {
+                            pubkey: ownerPubkey,
+                            displayName: 'Owner',
+                            picture: 'https://example.com/avatar.png',
+                        },
+                        [followedPubkey]: { pubkey: followedPubkey, displayName: 'Alice' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+        const form = rendered.container.querySelector('form');
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
+            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const avatar = rendered.container.querySelector('.nostr-profile-avatar') as HTMLImageElement;
+        expect(avatar).toBeDefined();
+
+        await act(async () => {
+            avatar.dispatchEvent(new Event('error'));
+        });
+
+        const fallback = rendered.container.querySelector('.nostr-profile-avatar-fallback') as HTMLElement;
+        expect(fallback).toBeDefined();
+        expect(fallback.textContent || '').toContain('OW');
+    });
+
+    test('renders regenerate map icon button before settings and calls bridge regenerateMap', async () => {
         const { bridge } = createMapBridgeStub();
         const rendered = await renderApp(<App mapBridge={bridge} />);
         mounted.push(rendered);
 
-        const regenerateButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
-            (button.textContent || '').includes('Regenerar mapa')
-        ) as HTMLButtonElement;
+        const toolbarButtons = Array.from(rendered.container.querySelectorAll('.nostr-panel-toolbar button')) as HTMLButtonElement[];
+        expect(toolbarButtons.length).toBeGreaterThanOrEqual(2);
+        expect(toolbarButtons[0].getAttribute('aria-label')).toBe('Regenerar mapa');
+
+        const regenerateButton = rendered.container.querySelector('button[aria-label="Regenerar mapa"]') as HTMLButtonElement;
 
         expect(regenerateButton).toBeDefined();
+        expect(regenerateButton.getAttribute('title')).toBe('New map');
+        const settingsButton = rendered.container.querySelector('button[aria-label="Abrir ajustes"]') as HTMLButtonElement;
+        expect(settingsButton.getAttribute('title')).toBe('Settings');
 
         await act(async () => {
             regenerateButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
         expect(bridge.regenerateMap).toHaveBeenCalledTimes(1);
+    });
+
+    test('renders map zoom controls with current zoom level', async () => {
+        const { bridge } = createMapBridgeStub();
+        (bridge.getZoom as any).mockReturnValue(2.5);
+        const rendered = await renderApp(<App mapBridge={bridge} />);
+        mounted.push(rendered);
+
+        const content = rendered.container.textContent || '';
+        expect(content).toContain('2.50x');
+    });
+
+    test('applies zoom controls in +1 and -1 steps', async () => {
+        const { bridge } = createMapBridgeStub();
+        (bridge.getZoom as any).mockReturnValue(4);
+        const rendered = await renderApp(<App mapBridge={bridge} />);
+        mounted.push(rendered);
+
+        const zoomInButton = rendered.container.querySelector('button[aria-label="Acercar mapa"]') as HTMLButtonElement;
+        const zoomOutButton = rendered.container.querySelector('button[aria-label="Alejar mapa"]') as HTMLButtonElement;
+        expect(zoomInButton).toBeDefined();
+        expect(zoomOutButton).toBeDefined();
+
+        await act(async () => {
+            zoomInButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await act(async () => {
+            zoomOutButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect((bridge.setZoom as any).mock.calls[0][0]).toBe(5);
+        expect((bridge.setZoom as any).mock.calls[1][0]).toBe(4);
+    });
+
+    test('shows owner profile icon buttons and copies npub with success toast', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+        const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+        Object.assign(navigator, {
+            clipboard: {
+                writeText: clipboardWriteText,
+            },
+        });
+
+        const { bridge } = createMapBridgeStub(1);
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByNpubFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [followedPubkey],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                        [followedPubkey]: { pubkey: followedPubkey, displayName: 'Alice' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+        const form = rendered.container.querySelector('form');
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
+            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const focusButton = rendered.container.querySelector('button[aria-label="Ubicarme en el mapa"]') as HTMLButtonElement;
+        const copyButton = rendered.container.querySelector('button[aria-label="Copiar npub"]') as HTMLButtonElement;
+        expect(focusButton).toBeDefined();
+        expect(copyButton).toBeDefined();
+        expect(focusButton.getAttribute('title')).toBe('Locate on map');
+        expect(copyButton.getAttribute('title')).toBe('Copy npub');
+
+        await act(async () => {
+            copyButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(clipboardWriteText).toHaveBeenCalledTimes(1);
+        expect((clipboardWriteText.mock.calls[0][0] as string).startsWith('npub1')).toBe(true);
+        await waitFor(() => (rendered.container.textContent || '').includes('npub copiada'));
+
+        await act(async () => {
+            focusButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect((bridge.focusBuilding as any).mock.calls.some((call: unknown[]) => call[0] === 0)).toBe(true);
     });
 
     test('shows map loader stage messages while processing npub', async () => {
@@ -532,6 +714,7 @@ describe('Nostr overlay App', () => {
 
         const settingsButton = rendered.container.querySelector('button[aria-label="Abrir ajustes"]') as HTMLButtonElement;
         expect(settingsButton).toBeDefined();
+        expect(settingsButton.getAttribute('title')).toBe('Settings');
 
         await act(async () => {
             settingsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -564,6 +747,7 @@ describe('Nostr overlay App', () => {
 
         const hidePanelButton = rendered.container.querySelector('button[aria-label="Ocultar panel"]') as HTMLButtonElement;
         expect(hidePanelButton).toBeDefined();
+        expect(hidePanelButton.getAttribute('title')).toBe('Hide panel');
 
         await act(async () => {
             hidePanelButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -572,6 +756,7 @@ describe('Nostr overlay App', () => {
         expect(rendered.container.querySelector('input[name="npub"]')).toBeNull();
         const showPanelButton = rendered.container.querySelector('button[aria-label="Mostrar panel"]') as HTMLButtonElement;
         expect(showPanelButton).toBeDefined();
+        expect(showPanelButton.getAttribute('title')).toBe('Show panel');
         expect(rendered.container.querySelector('button[aria-label="Abrir ajustes"]')).not.toBeNull();
         expect((bridge.setViewportInsetLeft as any).mock.calls[(bridge.setViewportInsetLeft as any).mock.calls.length - 1][0]).toBe(0);
 

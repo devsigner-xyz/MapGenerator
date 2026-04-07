@@ -65,6 +65,28 @@
     fill: currentColor;
 }
 
+.nostr-icon-button {
+    width: 31px;
+    height: 31px;
+    border-radius: 8px;
+    border: 1px solid rgba(170, 188, 198, 0.95);
+    background: rgba(252, 254, 255, 0.98);
+    color: #315162;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.nostr-icon-button:hover {
+    background: rgba(240, 248, 253, 0.98);
+}
+
+.nostr-icon-button svg {
+    width: 16px;
+    height: 16px;
+}
+
 .nostr-header {
     margin: 0;
 }
@@ -88,6 +110,13 @@
     gap: 0.5rem;
 }
 
+.nostr-npub-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
 .nostr-label {
     font-size: 0.84rem;
     color: #425764;
@@ -95,10 +124,16 @@
 
 .nostr-input {
     width: 100%;
+    box-sizing: border-box;
     border: 1px solid #c6d0d7;
     border-radius: 8px;
     padding: 0.6rem 0.75rem;
     font-size: 0.92rem;
+}
+
+.nostr-npub-row .nostr-input {
+    flex: 1;
+    min-width: 0;
 }
 
 .nostr-submit {
@@ -109,6 +144,11 @@
     border-radius: 8px;
     padding: 0.52rem 0.88rem;
     cursor: pointer;
+    white-space: nowrap;
+}
+
+.nostr-npub-row .nostr-submit {
+    justify-self: auto;
 }
 
 .nostr-submit:disabled {
@@ -185,6 +225,58 @@
     }
 }
 
+.nostr-map-zoom-controls {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.32rem;
+    border: 1px solid rgba(170, 188, 198, 0.95);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 12px 24px rgba(14, 32, 44, 0.2);
+    padding: 0.22rem;
+    z-index: 6;
+}
+
+.nostr-map-zoom-button {
+    width: 30px;
+    height: 30px;
+    border: 1px solid rgba(170, 188, 198, 0.95);
+    border-radius: 999px;
+    background: rgba(248, 251, 253, 0.98);
+    color: #27495a;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.nostr-map-zoom-level {
+    margin: 0;
+    min-width: 58px;
+    text-align: center;
+    color: #284959;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.nostr-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 20px;
+    transform: translateX(-50%);
+    border: 1px solid rgba(123, 168, 130, 0.9);
+    border-radius: 999px;
+    background: rgba(231, 248, 234, 0.96);
+    color: #225738;
+    padding: 0.42rem 0.78rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    box-shadow: 0 10px 20px rgba(14, 32, 44, 0.2);
+    z-index: 7;
+}
+
 .nostr-empty {
     margin: 0;
     font-size: 0.85rem;
@@ -249,6 +341,20 @@
     display: flex;
     gap: 0.65rem;
     align-items: center;
+    justify-content: space-between;
+}
+
+.nostr-profile-header-main {
+    display: flex;
+    gap: 0.65rem;
+    align-items: center;
+    min-width: 0;
+}
+
+.nostr-profile-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
 }
 
 .nostr-profile-avatar {
@@ -279,6 +385,10 @@
     margin: 0.14rem 0 0;
     font-size: 0.76rem;
     color: #5b6f7b;
+    max-width: 170px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .nostr-profile-stats {
@@ -778,6 +888,12 @@
     box-shadow: 0 8px 16px rgba(14, 32, 44, 0.2);
     padding: 0.2rem 0.5rem 0.2rem 0.22rem;
     max-width: 200px;
+}
+
+.nostr-map-occupant-tag-no-name {
+    gap: 0;
+    padding: 0.14rem;
+    border-radius: 999px;
 }
 
 .nostr-map-occupant-avatar {

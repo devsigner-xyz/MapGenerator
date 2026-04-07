@@ -130,6 +130,34 @@ describe('MapPresenceLayer', () => {
         expect(rendered.container.textContent || '').toContain('Alice');
     });
 
+    test('renders avatar-only occupant tag when username is empty', async () => {
+        const bridge = createMapBridgeStub(10);
+        const rendered = await renderElement(
+            <MapPresenceLayer
+                mapBridge={bridge}
+                occupancyByBuildingIndex={{ 0: occupantPubkey }}
+                profiles={{
+                    [occupantPubkey]: {
+                        pubkey: occupantPubkey,
+                        displayName: '',
+                        name: '',
+                        picture: 'https://example.com/avatar.png',
+                    },
+                }}
+                ownerPubkey={ownerPubkey}
+                ownerProfile={{ pubkey: ownerPubkey, displayName: 'Owner' }}
+                ownerBuildingIndex={0}
+                occupiedLabelsZoomLevel={10}
+            />
+        );
+        mounted.push(rendered);
+
+        const tag = rendered.container.querySelector('.nostr-map-occupant-tag') as HTMLElement;
+        expect(tag).toBeDefined();
+        expect(tag.classList.contains('nostr-map-occupant-tag-no-name')).toBe(true);
+        expect(rendered.container.querySelector('.nostr-map-occupant-name')).toBeNull();
+    });
+
     test('clips labels out of left panel inset area', async () => {
         const bridge = createMapBridgeStub(10);
         (bridge.getViewportInsetLeft as any).mockReturnValue(180);
