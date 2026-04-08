@@ -19,6 +19,7 @@ import ModelGenerator from './ts/model_generator';
 import { saveAs } from 'file-saver';
 import { mountNostrOverlay } from './nostr-overlay/bootstrap';
 import { createMiddlePanState, stopMiddlePanState, type MiddlePanState, updateMiddlePanState } from './ts/ui/middle_pan_drag';
+import { createViewChangeScheduler } from './ts/ui/view_change_scheduler';
 
 interface OccupiedBuildingClickPayload {
     buildingIndex: number;
@@ -72,6 +73,7 @@ class Main {
     private mapGeneratedListeners: Array<() => void> = [];
     private occupiedBuildingClickListeners: Array<(payload: OccupiedBuildingClickPayload) => void> = [];
     private viewChangedListeners: Array<() => void> = [];
+    private viewChangeScheduler = createViewChangeScheduler(() => this.notifyViewChanged());
     private viewportInsetLeft = 0;
     private lastFrameTime = performance.now();
 
@@ -149,6 +151,9 @@ class Main {
         this.changeColourScheme(this.colourScheme);
         this.mountSettingsPanel(null);
         this.tensorField.setRecommended();
+        window.addEventListener('beforeunload', () => {
+            this.viewChangeScheduler.dispose();
+        });
         requestAnimationFrame(() => this.update());
         void applyMapFirstStartup({
             closeTensorFolder: () => this.tensorFolder.close(),
@@ -657,7 +662,7 @@ class Main {
         }
 
         if (this.domainController.moved) {
-            this.notifyViewChanged();
+            this.viewChangeScheduler.schedule();
         }
 
         this._style.update();

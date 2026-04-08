@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NostrProfile } from '../../nostr/types';
 import type { MapBridge, MapBuildingSlot } from '../map-bridge';
+import { buildPresenceLayerEntries, isPointWithinViewport } from '../domain/presence-layer-model';
 
 interface MapPresenceLayerProps {
     mapBridge: MapBridge | null;
@@ -44,43 +45,15 @@ export function MapPresenceLayer({
     occupiedLabelsZoomLevel,
     alwaysVisiblePubkeys = [],
 }: MapPresenceLayerProps) {
+    const VIEWPORT_MARGIN_PX = 42;
     const [buildings, setBuildings] = useState<MapBuildingSlot[]>([]);
-    const [zoom, setZoom] = useState(0);
-    const [insetLeft, setInsetLeft] = useState(0);
-    const [, setViewVersion] = useState(0);
-
-    useEffect(() => {
-        if (!mapBridge) {
-            setBuildings([]);
-            setZoom(0);
-            setInsetLeft(0);
-            return;
-        }
-
-        const refreshBuildings = (): void => {
-            setBuildings(mapBridge.listBuildings());
-        };
-
-        const refreshView = (): void => {
-            setZoom(mapBridge.getZoom());
-            setInsetLeft(mapBridge.getViewportInsetLeft());
-            setViewVersion((current) => current + 1);
-        };
-
-        refreshBuildings();
-        refreshView();
-
-        const offMapGenerated = mapBridge.onMapGenerated(() => {
-            refreshBuildings();
-            refreshView();
-        });
-        const offViewChanged = mapBridge.onViewChanged(refreshView);
-
-        return () => {
-            offMapGenerated();
-            offViewChanged();
-        };
-    }, [mapBridge]);
+    const [viewState, setViewState] = useState({
+        zoom: 0,
+        insetLeft: 0,
+    });
+    const pendingFrameRef = useRef<number | null>(null);
+    const occupantRefs = useRef<Record<string, HTMLDivElement | null>>({});
+    const ownerRef = useRef<HTMLDivElement | null>(null);
 
     const buildingsByIndex = useMemo(() => {
         const byIndex: Record<number, MapBuildingSlot> = {};
@@ -90,58 +63,185 @@ export function MapPresenceLayer({
         return byIndex;
     }, [buildings]);
 
+    const ownerBuilding = ownerBuildingIndex === undefined ? undefined : buildingsByIndex[ownerBuildingIndex];
+    const ownerPosition = ownerBuilding
+        ? mapBridge?.worldToScreen(ownerBuilding.centroid) ?? null
+        : null;
+
+    const occupiedEntries = useMemo(() => buildPresenceLayerEntries({
+        occupancyByBuildingIndex,
+        profiles,
+        buildingsByIndex,
+        zoom: viewState.zoom,
+        occupiedLabelsZoomLevel,
+        alwaysVisiblePubkeys,
+    }), [
+        alwaysVisiblePubkeys,
+        buildingsByIndex,
+        occupancyByBuildingIndex,
+        occupiedLabelsZoomLevel,
+        profiles,
+        viewState.zoom,
+    ]);
+
+    const updateTagPositions = useCallback((): void => {
+        if (!mapBridge) {
+            return;
+        }
+
+        const insetLeft = mapBridge.getViewportInsetLeft();
+        const viewportWidth = Math.max(0, window.innerWidth - insetLeft);
+        const viewportHeight = Math.max(0, window.innerHeight);
+
+        for (const entry of occupiedEntries) {
+            const node = occupantRefs.current[entry.key];
+            if (!node) {
+                continue;
+            }
+
+            const screenPoint = mapBridge.worldToScreen(entry.centroid);
+            node.style.left = `${screenPoint.x + insetLeft}px`;
+            node.style.top = `${screenPoint.y}px`;
+            node.style.display = isPointWithinViewport({
+                point: screenPoint,
+                viewportWidth,
+                viewportHeight,
+                marginPx: VIEWPORT_MARGIN_PX,
+            }) ? '' : 'none';
+        }
+
+        if (!ownerRef.current) {
+            return;
+        }
+
+        if (!ownerBuilding || !ownerPubkey) {
+            ownerRef.current.style.display = 'none';
+            return;
+        }
+
+        const ownerScreenPoint = mapBridge.worldToScreen(ownerBuilding.centroid);
+        ownerRef.current.style.left = `${ownerScreenPoint.x + insetLeft}px`;
+        ownerRef.current.style.top = `${ownerScreenPoint.y}px`;
+        ownerRef.current.style.display = '';
+    }, [mapBridge, occupiedEntries, ownerBuilding, ownerPubkey]);
+
+    useEffect(() => {
+        if (!mapBridge) {
+            setBuildings([]);
+            setViewState({
+                zoom: 0,
+                insetLeft: 0,
+            });
+            return;
+        }
+
+        const refreshBuildings = (): void => {
+            setBuildings(mapBridge.listBuildings());
+        };
+
+        const refreshView = (): void => {
+            const zoom = mapBridge.getZoom();
+            const insetLeft = mapBridge.getViewportInsetLeft();
+            setViewState((current) => {
+                if (current.zoom === zoom && current.insetLeft === insetLeft) {
+                    return current;
+                }
+                return { zoom, insetLeft };
+            });
+        };
+
+        const scheduleViewRefresh = (): void => {
+            if (pendingFrameRef.current !== null) {
+                return;
+            }
+
+            pendingFrameRef.current = window.requestAnimationFrame(() => {
+                pendingFrameRef.current = null;
+                refreshView();
+                updateTagPositions();
+            });
+        };
+
+        refreshBuildings();
+        refreshView();
+        scheduleViewRefresh();
+
+        const offMapGenerated = mapBridge.onMapGenerated(() => {
+            refreshBuildings();
+            scheduleViewRefresh();
+        });
+        const offViewChanged = mapBridge.onViewChanged(scheduleViewRefresh);
+
+        return () => {
+            if (pendingFrameRef.current !== null) {
+                window.cancelAnimationFrame(pendingFrameRef.current);
+                pendingFrameRef.current = null;
+            }
+            offMapGenerated();
+            offViewChanged();
+        };
+    }, [mapBridge, updateTagPositions]);
+
+    useEffect(() => {
+        const validKeys = new Set(occupiedEntries.map((entry) => entry.key));
+        for (const key of Object.keys(occupantRefs.current)) {
+            if (!validKeys.has(key)) {
+                delete occupantRefs.current[key];
+            }
+        }
+    }, [occupiedEntries]);
+
+    useEffect(() => {
+        if (!mapBridge) {
+            return;
+        }
+
+        const frame = window.requestAnimationFrame(() => {
+            updateTagPositions();
+        });
+
+        return () => {
+            window.cancelAnimationFrame(frame);
+        };
+    }, [mapBridge, updateTagPositions]);
+
     if (!mapBridge) {
         return null;
     }
-
-    const showOccupiedLabels = zoom >= occupiedLabelsZoomLevel;
-    const alwaysVisiblePubkeySet = new Set(alwaysVisiblePubkeys);
-    const occupiedEntries = Object.entries(occupancyByBuildingIndex)
-        .filter(([, pubkey]) => showOccupiedLabels || alwaysVisiblePubkeySet.has(pubkey));
-
-    const ownerBuilding = ownerBuildingIndex === undefined ? undefined : buildingsByIndex[ownerBuildingIndex];
-    const ownerPosition = ownerBuilding
-        ? mapBridge.worldToScreen(ownerBuilding.centroid)
-        : null;
 
     return (
         <div
             className="nostr-map-presence-layer"
             aria-hidden="true"
             style={{
-                clipPath: `inset(0 0 0 ${insetLeft}px)`,
+                clipPath: `inset(0 0 0 ${viewState.insetLeft}px)`,
             }}
         >
-            {occupiedEntries.map(([indexKey, pubkey]) => {
-                const index = Number(indexKey);
-                const building = buildingsByIndex[index];
-                if (!building) {
-                    return null;
-                }
-
-                const profile = profiles[pubkey];
-                const position = mapBridge.worldToScreen(building.centroid);
-                const displayName = resolveDisplayName(profile);
+            {occupiedEntries.map((entry) => {
+                const initialPosition = mapBridge.worldToScreen(entry.centroid);
 
                 return (
                     <div
-                        key={`${pubkey}-${index}`}
-                        className={`nostr-map-occupant-tag${displayName ? '' : ' nostr-map-occupant-tag-no-name'}`}
+                        key={entry.key}
+                        ref={(node) => {
+                            occupantRefs.current[entry.key] = node;
+                        }}
+                        className={`nostr-map-occupant-tag${entry.displayName ? '' : ' nostr-map-occupant-tag-no-name'}`}
                         style={{
-                            left: `${position.x + insetLeft}px`,
-                            top: `${position.y}px`,
+                            left: `${initialPosition.x + viewState.insetLeft}px`,
+                            top: `${initialPosition.y}px`,
                         }}
                     >
-                        {profile?.picture ? (
-                            <img className="nostr-map-occupant-avatar" src={profile.picture} alt="" />
+                        {entry.picture ? (
+                            <img className="nostr-map-occupant-avatar" src={entry.picture} alt="" />
                         ) : (
                             <span className="nostr-map-occupant-avatar nostr-map-occupant-avatar-fallback">
-                                {resolveInitials(pubkey, profile)}
+                                {entry.initials}
                             </span>
                         )}
 
-                        {displayName ? (
-                            <span className="nostr-map-occupant-name">{displayName}</span>
+                        {entry.displayName ? (
+                            <span className="nostr-map-occupant-name">{entry.displayName}</span>
                         ) : null}
                     </div>
                 );
@@ -149,9 +249,10 @@ export function MapPresenceLayer({
 
             {ownerPosition && ownerPubkey ? (
                 <div
+                    ref={ownerRef}
                     className="nostr-map-owner-tooltip"
                     style={{
-                        left: `${ownerPosition.x + insetLeft}px`,
+                        left: `${ownerPosition.x + viewState.insetLeft}px`,
                         top: `${ownerPosition.y}px`,
                     }}
                 >
