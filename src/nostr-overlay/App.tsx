@@ -308,6 +308,7 @@ export function App({ mapBridge, services }: AppProps) {
                 ownerProfile={overlay.ownerProfile}
                 ownerBuildingIndex={overlay.ownerBuildingIndex}
                 occupiedLabelsZoomLevel={uiSettings.occupiedLabelsZoomLevel}
+                alwaysVisiblePubkeys={overlay.alwaysVisiblePubkeys}
             />
 
             {overlay.activeProfilePubkey ? (

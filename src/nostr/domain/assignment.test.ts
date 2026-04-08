@@ -60,4 +60,18 @@ describe('assignPubkeysToBuildings', () => {
         expect(Object.keys(occupancy.byBuildingIndex)).toHaveLength(2);
         expect(occupancy.selectedBuildingIndex).toBeDefined();
     });
+
+    test('priority pubkeys are assigned first when capacity is limited', () => {
+        const result = assignPubkeysToBuildings({
+            pubkeys: PUBKEYS,
+            buildingsCount: 2,
+            seed: 'owner-pubkey',
+            priorityPubkeys: [PUBKEYS[2], PUBKEYS[3]],
+        });
+
+        expect(result.pubkeyToBuildingIndex[PUBKEYS[2]]).toBeDefined();
+        expect(result.pubkeyToBuildingIndex[PUBKEYS[3]]).toBeDefined();
+        expect(result.unassignedPubkeys).toContain(PUBKEYS[0]);
+        expect(result.unassignedPubkeys).toContain(PUBKEYS[1]);
+    });
 });

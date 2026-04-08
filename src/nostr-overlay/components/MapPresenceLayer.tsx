@@ -10,6 +10,7 @@ interface MapPresenceLayerProps {
     ownerProfile?: NostrProfile;
     ownerBuildingIndex?: number;
     occupiedLabelsZoomLevel: number;
+    alwaysVisiblePubkeys?: string[];
 }
 
 function sanitizeLabel(value: string | undefined): string | undefined {
@@ -41,6 +42,7 @@ export function MapPresenceLayer({
     ownerProfile,
     ownerBuildingIndex,
     occupiedLabelsZoomLevel,
+    alwaysVisiblePubkeys = [],
 }: MapPresenceLayerProps) {
     const [buildings, setBuildings] = useState<MapBuildingSlot[]>([]);
     const [zoom, setZoom] = useState(0);
@@ -93,9 +95,9 @@ export function MapPresenceLayer({
     }
 
     const showOccupiedLabels = zoom >= occupiedLabelsZoomLevel;
-    const occupiedEntries = showOccupiedLabels
-        ? Object.entries(occupancyByBuildingIndex)
-        : [];
+    const alwaysVisiblePubkeySet = new Set(alwaysVisiblePubkeys);
+    const occupiedEntries = Object.entries(occupancyByBuildingIndex)
+        .filter(([, pubkey]) => showOccupiedLabels || alwaysVisiblePubkeySet.has(pubkey));
 
     const ownerBuilding = ownerBuildingIndex === undefined ? undefined : buildingsByIndex[ownerBuildingIndex];
     const ownerPosition = ownerBuilding

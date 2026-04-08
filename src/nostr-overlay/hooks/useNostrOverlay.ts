@@ -11,6 +11,7 @@ import { loadRelaySettings } from '../../nostr/relay-settings';
 import { getBootstrapRelays, mergeRelaySets, relayListFromKind10002Event } from '../../nostr/relay-policy';
 import type { NostrClient, NostrProfile } from '../../nostr/types';
 import type { MapBridge } from '../map-bridge';
+import { FEATURED_OCCUPANT_PUBKEYS } from '../domain/featured-occupants';
 import { createFollowerBatcher } from './follower-batcher';
 
 export type OverlayStatus =
@@ -32,6 +33,7 @@ interface OverlayData {
     ownerProfile?: NostrProfile;
     ownerBuildingIndex?: number;
     follows: string[];
+    featuredPubkeys: string[];
     profiles: Record<string, NostrProfile>;
     followers: string[];
     followerProfiles: Record<string, NostrProfile>;
@@ -123,6 +125,7 @@ function createInitialData(): OverlayData {
     return {
         ownerBuildingIndex: undefined,
         follows: [],
+        featuredPubkeys: FEATURED_OCCUPANT_PUBKEYS,
         profiles: {},
         followers: [],
         followerProfiles: {},
@@ -275,8 +278,10 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 }
 
                 const buildings = mapBridge.listBuildings();
+                const assignmentPubkeys = dedupe([...current.data.follows, ...current.data.featuredPubkeys]);
                 const assignments = assignPubkeysToBuildings({
-                    pubkeys: current.data.follows,
+                    pubkeys: assignmentPubkeys,
+                    priorityPubkeys: current.data.featuredPubkeys,
                     buildingsCount: buildings.length,
                     seed: current.data.ownerPubkey,
                 });
@@ -596,6 +601,8 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             const client = createClient(configuredRelays);
             const graph = await fetchFollowsByNpubFn(npub, client);
             const follows = dedupe(graph.follows);
+            const featuredPubkeys = FEATURED_OCCUPANT_PUBKEYS;
+            const assignmentPubkeys = dedupe([...follows, ...featuredPubkeys]);
             let suggestedRelays: string[] = [];
             try {
                 const relayListEvent = await client.fetchLatestReplaceableEvent(graph.ownerPubkey, 10002);
@@ -617,7 +624,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
 
             const [ownerProfiles, profiles] = await Promise.all([
                 fetchProfilesFn([graph.ownerPubkey], client),
-                fetchProfilesFn(follows, client),
+                fetchProfilesFn(assignmentPubkeys, client),
             ]);
             const ownerProfile = ownerProfiles[graph.ownerPubkey];
 
@@ -635,7 +642,8 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             await mapBridge.ensureGenerated();
             const buildings = mapBridge.listBuildings();
             const assignments = assignPubkeysToBuildings({
-                pubkeys: follows,
+                pubkeys: assignmentPubkeys,
+                priorityPubkeys: featuredPubkeys,
                 buildingsCount: buildings.length,
                 seed: graph.ownerPubkey,
             });
@@ -664,6 +672,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                     ownerProfile,
                     ownerBuildingIndex: resolveOwnerBuildingIndex(graph.ownerPubkey, buildings.length),
                     follows,
+                    featuredPubkeys,
                     profiles,
                     followers: [],
                     followerProfiles: {},
@@ -802,8 +811,10 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             await mapBridge.regenerateMap();
 
             const buildings = mapBridge.listBuildings();
+            const assignmentPubkeys = dedupe([...current.data.follows, ...current.data.featuredPubkeys]);
             const assignments = assignPubkeysToBuildings({
-                pubkeys: current.data.follows,
+                pubkeys: assignmentPubkeys,
+                priorityPubkeys: current.data.featuredPubkeys,
                 buildingsCount: buildings.length,
                 seed: current.data.ownerPubkey,
             });
@@ -997,6 +1008,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         ownerProfile: state.data.ownerProfile,
         ownerBuildingIndex: state.data.ownerBuildingIndex,
         follows: state.data.follows,
+        alwaysVisiblePubkeys: state.data.featuredPubkeys,
         profiles: state.data.profiles,
         followers: state.data.followers,
         followerProfiles: state.data.followerProfiles,

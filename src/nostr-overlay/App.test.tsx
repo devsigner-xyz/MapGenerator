@@ -276,6 +276,17 @@ describe('Nostr overlay App', () => {
         expect((bridge.setZoom as any).mock.calls[1][0]).toBe(4);
     });
 
+    test('renders zoom out button before zoom in button', async () => {
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(<App mapBridge={bridge} />);
+        mounted.push(rendered);
+
+        const buttons = Array.from(rendered.container.querySelectorAll('.nostr-map-zoom-controls .nostr-map-zoom-button')) as HTMLButtonElement[];
+        expect(buttons.length).toBe(2);
+        expect(buttons[0].getAttribute('aria-label')).toBe('Alejar mapa');
+        expect(buttons[1].getAttribute('aria-label')).toBe('Acercar mapa');
+    });
+
     test('shows owner profile icon buttons and copies npub with success toast', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const followedPubkey = 'a'.repeat(64);

@@ -134,6 +134,25 @@ describe('MapPresenceLayer', () => {
         expect(rendered.container.textContent || '').toContain('Alice');
     });
 
+    test('shows featured occupied labels below configured zoom level', async () => {
+        const bridge = createMapBridgeStub(3);
+        const rendered = await renderElement(
+            <MapPresenceLayer
+                mapBridge={bridge}
+                occupancyByBuildingIndex={{ 0: occupantPubkey }}
+                profiles={profiles}
+                ownerPubkey={ownerPubkey}
+                ownerProfile={{ pubkey: ownerPubkey, displayName: 'Owner' }}
+                ownerBuildingIndex={0}
+                occupiedLabelsZoomLevel={10}
+                alwaysVisiblePubkeys={[occupantPubkey]}
+            />
+        );
+        mounted.push(rendered);
+
+        expect(rendered.container.textContent || '').toContain('Alice');
+    });
+
     test('renders avatar-only occupant tag when username is empty', async () => {
         const bridge = createMapBridgeStub(10);
         const rendered = await renderElement(

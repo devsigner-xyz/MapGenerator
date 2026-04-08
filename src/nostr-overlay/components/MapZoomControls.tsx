@@ -69,14 +69,14 @@ export function MapZoomControls({ mapBridge }: MapZoomControlsProps) {
 
     return (
         <div className="nostr-map-zoom-controls" aria-label="Controles de zoom">
-            <button type="button" className="nostr-map-zoom-button" aria-label="Acercar mapa" onClick={onZoomIn}>
-                +
+            <button type="button" className="nostr-map-zoom-button" aria-label="Alejar mapa" onClick={onZoomOut}>
+                -
             </button>
 
             <p className="nostr-map-zoom-level" aria-live="polite">{`${zoom.toFixed(2)}x`}</p>
 
-            <button type="button" className="nostr-map-zoom-button" aria-label="Alejar mapa" onClick={onZoomOut}>
-                -
+            <button type="button" className="nostr-map-zoom-button" aria-label="Acercar mapa" onClick={onZoomIn}>
+                +
             </button>
         </div>
     );

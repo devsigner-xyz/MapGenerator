@@ -10,8 +10,19 @@ export interface AssignmentResult {
     unassignedPubkeys: string[];
 }
 
-function normalizePubkeys(pubkeys: string[]): string[] {
-    return [...new Set(pubkeys)].sort();
+function normalizePubkeys(pubkeys: string[], priorityPubkeys: string[] = []): string[] {
+    const deduped = [...new Set(pubkeys)];
+    const prioritySet = new Set(priorityPubkeys);
+
+    return deduped.sort((left, right) => {
+        const leftPriority = prioritySet.has(left) ? 0 : 1;
+        const rightPriority = prioritySet.has(right) ? 0 : 1;
+        if (leftPriority !== rightPriority) {
+            return leftPriority - rightPriority;
+        }
+
+        return left.localeCompare(right);
+    });
 }
 
 function fnv1aHash(input: string): number {
@@ -36,9 +47,10 @@ export function assignPubkeysToBuildings(input: {
     pubkeys: string[];
     buildingsCount: number;
     seed: string;
+    priorityPubkeys?: string[];
 }): AssignmentResult {
     const capacity = Math.max(0, Math.floor(input.buildingsCount));
-    const sortedPubkeys = normalizePubkeys(input.pubkeys);
+    const sortedPubkeys = normalizePubkeys(input.pubkeys, input.priorityPubkeys || []);
 
     const assignments: BuildingAssignment[] = [];
     const byBuildingIndex: Record<number, string> = {};
