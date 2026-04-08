@@ -9,7 +9,10 @@ import Util from '../util';
 export default class DomainController {
     private static instance: DomainController;
 
-    private readonly ZOOM_SPEED = 0.96;
+    private readonly ZOOM_SPEED = 0.92;
+    private readonly WHEEL_STEP_BASE = 53;
+    private readonly MIN_WHEEL_STEPS = 0.35;
+    private readonly MAX_WHEEL_STEPS = 3;
     private readonly SCROLL_DELAY = 100;
 
     // Location of screen origin in world space
@@ -43,11 +46,22 @@ export default class DomainController {
                 this.lastScrolltime = Date.now();
                 this.refreshedAfterScroll = false;
                 const delta: number = e.deltaY;
-                // TODO scale by value of delta
+
+                if (!Number.isFinite(delta) || delta === 0) {
+                    return;
+                }
+
+                const deltaMagnitude = Math.abs(delta);
+                const wheelSteps = Math.max(
+                    this.MIN_WHEEL_STEPS,
+                    Math.min(this.MAX_WHEEL_STEPS, deltaMagnitude / this.WHEEL_STEP_BASE),
+                );
+                const zoomFactor = Math.pow(this.ZOOM_SPEED, wheelSteps);
+
                 if (delta > 0) {
-                    this.zoom = this._zoom * this.ZOOM_SPEED;
+                    this.zoom = this._zoom * zoomFactor;
                 } else {
-                    this.zoom = this._zoom / this.ZOOM_SPEED;
+                    this.zoom = this._zoom / zoomFactor;
                 }
             }
         });
