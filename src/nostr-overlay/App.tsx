@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { loadUiSettings, type UiSettingsState } from '../nostr/ui-settings';
 import { MapPresenceLayer } from './components/MapPresenceLayer';
 import { NpubForm } from './components/NpubForm';
@@ -9,6 +9,7 @@ import { MapZoomControls } from './components/MapZoomControls';
 import { CityStatsModal } from './components/CityStatsModal';
 import { useNostrOverlay, type MapLoaderStage, type NostrOverlayServices } from './hooks/useNostrOverlay';
 import type { MapBridge } from './map-bridge';
+import { extractStreetLabelUsernames } from './domain/street-label-users';
 
 interface AppProps {
     mapBridge: MapBridge | null;
@@ -41,6 +42,10 @@ export function App({ mapBridge, services }: AppProps) {
     const formDisabled = overlay.status !== 'idle' && overlay.status !== 'success' && overlay.status !== 'error';
     const mapLoaderText = mapLoaderStageLabel(overlay.mapLoaderStage);
     const regenerateDisabled = !mapBridge || overlay.mapLoaderStage !== null;
+    const streetLabelUsernames = useMemo(() => extractStreetLabelUsernames({
+        occupancyByBuildingIndex: overlay.occupancyByBuildingIndex,
+        profiles: overlay.profiles,
+    }), [overlay.occupancyByBuildingIndex, overlay.profiles]);
 
     useEffect(() => {
         if (!mapBridge) {
@@ -64,6 +69,23 @@ export function App({ mapBridge, services }: AppProps) {
 
         return () => window.clearTimeout(timer);
     }, [toastMessage]);
+
+    useEffect(() => {
+        if (!mapBridge) {
+            return;
+        }
+
+        mapBridge.setStreetLabelsEnabled(uiSettings.streetLabelsEnabled);
+        mapBridge.setStreetLabelsZoomLevel(uiSettings.streetLabelsZoomLevel);
+    }, [mapBridge, uiSettings.streetLabelsEnabled, uiSettings.streetLabelsZoomLevel]);
+
+    useEffect(() => {
+        if (!mapBridge) {
+            return;
+        }
+
+        mapBridge.setStreetLabelUsernames(streetLabelUsernames);
+    }, [mapBridge, streetLabelUsernames]);
 
     const copyOwnerIdentifier = async (value: string): Promise<void> => {
         if (!value) {

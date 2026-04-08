@@ -199,6 +199,18 @@ class Main {
         this.mainGui.setSelectedBuildingIndex(index);
     }
 
+    setStreetLabelsEnabled(enabled: boolean): void {
+        this.mainGui.setStreetLabelsEnabled(enabled);
+    }
+
+    setStreetLabelsZoomLevel(level: number): void {
+        this.mainGui.setStreetLabelsZoomLevel(level);
+    }
+
+    setStreetLabelUsernames(usernames: string[]): void {
+        this.mainGui.setStreetLabelUsernames(usernames);
+    }
+
     setViewportInsetLeft(inset: number): void {
         const insetPx = Math.max(0, Math.min(window.innerWidth, inset));
         if (this.viewportInsetLeft === insetPx) {

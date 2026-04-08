@@ -175,6 +175,51 @@ export function MapSettingsModal({ mapBridge, suggestedRelays = [], onUiSettings
                             <span>8</span>
                             <span>20</span>
                         </div>
+
+                        <hr className="nostr-divider" />
+
+                        <div className="nostr-ui-toggle-row">
+                            <label className="nostr-label" htmlFor="nostr-street-labels-enabled">Street labels</label>
+                            <input
+                                id="nostr-street-labels-enabled"
+                                type="checkbox"
+                                aria-label="Street labels enabled"
+                                checked={uiSettings.streetLabelsEnabled}
+                                onChange={(event) => {
+                                    persistUiSettings({
+                                        ...uiSettings,
+                                        streetLabelsEnabled: event.target.checked,
+                                    });
+                                }}
+                            />
+                        </div>
+
+                        <div className="nostr-ui-slider-row">
+                            <label className="nostr-label" htmlFor="nostr-street-zoom-level">Street labels zoom level</label>
+                            <span className="nostr-ui-slider-value">{uiSettings.streetLabelsZoomLevel}</span>
+                        </div>
+                        <input
+                            id="nostr-street-zoom-level"
+                            className="nostr-input"
+                            type="range"
+                            min={1}
+                            max={20}
+                            step={1}
+                            aria-label="Street labels zoom level"
+                            value={uiSettings.streetLabelsZoomLevel}
+                            disabled={!uiSettings.streetLabelsEnabled}
+                            onChange={(event) => {
+                                const nextValue = Number(event.target.value);
+                                if (!Number.isFinite(nextValue)) {
+                                    return;
+                                }
+
+                                persistUiSettings({
+                                    ...uiSettings,
+                                    streetLabelsZoomLevel: nextValue,
+                                });
+                            }}
+                        />
                     </div>
                 ) : view === 'relays' ? (
                     <div className="nostr-relays-content">

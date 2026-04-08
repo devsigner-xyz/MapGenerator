@@ -30,6 +30,9 @@ function createBridgeStub(): MapBridge {
         applyOccupancy: vi.fn(),
         setViewportInsetLeft: vi.fn(),
         setModalBuildingHighlight: vi.fn(),
+        setStreetLabelsEnabled: vi.fn(),
+        setStreetLabelsZoomLevel: vi.fn(),
+        setStreetLabelUsernames: vi.fn(),
         mountSettingsPanel: vi.fn(),
         focusBuilding: vi.fn(),
         getParkCount: vi.fn().mockReturnValue(0),
@@ -90,6 +93,14 @@ describe('MapSettingsModal UI settings', () => {
         const sliderMarks = Array.from(rendered.container.querySelectorAll('.nostr-ui-slider-marks span')).map((node) => node.textContent || '');
         expect(sliderMarks).toEqual(['1', '8', '20']);
 
+        const streetLabelsToggle = rendered.container.querySelector('input[aria-label="Street labels enabled"]') as HTMLInputElement;
+        expect(streetLabelsToggle).toBeDefined();
+        expect(streetLabelsToggle.checked).toBe(true);
+
+        const streetZoomInput = rendered.container.querySelector('input[aria-label="Street labels zoom level"]') as HTMLInputElement;
+        expect(streetZoomInput).toBeDefined();
+        expect(streetZoomInput.value).toBe('10');
+
         await act(async () => {
             const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
             valueSetter?.call(zoomInput, '12');
@@ -97,9 +108,30 @@ describe('MapSettingsModal UI settings', () => {
             zoomInput.dispatchEvent(new Event('change', { bubbles: true }));
         });
 
+        await act(async () => {
+            const checkedSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'checked')?.set;
+            checkedSetter?.call(streetLabelsToggle, false);
+            streetLabelsToggle.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            const checkedSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'checked')?.set;
+            checkedSetter?.call(streetLabelsToggle, true);
+            streetLabelsToggle.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(streetZoomInput, '14');
+            streetZoomInput.dispatchEvent(new Event('input', { bubbles: true }));
+            streetZoomInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
         expect(onUiSettingsChange).toHaveBeenCalled();
         const raw = window.localStorage.getItem(UI_SETTINGS_STORAGE_KEY);
         expect(raw).not.toBeNull();
         expect(raw || '').toContain('12');
+        expect(raw || '').toContain('streetLabelsEnabled');
+        expect(raw || '').toContain('14');
     });
 });

@@ -1,8 +1,12 @@
 export const UI_SETTINGS_STORAGE_KEY = 'nostr.overlay.ui.v1';
 const DEFAULT_OCCUPIED_LABELS_ZOOM_LEVEL = 8;
+const DEFAULT_STREET_LABELS_ENABLED = true;
+const DEFAULT_STREET_LABELS_ZOOM_LEVEL = 10;
 
 interface UiSettingsPayload {
-    occupiedLabelsZoomLevel: number;
+    occupiedLabelsZoomLevel?: number;
+    streetLabelsEnabled?: boolean;
+    streetLabelsZoomLevel?: number;
 }
 
 interface StorageLike {
@@ -12,6 +16,8 @@ interface StorageLike {
 
 export interface UiSettingsState {
     occupiedLabelsZoomLevel: number;
+    streetLabelsEnabled: boolean;
+    streetLabelsZoomLevel: number;
 }
 
 function getDefaultStorage(): StorageLike | null {
@@ -34,18 +40,31 @@ function normalizeOccupiedLabelsZoomLevel(value: number): number {
     return Math.max(1, Math.min(20, Math.round(value)));
 }
 
+function normalizeStreetLabelsZoomLevel(value: number): number {
+    if (!Number.isFinite(value)) {
+        return DEFAULT_STREET_LABELS_ZOOM_LEVEL;
+    }
+
+    return Math.max(1, Math.min(20, Math.round(value)));
+}
+
+function normalizeStreetLabelsEnabled(value: boolean): boolean {
+    return typeof value === 'boolean' ? value : DEFAULT_STREET_LABELS_ENABLED;
+}
+
 function isUiSettingsPayload(value: unknown): value is UiSettingsPayload {
     if (!value || typeof value !== 'object') {
         return false;
     }
 
-    const payload = value as Partial<UiSettingsPayload>;
-    return typeof payload.occupiedLabelsZoomLevel === 'number';
+    return true;
 }
 
 export function getDefaultUiSettings(): UiSettingsState {
     return {
         occupiedLabelsZoomLevel: DEFAULT_OCCUPIED_LABELS_ZOOM_LEVEL,
+        streetLabelsEnabled: DEFAULT_STREET_LABELS_ENABLED,
+        streetLabelsZoomLevel: DEFAULT_STREET_LABELS_ZOOM_LEVEL,
     };
 }
 
@@ -67,6 +86,8 @@ export function loadUiSettings(storage: StorageLike | null = getDefaultStorage()
 
         return {
             occupiedLabelsZoomLevel: normalizeOccupiedLabelsZoomLevel(parsed.occupiedLabelsZoomLevel),
+            streetLabelsEnabled: normalizeStreetLabelsEnabled(parsed.streetLabelsEnabled),
+            streetLabelsZoomLevel: normalizeStreetLabelsZoomLevel(parsed.streetLabelsZoomLevel),
         };
     } catch {
         return getDefaultUiSettings();
@@ -79,11 +100,15 @@ export function saveUiSettings(
 ): UiSettingsState {
     const nextState: UiSettingsState = {
         occupiedLabelsZoomLevel: normalizeOccupiedLabelsZoomLevel(state.occupiedLabelsZoomLevel),
+        streetLabelsEnabled: normalizeStreetLabelsEnabled(state.streetLabelsEnabled),
+        streetLabelsZoomLevel: normalizeStreetLabelsZoomLevel(state.streetLabelsZoomLevel),
     };
 
     if (storage) {
         const payload: UiSettingsPayload = {
             occupiedLabelsZoomLevel: nextState.occupiedLabelsZoomLevel,
+            streetLabelsEnabled: nextState.streetLabelsEnabled,
+            streetLabelsZoomLevel: nextState.streetLabelsZoomLevel,
         };
         storage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify(payload));
     }

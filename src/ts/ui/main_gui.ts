@@ -19,6 +19,8 @@ import CanvasWrapper from './canvas_wrapper';
 import Buildings, {BuildingModel} from './buildings';
 import PolygonUtil from '../impl/polygon_util';
 import { findOccupiedBuildingHit, type OccupiedBuildingHit } from './occupied_building_hit';
+import streetNamePool from '../../data/street-name-pool.json';
+import { createStreetLabels, normalizeStreetNamePool, type StreetNamePool } from './street_labels';
 
 /**
  * Handles Map folder, glues together impl
@@ -63,6 +65,10 @@ export default class MainGUI {
     private selectedBuildingIndex: number = null;
     private hoveredBuildingIndex: number = null;
     private modalHighlightedBuildingIndex: number = null;
+    private streetLabelsEnabled = true;
+    private streetLabelsZoomLevel = 10;
+    private streetLabelUsernames: string[] = [];
+    private readonly streetNamePool: StreetNamePool = normalizeStreetNamePool(streetNamePool as StreetNamePool);
 
     constructor(private guiFolder: dat.GUI, private tensorField: TensorField, private closeTensorFolder: () => void) {
         const guiBindings = this as unknown as Record<string, unknown>;
@@ -296,6 +302,23 @@ export default class MainGUI {
         style.mainRoads = this.mainRoads.roads;
         style.coastlineRoads = this.coastline.roads;
         style.secondaryRiver = this.coastline.secondaryRiver;
+        const roadsForStreetLabels: Vector[][] = [];
+        roadsForStreetLabels.push(...style.mainRoads);
+        roadsForStreetLabels.push(...style.majorRoads);
+        roadsForStreetLabels.push(...style.minorRoads);
+        roadsForStreetLabels.push(...style.coastlineRoads);
+        if (style.secondaryRiver.length > 1) {
+            roadsForStreetLabels.push(style.secondaryRiver);
+        }
+        style.streetLabels = createStreetLabels({
+            enabled: this.streetLabelsEnabled,
+            zoom: this.domainController.zoom,
+            zoomThreshold: this.streetLabelsZoomLevel,
+            roads: roadsForStreetLabels,
+            usernames: this.streetLabelUsernames,
+            pool: this.streetNamePool,
+            seed: this.getStreetLabelSeed(),
+        });
         style.draw(customCanvas);
     }
 
@@ -351,6 +374,37 @@ export default class MainGUI {
         }
 
         this.hoveredBuildingIndex = nextHovered;
+        this.redraw = true;
+    }
+
+    setStreetLabelsEnabled(enabled: boolean): void {
+        const nextValue = Boolean(enabled);
+        if (this.streetLabelsEnabled === nextValue) {
+            return;
+        }
+
+        this.streetLabelsEnabled = nextValue;
+        this.redraw = true;
+    }
+
+    setStreetLabelsZoomLevel(level: number): void {
+        const nextValue = Math.max(1, Math.min(20, Math.round(level)));
+        if (this.streetLabelsZoomLevel === nextValue) {
+            return;
+        }
+
+        this.streetLabelsZoomLevel = nextValue;
+        this.redraw = true;
+    }
+
+    setStreetLabelUsernames(usernames: string[]): void {
+        const normalized = this.normalizeStreetLabelUsernames(usernames);
+        if (normalized.length === this.streetLabelUsernames.length
+            && normalized.every((value, index) => this.streetLabelUsernames[index] === value)) {
+            return;
+        }
+
+        this.streetLabelUsernames = normalized;
         this.redraw = true;
     }
 
@@ -452,5 +506,41 @@ export default class MainGUI {
 
             return 'empty';
         });
+    }
+
+    private normalizeStreetLabelUsernames(usernames: string[]): string[] {
+        const normalized: string[] = [];
+        const seen = new Set<string>();
+
+        for (const username of usernames || []) {
+            if (!username) {
+                continue;
+            }
+
+            const candidate = username.trim().replace(/\s+/g, ' ');
+            if (!candidate) {
+                continue;
+            }
+
+            const dedupeKey = candidate.toLocaleLowerCase();
+            if (seen.has(dedupeKey)) {
+                continue;
+            }
+
+            seen.add(dedupeKey);
+            normalized.push(candidate);
+        }
+
+        return normalized;
+    }
+
+    private getStreetLabelSeed(): string {
+        return [
+            this.mainRoads.allStreamlines.length,
+            this.majorRoads.allStreamlines.length,
+            this.minorRoads.allStreamlines.length,
+            this.coastline.streamlinesWithSecondaryRoad.length,
+            this.buildings.lotWorlds.length,
+        ].join(':');
     }
 }

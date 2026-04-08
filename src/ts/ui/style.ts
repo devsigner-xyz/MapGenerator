@@ -10,6 +10,7 @@ import DragController from './drag_controller';
 import DomainController from './domain_controller';
 import Vector from '../vector';
 import {BuildingModel} from './buildings';
+import type { StreetLabel } from './street_labels';
 
 export interface ColourScheme {
     bgColour: string;
@@ -96,6 +97,7 @@ export default abstract class Style {
     public majorRoads: Vector[][] = [];
     public mainRoads: Vector[][] = [];
     public coastlineRoads: Vector[][] = [];
+    public streetLabels: StreetLabel[] = [];
     public showFrame: boolean;
 
     constructor(protected dragController: DragController, protected colourScheme: ColourScheme) {
@@ -231,6 +233,14 @@ export class DefaultStyle extends Style {
         canvas.setLineWidth(this.colourScheme.mainWidth * this.domainController.zoom);
         for (const s of this.mainRoads) canvas.drawPolyline(s);
         for (const s of this.coastlineRoads) canvas.drawPolyline(s);
+
+        if (this.streetLabels.length > 0) {
+            const fontPx = Math.max(9, Math.min(14, 8 + this.domainController.zoom * 0.65));
+            canvas.setFillStyle('rgb(72,72,72)');
+            for (const label of this.streetLabels) {
+                canvas.drawRotatedText(label.text, label.anchor, label.angleRad, fontPx);
+            }
+        }
 
 
         canvas.setLineWidth(1);

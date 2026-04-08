@@ -1,0 +1,166 @@
+import { describe, expect, test } from 'vitest';
+import Vector from '../vector';
+import {
+    buildStreetNames,
+    createStreetLabels,
+    normalizeStreetNamePool,
+    normalizeTextAngle,
+} from './street_labels';
+
+const POOL = normalizeStreetNamePool({
+    suffixes: ['Street', 'Avenue', 'Lane', 'Road', 'Boulevard', 'Way'],
+    fallbackBases: ['Relay', 'Zap', 'NIP-03'],
+});
+
+function scaleRoads(roads: Vector[][], factor: number): Vector[][] {
+    return roads.map((road) => road.map((point) => point.clone().multiplyScalar(factor)));
+}
+
+describe('street_labels', () => {
+    test('buildStreetNames prioritizes usernames and falls back to pool', () => {
+        const names = buildStreetNames({
+            usernames: ['alice'],
+            desiredCount: 3,
+            seed: 'seed-1',
+            pool: POOL,
+        });
+
+        expect(names).toHaveLength(3);
+        expect(names[0]).toMatch(/^Alice\s(Street|Avenue|Lane|Road|Boulevard|Way)$/);
+        expect(names[1]).toMatch(/(Relay|Zap|NIP-03)/);
+        expect(names[2]).toMatch(/(Relay|Zap|NIP-03)/);
+    });
+
+    test('buildStreetNames is deterministic for same seed and inputs', () => {
+        const first = buildStreetNames({
+            usernames: ['alice', 'bob'],
+            desiredCount: 6,
+            seed: 'seed-stable',
+            pool: POOL,
+        });
+        const second = buildStreetNames({
+            usernames: ['alice', 'bob'],
+            desiredCount: 6,
+            seed: 'seed-stable',
+            pool: POOL,
+        });
+
+        expect(first).toEqual(second);
+    });
+
+    test('buildStreetNames capitalizes labels and avoids full uppercase output', () => {
+        const names = buildStreetNames({
+            usernames: ['ALICE WONDER'],
+            desiredCount: 2,
+            seed: 'caps-seed',
+            pool: {
+                suffixes: ['STREET'],
+                fallbackBases: ['RELAY'],
+            },
+        });
+
+        expect(names[0]).toBe('Alice Wonder Street');
+        expect(names[1]).toBe('Relay Street');
+        expect(names.every((name) => name !== name.toUpperCase())).toBe(true);
+    });
+
+    test('normalizeTextAngle keeps text upright', () => {
+        const angle = normalizeTextAngle(Math.PI * 0.9);
+        expect(angle).toBeLessThanOrEqual(Math.PI / 2);
+        expect(angle).toBeGreaterThanOrEqual(-Math.PI / 2);
+    });
+
+    test('createStreetLabels returns empty when disabled or zoom is below threshold', () => {
+        const roads = [[new Vector(0, 0), new Vector(220, 0)]];
+
+        expect(createStreetLabels({
+            enabled: false,
+            zoom: 12,
+            zoomThreshold: 10,
+            roads,
+            pool: POOL,
+        })).toEqual([]);
+
+        expect(createStreetLabels({
+            enabled: true,
+            zoom: 9,
+            zoomThreshold: 10,
+            roads,
+            pool: POOL,
+        })).toEqual([]);
+    });
+
+    test('createStreetLabels creates longitudinal labels when enabled and zoom threshold met', () => {
+        const labels = createStreetLabels({
+            enabled: true,
+            zoom: 12,
+            zoomThreshold: 10,
+            roads: [
+                [new Vector(0, 0), new Vector(300, 0)],
+                [new Vector(0, 150), new Vector(200, 250)],
+            ],
+            usernames: ['alice'],
+            seed: 'city-seed',
+            pool: POOL,
+            minRoadLengthPx: 100,
+        });
+
+        expect(labels.length).toBeGreaterThan(0);
+        expect(labels[0].text).toMatch(/^Alice\s/);
+        expect(labels[0].angleRad).toBeCloseTo(0, 5);
+    });
+
+    test('createStreetLabels enforces spacing to avoid dense overlap', () => {
+        const labels = createStreetLabels({
+            enabled: true,
+            zoom: 12,
+            zoomThreshold: 10,
+            roads: [
+                [new Vector(0, 0), new Vector(300, 0)],
+                [new Vector(0, 20), new Vector(300, 20)],
+                [new Vector(0, 40), new Vector(300, 40)],
+            ],
+            seed: 'spacing-seed',
+            pool: POOL,
+            minRoadLengthPx: 100,
+            minLabelSpacingPx: 120,
+        });
+
+        expect(labels.length).toBe(1);
+    });
+
+    test('street names stay stable for already-visible streets when zoom changes', () => {
+        const baseRoads = [
+            [new Vector(0, 0), new Vector(300, 0)],
+            [new Vector(0, 50), new Vector(260, 50)],
+            [new Vector(0, 220), new Vector(220, 220)],
+        ];
+
+        const labelsLowZoom = createStreetLabels({
+            enabled: true,
+            zoom: 10,
+            zoomThreshold: 10,
+            roads: scaleRoads(baseRoads, 1),
+            seed: 'stable-name-seed',
+            pool: POOL,
+            minRoadLengthPx: 100,
+            minLabelSpacingPx: 120,
+        });
+
+        const labelsHighZoom = createStreetLabels({
+            enabled: true,
+            zoom: 14,
+            zoomThreshold: 10,
+            roads: scaleRoads(baseRoads, 3),
+            seed: 'stable-name-seed',
+            pool: POOL,
+            minRoadLengthPx: 100,
+            minLabelSpacingPx: 120,
+        });
+
+        const lowFarRoad = labelsLowZoom.reduce((best, current) => (current.anchor.y > best.anchor.y ? current : best), labelsLowZoom[0]);
+        const highFarRoad = labelsHighZoom.reduce((best, current) => (current.anchor.y > best.anchor.y ? current : best), labelsHighZoom[0]);
+
+        expect(lowFarRoad.text).toBe(highFarRoad.text);
+    });
+});

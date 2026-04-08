@@ -52,6 +52,10 @@ export default abstract class CanvasWrapper {
 
     abstract drawFrame(left: number, right: number, up: number, down: number): void;
 
+    drawRotatedText(text: string, center: Vector, angleRad: number, fontPx: number): void {
+        return;
+    }
+
     setDimensions(): void {
         const elementWidth = this.canvas.clientWidth || this.canvas.getBoundingClientRect().width || window.innerWidth;
         const elementHeight = this.canvas.clientHeight || this.canvas.getBoundingClientRect().height || window.innerHeight;
@@ -134,6 +138,25 @@ export class DefaultCanvasWrapper extends CanvasWrapper {
         this.ctx.font = `small-caps ${fontSize}px Verdana`;
         this.ctx.textAlign = "center";
         this.ctx.fillText("san francisco", this._width/2, this._height - (80 * this._scale - fontSize));
+    }
+
+    drawRotatedText(text: string, center: Vector, angleRad: number, fontPx: number): void {
+        if (!text) {
+            return;
+        }
+
+        const fontSize = Math.max(1, fontPx * this._scale);
+        const x = center.x * this._scale;
+        const y = center.y * this._scale;
+
+        this.ctx.save();
+        this.ctx.translate(x, y);
+        this.ctx.rotate(angleRad);
+        this.ctx.font = `300 ${fontSize}px Verdana`;
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(text, 0, 0);
+        this.ctx.restore();
     }
 
     drawRectangle(x: number, y: number, width: number, height: number): void {
@@ -261,6 +284,10 @@ export class RoughCanvasWrapper extends CanvasWrapper {
 
     drawFrame(left: number, right: number, up: number, down: number): void {
 
+    }
+
+    drawRotatedText(text: string, center: Vector, angleRad: number, fontPx: number): void {
+        return;
     }
 
     setOptions(options: RoughOptions): void {
