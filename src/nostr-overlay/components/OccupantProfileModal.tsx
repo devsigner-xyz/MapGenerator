@@ -1,6 +1,8 @@
 import type { UIEvent } from 'react';
 import type { NostrProfile } from '../../nostr/types';
 import type { NostrPostPreview } from '../../nostr/posts';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 
 interface OccupantProfileModalProps {
     pubkey: string;
@@ -56,11 +58,17 @@ export function OccupantProfileModal({
     };
 
     return (
-        <div className="nostr-modal-backdrop" role="presentation" onClick={onClose}>
-            <div className="nostr-modal nostr-profile-modal" role="dialog" aria-modal="true" aria-label="Perfil del ocupante" onClick={(event) => event.stopPropagation()}>
-                <button type="button" className="nostr-modal-close" onClick={onClose} aria-label="Cerrar perfil">
+        <Dialog open onOpenChange={(open) => {
+            if (!open) {
+                onClose();
+            }
+        }}>
+            <DialogContent className="nostr-modal nostr-profile-modal" showCloseButton={false} aria-label="Perfil del ocupante">
+                <DialogTitle className="sr-only">Perfil del ocupante</DialogTitle>
+                <DialogDescription className="sr-only">Datos de red social y publicaciones del ocupante.</DialogDescription>
+                <Button type="button" variant="ghost" className="nostr-modal-close" onClick={onClose} aria-label="Cerrar perfil">
                     ×
-                </button>
+                </Button>
 
                 <div className="nostr-profile-modal-body" onScroll={handleScroll}>
                     <div className="nostr-modal-header">
@@ -147,13 +155,13 @@ export function OccupantProfileModal({
                         {postsLoading ? <p className="nostr-loading">Cargando publicaciones...</p> : null}
 
                         {hasMorePosts && !postsLoading ? (
-                            <button type="button" className="nostr-submit nostr-posts-load-more" onClick={() => void onLoadMorePosts()}>
+                            <Button type="button" className="nostr-submit nostr-posts-load-more" onClick={() => void onLoadMorePosts()}>
                                 Cargar mas
-                            </button>
+                            </Button>
                         ) : null}
                     </section>
                 </div>
-            </div>
-        </div>
+            </DialogContent>
+        </Dialog>
     );
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { MapBridge } from '../map-bridge';
+import { Button } from '@/components/ui/button';
 
 interface MapZoomControlsProps {
     mapBridge: MapBridge | null;
@@ -69,15 +70,15 @@ export function MapZoomControls({ mapBridge }: MapZoomControlsProps) {
 
     return (
         <div className="nostr-map-zoom-controls" aria-label="Controles de zoom">
-            <button type="button" className="nostr-map-zoom-button" aria-label="Alejar mapa" onClick={onZoomOut}>
+            <Button type="button" variant="outline" className="nostr-map-zoom-button" aria-label="Alejar mapa" onClick={onZoomOut}>
                 -
-            </button>
+            </Button>
 
             <p className="nostr-map-zoom-level" aria-live="polite">{`${zoom.toFixed(2)}x`}</p>
 
-            <button type="button" className="nostr-map-zoom-button" aria-label="Acercar mapa" onClick={onZoomIn}>
+            <Button type="button" variant="outline" className="nostr-map-zoom-button" aria-label="Acercar mapa" onClick={onZoomIn}>
                 +
-            </button>
+            </Button>
         </div>
     );
 }

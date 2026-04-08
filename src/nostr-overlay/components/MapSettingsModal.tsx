@@ -3,6 +3,11 @@ import { addRelay, loadRelaySettings, removeRelay, saveRelaySettings, type Relay
 import { normalizeRelayUrl } from '../../nostr/relay-policy';
 import { loadUiSettings, saveUiSettings, type UiSettingsState } from '../../nostr/ui-settings';
 import type { MapBridge } from '../map-bridge';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import { Textarea } from '@/components/ui/textarea';
 
 interface MapSettingsModalProps {
     mapBridge: MapBridge | null;
@@ -106,13 +111,19 @@ export function MapSettingsModal({ mapBridge, suggestedRelays = [], onUiSettings
     }, [mapBridge, view]);
 
     return (
-        <div className="nostr-modal-backdrop" role="presentation" onClick={onClose}>
-            <div className="nostr-modal nostr-settings-modal" role="dialog" aria-modal="true" aria-label="Ajustes" onClick={(event) => event.stopPropagation()}>
+        <Dialog open onOpenChange={(open) => {
+            if (!open) {
+                onClose();
+            }
+        }}>
+            <DialogContent className="nostr-modal nostr-settings-modal" showCloseButton={false} aria-label="Ajustes">
+                <DialogTitle className="sr-only">Ajustes</DialogTitle>
+                <DialogDescription className="sr-only">Configuracion del overlay del mapa.</DialogDescription>
                 <div className="nostr-settings-header">
                     {view === 'ui' || view === 'shortcuts' || view === 'relays' ? (
-                        <button type="button" className="nostr-settings-back" onClick={() => setView('settings')}>
+                        <Button type="button" variant="ghost" className="nostr-settings-back" onClick={() => setView('settings')}>
                             Volver
-                        </button>
+                        </Button>
                     ) : (
                         <span className="nostr-settings-spacer" aria-hidden="true" />
                     )}
@@ -121,24 +132,24 @@ export function MapSettingsModal({ mapBridge, suggestedRelays = [], onUiSettings
                         {view === 'settings' ? 'Settings' : view === 'ui' ? 'UI' : view === 'shortcuts' ? 'Shortcuts' : 'Relays'}
                     </p>
 
-                    <button type="button" className="nostr-modal-close" onClick={onClose} aria-label="Cerrar ajustes">
+                    <Button type="button" variant="ghost" className="nostr-modal-close" onClick={onClose} aria-label="Cerrar ajustes">
                         x
-                    </button>
+                    </Button>
                 </div>
 
                 {view === 'settings' ? (
                     <div className="nostr-settings-content">
-                        <button type="button" className="nostr-settings-item" onClick={() => setView('ui')}>
+                        <Button type="button" variant="outline" className="nostr-settings-item" onClick={() => setView('ui')}>
                             UI
-                        </button>
+                        </Button>
 
-                        <button type="button" className="nostr-settings-item" onClick={() => setView('shortcuts')}>
+                        <Button type="button" variant="outline" className="nostr-settings-item" onClick={() => setView('shortcuts')}>
                             Shortcuts
-                        </button>
+                        </Button>
 
-                        <button type="button" className="nostr-settings-item" onClick={() => setView('relays')}>
+                        <Button type="button" variant="outline" className="nostr-settings-item" onClick={() => setView('relays')}>
                             Relays
-                        </button>
+                        </Button>
 
                         <div ref={settingsHostRef} className="nostr-settings-host" />
                     </div>
@@ -146,24 +157,23 @@ export function MapSettingsModal({ mapBridge, suggestedRelays = [], onUiSettings
                     <div className="nostr-shortcuts-content">
                         <p>Configura el zoom minimo para mostrar avatar y nombre en edificios ocupados.</p>
                         <div className="nostr-ui-slider-row">
-                            <label className="nostr-label" htmlFor="nostr-occupied-zoom-level">Occupied labels zoom level</label>
+                            <Label className="nostr-label" htmlFor="nostr-occupied-zoom-level">Occupied labels zoom level</Label>
                             <span className="nostr-ui-slider-value">{uiSettings.occupiedLabelsZoomLevel}</span>
                         </div>
                         <input
                             id="nostr-occupied-zoom-level"
                             className="nostr-input"
                             type="range"
+                            aria-label="Occupied labels zoom level"
                             min={1}
                             max={20}
                             step={1}
-                            aria-label="Occupied labels zoom level"
                             value={uiSettings.occupiedLabelsZoomLevel}
                             onChange={(event) => {
                                 const nextValue = Number(event.target.value);
                                 if (!Number.isFinite(nextValue)) {
                                     return;
                                 }
-
                                 persistUiSettings({
                                     ...uiSettings,
                                     occupiedLabelsZoomLevel: nextValue,
@@ -176,10 +186,10 @@ export function MapSettingsModal({ mapBridge, suggestedRelays = [], onUiSettings
                             <span>20</span>
                         </div>
 
-                        <hr className="nostr-divider" />
+                        <Separator className="nostr-divider" />
 
                         <div className="nostr-ui-toggle-row">
-                            <label className="nostr-label" htmlFor="nostr-street-labels-enabled">Street labels</label>
+                            <Label className="nostr-label" htmlFor="nostr-street-labels-enabled">Street labels</Label>
                             <input
                                 id="nostr-street-labels-enabled"
                                 type="checkbox"
@@ -195,25 +205,24 @@ export function MapSettingsModal({ mapBridge, suggestedRelays = [], onUiSettings
                         </div>
 
                         <div className="nostr-ui-slider-row">
-                            <label className="nostr-label" htmlFor="nostr-street-zoom-level">Street labels zoom level</label>
+                            <Label className="nostr-label" htmlFor="nostr-street-zoom-level">Street labels zoom level</Label>
                             <span className="nostr-ui-slider-value">{uiSettings.streetLabelsZoomLevel}</span>
                         </div>
                         <input
                             id="nostr-street-zoom-level"
                             className="nostr-input"
                             type="range"
+                            aria-label="Street labels zoom level"
                             min={1}
                             max={20}
                             step={1}
-                            aria-label="Street labels zoom level"
-                            value={uiSettings.streetLabelsZoomLevel}
                             disabled={!uiSettings.streetLabelsEnabled}
+                            value={uiSettings.streetLabelsZoomLevel}
                             onChange={(event) => {
                                 const nextValue = Number(event.target.value);
                                 if (!Number.isFinite(nextValue)) {
                                     return;
                                 }
-
                                 persistUiSettings({
                                     ...uiSettings,
                                     streetLabelsZoomLevel: nextValue,
@@ -229,19 +238,20 @@ export function MapSettingsModal({ mapBridge, suggestedRelays = [], onUiSettings
                             {relaySettings.relays.map((relayUrl) => (
                                 <li key={relayUrl} className="nostr-relay-item">
                                     <span className="nostr-relay-url">{relayUrl}</span>
-                                    <button
+                                    <Button
                                         type="button"
+                                        variant="outline"
                                         className="nostr-relay-remove"
                                         aria-label={`Eliminar relay ${relayUrl}`}
                                         onClick={() => handleRemoveRelay(relayUrl)}
                                     >
                                         Remove
-                                    </button>
+                                    </Button>
                                 </li>
                             ))}
                         </ul>
 
-                        <textarea
+                        <Textarea
                             className="nostr-input nostr-relay-editor"
                             placeholder="wss://relay.example\nwss://nos.lol"
                             rows={4}
@@ -249,9 +259,9 @@ export function MapSettingsModal({ mapBridge, suggestedRelays = [], onUiSettings
                             onChange={(event) => setNewRelayInput(event.target.value)}
                         />
 
-                        <button type="button" className="nostr-submit nostr-relay-add" onClick={handleAddRelays}>
+                        <Button type="button" className="nostr-submit nostr-relay-add" onClick={handleAddRelays}>
                             Add relays
-                        </button>
+                        </Button>
 
                         {invalidRelayInputs.length > 0 ? (
                             <p className="nostr-settings-error">
@@ -264,9 +274,9 @@ export function MapSettingsModal({ mapBridge, suggestedRelays = [], onUiSettings
                                 <div className="nostr-relay-suggested-header">
                                     <p>Relays sugeridos (NIP-65)</p>
                                     {suggestedNotAdded.length > 0 ? (
-                                        <button type="button" className="nostr-relay-add-suggested" onClick={handleAddAllSuggestedRelays}>
+                                        <Button type="button" variant="outline" className="nostr-relay-add-suggested" onClick={handleAddAllSuggestedRelays}>
                                             Agregar todos
-                                        </button>
+                                        </Button>
                                     ) : null}
                                 </div>
 
@@ -275,13 +285,14 @@ export function MapSettingsModal({ mapBridge, suggestedRelays = [], onUiSettings
                                         {suggestedNotAdded.map((relayUrl) => (
                                             <li key={`suggested-${relayUrl}`} className="nostr-relay-item">
                                                 <span className="nostr-relay-url">{relayUrl}</span>
-                                                <button
+                                                <Button
                                                     type="button"
+                                                    variant="outline"
                                                     className="nostr-relay-remove"
                                                     onClick={() => handleAddSuggestedRelay(relayUrl)}
                                                 >
                                                     Agregar
-                                                </button>
+                                                </Button>
                                             </li>
                                         ))}
                                     </ul>
@@ -299,7 +310,7 @@ export function MapSettingsModal({ mapBridge, suggestedRelays = [], onUiSettings
                         <p>Mantener pulsado el wheel del raton y mover el raton para desplazarte por el mapa.</p>
                     </div>
                 )}
-            </div>
-        </div>
+            </DialogContent>
+        </Dialog>
     );
 }

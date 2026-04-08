@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { NostrProfile } from '../../nostr/types';
 import { encodeHexToNpub } from '../../nostr/npub';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 interface ProfileTabProps {
     ownerPubkey?: string;
@@ -52,16 +54,22 @@ export function ProfileTab({
             <div className="nostr-profile-header">
                 <div className="nostr-profile-header-main">
                     {ownerProfile?.picture && !avatarLoadError ? (
-                        <img
-                            className="nostr-profile-avatar"
-                            src={ownerProfile.picture}
-                            alt="Avatar de perfil"
-                            onError={() => setAvatarLoadError(true)}
-                        />
+                        <Avatar className="nostr-profile-avatar">
+                            <AvatarImage
+                                src={ownerProfile.picture}
+                                alt="Avatar de perfil"
+                                onError={() => setAvatarLoadError(true)}
+                            />
+                            <AvatarFallback className="nostr-profile-avatar-fallback" aria-hidden="true">
+                                {displayName(ownerProfile, ownerPubkey).slice(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                        </Avatar>
                     ) : (
-                        <div className="nostr-profile-avatar nostr-profile-avatar-fallback" aria-hidden="true">
-                            {displayName(ownerProfile, ownerPubkey).slice(0, 2).toUpperCase()}
-                        </div>
+                        <Avatar className="nostr-profile-avatar">
+                            <AvatarFallback className="nostr-profile-avatar-fallback" aria-hidden="true">
+                                {displayName(ownerProfile, ownerPubkey).slice(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                        </Avatar>
                     )}
 
                     <div>
@@ -71,8 +79,10 @@ export function ProfileTab({
                 </div>
 
                 <div className="nostr-profile-actions" aria-label="Acciones de perfil">
-                    <button
+                    <Button
                         type="button"
+                        variant="outline"
+                        size="icon-sm"
                         className="nostr-icon-button"
                         aria-label="Ubicarme en el mapa"
                         title="Locate on map"
@@ -82,10 +92,12 @@ export function ProfileTab({
                             <path d="M12 22s7-4.35 7-11a7 7 0 1 0-14 0c0 6.65 7 11 7 11z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                             <circle cx="12" cy="11" r="2.5" fill="none" stroke="currentColor" strokeWidth="2" />
                         </svg>
-                    </button>
+                    </Button>
 
-                    <button
+                    <Button
                         type="button"
+                        variant="outline"
+                        size="icon-sm"
                         className="nostr-icon-button"
                         aria-label="Copiar npub"
                         title="Copy npub"
@@ -97,7 +109,7 @@ export function ProfileTab({
                             <rect x="9" y="9" width="11" height="11" rx="2" ry="2" fill="none" stroke="currentColor" strokeWidth="2" />
                             <path d="M5 15V6a2 2 0 0 1 2-2h9" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
-                    </button>
+                    </Button>
                 </div>
             </div>
 

@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface NpubFormProps {
     disabled?: boolean;
@@ -21,12 +24,12 @@ export function NpubForm({ disabled = false, onSubmit }: NpubFormProps) {
 
     return (
         <form className="nostr-form" onSubmit={handleSubmit}>
-            <label className="nostr-label" htmlFor="nostr-npub-input">
+            <Label className="nostr-label" htmlFor="nostr-npub-input">
                 Nostr npub
-            </label>
+            </Label>
 
             <div className="nostr-npub-row">
-                <input
+                <Input
                     id="nostr-npub-input"
                     name="npub"
                     className="nostr-input"
@@ -36,9 +39,9 @@ export function NpubForm({ disabled = false, onSubmit }: NpubFormProps) {
                     onChange={(event) => setNpub(event.target.value)}
                 />
 
-                <button className="nostr-submit" type="submit" disabled={disabled || npub.trim().length === 0}>
+                <Button className="nostr-submit" type="submit" disabled={disabled || npub.trim().length === 0}>
                     Visualize
-                </button>
+                </Button>
             </div>
         </form>
     );

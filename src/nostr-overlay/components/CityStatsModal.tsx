@@ -10,6 +10,8 @@ import {
     YAxis,
 } from 'recharts';
 import { buildCityStats } from '../domain/city-stats';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 
 interface CityStatsModalProps {
     buildingsCount: number;
@@ -62,11 +64,17 @@ export function CityStatsModal({
     ];
 
     return (
-        <div className="nostr-modal-backdrop" role="presentation" onClick={onClose}>
-            <div className="nostr-modal nostr-city-stats-modal" role="dialog" aria-modal="true" aria-label="Estadisticas de la ciudad" onClick={(event) => event.stopPropagation()}>
-                <button type="button" className="nostr-modal-close" onClick={onClose} aria-label="Cerrar estadisticas de la ciudad">
+        <Dialog open onOpenChange={(open) => {
+            if (!open) {
+                onClose();
+            }
+        }}>
+            <DialogContent className="nostr-modal nostr-city-stats-modal" showCloseButton={false} aria-label="Estadisticas de la ciudad">
+                <DialogTitle className="sr-only">Estadisticas de la ciudad</DialogTitle>
+                <DialogDescription className="sr-only">Indicadores de vivienda, poblacion y red del mapa actual.</DialogDescription>
+                <Button type="button" variant="ghost" className="nostr-modal-close" onClick={onClose} aria-label="Cerrar estadisticas de la ciudad">
                     ×
-                </button>
+                </Button>
 
                 <div className="nostr-city-stats-body">
                     <header className="nostr-city-stats-header">
@@ -161,7 +169,7 @@ export function CityStatsModal({
                         <p className="nostr-city-coverage">Cobertura residencial actual: {formatPercent(stats.population.coverageRate)}</p>
                     </section>
                 </div>
-            </div>
-        </div>
+            </DialogContent>
+        </Dialog>
     );
 }

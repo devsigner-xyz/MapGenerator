@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { NostrProfile } from '../../nostr/types';
 import { PeopleListTab } from './PeopleListTab';
 import { ProfileTab } from './ProfileTab';
+import { Button } from '@/components/ui/button';
 
 type SocialTab = 'profile' | 'following' | 'followers';
 
@@ -56,35 +57,38 @@ export function SocialSidebar({
     return (
         <div className="nostr-social-sidebar" aria-label="Panel social">
             <div className="nostr-tabs" role="tablist" aria-label="Pestañas sociales">
-                <button
+                <Button
                     type="button"
+                    variant="outline"
                     className={`nostr-tab${activeTab === 'profile' ? ' nostr-tab-active' : ''}`}
                     role="tab"
                     aria-selected={activeTab === 'profile'}
                     onClick={() => setActiveTab('profile')}
                 >
                     Información
-                </button>
+                </Button>
 
-                <button
+                <Button
                     type="button"
+                    variant="outline"
                     className={`nostr-tab${activeTab === 'following' ? ' nostr-tab-active' : ''}`}
                     role="tab"
                     aria-selected={activeTab === 'following'}
                     onClick={() => setActiveTab('following')}
                 >
                     {`Sigues (${followingPeople.length})`}
-                </button>
+                </Button>
 
-                <button
+                <Button
                     type="button"
+                    variant="outline"
                     className={`nostr-tab${activeTab === 'followers' ? ' nostr-tab-active' : ''}`}
                     role="tab"
                     aria-selected={activeTab === 'followers'}
                     onClick={() => setActiveTab('followers')}
                 >
                     {`Seguidores (${followerPeople.length})`}
-                </button>
+                </Button>
             </div>
 
             <div className="nostr-tab-panel" role="tabpanel">
