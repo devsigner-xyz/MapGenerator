@@ -5,3 +5,4 @@ pnpm-debug.log*
 npm-debug.log*
 /plans
 /context
+.playwright-mcp/
