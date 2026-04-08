@@ -33,6 +33,8 @@ function createBridgeStub(): MapBridge {
         setStreetLabelsEnabled: vi.fn(),
         setStreetLabelsZoomLevel: vi.fn(),
         setStreetLabelUsernames: vi.fn(),
+        setTrafficParticlesCount: vi.fn(),
+        setTrafficParticlesSpeed: vi.fn(),
         mountSettingsPanel: vi.fn(),
         focusBuilding: vi.fn(),
         getParkCount: vi.fn().mockReturnValue(0),
@@ -101,6 +103,14 @@ describe('MapSettingsModal UI settings', () => {
         expect(streetZoomInput).toBeDefined();
         expect(streetZoomInput.value).toBe('10');
 
+        const trafficCountInput = rendered.container.querySelector('input[aria-label="Cars in city"]') as HTMLInputElement;
+        expect(trafficCountInput).toBeDefined();
+        expect(trafficCountInput.value).toBe('12');
+
+        const trafficSpeedInput = rendered.container.querySelector('input[aria-label="Cars speed"]') as HTMLInputElement;
+        expect(trafficSpeedInput).toBeDefined();
+        expect(trafficSpeedInput.value).toBe('1');
+
         await act(async () => {
             const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
             valueSetter?.call(zoomInput, '12');
@@ -127,11 +137,27 @@ describe('MapSettingsModal UI settings', () => {
             streetZoomInput.dispatchEvent(new Event('change', { bubbles: true }));
         });
 
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(trafficCountInput, '22');
+            trafficCountInput.dispatchEvent(new Event('input', { bubbles: true }));
+            trafficCountInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(trafficSpeedInput, '1.7');
+            trafficSpeedInput.dispatchEvent(new Event('input', { bubbles: true }));
+            trafficSpeedInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
         expect(onUiSettingsChange).toHaveBeenCalled();
         const raw = window.localStorage.getItem(UI_SETTINGS_STORAGE_KEY);
         expect(raw).not.toBeNull();
         expect(raw || '').toContain('12');
         expect(raw || '').toContain('streetLabelsEnabled');
         expect(raw || '').toContain('14');
+        expect(raw || '').toContain('"trafficParticlesCount":22');
+        expect(raw || '').toContain('"trafficParticlesSpeed":1.7');
     });
 });

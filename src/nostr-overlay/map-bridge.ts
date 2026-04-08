@@ -19,6 +19,8 @@ export interface MapMainApi {
     setStreetLabelsEnabled?(enabled: boolean): void;
     setStreetLabelsZoomLevel?(level: number): void;
     setStreetLabelUsernames?(usernames: string[]): void;
+    setTrafficParticlesCount?(count: number): void;
+    setTrafficParticlesSpeed?(speed: number): void;
     mountSettingsPanel(container: HTMLElement | null): void;
     focusBuilding(index: number): boolean | void;
     getParkCount(): number;
@@ -41,6 +43,8 @@ export interface MapBridge {
     setStreetLabelsEnabled(enabled: boolean): void;
     setStreetLabelsZoomLevel(level: number): void;
     setStreetLabelUsernames(usernames: string[]): void;
+    setTrafficParticlesCount(count: number): void;
+    setTrafficParticlesSpeed(speed: number): void;
     mountSettingsPanel(container: HTMLElement | null): void;
     focusBuilding(index: number): void;
     getParkCount(): number;
@@ -98,6 +102,14 @@ export function createMapBridge(mainApi: MapMainApi): MapBridge {
 
         setStreetLabelUsernames(usernames: string[]): void {
             mainApi.setStreetLabelUsernames?.(usernames);
+        },
+
+        setTrafficParticlesCount(count: number): void {
+            mainApi.setTrafficParticlesCount?.(count);
+        },
+
+        setTrafficParticlesSpeed(speed: number): void {
+            mainApi.setTrafficParticlesSpeed?.(speed);
         },
 
         mountSettingsPanel(container: HTMLElement | null): void {

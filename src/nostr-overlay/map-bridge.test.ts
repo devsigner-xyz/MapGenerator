@@ -13,6 +13,8 @@ function createMainApiStub(overrides: Partial<MapMainApi> = {}): MapMainApi {
         setStreetLabelsEnabled: vi.fn(),
         setStreetLabelsZoomLevel: vi.fn(),
         setStreetLabelUsernames: vi.fn(),
+        setTrafficParticlesCount: vi.fn(),
+        setTrafficParticlesSpeed: vi.fn(),
         mountSettingsPanel: vi.fn(),
         focusBuilding: vi.fn().mockReturnValue(true),
         getParkCount: vi.fn().mockReturnValue(3),
@@ -119,6 +121,17 @@ describe('createMapBridge', () => {
         expect(api.setStreetLabelsEnabled).toHaveBeenCalledWith(true);
         expect(api.setStreetLabelsZoomLevel).toHaveBeenCalledWith(10);
         expect(api.setStreetLabelUsernames).toHaveBeenCalledWith(['alice', 'bob']);
+    });
+
+    test('traffic settings delegate to map api', () => {
+        const api = createMainApiStub();
+        const bridge = createMapBridge(api);
+
+        bridge.setTrafficParticlesCount(18);
+        bridge.setTrafficParticlesSpeed(1.6);
+
+        expect(api.setTrafficParticlesCount).toHaveBeenCalledWith(18);
+        expect(api.setTrafficParticlesSpeed).toHaveBeenCalledWith(1.6);
     });
 
     test('getZoom delegates to map api', () => {

@@ -2,11 +2,15 @@ export const UI_SETTINGS_STORAGE_KEY = 'nostr.overlay.ui.v1';
 const DEFAULT_OCCUPIED_LABELS_ZOOM_LEVEL = 8;
 const DEFAULT_STREET_LABELS_ENABLED = true;
 const DEFAULT_STREET_LABELS_ZOOM_LEVEL = 10;
+const DEFAULT_TRAFFIC_PARTICLES_COUNT = 12;
+const DEFAULT_TRAFFIC_PARTICLES_SPEED = 1;
 
 interface UiSettingsPayload {
     occupiedLabelsZoomLevel?: number;
     streetLabelsEnabled?: boolean;
     streetLabelsZoomLevel?: number;
+    trafficParticlesCount?: number;
+    trafficParticlesSpeed?: number;
 }
 
 interface StorageLike {
@@ -18,6 +22,8 @@ export interface UiSettingsState {
     occupiedLabelsZoomLevel: number;
     streetLabelsEnabled: boolean;
     streetLabelsZoomLevel: number;
+    trafficParticlesCount: number;
+    trafficParticlesSpeed: number;
 }
 
 function getDefaultStorage(): StorageLike | null {
@@ -52,6 +58,23 @@ function normalizeStreetLabelsEnabled(value: boolean): boolean {
     return typeof value === 'boolean' ? value : DEFAULT_STREET_LABELS_ENABLED;
 }
 
+function normalizeTrafficParticlesCount(value: number): number {
+    if (!Number.isFinite(value)) {
+        return DEFAULT_TRAFFIC_PARTICLES_COUNT;
+    }
+
+    return Math.max(0, Math.min(50, Math.round(value)));
+}
+
+function normalizeTrafficParticlesSpeed(value: number): number {
+    if (!Number.isFinite(value)) {
+        return DEFAULT_TRAFFIC_PARTICLES_SPEED;
+    }
+
+    const clamped = Math.max(0.2, Math.min(3, value));
+    return Math.round(clamped * 10) / 10;
+}
+
 function isUiSettingsPayload(value: unknown): value is UiSettingsPayload {
     if (!value || typeof value !== 'object') {
         return false;
@@ -65,6 +88,8 @@ export function getDefaultUiSettings(): UiSettingsState {
         occupiedLabelsZoomLevel: DEFAULT_OCCUPIED_LABELS_ZOOM_LEVEL,
         streetLabelsEnabled: DEFAULT_STREET_LABELS_ENABLED,
         streetLabelsZoomLevel: DEFAULT_STREET_LABELS_ZOOM_LEVEL,
+        trafficParticlesCount: DEFAULT_TRAFFIC_PARTICLES_COUNT,
+        trafficParticlesSpeed: DEFAULT_TRAFFIC_PARTICLES_SPEED,
     };
 }
 
@@ -88,6 +113,8 @@ export function loadUiSettings(storage: StorageLike | null = getDefaultStorage()
             occupiedLabelsZoomLevel: normalizeOccupiedLabelsZoomLevel(parsed.occupiedLabelsZoomLevel),
             streetLabelsEnabled: normalizeStreetLabelsEnabled(parsed.streetLabelsEnabled),
             streetLabelsZoomLevel: normalizeStreetLabelsZoomLevel(parsed.streetLabelsZoomLevel),
+            trafficParticlesCount: normalizeTrafficParticlesCount(parsed.trafficParticlesCount),
+            trafficParticlesSpeed: normalizeTrafficParticlesSpeed(parsed.trafficParticlesSpeed),
         };
     } catch {
         return getDefaultUiSettings();
@@ -102,6 +129,8 @@ export function saveUiSettings(
         occupiedLabelsZoomLevel: normalizeOccupiedLabelsZoomLevel(state.occupiedLabelsZoomLevel),
         streetLabelsEnabled: normalizeStreetLabelsEnabled(state.streetLabelsEnabled),
         streetLabelsZoomLevel: normalizeStreetLabelsZoomLevel(state.streetLabelsZoomLevel),
+        trafficParticlesCount: normalizeTrafficParticlesCount(state.trafficParticlesCount),
+        trafficParticlesSpeed: normalizeTrafficParticlesSpeed(state.trafficParticlesSpeed),
     };
 
     if (storage) {
@@ -109,6 +138,8 @@ export function saveUiSettings(
             occupiedLabelsZoomLevel: nextState.occupiedLabelsZoomLevel,
             streetLabelsEnabled: nextState.streetLabelsEnabled,
             streetLabelsZoomLevel: nextState.streetLabelsZoomLevel,
+            trafficParticlesCount: nextState.trafficParticlesCount,
+            trafficParticlesSpeed: nextState.trafficParticlesSpeed,
         };
         storage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify(payload));
     }

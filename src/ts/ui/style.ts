@@ -43,6 +43,13 @@ export interface BuildingRenderColours {
     stroke: string;
 }
 
+export interface TrafficParticleRenderState {
+    center: Vector;
+    radiusPx: number;
+    haloPx: number;
+    alpha: number;
+}
+
 export function resolveBuildingRenderColours(state: BuildingRenderState, colourScheme: ColourScheme): BuildingRenderColours {
     if (state === 'selected') {
         return {
@@ -97,6 +104,7 @@ export default abstract class Style {
     public majorRoads: Vector[][] = [];
     public mainRoads: Vector[][] = [];
     public coastlineRoads: Vector[][] = [];
+    public trafficParticles: TrafficParticleRenderState[] = [];
     public streetLabels: StreetLabel[] = [];
     public showFrame: boolean;
 
@@ -233,6 +241,16 @@ export class DefaultStyle extends Style {
         canvas.setLineWidth(this.colourScheme.mainWidth * this.domainController.zoom);
         for (const s of this.mainRoads) canvas.drawPolyline(s);
         for (const s of this.coastlineRoads) canvas.drawPolyline(s);
+
+        if (this.trafficParticles.length > 0) {
+            for (const particle of this.trafficParticles) {
+                const haloAlpha = Math.max(0, Math.min(1, particle.alpha));
+                canvas.setFillStyle(`rgba(0, 0, 0, ${haloAlpha})`);
+                canvas.drawCircle(particle.center, particle.haloPx * this.domainController.zoom);
+                canvas.setFillStyle('rgba(0, 0, 0, 0.82)');
+                canvas.drawCircle(particle.center, particle.radiusPx * this.domainController.zoom);
+            }
+        }
 
         if (this.streetLabels.length > 0) {
             const fontPx = Math.max(9, Math.min(14, 8 + this.domainController.zoom * 0.65));
@@ -391,6 +409,14 @@ export class RoughStyle extends Style {
 
         this.mainRoads.forEach(s => canvas.drawPolyline(s));
         this.coastlineRoads.forEach(s => canvas.drawPolyline(s));
+
+        if (this.trafficParticles.length > 0) {
+            canvas.setOptions({
+                stroke: 'none',
+                fill: 'rgba(0, 0, 0, 0.82)',
+            });
+            this.trafficParticles.forEach((particle) => canvas.drawSquare(particle.center, particle.radiusPx));
+        }
 
         // Buildings
         if (!this.dragging) {

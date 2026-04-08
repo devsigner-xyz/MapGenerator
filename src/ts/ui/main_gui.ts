@@ -21,6 +21,11 @@ import PolygonUtil from '../impl/polygon_util';
 import { findOccupiedBuildingHit, type OccupiedBuildingHit } from './occupied_building_hit';
 import streetNamePool from '../../data/street-name-pool.json';
 import { createStreetLabels, normalizeStreetNamePool, type StreetNamePool } from './street_labels';
+import {
+    TrafficParticlesSimulation,
+    type TrafficRenderParticle,
+    type TrafficWorldBounds,
+} from './traffic_particles';
 
 /**
  * Handles Map folder, glues together impl
@@ -69,6 +74,11 @@ export default class MainGUI {
     private streetLabelsZoomLevel = 10;
     private streetLabelUsernames: string[] = [];
     private readonly streetNamePool: StreetNamePool = normalizeStreetNamePool(streetNamePool as StreetNamePool);
+    private trafficParticlesCount = 12;
+    private trafficParticlesSpeed = 1;
+    private trafficParticlesWorld: TrafficRenderParticle[] = [];
+    private readonly trafficSimulation = new TrafficParticlesSimulation();
+    private trafficNetworkDirty = true;
 
     constructor(private guiFolder: dat.GUI, private tensorField: TensorField, private closeTensorFolder: () => void) {
         const guiBindings = this as unknown as Record<string, unknown>;
@@ -147,6 +157,9 @@ export default class MainGUI {
         this.majorRoads.setExistingStreamlines([this.coastline, this.mainRoads]);
         this.mainRoads.setExistingStreamlines([this.coastline]);
 
+        this.trafficSimulation.setCount(this.trafficParticlesCount);
+        this.trafficSimulation.setSpeedMultiplier(this.trafficParticlesSpeed);
+
         this.coastline.setPreGenerateCallback(() => {
             this.mainRoads.clearStreamlines();
             this.majorRoads.clearStreamlines();
@@ -158,6 +171,7 @@ export default class MainGUI {
             tensorField.parks = [];
             tensorField.sea = [];
             tensorField.river = [];
+            this.markTrafficNetworkDirty();
         });
 
         this.mainRoads.setPreGenerateCallback(() => {
@@ -169,10 +183,12 @@ export default class MainGUI {
             this.resetOccupancyState();
             tensorField.parks = [];
             tensorField.ignoreRiver = true;
+            this.markTrafficNetworkDirty();
         });
 
         this.mainRoads.setPostGenerateCallback(() => {
             tensorField.ignoreRiver = false;
+            this.markTrafficNetworkDirty();
         });
 
         this.majorRoads.setPreGenerateCallback(() => {
@@ -183,12 +199,14 @@ export default class MainGUI {
             this.resetOccupancyState();
             tensorField.parks = [];
             tensorField.ignoreRiver = true;
+            this.markTrafficNetworkDirty();
         });
 
         this.majorRoads.setPostGenerateCallback(() => {
             tensorField.ignoreRiver = false;
             this.addParks();
             this.redraw = true;
+            this.markTrafficNetworkDirty();
         });
 
         this.minorRoads.setPreGenerateCallback(() => {
@@ -196,10 +214,12 @@ export default class MainGUI {
             this.resetOccupancyState();
             this.smallParks = [];
             tensorField.parks = this.bigParks;
+            this.markTrafficNetworkDirty();
         });
 
         this.minorRoads.setPostGenerateCallback(() => {
             this.addParks();
+            this.markTrafficNetworkDirty();
         });
     }
 
@@ -259,9 +279,10 @@ export default class MainGUI {
         await this.minorRoads.generateRoads(this.animate);
         this.redraw = true;
         await this.buildings.generate(this.animate);
+        this.markTrafficNetworkDirty();
     }
 
-    update() {
+    update(deltaSeconds: number) {
         let continueUpdate = true;
         const start = performance.now();
         while (continueUpdate && performance.now() - start < this.animationSpeed) {
@@ -271,8 +292,15 @@ export default class MainGUI {
             const buildingsChanged = this.buildings.update();
             continueUpdate = minorChanged || majorChanged || mainChanged || buildingsChanged;
         }
-        
-        this.redraw = this.redraw || continueUpdate;
+
+        if (this.trafficNetworkDirty) {
+            this.rebuildTrafficNetwork();
+        }
+        this.trafficSimulation.setWorldBounds(this.getTrafficWorldBounds());
+        this.trafficParticlesWorld = this.trafficSimulation.step(deltaSeconds);
+
+        const hasTrafficAnimation = this.trafficParticlesCount > 0 && this.trafficParticlesWorld.length > 0;
+        this.redraw = this.redraw || continueUpdate || hasTrafficAnimation;
     }
 
     draw(style: Style, forceDraw=false, customCanvas?: CanvasWrapper): void {
@@ -302,6 +330,12 @@ export default class MainGUI {
         style.mainRoads = this.mainRoads.roads;
         style.coastlineRoads = this.coastline.roads;
         style.secondaryRiver = this.coastline.secondaryRiver;
+        style.trafficParticles = this.trafficParticlesWorld.map((particle) => ({
+            center: this.domainController.worldToScreen(particle.center.clone()),
+            radiusPx: particle.radiusPx,
+            haloPx: particle.haloPx,
+            alpha: particle.alpha,
+        }));
         const roadsForStreetLabels: Vector[][] = [];
         roadsForStreetLabels.push(...style.mainRoads);
         roadsForStreetLabels.push(...style.majorRoads);
@@ -408,6 +442,28 @@ export default class MainGUI {
         this.redraw = true;
     }
 
+    setTrafficParticlesCount(count: number): void {
+        const nextValue = Math.max(0, Math.min(50, Math.round(count)));
+        if (this.trafficParticlesCount === nextValue) {
+            return;
+        }
+
+        this.trafficParticlesCount = nextValue;
+        this.trafficSimulation.setCount(nextValue);
+        this.redraw = true;
+    }
+
+    setTrafficParticlesSpeed(speed: number): void {
+        const nextValue = Number.isFinite(speed) ? Math.max(0.2, Math.min(3, speed)) : 1;
+        if (this.trafficParticlesSpeed === nextValue) {
+            return;
+        }
+
+        this.trafficParticlesSpeed = nextValue;
+        this.trafficSimulation.setSpeedMultiplier(nextValue);
+        this.redraw = true;
+    }
+
     setModalHighlightedBuildingIndex(index?: number): void {
         const nextModal = index === undefined || index === null ? null : index;
         if (this.modalHighlightedBuildingIndex === nextModal) {
@@ -476,6 +532,33 @@ export default class MainGUI {
 
     public get coastlinePolygon(): Vector[] {
         return PolygonUtil.resizeGeometry(this.coastline.coastline, 15 * this.domainController.zoom, false);
+    }
+
+    private markTrafficNetworkDirty(): void {
+        this.trafficNetworkDirty = true;
+    }
+
+    private rebuildTrafficNetwork(): void {
+        const roadsWorld: Vector[][] = [];
+        roadsWorld.push(...this.mainRoads.allStreamlines);
+        roadsWorld.push(...this.majorRoads.allStreamlines);
+        roadsWorld.push(...this.minorRoads.allStreamlines);
+        roadsWorld.push(...this.coastline.streamlinesWithSecondaryRoad);
+        this.trafficSimulation.setNetwork(roadsWorld);
+        this.trafficSimulation.setCount(this.trafficParticlesCount);
+        this.trafficSimulation.setSpeedMultiplier(this.trafficParticlesSpeed);
+        this.trafficNetworkDirty = false;
+    }
+
+    private getTrafficWorldBounds(): TrafficWorldBounds {
+        const origin = this.domainController.origin;
+        const worldDimensions = this.domainController.worldDimensions;
+        return {
+            minX: origin.x,
+            minY: origin.y,
+            maxX: origin.x + worldDimensions.x,
+            maxY: origin.y + worldDimensions.y,
+        };
     }
 
     private resetOccupancyState(): void {

@@ -229,6 +229,60 @@ export function MapSettingsModal({ mapBridge, suggestedRelays = [], onUiSettings
                                 });
                             }}
                         />
+
+                        <hr className="nostr-divider" />
+
+                        <div className="nostr-ui-slider-row">
+                            <label className="nostr-label" htmlFor="nostr-traffic-count">Cars in city</label>
+                            <span className="nostr-ui-slider-value">{uiSettings.trafficParticlesCount}</span>
+                        </div>
+                        <input
+                            id="nostr-traffic-count"
+                            className="nostr-input"
+                            type="range"
+                            min={0}
+                            max={50}
+                            step={1}
+                            aria-label="Cars in city"
+                            value={uiSettings.trafficParticlesCount}
+                            onChange={(event) => {
+                                const nextValue = Number(event.target.value);
+                                if (!Number.isFinite(nextValue)) {
+                                    return;
+                                }
+
+                                persistUiSettings({
+                                    ...uiSettings,
+                                    trafficParticlesCount: nextValue,
+                                });
+                            }}
+                        />
+
+                        <div className="nostr-ui-slider-row">
+                            <label className="nostr-label" htmlFor="nostr-traffic-speed">Cars speed</label>
+                            <span className="nostr-ui-slider-value">{uiSettings.trafficParticlesSpeed.toFixed(1)}x</span>
+                        </div>
+                        <input
+                            id="nostr-traffic-speed"
+                            className="nostr-input"
+                            type="range"
+                            min={0.2}
+                            max={3}
+                            step={0.1}
+                            aria-label="Cars speed"
+                            value={uiSettings.trafficParticlesSpeed}
+                            onChange={(event) => {
+                                const nextValue = Number(event.target.value);
+                                if (!Number.isFinite(nextValue)) {
+                                    return;
+                                }
+
+                                persistUiSettings({
+                                    ...uiSettings,
+                                    trafficParticlesSpeed: nextValue,
+                                });
+                            }}
+                        />
                     </div>
                 ) : view === 'relays' ? (
                     <div className="nostr-relays-content">

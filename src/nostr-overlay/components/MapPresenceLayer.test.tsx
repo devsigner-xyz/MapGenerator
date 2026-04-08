@@ -26,6 +26,8 @@ function createMapBridgeStub(zoom: number): MapBridge {
         setStreetLabelsEnabled: vi.fn(),
         setStreetLabelsZoomLevel: vi.fn(),
         setStreetLabelUsernames: vi.fn(),
+        setTrafficParticlesCount: vi.fn(),
+        setTrafficParticlesSpeed: vi.fn(),
         mountSettingsPanel: vi.fn(),
         focusBuilding: vi.fn(),
         getParkCount: vi.fn().mockReturnValue(0),

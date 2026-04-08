@@ -73,6 +73,7 @@ class Main {
     private occupiedBuildingClickListeners: Array<(payload: OccupiedBuildingClickPayload) => void> = [];
     private viewChangedListeners: Array<() => void> = [];
     private viewportInsetLeft = 0;
+    private lastFrameTime = performance.now();
 
     constructor() {
         // GUI Setup
@@ -209,6 +210,14 @@ class Main {
 
     setStreetLabelUsernames(usernames: string[]): void {
         this.mainGui.setStreetLabelUsernames(usernames);
+    }
+
+    setTrafficParticlesCount(count: number): void {
+        this.mainGui.setTrafficParticlesCount(count);
+    }
+
+    setTrafficParticlesSpeed(speed: number): void {
+        this.mainGui.setTrafficParticlesSpeed(speed);
     }
 
     setViewportInsetLeft(inset: number): void {
@@ -635,6 +644,10 @@ class Main {
     }
 
     update(): void {
+        const now = performance.now();
+        const deltaSeconds = Math.max(0, Math.min(0.1, (now - this.lastFrameTime) / 1000));
+        this.lastFrameTime = now;
+
         if (this.modelGenerator) {
             let continueUpdate = true;
             const start = performance.now();
@@ -648,7 +661,7 @@ class Main {
         }
 
         this._style.update();
-        this.mainGui.update();
+        this.mainGui.update(deltaSeconds);
         this.draw();
         requestAnimationFrame(this.update.bind(this));
     }

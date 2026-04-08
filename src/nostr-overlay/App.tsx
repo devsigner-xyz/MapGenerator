@@ -73,6 +73,15 @@ export function App({ mapBridge, services }: AppProps) {
             return;
         }
 
+        mapBridge.setTrafficParticlesCount(uiSettings.trafficParticlesCount);
+        mapBridge.setTrafficParticlesSpeed(uiSettings.trafficParticlesSpeed);
+    }, [mapBridge, uiSettings.trafficParticlesCount, uiSettings.trafficParticlesSpeed]);
+
+    useEffect(() => {
+        if (!mapBridge) {
+            return;
+        }
+
         mapBridge.setStreetLabelUsernames(streetLabelUsernames);
     }, [mapBridge, streetLabelUsernames]);
 

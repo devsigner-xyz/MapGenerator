@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import DomainController from './domain_controller';
 import Vector from '../vector';
 import { DefaultStyle, resolveBuildingRenderColours, type ColourScheme } from './style';
@@ -249,5 +249,48 @@ describe('DefaultStyle occupied/selected rendering with building models', () => 
             fill: 'rgb(255,214,118)',
             stroke: 'rgb(233,166,52)',
         });
+    });
+
+    test('draws traffic particle halos in DefaultStyle when particles exist', () => {
+        const drawCircle = vi.fn();
+        const setFillStyle = vi.fn();
+        const fakeCanvas = {
+            needsUpdate: false,
+            canvasScale: 1,
+            setFillStyle,
+            setStrokeStyle() {},
+            setLineWidth() {},
+            clearCanvas() {},
+            drawPolyline() {},
+            drawFrame() {},
+            drawPolygon() {},
+            drawCircle,
+            drawRotatedText() {},
+        };
+
+        class TestStyle extends DefaultStyle {
+            public createCanvasWrapper() {
+                return fakeCanvas as any;
+            }
+        }
+
+        const style = new TestStyle({} as HTMLCanvasElement, {} as any, { ...baseScheme }) as any;
+        style.trafficParticles = [
+            {
+                center: new Vector(10, 10),
+                radiusPx: 1.5,
+                haloPx: 5,
+                alpha: 0.16,
+            },
+        ];
+
+        const domainController = DomainController.getInstance();
+        domainController.zoom = 1;
+
+        style.draw();
+
+        expect(drawCircle).toHaveBeenCalledTimes(2);
+        expect(setFillStyle).toHaveBeenCalledWith('rgba(0, 0, 0, 0.16)');
+        expect(setFillStyle).toHaveBeenCalledWith('rgba(0, 0, 0, 0.82)');
     });
 });

@@ -23,6 +23,8 @@ function createMapBridgeStub(buildingsCount: number): { bridge: MapBridge; trigg
         setStreetLabelsEnabled: vi.fn(),
         setStreetLabelsZoomLevel: vi.fn(),
         setStreetLabelUsernames: vi.fn(),
+        setTrafficParticlesCount: vi.fn(),
+        setTrafficParticlesSpeed: vi.fn(),
         mountSettingsPanel: vi.fn(),
         focusBuilding: vi.fn(),
         getParkCount: vi.fn().mockReturnValue(0),

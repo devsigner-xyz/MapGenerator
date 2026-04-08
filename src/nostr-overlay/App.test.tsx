@@ -2,6 +2,7 @@ import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { RELAY_SETTINGS_STORAGE_KEY } from '../nostr/relay-settings';
+import { UI_SETTINGS_STORAGE_KEY } from '../nostr/ui-settings';
 import { App } from './App';
 import type { MapBridge } from './map-bridge';
 import type { NostrClient } from '../nostr/types';
@@ -58,6 +59,8 @@ function createMapBridgeStub(buildingsCount = 0): MapBridgeStub {
         setStreetLabelsEnabled: vi.fn(),
         setStreetLabelsZoomLevel: vi.fn(),
         setStreetLabelUsernames: vi.fn(),
+        setTrafficParticlesCount: vi.fn(),
+        setTrafficParticlesSpeed: vi.fn(),
         mountSettingsPanel: vi.fn(),
         focusBuilding: vi.fn(),
         getParkCount: vi.fn().mockReturnValue(0),
@@ -760,6 +763,65 @@ describe('Nostr overlay App', () => {
 
         expect(rendered.container.textContent || '').toContain('Mantener pulsada la barra espaciadora y arrastrar');
         expect(rendered.container.textContent || '').toContain('Mantener pulsado el wheel del raton y mover el raton');
+    });
+
+    test('applies traffic settings on mount and after UI slider updates', async () => {
+        window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({
+            occupiedLabelsZoomLevel: 8,
+            streetLabelsEnabled: true,
+            streetLabelsZoomLevel: 10,
+            trafficParticlesCount: 20,
+            trafficParticlesSpeed: 1.4,
+        }));
+
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(<App mapBridge={bridge} />);
+        mounted.push(rendered);
+
+        await waitFor(() => {
+            const countCalls = (bridge.setTrafficParticlesCount as any).mock.calls;
+            const speedCalls = (bridge.setTrafficParticlesSpeed as any).mock.calls;
+            return countCalls.length > 0 && speedCalls.length > 0;
+        });
+
+        expect((bridge.setTrafficParticlesCount as any)).toHaveBeenCalledWith(20);
+        expect((bridge.setTrafficParticlesSpeed as any)).toHaveBeenCalledWith(1.4);
+
+        const settingsButton = rendered.container.querySelector('button[aria-label="Abrir ajustes"]') as HTMLButtonElement;
+        await act(async () => {
+            settingsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const uiButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').trim() === 'UI'
+        ) as HTMLButtonElement;
+        expect(uiButton).toBeDefined();
+
+        await act(async () => {
+            uiButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const trafficCountInput = rendered.container.querySelector('input[aria-label="Cars in city"]') as HTMLInputElement;
+        const trafficSpeedInput = rendered.container.querySelector('input[aria-label="Cars speed"]') as HTMLInputElement;
+        expect(trafficCountInput).toBeDefined();
+        expect(trafficSpeedInput).toBeDefined();
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(trafficCountInput, '22');
+            trafficCountInput.dispatchEvent(new Event('input', { bubbles: true }));
+            trafficCountInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(trafficSpeedInput, '1.7');
+            trafficSpeedInput.dispatchEvent(new Event('input', { bubbles: true }));
+            trafficSpeedInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        expect((bridge.setTrafficParticlesCount as any)).toHaveBeenLastCalledWith(22);
+        expect((bridge.setTrafficParticlesSpeed as any)).toHaveBeenLastCalledWith(1.7);
     });
 
     test('can collapse panel to compact icon row and restore it', async () => {
