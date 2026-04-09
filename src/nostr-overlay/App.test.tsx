@@ -15,6 +15,7 @@ interface RenderResult {
 interface MapBridgeStub {
     bridge: MapBridge;
     triggerOccupiedBuildingClick: (payload: { buildingIndex: number; pubkey: string }) => void;
+    triggerOccupiedBuildingContextMenu: (payload: { buildingIndex: number; pubkey: string; clientX: number; clientY: number }) => void;
 }
 
 interface Deferred<T> {
@@ -40,6 +41,9 @@ function createDeferred<T>(): Deferred<T> {
 
 function createMapBridgeStub(buildingsCount = 0): MapBridgeStub {
     const occupiedBuildingClickListeners: Array<(payload: { buildingIndex: number; pubkey: string }) => void> = [];
+    const occupiedBuildingContextMenuListeners: Array<
+        (payload: { buildingIndex: number; pubkey: string; clientX: number; clientY: number }) => void
+    > = [];
     const bridge = {
         ensureGenerated: vi.fn().mockResolvedValue(undefined),
         regenerateMap: vi.fn().mockResolvedValue(undefined),
@@ -77,6 +81,15 @@ function createMapBridgeStub(buildingsCount = 0): MapBridgeStub {
                 }
             };
         }),
+        onOccupiedBuildingContextMenu: vi.fn().mockImplementation((listener: (payload: { buildingIndex: number; pubkey: string; clientX: number; clientY: number }) => void) => {
+            occupiedBuildingContextMenuListeners.push(listener);
+            return () => {
+                const index = occupiedBuildingContextMenuListeners.indexOf(listener);
+                if (index >= 0) {
+                    occupiedBuildingContextMenuListeners.splice(index, 1);
+                }
+            };
+        }),
         onViewChanged: vi.fn().mockReturnValue(() => {}),
     } as unknown as MapBridge;
 
@@ -84,6 +97,9 @@ function createMapBridgeStub(buildingsCount = 0): MapBridgeStub {
         bridge,
         triggerOccupiedBuildingClick: (payload: { buildingIndex: number; pubkey: string }) => {
             occupiedBuildingClickListeners.forEach((listener) => listener(payload));
+        },
+        triggerOccupiedBuildingContextMenu: (payload: { buildingIndex: number; pubkey: string; clientX: number; clientY: number }) => {
+            occupiedBuildingContextMenuListeners.forEach((listener) => listener(payload));
         },
     };
 }
@@ -915,6 +931,124 @@ describe('Nostr overlay App', () => {
             const latestCalls = (bridge.setModalBuildingHighlight as any).mock.calls;
             return latestCalls.length > 0 && latestCalls[latestCalls.length - 1][0] === undefined;
         });
+    });
+
+    test('opens right-click context menu with zap submenu and can open details/settings actions', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+        const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+        Object.assign(navigator, {
+            clipboard: {
+                writeText: clipboardWriteText,
+            },
+        });
+
+        const { bridge, triggerOccupiedBuildingContextMenu } = createMapBridgeStub();
+
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByNpubFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [followedPubkey],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockImplementation(async (pubkeys: string[]) => {
+                        const profiles: Record<string, { pubkey: string; displayName: string }> = {};
+                        for (const pubkey of pubkeys) {
+                            if (pubkey === ownerPubkey) {
+                                profiles[pubkey] = { pubkey, displayName: 'Owner' };
+                            }
+                            if (pubkey === followedPubkey) {
+                                profiles[pubkey] = { pubkey, displayName: 'Alice' };
+                            }
+                        }
+
+                        return profiles;
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+        const form = rendered.container.querySelector('form');
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
+            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        await act(async () => {
+            triggerOccupiedBuildingContextMenu({
+                buildingIndex: 2,
+                pubkey: followedPubkey,
+                clientX: 320,
+                clientY: 240,
+            });
+        });
+
+        await waitFor(() => (document.body.textContent || '').includes('Copiar npub'));
+        expect(document.body.textContent || '').toContain('Enviar mensaje');
+        expect(document.body.textContent || '').toContain('Ver detalles');
+        expect(document.body.textContent || '').toContain('Zap');
+        expect(document.body.textContent || '').not.toContain('21 sats');
+        expect(document.body.textContent || '').not.toContain('128 sats');
+        expect(document.body.textContent || '').not.toContain('256 sats');
+        expect(document.body.textContent || '').not.toContain('Configurar cantidades');
+
+        const copyItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((node) =>
+            (node.textContent || '').includes('Copiar npub')
+        ) as HTMLElement;
+        expect(copyItem).toBeDefined();
+
+        await act(async () => {
+            copyItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(clipboardWriteText).toHaveBeenCalledTimes(1);
+        expect((clipboardWriteText.mock.calls[0][0] as string).startsWith('npub1')).toBe(true);
+
+        await act(async () => {
+            triggerOccupiedBuildingContextMenu({
+                buildingIndex: 2,
+                pubkey: followedPubkey,
+                clientX: 320,
+                clientY: 240,
+            });
+        });
+
+        const detailsItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((node) =>
+            (node.textContent || '').includes('Ver detalles')
+        ) as HTMLElement;
+        expect(detailsItem).toBeDefined();
+
+        await act(async () => {
+            detailsItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Ultimas publicaciones'));
+
+        expect(document.body.textContent || '').not.toContain('Configurar cantidades');
     });
 
     test('opens settings modal, mounts map settings and shows shortcuts screen', async () => {

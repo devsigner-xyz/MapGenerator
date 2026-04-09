@@ -23,6 +23,7 @@ function createMainApiStub(overrides: Partial<MapMainApi> = {}): MapMainApi {
         getViewportInsetLeft: vi.fn().mockReturnValue(120),
         subscribeMapGenerated: vi.fn().mockReturnValue(() => {}),
         subscribeOccupiedBuildingClick: vi.fn().mockReturnValue(() => {}),
+        subscribeOccupiedBuildingContextMenu: vi.fn().mockReturnValue(() => {}),
         subscribeViewChanged: vi.fn().mockReturnValue(() => {}),
         ...overrides,
     };
@@ -205,6 +206,20 @@ describe('createMapBridge', () => {
         const listener = vi.fn();
 
         const off = bridge.onOccupiedBuildingClick(listener);
+
+        expect(subscribe).toHaveBeenCalledWith(listener);
+        off();
+        expect(unsubscribe).toHaveBeenCalledTimes(1);
+    });
+
+    test('onOccupiedBuildingContextMenu subscribes and unsubscribes using map api listener hooks', () => {
+        const unsubscribe = vi.fn();
+        const subscribe = vi.fn().mockReturnValue(unsubscribe);
+        const api = createMainApiStub({ subscribeOccupiedBuildingContextMenu: subscribe });
+        const bridge = createMapBridge(api);
+        const listener = vi.fn();
+
+        const off = bridge.onOccupiedBuildingContextMenu(listener);
 
         expect(subscribe).toHaveBeenCalledWith(listener);
         off();

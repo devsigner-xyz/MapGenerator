@@ -214,4 +214,47 @@ describe('PeopleListTab', () => {
         expect(renderedItems.length).toBeGreaterThan(0);
         expect(renderedItems.length).toBeLessThan(people.length);
     });
+
+    test('loads more people on scroll and shows spinner footer while loading', async () => {
+        const people = makePeople(45);
+        const profiles: Record<string, NostrProfile> = {};
+        for (const pubkey of people) {
+            profiles[pubkey] = { pubkey, displayName: `Person ${pubkey.slice(-4)}` };
+        }
+
+        const rendered = await renderElement(
+            <div style={{ height: '420px' }}>
+                <PeopleListTab
+                    people={people}
+                    profiles={profiles}
+                    emptyText="No hay personas"
+                    loading={false}
+                />
+            </div>
+        );
+        mounted.push(rendered);
+
+        const initialRows = rendered.container.querySelectorAll('[data-slot="item"]');
+        expect(initialRows.length).toBeLessThan(people.length);
+
+        const scrollContainer = rendered.container.querySelector('.nostr-people-scroll-area') as HTMLDivElement;
+        expect(scrollContainer).toBeDefined();
+
+        Object.defineProperty(scrollContainer, 'clientHeight', { configurable: true, value: 220 });
+        Object.defineProperty(scrollContainer, 'scrollHeight', { configurable: true, value: 640 });
+        Object.defineProperty(scrollContainer, 'scrollTop', { configurable: true, value: 430, writable: true });
+
+        await act(async () => {
+            scrollContainer.dispatchEvent(new Event('scroll', { bubbles: true }));
+        });
+
+        expect(rendered.container.textContent || '').toContain('Cargando mas');
+
+        await act(async () => {
+            await new Promise(resolve => setTimeout(resolve, 200));
+        });
+
+        const rowsAfterLoad = rendered.container.querySelectorAll('[data-slot="item"]');
+        expect(rowsAfterLoad.length).toBeGreaterThan(initialRows.length);
+    });
 });

@@ -4,6 +4,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vi
 import type { MapBridge } from '../map-bridge';
 import { MapSettingsModal } from './MapSettingsModal';
 import { UI_SETTINGS_STORAGE_KEY } from '../../nostr/ui-settings';
+import { ZAP_SETTINGS_STORAGE_KEY } from '../../nostr/zap-settings';
 
 interface RenderResult {
     container: HTMLDivElement;
@@ -40,6 +41,7 @@ function createBridgeStub(): MapBridge {
         getParkCount: vi.fn().mockReturnValue(0),
         onMapGenerated: vi.fn().mockReturnValue(() => {}),
         onOccupiedBuildingClick: vi.fn().mockReturnValue(() => {}),
+        onOccupiedBuildingContextMenu: vi.fn().mockReturnValue(() => {}),
         getZoom: vi.fn().mockReturnValue(1),
         worldToScreen: vi.fn().mockImplementation((point: { x: number; y: number }) => point),
         getViewportInsetLeft: vi.fn().mockReturnValue(0),
@@ -95,9 +97,9 @@ describe('MapSettingsModal UI settings', () => {
         const sliderMarks = Array.from(rendered.container.querySelectorAll('.nostr-ui-slider-marks span')).map((node) => node.textContent || '');
         expect(sliderMarks).toEqual(['1', '8', '20']);
 
-        const streetLabelsToggle = rendered.container.querySelector('input[aria-label="Street labels enabled"]') as HTMLInputElement;
+        const streetLabelsToggle = rendered.container.querySelector('button[aria-label="Street labels enabled"]') as HTMLButtonElement;
         expect(streetLabelsToggle).toBeDefined();
-        expect(streetLabelsToggle.checked).toBe(true);
+        expect(streetLabelsToggle.getAttribute('aria-checked')).toBe('true');
 
         const streetZoomInput = rendered.container.querySelector('input[aria-label="Street labels zoom level"]') as HTMLInputElement;
         expect(streetZoomInput).toBeDefined();
@@ -119,15 +121,11 @@ describe('MapSettingsModal UI settings', () => {
         });
 
         await act(async () => {
-            const checkedSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'checked')?.set;
-            checkedSetter?.call(streetLabelsToggle, false);
-            streetLabelsToggle.dispatchEvent(new Event('change', { bubbles: true }));
+            streetLabelsToggle.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
         await act(async () => {
-            const checkedSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'checked')?.set;
-            checkedSetter?.call(streetLabelsToggle, true);
-            streetLabelsToggle.dispatchEvent(new Event('change', { bubbles: true }));
+            streetLabelsToggle.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
         await act(async () => {
@@ -159,5 +157,78 @@ describe('MapSettingsModal UI settings', () => {
         expect(raw || '').toContain('14');
         expect(raw || '').toContain('"trafficParticlesCount":22');
         expect(raw || '').toContain('"trafficParticlesSpeed":1.7');
+    });
+
+    test('shows about panel with supported nips and app features', async () => {
+        const bridge = createBridgeStub();
+        const rendered = await renderElement(
+            <MapSettingsModal
+                mapBridge={bridge}
+                onClose={() => {}}
+            />
+        );
+        mounted.push(rendered);
+
+        const aboutButton = Array.from(rendered.container.querySelectorAll('.nostr-settings-content .nostr-settings-item')).find((item) =>
+            (item.textContent || '').trim() === 'About'
+        ) as HTMLButtonElement;
+        expect(aboutButton).toBeDefined();
+
+        await act(async () => {
+            aboutButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const content = rendered.container.textContent || '';
+        expect(content).toContain('NIPs soportadas');
+        expect(content).toContain('NIP-19');
+        expect(content).toContain('NIP-65');
+        expect(content).toContain('Caracteristicas');
+    });
+
+    test('shows zaps settings from main menu and persists edited amounts', async () => {
+        const bridge = createBridgeStub();
+        const rendered = await renderElement(
+            <MapSettingsModal
+                mapBridge={bridge}
+                onClose={() => {}}
+            />
+        );
+        mounted.push(rendered);
+
+        const zapsButton = Array.from(rendered.container.querySelectorAll('.nostr-settings-content .nostr-settings-item')).find((item) =>
+            (item.textContent || '').trim() === 'Zaps'
+        ) as HTMLButtonElement;
+        expect(zapsButton).toBeDefined();
+
+        await act(async () => {
+            zapsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(rendered.container.textContent || '').toContain('Cantidad de zaps');
+        expect(rendered.container.textContent || '').toContain('21 sats');
+        expect(rendered.container.textContent || '').toContain('128 sats');
+        expect(rendered.container.textContent || '').toContain('256 sats');
+
+        const addInput = rendered.container.querySelector('input[aria-label="Nueva cantidad de zap"]') as HTMLInputElement;
+        const addButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Agregar cantidad')
+        ) as HTMLButtonElement;
+        expect(addInput).toBeDefined();
+        expect(addButton).toBeDefined();
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(addInput, '512');
+            addInput.dispatchEvent(new Event('input', { bubbles: true }));
+            addInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            addButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const raw = window.localStorage.getItem(ZAP_SETTINGS_STORAGE_KEY);
+        expect(raw).not.toBeNull();
+        expect(raw || '').toContain('512');
     });
 });

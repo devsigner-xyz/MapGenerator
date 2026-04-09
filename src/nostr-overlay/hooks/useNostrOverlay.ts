@@ -1033,6 +1033,41 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         }));
     };
 
+    const openActiveProfile = (pubkey: string, buildingIndex?: number): void => {
+        if (!mapBridge || !hasLoadedOverlayData(state.status) || !pubkey) {
+            return;
+        }
+
+        activeProfileLoadIdRef.current += 1;
+
+        const occupancy = buildOccupancyState({
+            buildingsCount: state.data.buildingsCount,
+            assignments: state.data.assignments.assignments,
+            selectedPubkey: pubkey,
+        });
+
+        mapBridge.applyOccupancy({
+            byBuildingIndex: occupancy.byBuildingIndex,
+            selectedBuildingIndex: occupancy.selectedBuildingIndex,
+        });
+
+        const focusIndex = buildingIndex ?? occupancy.selectedBuildingIndex;
+        if (focusIndex !== undefined) {
+            mapBridge.focusBuilding(focusIndex);
+        }
+
+        setState((current) => ({
+            ...current,
+            data: {
+                ...current.data,
+                selectedPubkey: pubkey,
+                ...createEmptyActiveProfileState(),
+                activeProfilePubkey: pubkey,
+                activeProfileBuildingIndex: buildingIndex ?? occupancy.selectedBuildingIndex,
+            },
+        }));
+    };
+
     const closeActiveProfileModal = (): void => {
         activeProfileLoadIdRef.current += 1;
         setState((current) => ({
@@ -1185,6 +1220,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         submitNpub,
         regenerateMap,
         selectFollowing,
+        openActiveProfile,
         closeActiveProfileModal,
         loadMoreActiveProfilePosts,
     };

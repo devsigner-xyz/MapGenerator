@@ -2,23 +2,36 @@ import { useEffect, useRef, useState } from 'react';
 import { addRelay, loadRelaySettings, removeRelay, saveRelaySettings, type RelaySettingsState } from '../../nostr/relay-settings';
 import { normalizeRelayUrl } from '../../nostr/relay-policy';
 import { loadUiSettings, saveUiSettings, type UiSettingsState } from '../../nostr/ui-settings';
+import {
+    addZapAmount,
+    loadZapSettings,
+    removeZapAmount,
+    saveZapSettings,
+    updateZapAmount,
+    type ZapSettingsState,
+} from '../../nostr/zap-settings';
 import type { MapBridge } from '../map-bridge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 
 interface MapSettingsModalProps {
     mapBridge: MapBridge | null;
     suggestedRelays?: string[];
     onUiSettingsChange?: (nextState: UiSettingsState) => void;
+    zapSettings?: ZapSettingsState;
+    onZapSettingsChange?: (nextState: ZapSettingsState) => void;
+    initialView?: SettingsView;
     hasActiveSession?: boolean;
     onLogoutSession?: () => Promise<void> | void;
     onClose: () => void;
 }
 
-type SettingsView = 'settings' | 'ui' | 'shortcuts' | 'relays';
+export type SettingsView = 'settings' | 'ui' | 'shortcuts' | 'relays' | 'about' | 'zaps';
 
 function normalizeRelayInput(value: string): string | null {
     const trimmed = value.trim();
@@ -37,14 +50,19 @@ export function MapSettingsModal({
     mapBridge,
     suggestedRelays = [],
     onUiSettingsChange,
+    zapSettings,
+    onZapSettingsChange,
+    initialView = 'settings',
     hasActiveSession = false,
     onLogoutSession,
     onClose,
 }: MapSettingsModalProps) {
-    const [view, setView] = useState<SettingsView>('settings');
+    const [view, setView] = useState<SettingsView>(initialView);
     const [relaySettings, setRelaySettings] = useState<RelaySettingsState>(() => loadRelaySettings());
     const [uiSettings, setUiSettings] = useState<UiSettingsState>(() => loadUiSettings());
+    const [zapSettingsState, setZapSettingsState] = useState<ZapSettingsState>(() => zapSettings ?? loadZapSettings());
     const [newRelayInput, setNewRelayInput] = useState('');
+    const [newZapAmountInput, setNewZapAmountInput] = useState('');
     const [invalidRelayInputs, setInvalidRelayInputs] = useState<string[]>([]);
     const settingsHostRef = useRef<HTMLDivElement | null>(null);
 
@@ -57,6 +75,12 @@ export function MapSettingsModal({
         const savedState = saveUiSettings(nextState);
         setUiSettings(savedState);
         onUiSettingsChange?.(savedState);
+    };
+
+    const persistZapSettings = (nextState: ZapSettingsState): void => {
+        const savedState = saveZapSettings(nextState);
+        setZapSettingsState(savedState);
+        onZapSettingsChange?.(savedState);
     };
 
     const handleAddRelays = (): void => {
@@ -109,6 +133,14 @@ export function MapSettingsModal({
     const suggestedNotAdded = suggestedRelays.filter((relayUrl) => !relaySettings.relays.includes(relayUrl));
 
     useEffect(() => {
+        if (!zapSettings) {
+            return;
+        }
+
+        setZapSettingsState(zapSettings);
+    }, [zapSettings]);
+
+    useEffect(() => {
         if (!mapBridge || view !== 'settings' || !settingsHostRef.current) {
             return;
         }
@@ -129,7 +161,7 @@ export function MapSettingsModal({
                 <DialogTitle className="sr-only">Ajustes</DialogTitle>
                 <DialogDescription className="sr-only">Configuracion del overlay del mapa.</DialogDescription>
                 <div className="nostr-settings-header">
-                    {view === 'ui' || view === 'shortcuts' || view === 'relays' ? (
+                    {view === 'ui' || view === 'shortcuts' || view === 'relays' || view === 'about' || view === 'zaps' ? (
                         <Button type="button" variant="ghost" className="nostr-settings-back" onClick={() => setView('settings')}>
                             Volver
                         </Button>
@@ -138,7 +170,17 @@ export function MapSettingsModal({
                     )}
 
                     <p className="nostr-settings-title">
-                        {view === 'settings' ? 'Settings' : view === 'ui' ? 'UI' : view === 'shortcuts' ? 'Shortcuts' : 'Relays'}
+                        {view === 'settings'
+                            ? 'Settings'
+                            : view === 'ui'
+                                ? 'UI'
+                                : view === 'shortcuts'
+                                    ? 'Shortcuts'
+                                    : view === 'relays'
+                                        ? 'Relays'
+                                        : view === 'zaps'
+                                            ? 'Zaps'
+                                            : 'About'}
                     </p>
 
                     <Button type="button" variant="ghost" className="nostr-modal-close" onClick={onClose} aria-label="Cerrar ajustes">
@@ -158,6 +200,14 @@ export function MapSettingsModal({
 
                         <Button type="button" variant="outline" className="nostr-settings-item" onClick={() => setView('relays')}>
                             Relays
+                        </Button>
+
+                        <Button type="button" variant="outline" className="nostr-settings-item" onClick={() => setView('about')}>
+                            About
+                        </Button>
+
+                        <Button type="button" variant="outline" className="nostr-settings-item" onClick={() => setView('zaps')}>
+                            Zaps
                         </Button>
 
                         {hasActiveSession ? (
@@ -213,15 +263,15 @@ export function MapSettingsModal({
 
                         <div className="nostr-ui-toggle-row">
                             <Label className="nostr-label" htmlFor="nostr-street-labels-enabled">Street labels</Label>
-                            <input
+                            <Switch
                                 id="nostr-street-labels-enabled"
-                                type="checkbox"
+                                size="sm"
                                 aria-label="Street labels enabled"
                                 checked={uiSettings.streetLabelsEnabled}
-                                onChange={(event) => {
+                                onCheckedChange={(checked) => {
                                     persistUiSettings({
                                         ...uiSettings,
-                                        streetLabelsEnabled: event.target.checked,
+                                        streetLabelsEnabled: checked,
                                     });
                                 }}
                             />
@@ -380,6 +430,94 @@ export function MapSettingsModal({
                         ) : (
                             <p className="nostr-relays-help">No hay relays sugeridos todavia. Carga una npub para intentar descubrirlos via NIP-65.</p>
                         )}
+                    </div>
+                ) : view === 'about' ? (
+                    <div className="nostr-shortcuts-content">
+                        <div className="nostr-about-section">
+                            <h4>NIPs soportadas</h4>
+                            <ul>
+                                <li>NIP-19 (npub)</li>
+                                <li>NIP-65 (relays sugeridos)</li>
+                                <li>Kind 0 (metadata de perfil)</li>
+                                <li>Kind 1 (publicaciones)</li>
+                                <li>Kind 3 (follows/followers)</li>
+                            </ul>
+                        </div>
+
+                        <div className="nostr-about-section">
+                            <h4>Caracteristicas</h4>
+                            <ul>
+                                <li>Overlay social sobre el mapa</li>
+                                <li>Foco de ocupantes y perfil detallado</li>
+                                <li>Carga progresiva de red y publicaciones</li>
+                                <li>Configuracion de relays desde ajustes</li>
+                                <li>Estadisticas de ciudad en tiempo real</li>
+                            </ul>
+                        </div>
+                    </div>
+                ) : view === 'zaps' ? (
+                    <div className="nostr-shortcuts-content">
+                        <p>Cantidad de zaps</p>
+
+                        <div className="nostr-zap-list">
+                            {zapSettingsState.amounts.map((amount, index) => (
+                                <div key={`zap-${index}-${amount}`} className="nostr-zap-item">
+                                    <span>{amount} sats</span>
+                                    <div className="nostr-zap-item-actions">
+                                        <Input
+                                            type="number"
+                                            min={1}
+                                            step={1}
+                                            className="nostr-input"
+                                            aria-label={`Cantidad zap ${index + 1}`}
+                                            value={String(amount)}
+                                            onChange={(event) => {
+                                                const nextValue = Number(event.target.value);
+                                                if (!Number.isFinite(nextValue)) {
+                                                    return;
+                                                }
+                                                persistZapSettings(updateZapAmount(zapSettingsState, index, nextValue));
+                                            }}
+                                        />
+
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={() => persistZapSettings(removeZapAmount(zapSettingsState, index))}
+                                        >
+                                            Quitar
+                                        </Button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="nostr-zap-add-row">
+                            <Input
+                                type="number"
+                                min={1}
+                                step={1}
+                                className="nostr-input"
+                                aria-label="Nueva cantidad de zap"
+                                placeholder="512"
+                                value={newZapAmountInput}
+                                onChange={(event) => setNewZapAmountInput(event.target.value)}
+                            />
+                            <Button
+                                type="button"
+                                className="nostr-submit"
+                                onClick={() => {
+                                    const nextValue = Number(newZapAmountInput.trim());
+                                    if (!Number.isFinite(nextValue)) {
+                                        return;
+                                    }
+                                    persistZapSettings(addZapAmount(zapSettingsState, nextValue));
+                                    setNewZapAmountInput('');
+                                }}
+                            >
+                                Agregar cantidad
+                            </Button>
+                        </div>
                     </div>
                 ) : (
                     <div className="nostr-shortcuts-content">

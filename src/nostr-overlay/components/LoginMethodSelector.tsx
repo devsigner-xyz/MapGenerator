@@ -4,6 +4,7 @@ import type { LoginMethod } from '../../nostr/auth/session';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Spinner } from '@/components/ui/spinner';
 import {
     Select,
     SelectContent,
@@ -118,7 +119,12 @@ export function LoginMethodSelector({
                         />
 
                         <Button className="nostr-submit" type="submit" disabled={isBusy || npub.trim().length === 0}>
-                            Visualize
+                            {isBusy ? (
+                                <>
+                                    <Spinner data-icon="inline-start" />
+                                    Cargando...
+                                </>
+                            ) : 'Visualize'}
                         </Button>
                     </div>
                 </form>
@@ -158,7 +164,12 @@ export function LoginMethodSelector({
                         />
 
                         <Button className="nostr-submit" type="submit" disabled={isBusy || nsec.trim().length === 0}>
-                            Continuar
+                            {isBusy ? (
+                                <>
+                                    <Spinner data-icon="inline-start" />
+                                    Cargando...
+                                </>
+                            ) : 'Continuar'}
                         </Button>
                     </div>
                 </form>
@@ -177,7 +188,12 @@ export function LoginMethodSelector({
                         }}
                         disabled={isBusy}
                     >
-                        Continuar con extension
+                        {isBusy ? (
+                            <>
+                                <Spinner data-icon="inline-start" />
+                                Cargando...
+                            </>
+                        ) : 'Continuar con extension'}
                     </Button>
                 </div>
             ) : null}

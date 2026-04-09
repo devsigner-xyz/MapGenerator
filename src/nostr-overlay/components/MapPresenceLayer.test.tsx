@@ -33,6 +33,7 @@ function createMapBridgeStub(zoom: number): MapBridge {
         getParkCount: vi.fn().mockReturnValue(0),
         onMapGenerated: vi.fn().mockReturnValue(() => {}),
         onOccupiedBuildingClick: vi.fn().mockReturnValue(() => {}),
+        onOccupiedBuildingContextMenu: vi.fn().mockReturnValue(() => {}),
         getZoom: vi.fn().mockReturnValue(zoom),
         worldToScreen: vi.fn().mockImplementation((point: { x: number; y: number }) => point),
         getViewportInsetLeft: vi.fn().mockReturnValue(0),

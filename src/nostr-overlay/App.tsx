@@ -1,21 +1,38 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { loadUiSettings, type UiSettingsState } from '../nostr/ui-settings';
+import { loadZapSettings, type ZapSettingsState } from '../nostr/zap-settings';
+import { encodeHexToNpub } from '../nostr/npub';
 import { MapPresenceLayer } from './components/MapPresenceLayer';
-import { MapSettingsModal } from './components/MapSettingsModal';
+import { MapSettingsModal, type SettingsView } from './components/MapSettingsModal';
 import { OccupantProfileModal } from './components/OccupantProfileModal';
 import { SocialSidebar } from './components/SocialSidebar';
 import { MapZoomControls } from './components/MapZoomControls';
 import { CityStatsModal } from './components/CityStatsModal';
 import { useNostrOverlay, type MapLoaderStage, type NostrOverlayServices } from './hooks/useNostrOverlay';
-import type { MapBridge } from './map-bridge';
+import type { MapBridge, OccupiedBuildingContextPayload } from './map-bridge';
 import { extractStreetLabelUsernames } from './domain/street-label-users';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Spinner } from '@/components/ui/spinner';
+import {
+    ContextMenu,
+    ContextMenuContent,
+    ContextMenuItem,
+    ContextMenuSeparator,
+    ContextMenuSub,
+    ContextMenuSubContent,
+    ContextMenuSubTrigger,
+    ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 import { Toaster, toast } from 'sonner';
 
 interface AppProps {
     mapBridge: MapBridge | null;
     services?: NostrOverlayServices;
+}
+
+interface OccupiedBuildingContextMenuState extends OccupiedBuildingContextPayload {
+    nonce: number;
 }
 
 function mapLoaderStageLabel(stage: MapLoaderStage | null): string | null {
@@ -37,9 +54,14 @@ function mapLoaderStageLabel(stage: MapLoaderStage | null): string | null {
 export function App({ mapBridge, services }: AppProps) {
     const overlay = useNostrOverlay({ mapBridge, services });
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const [settingsInitialView, setSettingsInitialView] = useState<SettingsView>('settings');
     const [cityStatsOpen, setCityStatsOpen] = useState(false);
     const [panelCollapsed, setPanelCollapsed] = useState(false);
     const [uiSettings, setUiSettings] = useState<UiSettingsState>(() => loadUiSettings());
+    const [zapSettings, setZapSettings] = useState<ZapSettingsState>(() => loadZapSettings());
+    const [buildingContextMenu, setBuildingContextMenu] = useState<OccupiedBuildingContextMenuState | null>(null);
+    const contextMenuTriggerRef = useRef<HTMLSpanElement | null>(null);
+    const contextMenuNonceRef = useRef(0);
     const loginDisabled = overlay.status !== 'idle' && overlay.status !== 'success' && overlay.status !== 'error';
     const mapLoaderText = mapLoaderStageLabel(overlay.mapLoaderStage);
     const regenerateDisabled = !mapBridge || overlay.mapLoaderStage !== null;
@@ -100,6 +122,48 @@ export function App({ mapBridge, services }: AppProps) {
         toast.error(overlay.error, { duration: 2200 });
     }, [overlay.status, overlay.error]);
 
+    useEffect(() => {
+        if (!mapBridge) {
+            return;
+        }
+
+        return mapBridge.onOccupiedBuildingContextMenu((payload) => {
+            contextMenuNonceRef.current += 1;
+            setBuildingContextMenu({
+                ...payload,
+                nonce: contextMenuNonceRef.current,
+            });
+        });
+    }, [mapBridge]);
+
+    useEffect(() => {
+        if (!buildingContextMenu || !contextMenuTriggerRef.current) {
+            return;
+        }
+
+        const target = contextMenuTriggerRef.current;
+        const timer = window.setTimeout(() => {
+            target.dispatchEvent(new MouseEvent('contextmenu', {
+                bubbles: true,
+                cancelable: true,
+                clientX: buildingContextMenu.clientX,
+                clientY: buildingContextMenu.clientY,
+            }));
+        }, 0);
+
+        return () => {
+            window.clearTimeout(timer);
+        };
+    }, [buildingContextMenu]);
+
+    const encodePubkeyAsNpub = (pubkey: string): string => {
+        try {
+            return encodeHexToNpub(pubkey);
+        } catch {
+            return pubkey;
+        }
+    };
+
     const copyOwnerIdentifier = async (value: string): Promise<void> => {
         if (!value) {
             return;
@@ -152,6 +216,28 @@ export function App({ mapBridge, services }: AppProps) {
         mapBridge.focusBuilding(buildingIndex);
     };
 
+    const closeOccupiedContextMenu = (): void => {
+        setBuildingContextMenu(null);
+    };
+
+    const openSettingsModal = (view: SettingsView = 'settings'): void => {
+        setSettingsInitialView(view);
+        setSettingsOpen(true);
+    };
+
+    const writeDmToPubkey = async (pubkey: string): Promise<void> => {
+        const npub = encodePubkeyAsNpub(pubkey);
+        const dmUrl = `nostr:${npub}`;
+        const opened = typeof window.open === 'function' ? window.open(dmUrl, '_blank', 'noopener,noreferrer') : null;
+        if (opened) {
+            toast.success('Abriendo DM...', { duration: 1600 });
+            return;
+        }
+
+        await copyOwnerIdentifier(npub);
+        toast.message('No se pudo abrir el cliente DM; npub copiada', { duration: 2200 });
+    };
+
     return (
         <div className={`nostr-overlay-shell${panelCollapsed ? ' nostr-overlay-shell-collapsed' : ''}`}>
             {panelCollapsed ? (
@@ -177,7 +263,7 @@ export function App({ mapBridge, services }: AppProps) {
                         className="nostr-settings-button"
                         aria-label="Abrir ajustes"
                         title="Settings"
-                        onClick={() => setSettingsOpen(true)}
+                        onClick={() => openSettingsModal('settings')}
                     >
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                             <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.56 7.56 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.57.23-1.11.54-1.63.94l-2.39-.96a.5.5 0 0 0-.61.22L2.71 8.84a.5.5 0 0 0 .12.64L4.86 11c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.31.61.22l2.39-.96c.5.4 1.05.72 1.63.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.57-.23 1.12-.54 1.63-.94l2.39.96c.22.09.48 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z" />
@@ -269,7 +355,7 @@ export function App({ mapBridge, services }: AppProps) {
                                 className="nostr-settings-button"
                                 aria-label="Abrir ajustes"
                                 title="Settings"
-                                onClick={() => setSettingsOpen(true)}
+                                onClick={() => openSettingsModal('settings')}
                             >
                                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                                     <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.56 7.56 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.57.23-1.11.54-1.63.94l-2.39-.96a.5.5 0 0 0-.61.22L2.71 8.84a.5.5 0 0 0 .12.64L4.86 11c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.31.61.22l2.39-.96c.5.4 1.05.72 1.63.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.57-.23 1.12-.54 1.63-.94l2.39.96c.22.09.48 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z" />
@@ -316,10 +402,84 @@ export function App({ mapBridge, services }: AppProps) {
 
             <MapZoomControls mapBridge={mapBridge} />
 
+            {buildingContextMenu ? (
+                <div
+                    className="nostr-context-anchor"
+                    style={{
+                        left: `${buildingContextMenu.clientX}px`,
+                        top: `${buildingContextMenu.clientY}px`,
+                    }}
+                >
+                    <ContextMenu
+                        key={buildingContextMenu.nonce}
+                    >
+                        <ContextMenuTrigger asChild>
+                            <span ref={contextMenuTriggerRef} className="nostr-context-anchor-trigger" aria-hidden="true" />
+                        </ContextMenuTrigger>
+                        <ContextMenuContent className="w-48">
+                            <ContextMenuItem
+                                data-testid="context-copy-npub"
+                                onSelect={() => {
+                                    void copyOwnerIdentifier(encodePubkeyAsNpub(buildingContextMenu.pubkey));
+                                    closeOccupiedContextMenu();
+                                }}
+                            >
+                                Copiar npub
+                            </ContextMenuItem>
+                            <ContextMenuItem
+                                data-testid="context-write-dm"
+                                onSelect={() => {
+                                    void writeDmToPubkey(buildingContextMenu.pubkey);
+                                    closeOccupiedContextMenu();
+                                }}
+                            >
+                                Enviar mensaje
+                            </ContextMenuItem>
+                            <ContextMenuItem
+                                data-testid="context-view-details"
+                                onSelect={() => {
+                                    overlay.openActiveProfile(buildingContextMenu.pubkey, buildingContextMenu.buildingIndex);
+                                    closeOccupiedContextMenu();
+                                }}
+                            >
+                                Ver detalles
+                            </ContextMenuItem>
+
+                            <ContextMenuSub>
+                                <ContextMenuSubTrigger data-testid="context-zap-submenu">Zap</ContextMenuSubTrigger>
+                                <ContextMenuSubContent className="w-44">
+                                    {zapSettings.amounts.map((amount) => (
+                                        <ContextMenuItem
+                                            data-testid={`context-zap-${amount}`}
+                                            key={`zap-${amount}`}
+                                            onSelect={() => {
+                                                closeOccupiedContextMenu();
+                                            }}
+                                        >
+                                            {`${amount} sats`}
+                                        </ContextMenuItem>
+                                    ))}
+                                    <ContextMenuSeparator />
+                                    <ContextMenuItem
+                                        data-testid="context-zap-configure"
+                                        onSelect={() => {
+                                            closeOccupiedContextMenu();
+                                            openSettingsModal('zaps');
+                                        }}
+                                    >
+                                        Configurar cantidades
+                                    </ContextMenuItem>
+                                </ContextMenuSubContent>
+                            </ContextMenuSub>
+                        </ContextMenuContent>
+                    </ContextMenu>
+                </div>
+            ) : null}
+
             {mapLoaderText ? (
                 <div className="nostr-map-loader-overlay" role="status" aria-live="polite">
                     <div className="nostr-map-loader-card">
-                        <span className="nostr-map-loader-spinner" aria-hidden="true" />
+                        <Spinner className="nostr-map-loader-spinner" />
                         <p className="nostr-map-loader-text">{mapLoaderText}</p>
                     </div>
                 </div>
@@ -332,9 +492,15 @@ export function App({ mapBridge, services }: AppProps) {
                     mapBridge={mapBridge}
                     suggestedRelays={overlay.suggestedRelays}
                     onUiSettingsChange={setUiSettings}
+                    zapSettings={zapSettings}
+                    onZapSettingsChange={setZapSettings}
+                    initialView={settingsInitialView}
                     hasActiveSession={Boolean(overlay.authSession)}
                     onLogoutSession={overlay.logoutSession}
-                    onClose={() => setSettingsOpen(false)}
+                    onClose={() => {
+                        setSettingsOpen(false);
+                        setSettingsInitialView('settings');
+                    }}
                 />
             ) : null}
 

@@ -289,12 +289,9 @@
 }
 
 .nostr-map-loader-spinner {
-    width: 13px;
-    height: 13px;
-    border-radius: 999px;
-    border: 2px solid rgba(43, 88, 109, 0.25);
-    border-top-color: rgba(43, 88, 109, 0.92);
-    animation: nostr-loader-spin 0.85s linear infinite;
+    color: rgba(43, 88, 109, 0.92);
+    width: 14px;
+    height: 14px;
 }
 
 .nostr-map-loader-text {
@@ -511,6 +508,7 @@
 .nostr-people-scroll-area {
     min-height: 0;
     height: 100%;
+    overflow: auto;
 }
 
 .nostr-people-scroll-virtual {
@@ -559,6 +557,32 @@
     height: 24px;
     cursor: pointer;
     line-height: 1;
+}
+
+.nostr-list-loading-footer {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: #4a6270;
+    font-size: 0.8rem;
+    margin: 0.16rem 0.1rem 0.42rem;
+}
+
+.nostr-list-loading-spinner {
+    width: 13px;
+    height: 13px;
+}
+
+.nostr-context-anchor {
+    position: fixed;
+    z-index: 12;
+    pointer-events: none;
+}
+
+.nostr-context-anchor-trigger {
+    display: block;
+    width: 1px;
+    height: 1px;
 }
 
 .nostr-modal-backdrop {
@@ -822,6 +846,13 @@
     margin-top: -0.15rem;
 }
 
+.nostr-ui-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+}
+
 .nostr-relays-content {
     display: grid;
     gap: 0.6rem;
@@ -911,6 +942,54 @@
     font-size: 0.76rem;
     padding: 0.3rem 0.5rem;
     cursor: pointer;
+}
+
+.nostr-about-section {
+    display: grid;
+    gap: 0.4rem;
+}
+
+.nostr-about-section h4 {
+    margin: 0;
+    font-size: 0.9rem;
+    color: #2b4654;
+}
+
+.nostr-about-section ul {
+    margin: 0;
+    padding-left: 1rem;
+    display: grid;
+    gap: 0.24rem;
+    color: #324f5d;
+    font-size: 0.84rem;
+}
+
+.nostr-zap-list {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.nostr-zap-item {
+    display: grid;
+    gap: 0.32rem;
+    border: 1px solid rgba(206, 214, 222, 0.95);
+    border-radius: 8px;
+    background: rgba(253, 254, 255, 0.96);
+    padding: 0.45rem 0.5rem;
+    color: #27414e;
+    font-size: 0.84rem;
+}
+
+.nostr-zap-item-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.nostr-zap-add-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .nostr-profile-modal {

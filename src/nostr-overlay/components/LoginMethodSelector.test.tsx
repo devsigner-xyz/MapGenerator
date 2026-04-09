@@ -8,7 +8,7 @@ interface RenderResult {
     root: Root;
 }
 
-async function renderSelector(): Promise<RenderResult> {
+async function renderSelector(input: { disabled?: boolean } = {}): Promise<RenderResult> {
     const container = document.createElement('div');
     document.body.appendChild(container);
     const root = createRoot(container);
@@ -18,7 +18,7 @@ async function renderSelector(): Promise<RenderResult> {
     await act(async () => {
         root.render(
             <LoginMethodSelector
-                disabled={false}
+                disabled={input.disabled ?? false}
                 onStartSession={onStartSession}
             />
         );
@@ -94,5 +94,16 @@ describe('LoginMethodSelector', () => {
         const content = rendered.container.textContent || '';
         expect(content).not.toContain('Sesion activa');
         expect(content).not.toContain('Bloquear sesion');
+    });
+
+    test('shows loading state on npub submit while parent loading is active', async () => {
+        const rendered = await renderSelector({ disabled: true });
+        mounted.push(rendered);
+
+        const submitButton = rendered.container.querySelector('button[type="submit"]') as HTMLButtonElement;
+        expect(submitButton).toBeDefined();
+        expect(submitButton.textContent || '').toContain('Cargando');
+        const spinner = submitButton.querySelector('[aria-label="Loading"]');
+        expect(spinner).toBeDefined();
     });
 });

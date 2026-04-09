@@ -1,15 +1,17 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState, type UIEvent } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { encodeHexToNpub } from '../../nostr/npub';
 import type { NostrProfile } from '../../nostr/types';
+import { ListLoadingFooter } from './ListLoadingFooter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item';
-import { ScrollArea } from '@/components/ui/scroll-area';
 
 const VIRTUALIZATION_THRESHOLD = 120;
 const VIRTUAL_ROW_HEIGHT_PX = 62;
+const LOAD_MORE_PAGE_SIZE = 20;
+const LOAD_MORE_DELAY_MS = 120;
 
 interface PeopleListTabProps {
     people: string[];
@@ -77,9 +79,53 @@ export function PeopleListTab({
     const hasSearch = typeof onSearchQueryChange === 'function';
     const shouldVirtualize = people.length >= VIRTUALIZATION_THRESHOLD;
     const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+    const loadMoreTimerRef = useRef<number | null>(null);
+    const [visibleCount, setVisibleCount] = useState(() => Math.min(LOAD_MORE_PAGE_SIZE, people.length));
+    const [loadingMore, setLoadingMore] = useState(false);
+
+    useEffect(() => {
+        setVisibleCount(Math.min(LOAD_MORE_PAGE_SIZE, people.length));
+        setLoadingMore(false);
+        if (loadMoreTimerRef.current !== null) {
+            window.clearTimeout(loadMoreTimerRef.current);
+            loadMoreTimerRef.current = null;
+        }
+    }, [people]);
+
+    useEffect(() => {
+        return () => {
+            if (loadMoreTimerRef.current !== null) {
+                window.clearTimeout(loadMoreTimerRef.current);
+            }
+        };
+    }, []);
+
+    const visiblePeople = people.slice(0, visibleCount);
+    const hasMorePeople = visibleCount < people.length;
+
+    const scheduleLoadMore = () => {
+        if (loadingMore || !hasMorePeople) {
+            return;
+        }
+
+        setLoadingMore(true);
+        loadMoreTimerRef.current = window.setTimeout(() => {
+            setVisibleCount((current) => Math.min(current + LOAD_MORE_PAGE_SIZE, people.length));
+            setLoadingMore(false);
+            loadMoreTimerRef.current = null;
+        }, LOAD_MORE_DELAY_MS);
+    };
+
+    const handleScroll = (event: UIEvent<HTMLDivElement>): void => {
+        const target = event.currentTarget;
+        const nearBottom = target.scrollTop + target.clientHeight >= target.scrollHeight - 24;
+        if (nearBottom) {
+            scheduleLoadMore();
+        }
+    };
 
     const rowVirtualizer = useVirtualizer({
-        count: people.length,
+        count: visiblePeople.length,
         getScrollElement: () => scrollContainerRef.current,
         estimateSize: () => VIRTUAL_ROW_HEIGHT_PX,
         overscan: 8,
@@ -96,7 +142,7 @@ export function PeopleListTab({
             start: item.start,
             measurable: true,
         }))
-        : Array.from({ length: Math.min(24, people.length) }, (_, index) => ({
+        : Array.from({ length: Math.min(24, visiblePeople.length) }, (_, index) => ({
             key: `fallback-${index}`,
             index,
             start: index * VIRTUAL_ROW_HEIGHT_PX,
@@ -104,7 +150,7 @@ export function PeopleListTab({
         }));
     const totalVirtualHeight = virtualItems.length > 0
         ? rowVirtualizer.getTotalSize()
-        : people.length * VIRTUAL_ROW_HEIGHT_PX;
+        : visiblePeople.length * VIRTUAL_ROW_HEIGHT_PX;
 
     const renderPersonItem = (pubkey: string, key?: string) => {
         const profile = profiles[pubkey];
@@ -210,7 +256,12 @@ export function PeopleListTab({
     const listContent = people.length === 0
         ? <p className="nostr-empty">{loading && loadingText ? loadingText : emptyText}</p>
         : shouldVirtualize ? (
-            <div ref={scrollContainerRef} className="nostr-people-scroll-area nostr-people-scroll-virtual" data-virtualized="true">
+            <div
+                ref={scrollContainerRef}
+                className="nostr-people-scroll-area nostr-people-scroll-virtual"
+                data-virtualized="true"
+                onScroll={handleScroll}
+            >
                 <div
                     className="nostr-people-virtual-inner"
                     style={{
@@ -218,7 +269,7 @@ export function PeopleListTab({
                     }}
                 >
                     {renderedVirtualItems.map((virtualItem) => {
-                        const pubkey = people[virtualItem.index];
+                        const pubkey = visiblePeople[virtualItem.index];
                         if (!pubkey) {
                             return null;
                         }
@@ -238,15 +289,17 @@ export function PeopleListTab({
                         );
                     })}
                 </div>
+                <ListLoadingFooter loading={loadingMore} />
             </div>
         ) : (
-            <ScrollArea className="nostr-people-scroll-area">
+            <div className="nostr-people-scroll-area" onScroll={handleScroll}>
                 <ItemGroup className="nostr-people-list">
-                    {people.map((pubkey) => {
+                    {visiblePeople.map((pubkey) => {
                         return renderPersonItem(pubkey, pubkey);
                     })}
                 </ItemGroup>
-            </ScrollArea>
+                <ListLoadingFooter loading={loadingMore} />
+            </div>
         );
 
     if (!hasSearch) {

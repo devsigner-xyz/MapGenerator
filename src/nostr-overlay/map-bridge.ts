@@ -8,6 +8,13 @@ export interface MapBuildingSlot {
     centroid: WorldPoint;
 }
 
+export interface OccupiedBuildingContextPayload {
+    buildingIndex: number;
+    pubkey: string;
+    clientX: number;
+    clientY: number;
+}
+
 export interface MapMainApi {
     generateMap(): Promise<void> | void;
     roadsEmpty(): boolean;
@@ -30,6 +37,7 @@ export interface MapMainApi {
     getViewportInsetLeft(): number;
     subscribeMapGenerated?(listener: () => void): (() => void) | void;
     subscribeOccupiedBuildingClick?(listener: (payload: { buildingIndex: number; pubkey: string }) => void): (() => void) | void;
+    subscribeOccupiedBuildingContextMenu?(listener: (payload: OccupiedBuildingContextPayload) => void): (() => void) | void;
     subscribeViewChanged?(listener: () => void): (() => void) | void;
 }
 
@@ -54,6 +62,7 @@ export interface MapBridge {
     getViewportInsetLeft(): number;
     onMapGenerated(listener: () => void): () => void;
     onOccupiedBuildingClick(listener: (payload: { buildingIndex: number; pubkey: string }) => void): () => void;
+    onOccupiedBuildingContextMenu(listener: (payload: OccupiedBuildingContextPayload) => void): () => void;
     onViewChanged(listener: () => void): () => void;
 }
 
@@ -159,6 +168,19 @@ export function createMapBridge(mainApi: MapMainApi): MapBridge {
             }
 
             const maybeUnsubscribe = mainApi.subscribeOccupiedBuildingClick(listener);
+            if (typeof maybeUnsubscribe === 'function') {
+                return maybeUnsubscribe;
+            }
+
+            return () => {};
+        },
+
+        onOccupiedBuildingContextMenu(listener: (payload: OccupiedBuildingContextPayload) => void): () => void {
+            if (!mainApi.subscribeOccupiedBuildingContextMenu) {
+                return () => {};
+            }
+
+            const maybeUnsubscribe = mainApi.subscribeOccupiedBuildingContextMenu(listener);
             if (typeof maybeUnsubscribe === 'function') {
                 return maybeUnsubscribe;
             }

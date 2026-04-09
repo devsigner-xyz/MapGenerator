@@ -41,6 +41,7 @@ function createMapBridgeStub(buildingsCount: number): { bridge: MapBridge; trigg
             };
         }),
         onOccupiedBuildingClick: vi.fn().mockReturnValue(() => {}),
+        onOccupiedBuildingContextMenu: vi.fn().mockReturnValue(() => {}),
         onViewChanged: vi.fn().mockReturnValue(() => {}),
     };
 

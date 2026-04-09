@@ -26,6 +26,13 @@ interface OccupiedBuildingClickPayload {
     pubkey: string;
 }
 
+interface OccupiedBuildingContextMenuPayload {
+    buildingIndex: number;
+    pubkey: string;
+    clientX: number;
+    clientY: number;
+}
+
 class Main {
     private readonly STARTING_WIDTH = 1440;  // Initially zooms in if width > STARTING_WIDTH
 
@@ -72,6 +79,7 @@ class Main {
     private modelGenerator: ModelGenerator | undefined;
     private mapGeneratedListeners: Array<() => void> = [];
     private occupiedBuildingClickListeners: Array<(payload: OccupiedBuildingClickPayload) => void> = [];
+    private occupiedBuildingContextMenuListeners: Array<(payload: OccupiedBuildingContextMenuPayload) => void> = [];
     private viewChangedListeners: Array<() => void> = [];
     private viewChangeScheduler = createViewChangeScheduler(() => this.notifyViewChanged());
     private viewportInsetLeft = 0;
@@ -306,6 +314,16 @@ class Main {
             const index = this.occupiedBuildingClickListeners.indexOf(listener);
             if (index >= 0) {
                 this.occupiedBuildingClickListeners.splice(index, 1);
+            }
+        };
+    }
+
+    subscribeOccupiedBuildingContextMenu(listener: (payload: OccupiedBuildingContextMenuPayload) => void): () => void {
+        this.occupiedBuildingContextMenuListeners.push(listener);
+        return (): void => {
+            const index = this.occupiedBuildingContextMenuListeners.indexOf(listener);
+            if (index >= 0) {
+                this.occupiedBuildingContextMenuListeners.splice(index, 1);
             }
         };
     }
@@ -606,6 +624,26 @@ class Main {
                 pubkey: hit.pubkey,
             });
         });
+
+        this.canvas.addEventListener('contextmenu', (event: MouseEvent): void => {
+            if (this.showTensorField() || this.isPanModeActive()) {
+                return;
+            }
+
+            const worldPoint = this.domainController.screenToWorld(new Vector(event.clientX, event.clientY));
+            const hit = this.mainGui.getOccupiedBuildingAtWorldPoint(worldPoint);
+            if (!hit) {
+                return;
+            }
+
+            event.preventDefault();
+            this.notifyOccupiedBuildingContextMenu({
+                buildingIndex: hit.index,
+                pubkey: hit.pubkey,
+                clientX: event.clientX,
+                clientY: event.clientY,
+            });
+        });
     }
 
     private updatePanMode(): void {
@@ -680,6 +718,12 @@ class Main {
 
     private notifyOccupiedBuildingClick(payload: OccupiedBuildingClickPayload): void {
         for (const listener of this.occupiedBuildingClickListeners) {
+            listener(payload);
+        }
+    }
+
+    private notifyOccupiedBuildingContextMenu(payload: OccupiedBuildingContextMenuPayload): void {
+        for (const listener of this.occupiedBuildingContextMenuListeners) {
             listener(payload);
         }
     }

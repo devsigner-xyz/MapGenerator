@@ -1,8 +1,10 @@
-import type { UIEvent } from 'react';
+import { useEffect, useRef, useState, type UIEvent } from 'react';
 import type { NostrProfile } from '../../nostr/types';
 import type { NostrPostPreview } from '../../nostr/posts';
+import { ListLoadingFooter } from './ListLoadingFooter';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { Spinner } from '@/components/ui/spinner';
 
 interface OccupantProfileModalProps {
     pubkey: string;
@@ -28,6 +30,9 @@ function resolveName(pubkey: string, profile?: NostrProfile): string {
     return profile?.displayName ?? profile?.name ?? `${pubkey.slice(0, 10)}...${pubkey.slice(-6)}`;
 }
 
+const NETWORK_PAGE_SIZE = 20;
+const NETWORK_LOAD_DELAY_MS = 120;
+
 export function OccupantProfileModal({
     pubkey,
     profile,
@@ -47,13 +52,92 @@ export function OccupantProfileModal({
     onLoadMorePosts,
     onClose,
 }: OccupantProfileModalProps) {
+    const followsTimerRef = useRef<number | null>(null);
+    const followersTimerRef = useRef<number | null>(null);
+    const [visibleFollowsCount, setVisibleFollowsCount] = useState(() => Math.min(NETWORK_PAGE_SIZE, follows.length));
+    const [visibleFollowersCount, setVisibleFollowersCount] = useState(() => Math.min(NETWORK_PAGE_SIZE, followers.length));
+    const [followsLoadingMore, setFollowsLoadingMore] = useState(false);
+    const [followersLoadingMore, setFollowersLoadingMore] = useState(false);
+
     const shortPubkey = `${pubkey.slice(0, 10)}...${pubkey.slice(-6)}`;
+
+    useEffect(() => {
+        setVisibleFollowsCount(Math.min(NETWORK_PAGE_SIZE, follows.length));
+        setFollowsLoadingMore(false);
+        if (followsTimerRef.current !== null) {
+            window.clearTimeout(followsTimerRef.current);
+            followsTimerRef.current = null;
+        }
+    }, [follows]);
+
+    useEffect(() => {
+        setVisibleFollowersCount(Math.min(NETWORK_PAGE_SIZE, followers.length));
+        setFollowersLoadingMore(false);
+        if (followersTimerRef.current !== null) {
+            window.clearTimeout(followersTimerRef.current);
+            followersTimerRef.current = null;
+        }
+    }, [followers]);
+
+    useEffect(() => {
+        return () => {
+            if (followsTimerRef.current !== null) {
+                window.clearTimeout(followsTimerRef.current);
+            }
+            if (followersTimerRef.current !== null) {
+                window.clearTimeout(followersTimerRef.current);
+            }
+        };
+    }, []);
+
+    const visibleFollows = follows.slice(0, visibleFollowsCount);
+    const visibleFollowers = followers.slice(0, visibleFollowersCount);
+    const hasMoreFollows = visibleFollowsCount < follows.length;
+    const hasMoreFollowers = visibleFollowersCount < followers.length;
+
+    const scheduleLoadMoreFollows = (): void => {
+        if (followsLoadingMore || !hasMoreFollows) {
+            return;
+        }
+
+        setFollowsLoadingMore(true);
+        followsTimerRef.current = window.setTimeout(() => {
+            setVisibleFollowsCount((current) => Math.min(current + NETWORK_PAGE_SIZE, follows.length));
+            setFollowsLoadingMore(false);
+            followsTimerRef.current = null;
+        }, NETWORK_LOAD_DELAY_MS);
+    };
+
+    const scheduleLoadMoreFollowers = (): void => {
+        if (followersLoadingMore || !hasMoreFollowers) {
+            return;
+        }
+
+        setFollowersLoadingMore(true);
+        followersTimerRef.current = window.setTimeout(() => {
+            setVisibleFollowersCount((current) => Math.min(current + NETWORK_PAGE_SIZE, followers.length));
+            setFollowersLoadingMore(false);
+            followersTimerRef.current = null;
+        }, NETWORK_LOAD_DELAY_MS);
+    };
 
     const handleScroll = (event: UIEvent<HTMLDivElement>): void => {
         const target = event.currentTarget;
         const nearBottom = target.scrollTop + target.clientHeight >= target.scrollHeight - 32;
-        if (nearBottom && hasMorePosts && !postsLoading) {
+        if (!nearBottom) {
+            return;
+        }
+
+        if (hasMorePosts && !postsLoading) {
             void onLoadMorePosts();
+        }
+
+        if (hasMoreFollows) {
+            scheduleLoadMoreFollows();
+        }
+
+        if (hasMoreFollowers) {
+            scheduleLoadMoreFollowers();
         }
     };
 
@@ -109,11 +193,12 @@ export function OccupantProfileModal({
                                 {follows.length === 0 ? <p className="nostr-empty">Sin seguidos visibles.</p> : null}
                                 {follows.length > 0 ? (
                                     <ul className="nostr-profile-network-list">
-                                        {follows.slice(0, 20).map((followPubkey) => (
+                                        {visibleFollows.map((followPubkey) => (
                                             <li key={followPubkey}>{resolveName(followPubkey, networkProfiles[followPubkey])}</li>
                                         ))}
                                     </ul>
                                 ) : null}
+                                <ListLoadingFooter loading={followsLoadingMore} />
                             </div>
 
                             <div>
@@ -121,11 +206,12 @@ export function OccupantProfileModal({
                                 {followers.length === 0 ? <p className="nostr-empty">Sin seguidores visibles.</p> : null}
                                 {followers.length > 0 ? (
                                     <ul className="nostr-profile-network-list">
-                                        {followers.slice(0, 20).map((followerPubkey) => (
+                                        {visibleFollowers.map((followerPubkey) => (
                                             <li key={followerPubkey}>{resolveName(followerPubkey, networkProfiles[followerPubkey])}</li>
                                         ))}
                                     </ul>
                                 ) : null}
+                                <ListLoadingFooter loading={followersLoadingMore} />
                             </div>
                         </div>
                     </section>
@@ -152,7 +238,12 @@ export function OccupantProfileModal({
                             </ul>
                         ) : null}
 
-                        {postsLoading ? <p className="nostr-loading">Cargando publicaciones...</p> : null}
+                        {postsLoading ? (
+                            <div className="nostr-loading nostr-posts-loading" role="status" aria-live="polite">
+                                <Spinner className="nostr-list-loading-spinner" />
+                                <span>Cargando publicaciones...</span>
+                            </div>
+                        ) : null}
 
                         {hasMorePosts && !postsLoading ? (
                             <Button type="button" className="nostr-submit nostr-posts-load-more" onClick={() => void onLoadMorePosts()}>
