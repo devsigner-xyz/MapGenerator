@@ -50,7 +50,20 @@
 
 .nostr-panel-toolbar {
     display: flex;
-    justify-content: flex-end;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.45rem;
+}
+
+.nostr-panel-toolbar-status {
+    min-height: 1.25rem;
+    display: flex;
+    align-items: center;
+}
+
+.nostr-panel-toolbar-actions {
+    display: flex;
+    align-items: center;
     gap: 0.45rem;
 }
 
@@ -122,6 +135,68 @@
 .nostr-form {
     display: grid;
     gap: 0.5rem;
+}
+
+.nostr-login-selector {
+    display: grid;
+    gap: 0.58rem;
+    border: 1px solid rgba(206, 214, 222, 0.9);
+    background: rgba(250, 252, 254, 0.95);
+    border-radius: 10px;
+    padding: 0.58rem;
+}
+
+.nostr-login-methods {
+    display: grid;
+    gap: 0.38rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.nostr-login-method {
+    min-height: 30px;
+    border-radius: 8px;
+    font-size: 0.72rem;
+}
+
+.nostr-login-method-select {
+    width: 100%;
+}
+
+.nostr-session-summary {
+    display: grid;
+    gap: 0.28rem;
+    border: 1px solid rgba(189, 205, 214, 0.9);
+    border-radius: 8px;
+    background: rgba(241, 247, 251, 0.9);
+    padding: 0.45rem 0.5rem;
+}
+
+.nostr-session-title {
+    margin: 0;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #2d5a71;
+}
+
+.nostr-session-key {
+    margin: 0;
+    font-size: 0.77rem;
+    color: #1f3f4f;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.nostr-session-state {
+    margin: 0;
+    font-size: 0.78rem;
+    color: #335463;
+}
+
+.nostr-session-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.38rem;
+    align-items: center;
 }
 
 .nostr-npub-row {
@@ -303,6 +378,13 @@
     color: #53646f;
 }
 
+.nostr-auth-hint {
+    margin: 0;
+    font-size: 0.79rem;
+    line-height: 1.35;
+    color: #45606f;
+}
+
 .nostr-error {
     margin: 0;
     font-size: 0.85rem;
@@ -310,6 +392,14 @@
 }
 
 .nostr-social-sidebar {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1;
+    gap: 0.7rem;
+}
+
+.nostr-social-tabs {
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -667,6 +757,12 @@
     padding: 0.52rem 0.62rem;
     cursor: pointer;
     text-align: left;
+}
+
+.nostr-settings-danger {
+    color: #7f2e2e;
+    border-color: rgba(201, 109, 109, 0.75);
+    background: rgba(255, 243, 243, 0.95);
 }
 
 .nostr-settings-host {

@@ -1,0 +1,98 @@
+import { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
+import { LoginMethodSelector } from './LoginMethodSelector';
+
+interface RenderResult {
+    container: HTMLDivElement;
+    root: Root;
+}
+
+async function renderSelector(): Promise<RenderResult> {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    const onStartSession = vi.fn().mockResolvedValue(undefined);
+
+    await act(async () => {
+        root.render(
+            <LoginMethodSelector
+                disabled={false}
+                onStartSession={onStartSession}
+            />
+        );
+    });
+
+    (container as any).__handlers = {
+        onStartSession,
+    };
+
+    return { container, root };
+}
+
+let mounted: RenderResult[] = [];
+
+beforeAll(() => {
+    (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+});
+
+afterEach(async () => {
+    for (const entry of mounted) {
+        await act(async () => {
+            entry.root.unmount();
+        });
+        entry.container.remove();
+    }
+    mounted = [];
+});
+
+describe('LoginMethodSelector', () => {
+    test('renders shadcn select and npub input by default', async () => {
+        const rendered = await renderSelector();
+        mounted.push(rendered);
+
+        const content = rendered.container.textContent || '';
+        const npubInput = rendered.container.querySelector('input[name="npub"]');
+        const methodSelectTrigger = rendered.container.querySelector('[data-slot="select-trigger"]');
+
+        expect(content).toContain('Accede o explora');
+        expect(content).toContain('npub (solo lectura)');
+        expect(content).toContain('Metodo de acceso');
+        expect(methodSelectTrigger).not.toBeNull();
+        expect(npubInput).not.toBeNull();
+    });
+
+    test('submits npub login through startSession handler', async () => {
+        const rendered = await renderSelector();
+        mounted.push(rendered);
+
+        const handlers = (rendered.container as any).__handlers;
+        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+        const form = rendered.container.querySelector('form');
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
+            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        });
+
+        expect(handlers.onStartSession).toHaveBeenCalledWith('npub', {
+            credential: 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw',
+        });
+    });
+
+    test('keeps selector focused on access methods only', async () => {
+        const rendered = await renderSelector();
+        mounted.push(rendered);
+
+        const content = rendered.container.textContent || '';
+        expect(content).not.toContain('Sesion activa');
+        expect(content).not.toContain('Bloquear sesion');
+    });
+});

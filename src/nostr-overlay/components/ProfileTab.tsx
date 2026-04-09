@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { AuthSessionState } from '../../nostr/auth/session';
 import type { NostrProfile } from '../../nostr/types';
 import { encodeHexToNpub } from '../../nostr/npub';
 import { Button } from '@/components/ui/button';
@@ -10,6 +11,9 @@ interface ProfileTabProps {
     followsCount: number;
     followersCount: number;
     followersLoading: boolean;
+    authSession?: AuthSessionState;
+    canWrite?: boolean;
+    canEncrypt?: boolean;
     onLocateOwner?: () => void;
     onCopyOwnerNpub?: (value: string) => void | Promise<void>;
 }
@@ -24,6 +28,9 @@ export function ProfileTab({
     followsCount,
     followersCount,
     followersLoading,
+    authSession,
+    canWrite = false,
+    canEncrypt = false,
     onLocateOwner,
     onCopyOwnerNpub,
 }: ProfileTabProps) {
@@ -34,7 +41,19 @@ export function ProfileTab({
     }, [ownerProfile?.picture]);
 
     if (!ownerPubkey) {
-        return <p className="nostr-empty">Introduce una npub para ver el perfil.</p>;
+        return (
+            <div className="nostr-profile-tab">
+                <p className="nostr-auth-hint">
+                    {authSession
+                        ? authSession.readonly
+                            ? 'Modo solo lectura. Inicia sesion con nsec o extension para interactuar con Nostr.'
+                            : authSession.locked
+                                ? 'Sesion bloqueada. Desbloquea para seguir, publicar y enviar mensajes privados.'
+                                : 'Sesion lista para seguir, publicar y enviar mensajes privados.'
+                        : 'Elige un metodo de login para continuar.'}
+                </p>
+            </div>
+        );
     }
 
     const shortPubkey = `${ownerPubkey.slice(0, 10)}...${ownerPubkey.slice(-6)}`;
@@ -124,7 +143,17 @@ export function ProfileTab({
                 </div>
             </dl>
 
-            {followersLoading ? <p className="nostr-loading">Buscando seguidores en relays...</p> : null}
+            <p className="nostr-auth-hint" role="status" aria-live="polite">
+                {!authSession
+                    ? 'Inicia sesion para interactuar: seguir, publicar y mensajes privados.'
+                    : authSession.locked
+                        ? 'Sesion bloqueada. Desbloquea para firmar eventos.'
+                        : canWrite
+                            ? canEncrypt
+                                ? 'Listo para interactuar con Nostr: seguir, publicar y mensajes privados.'
+                                : 'Listo para publicar y seguir. Cifrado no disponible en este metodo.'
+                            : 'Modo exploracion activo.'}
+            </p>
         </div>
     );
 }

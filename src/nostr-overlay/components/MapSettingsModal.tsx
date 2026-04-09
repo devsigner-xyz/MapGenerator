@@ -13,6 +13,8 @@ interface MapSettingsModalProps {
     mapBridge: MapBridge | null;
     suggestedRelays?: string[];
     onUiSettingsChange?: (nextState: UiSettingsState) => void;
+    hasActiveSession?: boolean;
+    onLogoutSession?: () => Promise<void> | void;
     onClose: () => void;
 }
 
@@ -31,7 +33,14 @@ function normalizeRelayInput(value: string): string | null {
     return normalizeRelayUrl(`wss://${trimmed}`);
 }
 
-export function MapSettingsModal({ mapBridge, suggestedRelays = [], onUiSettingsChange, onClose }: MapSettingsModalProps) {
+export function MapSettingsModal({
+    mapBridge,
+    suggestedRelays = [],
+    onUiSettingsChange,
+    hasActiveSession = false,
+    onLogoutSession,
+    onClose,
+}: MapSettingsModalProps) {
     const [view, setView] = useState<SettingsView>('settings');
     const [relaySettings, setRelaySettings] = useState<RelaySettingsState>(() => loadRelaySettings());
     const [uiSettings, setUiSettings] = useState<UiSettingsState>(() => loadUiSettings());
@@ -150,6 +159,20 @@ export function MapSettingsModal({ mapBridge, suggestedRelays = [], onUiSettings
                         <Button type="button" variant="outline" className="nostr-settings-item" onClick={() => setView('relays')}>
                             Relays
                         </Button>
+
+                        {hasActiveSession ? (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="nostr-settings-item nostr-settings-danger"
+                                onClick={() => {
+                                    void onLogoutSession?.();
+                                    onClose();
+                                }}
+                            >
+                                Cerrar sesión
+                            </Button>
+                        ) : null}
 
                         <div ref={settingsHostRef} className="nostr-settings-host" />
                     </div>

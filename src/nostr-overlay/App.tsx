@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { loadUiSettings, type UiSettingsState } from '../nostr/ui-settings';
 import { MapPresenceLayer } from './components/MapPresenceLayer';
-import { NpubForm } from './components/NpubForm';
 import { MapSettingsModal } from './components/MapSettingsModal';
 import { OccupantProfileModal } from './components/OccupantProfileModal';
 import { SocialSidebar } from './components/SocialSidebar';
@@ -11,6 +10,7 @@ import { useNostrOverlay, type MapLoaderStage, type NostrOverlayServices } from 
 import type { MapBridge } from './map-bridge';
 import { extractStreetLabelUsernames } from './domain/street-label-users';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Toaster, toast } from 'sonner';
 
 interface AppProps {
@@ -40,9 +40,10 @@ export function App({ mapBridge, services }: AppProps) {
     const [cityStatsOpen, setCityStatsOpen] = useState(false);
     const [panelCollapsed, setPanelCollapsed] = useState(false);
     const [uiSettings, setUiSettings] = useState<UiSettingsState>(() => loadUiSettings());
-    const formDisabled = overlay.status !== 'idle' && overlay.status !== 'success' && overlay.status !== 'error';
+    const loginDisabled = overlay.status !== 'idle' && overlay.status !== 'success' && overlay.status !== 'error';
     const mapLoaderText = mapLoaderStageLabel(overlay.mapLoaderStage);
     const regenerateDisabled = !mapBridge || overlay.mapLoaderStage !== null;
+    const lastErrorToastRef = useRef<string | undefined>(undefined);
     const streetLabelUsernames = useMemo(() => extractStreetLabelUsernames({
         occupancyByBuildingIndex: overlay.occupancyByBuildingIndex,
         profiles: overlay.profiles,
@@ -84,6 +85,20 @@ export function App({ mapBridge, services }: AppProps) {
 
         mapBridge.setStreetLabelUsernames(streetLabelUsernames);
     }, [mapBridge, streetLabelUsernames]);
+
+    useEffect(() => {
+        if (overlay.status !== 'error' || !overlay.error) {
+            lastErrorToastRef.current = undefined;
+            return;
+        }
+
+        if (lastErrorToastRef.current === overlay.error) {
+            return;
+        }
+
+        lastErrorToastRef.current = overlay.error;
+        toast.error(overlay.error, { duration: 2200 });
+    }, [overlay.status, overlay.error]);
 
     const copyOwnerIdentifier = async (value: string): Promise<void> => {
         if (!value) {
@@ -207,75 +222,75 @@ export function App({ mapBridge, services }: AppProps) {
             ) : (
                 <section className="nostr-panel">
                     <div className="nostr-panel-toolbar">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="nostr-settings-button"
-                            aria-label="Abrir estadisticas de la ciudad"
-                            title="City stats"
-                            onClick={() => setCityStatsOpen(true)}
-                        >
-                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                <path d="M5 20h14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                                <path d="M8 20v-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                                <path d="M12 20v-11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                                <path d="M16 20v-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                            </svg>
-                        </Button>
+                        <div className="nostr-panel-toolbar-status">
+                            {overlay.authSession?.readonly ? <Badge variant="outline">Read Only</Badge> : null}
+                        </div>
 
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="nostr-settings-button"
-                            aria-label="Regenerar mapa"
-                            title="New map"
-                            onClick={() => {
-                                void overlay.regenerateMap();
-                            }}
-                            disabled={regenerateDisabled}
-                        >
-                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                <path d="M20 12a8 8 0 1 1-2.34-5.66" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                <path d="M20 4v6h-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                        </Button>
+                        <div className="nostr-panel-toolbar-actions">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="nostr-settings-button"
+                                aria-label="Abrir estadisticas de la ciudad"
+                                title="City stats"
+                                onClick={() => setCityStatsOpen(true)}
+                            >
+                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                    <path d="M5 20h14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                                    <path d="M8 20v-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                                    <path d="M12 20v-11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                                    <path d="M16 20v-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                                </svg>
+                            </Button>
 
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="nostr-settings-button"
-                            aria-label="Abrir ajustes"
-                            title="Settings"
-                            onClick={() => setSettingsOpen(true)}
-                        >
-                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.56 7.56 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.57.23-1.11.54-1.63.94l-2.39-.96a.5.5 0 0 0-.61.22L2.71 8.84a.5.5 0 0 0 .12.64L4.86 11c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.31.61.22l2.39-.96c.5.4 1.05.72 1.63.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.57-.23 1.12-.54 1.63-.94l2.39.96c.22.09.48 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z" />
-                            </svg>
-                        </Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="nostr-settings-button"
+                                aria-label="Regenerar mapa"
+                                title="New map"
+                                onClick={() => {
+                                    void overlay.regenerateMap();
+                                }}
+                                disabled={regenerateDisabled}
+                            >
+                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                    <path d="M20 12a8 8 0 1 1-2.34-5.66" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                    <path d="M20 4v6h-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                            </Button>
 
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="nostr-settings-button"
-                            aria-label="Ocultar panel"
-                            title="Hide panel"
-                            onClick={() => setPanelCollapsed(true)}
-                        >
-                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5v-13zm3 0v13h11v-13H7zm7.6 6.7H9l2.3 2.3a1 1 0 0 1-1.4 1.4l-4-4a1 1 0 0 1 0-1.4l4-4a1 1 0 1 1 1.4 1.4L9 10.2h5.6a1 1 0 1 1 0 2z" />
-                            </svg>
-                        </Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="nostr-settings-button"
+                                aria-label="Abrir ajustes"
+                                title="Settings"
+                                onClick={() => setSettingsOpen(true)}
+                            >
+                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                    <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.56 7.56 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.57.23-1.11.54-1.63.94l-2.39-.96a.5.5 0 0 0-.61.22L2.71 8.84a.5.5 0 0 0 .12.64L4.86 11c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.31.61.22l2.39-.96c.5.4 1.05.72 1.63.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.57-.23 1.12-.54 1.63-.94l2.39.96c.22.09.48 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z" />
+                                </svg>
+                            </Button>
+
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="nostr-settings-button"
+                                aria-label="Ocultar panel"
+                                title="Hide panel"
+                                onClick={() => setPanelCollapsed(true)}
+                            >
+                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                    <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5v-13zm3 0v13h11v-13H7zm7.6 6.7H9l2.3 2.3a1 1 0 0 1-1.4 1.4l-4-4a1 1 0 0 1 0-1.4l4-4a1 1 0 1 1 1.4 1.4L9 10.2h5.6a1 1 0 1 1 0 2z" />
+                                </svg>
+                            </Button>
+                        </div>
                     </div>
-
-                    <NpubForm disabled={formDisabled} onSubmit={overlay.submitNpub} />
-
-                    {overlay.status === 'error' && overlay.error ? (
-                        <p className="nostr-error">{overlay.error}</p>
-                    ) : null}
 
                     <SocialSidebar
                         ownerPubkey={overlay.ownerPubkey}
@@ -290,6 +305,11 @@ export function App({ mapBridge, services }: AppProps) {
                         onLocateFollowing={locateFollowingOnMap}
                         onLocateOwner={locateOwnerOnMap}
                         onCopyOwnerNpub={copyOwnerIdentifier}
+                        loginDisabled={loginDisabled}
+                        authSession={overlay.authSession}
+                        canWrite={overlay.canWrite}
+                        canEncrypt={overlay.canEncrypt}
+                        onStartSession={overlay.startSession}
                     />
                 </section>
             )}
@@ -312,6 +332,8 @@ export function App({ mapBridge, services }: AppProps) {
                     mapBridge={mapBridge}
                     suggestedRelays={overlay.suggestedRelays}
                     onUiSettingsChange={setUiSettings}
+                    hasActiveSession={Boolean(overlay.authSession)}
+                    onLogoutSession={overlay.logoutSession}
                     onClose={() => setSettingsOpen(false)}
                 />
             ) : null}

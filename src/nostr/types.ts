@@ -1,6 +1,14 @@
 export interface NostrEvent {
     id: string;
+    sig?: string;
     pubkey: string;
+    kind: number;
+    created_at: number;
+    tags: string[][];
+    content: string;
+}
+
+export interface NostrUnsignedEvent {
     kind: number;
     created_at: number;
     tags: string[][];

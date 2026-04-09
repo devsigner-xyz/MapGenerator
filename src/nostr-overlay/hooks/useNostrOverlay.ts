@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createAuthService } from '../../nostr/auth/auth-service';
+import type { ProviderResolveInput } from '../../nostr/auth/providers/types';
+import { isEncryptionEnabled, isWriteEnabled, type AuthSessionState, type LoginMethod } from '../../nostr/auth/session';
 import { assignPubkeysToBuildings, hashPubkeyToIndex, type AssignmentResult } from '../../nostr/domain/assignment';
 import { buildOccupancyState } from '../../nostr/domain/occupancy';
 import { fetchFollowersBestEffort } from '../../nostr/followers';
-import { fetchFollowsByNpub, parseFollowsFromKind3 } from '../../nostr/follows';
+import { fetchFollowsByNpub, fetchFollowsByPubkey, parseFollowsFromKind3 } from '../../nostr/follows';
 import { createLazyNdkClient } from '../../nostr/lazy-ndk-client';
 import { fetchLatestPostsByPubkey, type NostrPostPreview } from '../../nostr/posts';
 import { fetchProfileStats } from '../../nostr/profile-stats';
@@ -10,6 +13,7 @@ import { fetchProfiles } from '../../nostr/profiles';
 import { loadRelaySettings } from '../../nostr/relay-settings';
 import { getBootstrapRelays, mergeRelaySets, relayListFromKind10002Event } from '../../nostr/relay-policy';
 import type { NostrClient, NostrProfile } from '../../nostr/types';
+import { createWriteGateway } from '../../nostr/write-gateway';
 import type { MapBridge } from '../map-bridge';
 import { FEATURED_OCCUPANT_PUBKEYS } from '../domain/featured-occupants';
 import { createFollowerBatcher } from './follower-batcher';
@@ -29,6 +33,7 @@ export type MapLoaderStage =
     | 'building_map';
 
 interface OverlayData {
+    authSession?: AuthSessionState;
     ownerPubkey?: string;
     ownerProfile?: NostrProfile;
     ownerBuildingIndex?: number;
@@ -71,6 +76,7 @@ interface OverlayState {
 export interface NostrOverlayServices {
     createClient?: (relays?: string[]) => NostrClient;
     fetchFollowsByNpubFn?: typeof fetchFollowsByNpub;
+    fetchFollowsByPubkeyFn?: typeof fetchFollowsByPubkey;
     fetchProfilesFn?: typeof fetchProfiles;
     fetchFollowersBestEffortFn?: typeof fetchFollowersBestEffort;
     fetchLatestPostsByPubkeyFn?: typeof fetchLatestPostsByPubkey;
@@ -123,6 +129,7 @@ function createEmptyActiveProfileState(): Pick<
 
 function createInitialData(): OverlayData {
     return {
+        authSession: undefined,
         ownerBuildingIndex: undefined,
         follows: [],
         featuredPubkeys: FEATURED_OCCUPANT_PUBKEYS,
@@ -167,10 +174,20 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
     const OCCUPANCY_BATCH_DELAY_MS = 22;
     const createClient = services?.createClient || ((relays: string[] = []) => createLazyNdkClient({ relays }));
     const fetchFollowsByNpubFn = services?.fetchFollowsByNpubFn || fetchFollowsByNpub;
+    const fetchFollowsByPubkeyFn = services?.fetchFollowsByPubkeyFn || fetchFollowsByPubkey;
     const fetchProfilesFn = services?.fetchProfilesFn || fetchProfiles;
     const fetchFollowersBestEffortFn = services?.fetchFollowersBestEffortFn || fetchFollowersBestEffort;
     const fetchLatestPostsByPubkeyFn = services?.fetchLatestPostsByPubkeyFn || fetchLatestPostsByPubkey;
     const fetchProfileStatsFn = services?.fetchProfileStatsFn || fetchProfileStats;
+    const authService = useMemo(() => createAuthService(), []);
+    const writeGateway = useMemo(
+        () =>
+            createWriteGateway({
+                getSession: () => authService.getSession(),
+                getProvider: () => authService.getActiveProvider(),
+            }),
+        [authService]
+    );
 
     const [state, setState] = useState<OverlayState>({
         status: 'idle',
@@ -182,6 +199,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
     const latestStateRef = useRef(state);
     const occupancyAnimationTokenRef = useRef(0);
     const skipNextMapGeneratedRef = useRef(false);
+    const didRestoreSessionRef = useRef(false);
 
     const cancelOccupancyAnimation = (): number => {
         occupancyAnimationTokenRef.current += 1;
@@ -260,6 +278,33 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
     useEffect(() => {
         latestStateRef.current = state;
     }, [state]);
+
+    useEffect(() => {
+        if (didRestoreSessionRef.current || !mapBridge) {
+            return;
+        }
+
+        didRestoreSessionRef.current = true;
+        void (async () => {
+            const restored = await authService.restoreSession();
+            if (!restored) {
+                return;
+            }
+
+            setState((current) => ({
+                ...current,
+                data: {
+                    ...current.data,
+                    authSession: restored,
+                },
+            }));
+
+            await loadOwnerGraph({
+                session: restored,
+                method: restored.method,
+            });
+        })();
+    }, [authService, mapBridge]);
 
     useEffect(() => {
         if (!mapBridge) {
@@ -575,13 +620,20 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         })();
     }, [state.status, state.data.activeProfilePubkey]);
 
-    const submitNpub = async (npub: string): Promise<void> => {
+    const loadOwnerGraph = async (input: {
+        session: AuthSessionState;
+        method: LoginMethod;
+        credential?: string;
+    }): Promise<void> => {
         if (!mapBridge) {
             setMapLoaderStage(null);
             setState({
                 status: 'error',
                 error: 'No se pudo conectar la capa Nostr con el mapa',
-                data: createInitialData(),
+                data: {
+                    ...createInitialData(),
+                    authSession: input.session,
+                },
             });
             return;
         }
@@ -599,7 +651,10 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 return loaded.length > 0 ? loaded : getBootstrapRelays();
             })();
             const client = createClient(configuredRelays);
-            const graph = await fetchFollowsByNpubFn(npub, client);
+            const graph =
+                input.method === 'npub' && input.credential
+                    ? await fetchFollowsByNpubFn(input.credential, client)
+                    : await fetchFollowsByPubkeyFn(input.session.pubkey, client);
             const follows = dedupe(graph.follows);
             const featuredPubkeys = FEATURED_OCCUPANT_PUBKEYS;
             const assignmentPubkeys = dedupe([...follows, ...featuredPubkeys]);
@@ -669,6 +724,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 status: 'loading_followers',
                 data: {
                     ownerPubkey: graph.ownerPubkey,
+                    authSession: input.session,
                     ownerProfile,
                     ownerBuildingIndex: resolveOwnerBuildingIndex(graph.ownerPubkey, buildings.length),
                     follows,
@@ -787,8 +843,89 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             setState({
                 status: 'error',
                 error: message,
-                data: createInitialData(),
+                data: {
+                    ...createInitialData(),
+                    authSession: input.session,
+                },
             });
+        }
+    };
+
+    const startSession = async (method: LoginMethod, input: ProviderResolveInput): Promise<void> => {
+        try {
+            const session = await authService.startSession(method, input);
+            setState((current) => ({
+                ...current,
+                data: {
+                    ...current.data,
+                    authSession: session,
+                },
+            }));
+
+            await loadOwnerGraph({
+                session,
+                method,
+                credential: input.credential,
+            });
+        } catch (error) {
+            setMapLoaderStage(null);
+            const message = error instanceof Error ? error.message : 'No se pudo iniciar sesion en Nostr';
+            setState((current) => ({
+                ...current,
+                status: 'error',
+                error: message,
+            }));
+        }
+    };
+
+    const submitNpub = async (npub: string): Promise<void> => {
+        await startSession('npub', { credential: npub });
+    };
+
+    const lockSession = async (): Promise<void> => {
+        const locked = await authService.lockSession();
+        if (!locked) {
+            return;
+        }
+
+        setState((current) => ({
+            ...current,
+            data: {
+                ...current.data,
+                authSession: locked,
+            },
+        }));
+    };
+
+    const unlockSession = async (passphrase: string): Promise<void> => {
+        const unlocked = await authService.unlockSession(passphrase);
+        setState((current) => ({
+            ...current,
+            data: {
+                ...current.data,
+                authSession: unlocked,
+            },
+        }));
+
+        await loadOwnerGraph({ session: unlocked, method: unlocked.method });
+    };
+
+    const logoutSession = async (): Promise<void> => {
+        await authService.logout();
+        cancelOccupancyAnimation();
+        setMapLoaderStage(null);
+
+        setState({
+            status: 'idle',
+            data: createInitialData(),
+        });
+
+        if (mapBridge) {
+            mapBridge.applyOccupancy({
+                byBuildingIndex: {},
+                selectedBuildingIndex: undefined,
+            });
+            mapBridge.setModalBuildingHighlight(undefined);
         }
     };
 
@@ -1004,6 +1141,9 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         status: state.status,
         mapLoaderStage,
         error: state.error,
+        authSession: state.data.authSession,
+        canWrite: isWriteEnabled(state.data.authSession),
+        canEncrypt: isEncryptionEnabled(state.data.authSession),
         ownerPubkey: state.data.ownerPubkey,
         ownerProfile: state.data.ownerProfile,
         ownerBuildingIndex: state.data.ownerBuildingIndex,
@@ -1037,6 +1177,11 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         unassignedCount: state.data.assignments.unassignedPubkeys.length,
         assignedCount,
         occupancyByBuildingIndex: state.data.assignments.byBuildingIndex,
+        startSession,
+        lockSession,
+        unlockSession,
+        logoutSession,
+        writeGateway,
         submitNpub,
         regenerateMap,
         selectFollowing,

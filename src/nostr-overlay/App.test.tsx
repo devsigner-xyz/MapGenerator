@@ -116,6 +116,28 @@ let mounted: RenderResult[] = [];
 
 beforeAll(() => {
     (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+
+    if (!Element.prototype.scrollIntoView) {
+        Element.prototype.scrollIntoView = () => {};
+    }
+
+    const htmlElementPrototype = HTMLElement.prototype as HTMLElement & {
+        hasPointerCapture?: (pointerId: number) => boolean;
+        setPointerCapture?: (pointerId: number) => void;
+        releasePointerCapture?: (pointerId: number) => void;
+    };
+
+    if (!htmlElementPrototype.hasPointerCapture) {
+        htmlElementPrototype.hasPointerCapture = () => false;
+    }
+
+    if (!htmlElementPrototype.setPointerCapture) {
+        htmlElementPrototype.setPointerCapture = () => {};
+    }
+
+    if (!htmlElementPrototype.releasePointerCapture) {
+        htmlElementPrototype.releasePointerCapture = () => {};
+    }
 });
 
 beforeEach(() => {
@@ -133,7 +155,7 @@ afterEach(async () => {
 });
 
 describe('Nostr overlay App', () => {
-    test('shows npub form and social tabs before loading a profile', async () => {
+    test('shows standalone login selector and hides social tabs before session starts', async () => {
         const { bridge } = createMapBridgeStub();
         const rendered = await renderApp(<App mapBridge={bridge} />);
         mounted.push(rendered);
@@ -142,10 +164,12 @@ describe('Nostr overlay App', () => {
         const content = rendered.container.textContent || '';
 
         expect(npubInput).not.toBeNull();
-        expect(content).toContain('Información');
-        expect(content).toContain('Sigues (0)');
-        expect(content).toContain('Seguidores (0)');
-        expect(content).toContain('Introduce una npub para ver el perfil.');
+        expect(content).toContain('Accede o explora');
+        expect(content).toContain('npub (solo lectura)');
+        expect(content).toContain('Metodo de acceso');
+        expect(content).not.toContain('Información');
+        expect(content).not.toContain('Sigues (0)');
+        expect(content).not.toContain('Seguidores (0)');
         expect(content).toContain('Visualize');
         expect(content).not.toContain('Cargar seguidos');
     });
@@ -201,6 +225,9 @@ describe('Nostr overlay App', () => {
         });
 
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+        expect(rendered.container.textContent || '').not.toContain('Accede o explora');
+        expect(rendered.container.textContent || '').not.toContain('Modo solo lectura. Cambia a nsec o extension para habilitar acciones de escritura.');
+        expect(rendered.container.textContent || '').toContain('Read Only');
 
         const avatar = rendered.container.querySelector('.nostr-profile-avatar') as HTMLImageElement;
         expect(avatar).toBeDefined();
@@ -740,13 +767,75 @@ describe('Nostr overlay App', () => {
         });
 
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
-        expect(rendered.container.textContent || '').toContain('Buscando seguidores en relays');
+        expect(rendered.container.textContent || '').not.toContain('Buscando seguidores en relays');
 
         await act(async () => {
             resolveFollowers?.();
         });
 
         await waitFor(() => !(rendered.container.textContent || '').includes('Buscando seguidores en relays'));
+    });
+
+    test('shows Read Only badge in expanded sidebar and hides it in compact mode', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+        const { bridge } = createMapBridgeStub(1);
+
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByNpubFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [followedPubkey],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                        [followedPubkey]: { pubkey: followedPubkey, displayName: 'Alice' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+        const form = rendered.container.querySelector('form');
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
+            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Read Only'));
+        const readOnlyBadge = rendered.container.querySelector('[data-slot="badge"]') as HTMLElement;
+        expect(readOnlyBadge).toBeDefined();
+        expect(readOnlyBadge.getAttribute('data-variant')).toBe('outline');
+
+        const hidePanelButton = rendered.container.querySelector('button[aria-label="Ocultar panel"]') as HTMLButtonElement;
+        expect(hidePanelButton).toBeDefined();
+
+        await act(async () => {
+            hidePanelButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(rendered.container.textContent || '').not.toContain('Read Only');
     });
 
     test('opens occupant modal and focuses building after occupied building click event', async () => {
@@ -1606,5 +1695,120 @@ describe('Nostr overlay App', () => {
             (button.textContent || '').includes('Agregar todos')
         );
         expect(addAllButton).toBeUndefined();
+    });
+
+    test('shows extension prompt close errors as sonner toast instead of inline sidebar error', async () => {
+        (window as any).nostr = {
+            getPublicKey: vi.fn().mockRejectedValue(new Error('Prompt was closed')),
+            signEvent: vi.fn(),
+        };
+
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(<App mapBridge={bridge} />);
+        mounted.push(rendered);
+
+        const methodSelectTrigger = rendered.container.querySelector('[data-slot="select-trigger"]') as HTMLButtonElement;
+        expect(methodSelectTrigger).toBeDefined();
+
+        await act(async () => {
+            methodSelectTrigger.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+            methodSelectTrigger.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+        });
+
+        const extensionMethodOption = Array.from(document.body.querySelectorAll('[data-slot="select-item"]')).find((item) =>
+            (item.textContent || '').includes('Extension (NIP-07)')
+        ) as HTMLElement;
+        expect(extensionMethodOption).toBeDefined();
+
+        await act(async () => {
+            extensionMethodOption.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+            extensionMethodOption.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+        });
+
+        const continueButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Continuar con extension')
+        ) as HTMLButtonElement;
+        expect(continueButton).toBeDefined();
+
+        await act(async () => {
+            continueButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (document.body.textContent || '').includes('Prompt was closed'));
+        expect(rendered.container.querySelector('.nostr-error')).toBeNull();
+
+        delete (window as any).nostr;
+    });
+
+    test('allows logout from settings modal', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+        const { bridge } = createMapBridgeStub(1);
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByNpubFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [followedPubkey],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                        [followedPubkey]: { pubkey: followedPubkey, displayName: 'Alice' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+        const form = rendered.container.querySelector('form');
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
+            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Información'));
+
+        const settingsButton = rendered.container.querySelector('button[aria-label="Abrir ajustes"]') as HTMLButtonElement;
+        await act(async () => {
+            settingsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Cerrar sesión'));
+
+        const logoutButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Cerrar sesión')
+        ) as HTMLButtonElement;
+        expect(logoutButton).toBeDefined();
+
+        await act(async () => {
+            logoutButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Accede o explora'));
+
+        const content = rendered.container.textContent || '';
+        expect(content).not.toContain('Información');
+        expect(content).not.toContain('Sigues (1)');
+        expect(content).not.toContain('Seguidores (0)');
     });
 });

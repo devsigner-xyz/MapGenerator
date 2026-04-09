@@ -46,6 +46,11 @@ function relayHintsFromKind3Event(event: NostrEvent): string[] {
 
 export async function fetchFollowsByNpub(npub: string, client: NostrClient): Promise<FollowGraphResult> {
     const ownerPubkey = decodeNpubToHex(npub);
+
+    return fetchFollowsByPubkey(ownerPubkey, client);
+}
+
+export async function fetchFollowsByPubkey(ownerPubkey: string, client: NostrClient): Promise<FollowGraphResult> {
     const cacheKey = `follows:${ownerPubkey}`;
 
     return followsCache.getOrLoad(cacheKey, async () => {
