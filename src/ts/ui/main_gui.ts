@@ -19,8 +19,14 @@ import CanvasWrapper from './canvas_wrapper';
 import Buildings, {BuildingModel} from './buildings';
 import PolygonUtil from '../impl/polygon_util';
 import { findOccupiedBuildingHit, type OccupiedBuildingHit } from './occupied_building_hit';
-import streetNamePool from '../../data/street-name-pool.json';
-import { createStreetLabels, normalizeStreetNamePool, type StreetNamePool } from './street_labels';
+import mapLabelNamePool from '../../data/map-label-name-pool.json';
+import {
+    createBigParkLabels,
+    createStreetLabels,
+    createWaterLabel,
+    normalizeMapLabelNamePool,
+    type MapLabelNamePool,
+} from './street_labels';
 import {
     TrafficParticlesSimulation,
     type TrafficRenderParticle,
@@ -73,7 +79,7 @@ export default class MainGUI {
     private streetLabelsEnabled = true;
     private streetLabelsZoomLevel = 10;
     private streetLabelUsernames: string[] = [];
-    private readonly streetNamePool: StreetNamePool = normalizeStreetNamePool(streetNamePool as StreetNamePool);
+    private readonly labelNamePool: MapLabelNamePool = normalizeMapLabelNamePool(mapLabelNamePool as MapLabelNamePool);
     private trafficParticlesCount = 12;
     private trafficParticlesSpeed = 1;
     private trafficParticlesWorld: TrafficRenderParticle[] = [];
@@ -322,9 +328,12 @@ export default class MainGUI {
             style.buildingModels = this.buildings.models;    
         }
 
+        const bigParksScreen = this.bigParks.map((park) => park.map((point) => this.domainController.worldToScreen(point.clone())));
+        const smallParksScreen = this.smallParks.map((park) => park.map((point) => this.domainController.worldToScreen(point.clone())));
+
         style.parks = [];
-        style.parks.push(...this.bigParks.map(p => p.map(v => this.domainController.worldToScreen(v.clone()))));
-        style.parks.push(...this.smallParks.map(p => p.map(v => this.domainController.worldToScreen(v.clone()))));
+        style.parks.push(...bigParksScreen);
+        style.parks.push(...smallParksScreen);
         style.minorRoads = this.minorRoads.roads;
         style.majorRoads = this.majorRoads.roads;
         style.mainRoads = this.mainRoads.roads;
@@ -344,15 +353,42 @@ export default class MainGUI {
         if (style.secondaryRiver.length > 1) {
             roadsForStreetLabels.push(style.secondaryRiver);
         }
-        style.streetLabels = createStreetLabels({
+        const streetLabels = createStreetLabels({
             enabled: this.streetLabelsEnabled,
             zoom: this.domainController.zoom,
             zoomThreshold: this.streetLabelsZoomLevel,
             roads: roadsForStreetLabels,
+            parks: style.parks,
             usernames: this.streetLabelUsernames,
-            pool: this.streetNamePool,
+            pool: this.labelNamePool.street,
             seed: this.getStreetLabelSeed(),
         });
+
+        const waterLabel = createWaterLabel({
+            polygon: style.seaPolygon,
+            pool: this.labelNamePool.water,
+            seed: this.getStreetLabelSeed(),
+        });
+
+        const bigParkLabels = createBigParkLabels({
+            polygons: bigParksScreen,
+            pool: this.labelNamePool.park,
+            seed: this.getStreetLabelSeed(),
+        });
+
+        style.streetLabels = [
+            ...streetLabels,
+            ...(waterLabel ? [{
+                ...waterLabel,
+                color: 'rgb(67, 120, 207)',
+                fontScale: 1.35,
+            }] : []),
+            ...bigParkLabels.map((label) => ({
+                ...label,
+                color: 'rgb(59, 139, 74)',
+                fontScale: 1.2,
+            })),
+        ];
         style.draw(customCanvas);
     }
 

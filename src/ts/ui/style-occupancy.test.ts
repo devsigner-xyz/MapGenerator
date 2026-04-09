@@ -293,4 +293,63 @@ describe('DefaultStyle occupied/selected rendering with building models', () => 
         expect(setFillStyle).toHaveBeenCalledWith('rgba(0, 0, 0, 0.16)');
         expect(setFillStyle).toHaveBeenCalledWith('rgba(0, 0, 0, 0.82)');
     });
+
+    test('draws styled map labels with per-label color and font scale', () => {
+        const drawRotatedText = vi.fn();
+        const setFillStyle = vi.fn();
+        const fakeCanvas = {
+            needsUpdate: false,
+            canvasScale: 1,
+            setFillStyle,
+            setStrokeStyle() {},
+            setLineWidth() {},
+            clearCanvas() {},
+            drawPolyline() {},
+            drawFrame() {},
+            drawPolygon() {},
+            drawCircle() {},
+            drawRotatedText,
+        };
+
+        class TestStyle extends DefaultStyle {
+            public createCanvasWrapper() {
+                return fakeCanvas as any;
+            }
+        }
+
+        const style = new TestStyle({} as HTMLCanvasElement, {} as any, { ...baseScheme }) as any;
+        style.streetLabels = [
+            {
+                text: 'Azul Mar',
+                anchor: new Vector(10, 10),
+                angleRad: 0,
+                color: 'rgb(67, 120, 207)',
+                fontScale: 1.35,
+            },
+            {
+                text: 'Central Parque',
+                anchor: new Vector(20, 20),
+                angleRad: 0,
+                color: 'rgb(59, 139, 74)',
+                fontScale: 1.2,
+            },
+        ];
+
+        const domainController = DomainController.getInstance();
+        domainController.zoom = 2;
+
+        style.draw();
+
+        expect(setFillStyle).toHaveBeenCalledWith('rgb(67, 120, 207)');
+        expect(setFillStyle).toHaveBeenCalledWith('rgb(59, 139, 74)');
+
+        const baseFontPx = Math.max(9, Math.min(14, 8 + domainController.zoom * 0.65));
+        const waterCall = drawRotatedText.mock.calls.find((call) => call[0] === 'Azul Mar');
+        const parkCall = drawRotatedText.mock.calls.find((call) => call[0] === 'Central Parque');
+
+        expect(waterCall).toBeDefined();
+        expect(parkCall).toBeDefined();
+        expect(waterCall![3]).toBeCloseTo(baseFontPx * 1.35, 5);
+        expect(parkCall![3]).toBeCloseTo(baseFontPx * 1.2, 5);
+    });
 });

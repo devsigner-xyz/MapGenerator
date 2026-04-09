@@ -1,21 +1,33 @@
 import Vector from '../vector';
 
-export interface StreetNamePool {
+export interface LabelNamePool {
     suffixes: string[];
     fallbackBases: string[];
 }
 
-export interface StreetLabel {
+export interface MapLabel {
     text: string;
     anchor: Vector;
     angleRad: number;
+    color?: string;
+    fontScale?: number;
 }
+
+export type StreetLabel = MapLabel;
+
+export interface MapLabelNamePool {
+    street: LabelNamePool;
+    water: LabelNamePool;
+    park: LabelNamePool;
+}
+
+export type StreetNamePool = LabelNamePool;
 
 export interface BuildStreetNamesInput {
     usernames?: string[];
     desiredCount: number;
     seed?: string;
-    pool?: StreetNamePool;
+    pool?: LabelNamePool;
 }
 
 export interface CreateStreetLabelsInput {
@@ -23,12 +35,25 @@ export interface CreateStreetLabelsInput {
     zoom: number;
     zoomThreshold: number;
     roads: Vector[][];
+    parks?: Vector[][];
     usernames?: string[];
     seed?: string;
-    pool?: StreetNamePool;
+    pool?: LabelNamePool;
     minRoadLengthPx?: number;
     minLabelSpacingPx?: number;
     maxLabels?: number;
+}
+
+export interface CreateWaterLabelInput {
+    polygon: Vector[];
+    seed?: string;
+    pool?: LabelNamePool;
+}
+
+export interface CreateBigParkLabelsInput {
+    polygons: Vector[][];
+    seed?: string;
+    pool?: LabelNamePool;
 }
 
 const DEFAULT_SEED = 'street-labels';
@@ -36,9 +61,25 @@ const DEFAULT_MIN_ROAD_LENGTH_PX = 120;
 const DEFAULT_MIN_LABEL_SPACING_PX = 110;
 const DEFAULT_MAX_LABELS = 48;
 
-const DEFAULT_STREET_NAME_POOL: StreetNamePool = {
+const DEFAULT_STREET_NAME_POOL: LabelNamePool = {
     suffixes: ['Street', 'Avenue', 'Lane', 'Road', 'Boulevard', 'Way'],
     fallbackBases: ['Relay', 'Zap', 'NIP-03'],
+};
+
+const DEFAULT_WATER_NAME_POOL: LabelNamePool = {
+    suffixes: ['Mar', 'Lago'],
+    fallbackBases: ['Azul', 'Atlantico'],
+};
+
+const DEFAULT_PARK_NAME_POOL: LabelNamePool = {
+    suffixes: ['Parque', 'Jardin'],
+    fallbackBases: ['Central', 'Verde'],
+};
+
+const DEFAULT_MAP_LABEL_NAME_POOL: MapLabelNamePool = {
+    street: DEFAULT_STREET_NAME_POOL,
+    water: DEFAULT_WATER_NAME_POOL,
+    park: DEFAULT_PARK_NAME_POOL,
 };
 
 interface RoadPlacement {
@@ -142,13 +183,25 @@ function resolveSeed(seed?: string): string {
     return normalized || DEFAULT_SEED;
 }
 
-export function normalizeStreetNamePool(pool?: StreetNamePool): StreetNamePool {
-    const suffixes = normalizeUniqueStrings(pool?.suffixes || DEFAULT_STREET_NAME_POOL.suffixes);
-    const fallbackBases = normalizeUniqueStrings(pool?.fallbackBases || DEFAULT_STREET_NAME_POOL.fallbackBases);
+function normalizeLabelNamePool(pool: Partial<LabelNamePool> | undefined, defaults: LabelNamePool): LabelNamePool {
+    const suffixes = normalizeUniqueStrings(pool?.suffixes || defaults.suffixes);
+    const fallbackBases = normalizeUniqueStrings(pool?.fallbackBases || defaults.fallbackBases);
 
     return {
-        suffixes: suffixes.length > 0 ? suffixes : DEFAULT_STREET_NAME_POOL.suffixes.slice(),
-        fallbackBases: fallbackBases.length > 0 ? fallbackBases : DEFAULT_STREET_NAME_POOL.fallbackBases.slice(),
+        suffixes: suffixes.length > 0 ? suffixes : defaults.suffixes.slice(),
+        fallbackBases: fallbackBases.length > 0 ? fallbackBases : defaults.fallbackBases.slice(),
+    };
+}
+
+export function normalizeStreetNamePool(pool?: LabelNamePool): LabelNamePool {
+    return normalizeLabelNamePool(pool, DEFAULT_STREET_NAME_POOL);
+}
+
+export function normalizeMapLabelNamePool(pool?: Partial<MapLabelNamePool>): MapLabelNamePool {
+    return {
+        street: normalizeLabelNamePool(pool?.street, DEFAULT_MAP_LABEL_NAME_POOL.street),
+        water: normalizeLabelNamePool(pool?.water, DEFAULT_MAP_LABEL_NAME_POOL.water),
+        park: normalizeLabelNamePool(pool?.park, DEFAULT_MAP_LABEL_NAME_POOL.park),
     };
 }
 
@@ -279,6 +332,50 @@ function measureRoadPlacement(road: Vector[], minRoadLengthPx: number, roadIndex
     };
 }
 
+function averagePoint(polygon: Vector[]): Vector {
+    if (polygon.length === 0) {
+        return Vector.zeroVector();
+    }
+
+    const sum = Vector.zeroVector();
+    for (const point of polygon) {
+        sum.add(point);
+    }
+
+    return sum.divideScalar(polygon.length);
+}
+
+function pointInsidePolygon(point: Vector, polygon: Vector[]): boolean {
+    if (polygon.length === 0) {
+        return false;
+    }
+
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const xi = polygon[i].x;
+        const yi = polygon[i].y;
+        const xj = polygon[j].x;
+        const yj = polygon[j].y;
+
+        const intersects = ((yi > point.y) !== (yj > point.y))
+            && (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);
+
+        if (intersects) {
+            inside = !inside;
+        }
+    }
+
+    return inside;
+}
+
+function isAnchorInsideAnyPark(anchor: Vector, parks: Vector[][]): boolean {
+    if (parks.length === 0) {
+        return false;
+    }
+
+    return parks.some((polygon) => pointInsidePolygon(anchor, polygon));
+}
+
 export function createStreetLabels(input: CreateStreetLabelsInput): StreetLabel[] {
     if (!input.enabled || !Number.isFinite(input.zoom) || input.zoom < input.zoomThreshold) {
         return [];
@@ -287,6 +384,7 @@ export function createStreetLabels(input: CreateStreetLabelsInput): StreetLabel[
     const minRoadLengthPx = Math.max(1, input.minRoadLengthPx || DEFAULT_MIN_ROAD_LENGTH_PX);
     const minLabelSpacingPx = Math.max(1, input.minLabelSpacingPx || DEFAULT_MIN_LABEL_SPACING_PX);
     const maxLabels = Math.max(1, Math.floor(input.maxLabels || DEFAULT_MAX_LABELS));
+    const parks = input.parks || [];
 
     const namesByRoadIndex = buildStreetNames({
         usernames: input.usernames || [],
@@ -300,6 +398,9 @@ export function createStreetLabels(input: CreateStreetLabelsInput): StreetLabel[
         const road = input.roads[roadIndex];
         const placement = measureRoadPlacement(road, minRoadLengthPx, roadIndex);
         if (!placement) {
+            continue;
+        }
+        if (isAnchorInsideAnyPark(placement.anchor, parks)) {
             continue;
         }
         candidates.push(placement);
@@ -331,5 +432,61 @@ export function createStreetLabels(input: CreateStreetLabelsInput): StreetLabel[
         text: namesByRoadIndex[placement.roadIndex] || `Relay Street ${placement.roadIndex + 1}`,
         anchor: placement.anchor,
         angleRad: placement.angleRad,
+    }));
+}
+
+function createAreaLabel(input: {
+    polygon: Vector[];
+    seed?: string;
+    pool?: LabelNamePool;
+    namespace: string;
+}): MapLabel | null {
+    if (!input.polygon || input.polygon.length < 3) {
+        return null;
+    }
+
+    const names = buildStreetNames({
+        desiredCount: 1,
+        seed: `${resolveSeed(input.seed)}:${input.namespace}`,
+        pool: input.pool,
+    });
+
+    const text = names[0];
+    if (!text) {
+        return null;
+    }
+
+    return {
+        text,
+        anchor: averagePoint(input.polygon),
+        angleRad: 0,
+    };
+}
+
+export function createWaterLabel(input: CreateWaterLabelInput): MapLabel | null {
+    return createAreaLabel({
+        polygon: input.polygon,
+        seed: input.seed,
+        pool: input.pool,
+        namespace: 'water',
+    });
+}
+
+export function createBigParkLabels(input: CreateBigParkLabelsInput): MapLabel[] {
+    const validPolygons = (input.polygons || []).filter((polygon) => polygon.length >= 3);
+    if (validPolygons.length === 0) {
+        return [];
+    }
+
+    const names = buildStreetNames({
+        desiredCount: validPolygons.length,
+        seed: `${resolveSeed(input.seed)}:parks`,
+        pool: input.pool,
+    });
+
+    return validPolygons.map((polygon, index) => ({
+        text: names[index] || `Parque ${index + 1}`,
+        anchor: averagePoint(polygon),
+        angleRad: 0,
     }));
 }

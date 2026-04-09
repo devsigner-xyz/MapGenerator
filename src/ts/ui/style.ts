@@ -253,9 +253,10 @@ export class DefaultStyle extends Style {
         }
 
         if (this.streetLabels.length > 0) {
-            const fontPx = Math.max(9, Math.min(14, 8 + this.domainController.zoom * 0.65));
-            canvas.setFillStyle('rgb(72,72,72)');
+            const baseFontPx = Math.max(9, Math.min(14, 8 + this.domainController.zoom * 0.65));
             for (const label of this.streetLabels) {
+                canvas.setFillStyle(label.color || 'rgb(72,72,72)');
+                const fontPx = baseFontPx * (label.fontScale || 1);
                 canvas.drawRotatedText(label.text, label.anchor, label.angleRad, fontPx);
             }
         }

@@ -2,14 +2,26 @@ import { describe, expect, test } from 'vitest';
 import Vector from '../vector';
 import {
     buildStreetNames,
+    createBigParkLabels,
     createStreetLabels,
-    normalizeStreetNamePool,
+    createWaterLabel,
+    normalizeMapLabelNamePool,
     normalizeTextAngle,
 } from './street_labels';
 
-const POOL = normalizeStreetNamePool({
-    suffixes: ['Street', 'Avenue', 'Lane', 'Road', 'Boulevard', 'Way'],
-    fallbackBases: ['Relay', 'Zap', 'NIP-03'],
+const POOL = normalizeMapLabelNamePool({
+    street: {
+        suffixes: ['Street', 'Avenue', 'Lane', 'Road', 'Boulevard', 'Way'],
+        fallbackBases: ['Relay', 'Zap', 'NIP-03'],
+    },
+    water: {
+        suffixes: ['Mar', 'Lago'],
+        fallbackBases: ['Azul', 'Atlantico'],
+    },
+    park: {
+        suffixes: ['Parque', 'Jardin'],
+        fallbackBases: ['Central', 'Verde'],
+    },
 });
 
 function scaleRoads(roads: Vector[][], factor: number): Vector[][] {
@@ -17,12 +29,23 @@ function scaleRoads(roads: Vector[][], factor: number): Vector[][] {
 }
 
 describe('street_labels', () => {
+    test('normalizacion del pool generico conserva categorias y strings unicos', () => {
+        const normalizedPool = normalizeMapLabelNamePool({
+            street: { suffixes: ['Street'], fallbackBases: ['Relay'] },
+            water: { suffixes: ['Mar', 'Lago'], fallbackBases: ['Atlantico'] },
+            park: { suffixes: ['Parque', 'Jardin'], fallbackBases: ['Central'] },
+        });
+
+        expect(normalizedPool.water.suffixes).toEqual(['Mar', 'Lago']);
+        expect(normalizedPool.park.suffixes).toEqual(['Parque', 'Jardin']);
+    });
+
     test('buildStreetNames prioritizes usernames and falls back to pool', () => {
         const names = buildStreetNames({
             usernames: ['alice'],
             desiredCount: 3,
             seed: 'seed-1',
-            pool: POOL,
+            pool: POOL.street,
         });
 
         expect(names).toHaveLength(3);
@@ -36,13 +59,13 @@ describe('street_labels', () => {
             usernames: ['alice', 'bob'],
             desiredCount: 6,
             seed: 'seed-stable',
-            pool: POOL,
+            pool: POOL.street,
         });
         const second = buildStreetNames({
             usernames: ['alice', 'bob'],
             desiredCount: 6,
             seed: 'seed-stable',
-            pool: POOL,
+            pool: POOL.street,
         });
 
         expect(first).toEqual(second);
@@ -78,7 +101,7 @@ describe('street_labels', () => {
             zoom: 12,
             zoomThreshold: 10,
             roads,
-            pool: POOL,
+            pool: POOL.street,
         })).toEqual([]);
 
         expect(createStreetLabels({
@@ -86,7 +109,7 @@ describe('street_labels', () => {
             zoom: 9,
             zoomThreshold: 10,
             roads,
-            pool: POOL,
+            pool: POOL.street,
         })).toEqual([]);
     });
 
@@ -101,7 +124,7 @@ describe('street_labels', () => {
             ],
             usernames: ['alice'],
             seed: 'city-seed',
-            pool: POOL,
+            pool: POOL.street,
             minRoadLengthPx: 100,
         });
 
@@ -121,7 +144,7 @@ describe('street_labels', () => {
                 [new Vector(0, 40), new Vector(300, 40)],
             ],
             seed: 'spacing-seed',
-            pool: POOL,
+            pool: POOL.street,
             minRoadLengthPx: 100,
             minLabelSpacingPx: 120,
         });
@@ -142,7 +165,7 @@ describe('street_labels', () => {
             zoomThreshold: 10,
             roads: scaleRoads(baseRoads, 1),
             seed: 'stable-name-seed',
-            pool: POOL,
+            pool: POOL.street,
             minRoadLengthPx: 100,
             minLabelSpacingPx: 120,
         });
@@ -153,7 +176,7 @@ describe('street_labels', () => {
             zoomThreshold: 10,
             roads: scaleRoads(baseRoads, 3),
             seed: 'stable-name-seed',
-            pool: POOL,
+            pool: POOL.street,
             minRoadLengthPx: 100,
             minLabelSpacingPx: 120,
         });
@@ -162,5 +185,43 @@ describe('street_labels', () => {
         const highFarRoad = labelsHighZoom.reduce((best, current) => (current.anchor.y > best.anchor.y ? current : best), labelsHighZoom[0]);
 
         expect(lowFarRoad.text).toBe(highFarRoad.text);
+    });
+
+    test('createStreetLabels exclusion por parque', () => {
+        const labels = createStreetLabels({
+            enabled: true,
+            zoom: 12,
+            zoomThreshold: 10,
+            roads: [[new Vector(20, 20), new Vector(220, 20)]],
+            parks: [[new Vector(0, 0), new Vector(260, 0), new Vector(260, 80), new Vector(0, 80)]],
+            pool: POOL.street,
+            minRoadLengthPx: 100,
+        });
+
+        expect(labels).toEqual([]);
+    });
+
+    test('createWaterLabel crea label determinista de mar', () => {
+        const waterLabel = createWaterLabel({
+            polygon: [new Vector(0, 0), new Vector(200, 0), new Vector(200, 120), new Vector(0, 120)],
+            seed: 'seed-city',
+            pool: POOL.water,
+        });
+
+        expect(waterLabel?.text).toMatch(/(Mar|Lago)$/);
+    });
+
+    test('createBigParkLabels crea una etiqueta por parque grande', () => {
+        const parkLabels = createBigParkLabels({
+            polygons: [
+                [new Vector(0, 0), new Vector(180, 0), new Vector(180, 180), new Vector(0, 180)],
+                [new Vector(220, 0), new Vector(420, 0), new Vector(420, 220), new Vector(220, 220)],
+            ],
+            seed: 'seed-city',
+            pool: POOL.park,
+        });
+
+        expect(parkLabels).toHaveLength(2);
+        expect(parkLabels[0].text).toMatch(/(Parque|Jardin)$/);
     });
 });
