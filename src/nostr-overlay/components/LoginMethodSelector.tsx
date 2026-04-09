@@ -18,24 +18,28 @@ import { toast } from 'sonner';
 interface LoginMethodSelectorProps {
     disabled?: boolean;
     onStartSession: (method: LoginMethod, input: ProviderResolveInput) => Promise<void> | void;
+    initialMethod?: SelectorMethod;
 }
 
-type SelectorMethod = 'npub' | 'nsec' | 'nip07';
+type SelectorMethod = 'npub' | 'nsec' | 'nip07' | 'nip46';
 
 const selectorMethodLabels: Record<SelectorMethod, string> = {
     npub: 'npub (solo lectura)',
     nsec: 'nsec',
     nip07: 'Extension (NIP-07)',
+    nip46: 'Bunker (NIP-46)',
 };
 
 export function LoginMethodSelector({
     disabled = false,
     onStartSession,
+    initialMethod = 'npub',
 }: LoginMethodSelectorProps) {
-    const [method, setMethod] = useState<SelectorMethod>('npub');
+    const [method, setMethod] = useState<SelectorMethod>(initialMethod);
     const [npub, setNpub] = useState('');
     const [nsec, setNsec] = useState('');
     const [nsecPassphrase, setNsecPassphrase] = useState('');
+    const [bunkerUri, setBunkerUri] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const run = async (action: () => Promise<void> | void) => {
@@ -79,6 +83,18 @@ export function LoginMethodSelector({
 
     const isBusy = disabled || isSubmitting;
 
+    const handleNip46Submit = async (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        const value = bunkerUri.trim();
+        if (!value) {
+            return;
+        }
+
+        await run(async () => {
+            await onStartSession('nip46', { bunkerUri: value });
+        });
+    };
+
     return (
         <section className="nostr-login-selector" aria-label="Selector de login de Nostr">
             <p className="nostr-kicker">Accede o explora</p>
@@ -96,6 +112,7 @@ export function LoginMethodSelector({
                             <SelectItem value="npub">{selectorMethodLabels.npub}</SelectItem>
                             <SelectItem value="nsec">{selectorMethodLabels.nsec}</SelectItem>
                             <SelectItem value="nip07">{selectorMethodLabels.nip07}</SelectItem>
+                            <SelectItem value="nip46">{selectorMethodLabels.nip46}</SelectItem>
                         </SelectGroup>
                     </SelectContent>
                 </Select>
@@ -196,6 +213,30 @@ export function LoginMethodSelector({
                         ) : 'Continuar con extension'}
                     </Button>
                 </div>
+            ) : null}
+
+            {method === 'nip46' ? (
+                <form className="nostr-form" onSubmit={handleNip46Submit}>
+                    <Label className="nostr-label" htmlFor="nostr-bunker-uri-input">
+                        URI de bunker
+                    </Label>
+
+                    <div className="nostr-npub-row">
+                        <Input
+                            id="nostr-bunker-uri-input"
+                            name="bunker-uri"
+                            className="nostr-input"
+                            placeholder="bunker://... o nostrconnect://..."
+                            value={bunkerUri}
+                            disabled={isBusy}
+                            onChange={(event) => setBunkerUri(event.target.value)}
+                        />
+
+                        <Button className="nostr-submit" type="submit" disabled={isBusy || bunkerUri.trim().length === 0}>
+                            Conectar bunker
+                        </Button>
+                    </div>
+                </form>
             ) : null}
         </section>
     );

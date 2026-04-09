@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { createAuthService } from './auth-service';
 import { AUTH_SESSION_STORAGE_KEY } from './secure-storage';
+import { AUTH_PROVIDER_ERROR } from './providers/types';
 
 const SAMPLE_NPUB = 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw';
 const SAMPLE_NSEC = 'nsec1vl029mgpspedva04g90vltkh6fvh240zqtv9k0t9af8935ke9laqsnlfe5';
@@ -111,6 +112,19 @@ describe('createAuthService', () => {
         expect(session.method).toBe('nip07');
         expect(session.readonly).toBe(false);
         expect(session.capabilities.canEncrypt).toBe(true);
+    });
+
+    test('returns provider unavailable for nip46 when runtime adapter is not configured', async () => {
+        const storage = createMemoryStorage();
+        const auth = createAuthService({ storage });
+
+        await expect(
+            auth.startSession('nip46', {
+                bunkerUri: `bunker://${'a'.repeat(64)}?relay=wss://relay.example.com`,
+            })
+        ).rejects.toMatchObject({
+            code: AUTH_PROVIDER_ERROR.AUTH_PROVIDER_UNAVAILABLE,
+        });
     });
 
     test('logout clears persisted session and notifies subscribers', async () => {

@@ -1,4 +1,5 @@
 import { decodeNpubToHex, decodeNsecToHex, isHexKey } from '../npub';
+import { parseNip46Uri, type ParsedNip46Uri } from './providers/nip46/uri';
 
 export type CredentialKind = 'npub' | 'nsec' | 'hex' | 'bunker' | 'unknown';
 
@@ -25,6 +26,7 @@ export interface ParsedHexCredential extends BaseParsedCredential {
 export interface ParsedBunkerCredential extends BaseParsedCredential {
     kind: 'bunker';
     bunkerUri: string;
+    parsedNip46: ParsedNip46Uri;
 }
 
 export type ParsedCredential =
@@ -49,6 +51,10 @@ export function detectCredentialKind(value: string): CredentialKind {
     }
 
     if (normalized.startsWith('bunker://')) {
+        return 'bunker';
+    }
+
+    if (normalized.startsWith('nostrconnect://')) {
         return 'bunker';
     }
 
@@ -92,6 +98,7 @@ export function parseCredential(value: string): ParsedCredential {
             kind,
             original,
             bunkerUri: original,
+            parsedNip46: parseNip46Uri(original),
         };
     }
 

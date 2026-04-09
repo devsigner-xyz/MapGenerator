@@ -8,7 +8,12 @@ interface RenderResult {
     root: Root;
 }
 
-async function renderSelector(input: { disabled?: boolean } = {}): Promise<RenderResult> {
+interface RenderSelectorInput {
+    disabled?: boolean;
+    initialMethod?: 'npub' | 'nsec' | 'nip07' | 'nip46';
+}
+
+async function renderSelector(input: RenderSelectorInput = {}): Promise<RenderResult> {
     const container = document.createElement('div');
     document.body.appendChild(container);
     const root = createRoot(container);
@@ -20,6 +25,7 @@ async function renderSelector(input: { disabled?: boolean } = {}): Promise<Rende
             <LoginMethodSelector
                 disabled={input.disabled ?? false}
                 onStartSession={onStartSession}
+                initialMethod={input.initialMethod}
             />
         );
     });
@@ -105,5 +111,29 @@ describe('LoginMethodSelector', () => {
         expect(submitButton.textContent || '').toContain('Cargando');
         const spinner = submitButton.querySelector('[aria-label="Loading"]');
         expect(spinner).toBeDefined();
+    });
+
+    test('submits bunker uri through nip46 method', async () => {
+        const rendered = await renderSelector({ initialMethod: 'nip46' });
+        mounted.push(rendered);
+
+        const handlers = (rendered.container as any).__handlers;
+        const bunkerInput = rendered.container.querySelector('input[name="bunker-uri"]') as HTMLInputElement;
+        const form = rendered.container.querySelector('form');
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(bunkerInput, `bunker://${'a'.repeat(64)}?relay=wss://relay.example.com`);
+            bunkerInput.dispatchEvent(new Event('input', { bubbles: true }));
+            bunkerInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        });
+
+        expect(handlers.onStartSession).toHaveBeenCalledWith('nip46', {
+            bunkerUri: `bunker://${'a'.repeat(64)}?relay=wss://relay.example.com`,
+        });
     });
 });

@@ -20,6 +20,7 @@ describe('detectCredentialKind', () => {
         expectKind(SAMPLE_NSEC, 'nsec');
         expectKind(SAMPLE_HEX, 'hex');
         expectKind('bunker://abc?relay=wss://relay.example.com', 'bunker');
+        expectKind('nostrconnect://abc?relay=wss://relay.example.com&secret=test', 'bunker');
     });
 
     test('returns unknown when marker is unsupported', () => {
@@ -61,7 +62,8 @@ describe('parseCredential', () => {
     });
 
     test('parses bunker marker as nip46 candidate', () => {
-        const uri = 'bunker://abcd1234?relay=wss://relay.example.com';
+        const signerPubkey = 'a'.repeat(64);
+        const uri = `bunker://${signerPubkey}?relay=wss://relay.example.com`;
         const parsed = parseCredential(uri);
 
         expect(parsed.kind).toBe('bunker');
@@ -71,6 +73,33 @@ describe('parseCredential', () => {
 
         expect(parsed.original).toBe(uri);
         expect(parsed.bunkerUri).toBe(uri);
+        expect(parsed.parsedNip46.type).toBe('bunker');
+        if (parsed.parsedNip46.type !== 'bunker') {
+            throw new Error('Expected bunker URI parsing result');
+        }
+
+        expect(parsed.parsedNip46.remoteSignerPubkey).toBe(signerPubkey);
+        expect(parsed.parsedNip46.relays).toEqual(['wss://relay.example.com']);
+    });
+
+    test('parses nostrconnect marker as nip46 candidate', () => {
+        const clientPubkey = 'b'.repeat(64);
+        const uri = `nostrconnect://${clientPubkey}?relay=wss://relay.example.com&secret=my-secret&perms=sign_event%3A1`;
+        const parsed = parseCredential(uri);
+
+        expect(parsed.kind).toBe('bunker');
+        if (parsed.kind !== 'bunker') {
+            throw new Error('Expected bunker credential');
+        }
+
+        expect(parsed.parsedNip46.type).toBe('nostrconnect');
+        if (parsed.parsedNip46.type !== 'nostrconnect') {
+            throw new Error('Expected nostrconnect URI parsing result');
+        }
+
+        expect(parsed.parsedNip46.clientPubkey).toBe(clientPubkey);
+        expect(parsed.parsedNip46.secret).toBe('my-secret');
+        expect(parsed.parsedNip46.perms).toEqual(['sign_event:1']);
     });
 
     test('throws for unsupported credential format', () => {
@@ -79,5 +108,11 @@ describe('parseCredential', () => {
 
     test('throws for invalid nsec even if it has nsec prefix', () => {
         expect(() => parseCredential('nsec1invalid')).toThrow('Provided identifier is not an nsec key');
+    });
+
+    test('throws for invalid bunker uri payload', () => {
+        expect(() => parseCredential(`bunker://${'a'.repeat(64)}`)).toThrow(
+            'bunker uri requires at least one relay'
+        );
     });
 });
