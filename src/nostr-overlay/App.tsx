@@ -9,6 +9,7 @@ import { SocialSidebar } from './components/SocialSidebar';
 import { MapZoomControls } from './components/MapZoomControls';
 import { CityStatsModal } from './components/CityStatsModal';
 import { useNostrOverlay, type MapLoaderStage, type NostrOverlayServices } from './hooks/useNostrOverlay';
+import { useNip05Verification } from './hooks/useNip05Verification';
 import type { MapBridge, OccupiedBuildingContextPayload } from './map-bridge';
 import { extractStreetLabelUsernames } from './domain/street-label-users';
 import { Button } from '@/components/ui/button';
@@ -70,6 +71,61 @@ export function App({ mapBridge, services }: AppProps) {
         occupancyByBuildingIndex: overlay.occupancyByBuildingIndex,
         profiles: overlay.profiles,
     }), [overlay.occupancyByBuildingIndex, overlay.profiles]);
+    const verificationProfilesByPubkey = useMemo(() => {
+        const merged = {
+            ...overlay.profiles,
+            ...overlay.followerProfiles,
+            ...overlay.activeProfileNetworkProfiles,
+        };
+
+        if (overlay.ownerPubkey && overlay.ownerProfile) {
+            merged[overlay.ownerPubkey] = overlay.ownerProfile;
+        }
+
+        if (overlay.activeProfilePubkey && overlay.activeProfile) {
+            merged[overlay.activeProfilePubkey] = overlay.activeProfile;
+        }
+
+        return merged;
+    }, [
+        overlay.profiles,
+        overlay.followerProfiles,
+        overlay.activeProfileNetworkProfiles,
+        overlay.ownerPubkey,
+        overlay.ownerProfile,
+        overlay.activeProfilePubkey,
+        overlay.activeProfile,
+    ]);
+    const verificationTargetPubkeys = useMemo(() => {
+        const occupiedPubkeys = Object.values(overlay.occupancyByBuildingIndex);
+        return [...new Set([
+            ...(overlay.ownerPubkey ? [overlay.ownerPubkey] : []),
+            ...overlay.follows,
+            ...overlay.followers,
+            ...occupiedPubkeys,
+            ...(overlay.activeProfilePubkey ? [overlay.activeProfilePubkey] : []),
+        ])];
+    }, [
+        overlay.ownerPubkey,
+        overlay.follows,
+        overlay.followers,
+        overlay.occupancyByBuildingIndex,
+        overlay.activeProfilePubkey,
+    ]);
+    const verificationByPubkey = useNip05Verification({
+        profilesByPubkey: verificationProfilesByPubkey,
+        targetPubkeys: verificationTargetPubkeys,
+    });
+    const verifiedBuildingIndexes = useMemo(() => {
+        if (!uiSettings.verifiedBuildingsOverlayEnabled) {
+            return [] as number[];
+        }
+
+        return Object.entries(overlay.occupancyByBuildingIndex)
+            .filter(([, pubkey]) => verificationByPubkey[pubkey]?.status === 'verified')
+            .map(([buildingIndex]) => Number(buildingIndex))
+            .filter((value) => Number.isInteger(value) && value >= 0);
+    }, [uiSettings.verifiedBuildingsOverlayEnabled, overlay.occupancyByBuildingIndex, verificationByPubkey]);
 
     useEffect(() => {
         if (!mapBridge) {
@@ -107,6 +163,14 @@ export function App({ mapBridge, services }: AppProps) {
 
         mapBridge.setStreetLabelUsernames(streetLabelUsernames);
     }, [mapBridge, streetLabelUsernames]);
+
+    useEffect(() => {
+        if (!mapBridge) {
+            return;
+        }
+
+        mapBridge.setVerifiedBuildingIndexes(verifiedBuildingIndexes);
+    }, [mapBridge, verifiedBuildingIndexes]);
 
     useEffect(() => {
         if (overlay.status !== 'error' || !overlay.error) {
@@ -396,6 +460,7 @@ export function App({ mapBridge, services }: AppProps) {
                         canWrite={overlay.canWrite}
                         canEncrypt={overlay.canEncrypt}
                         onStartSession={overlay.startSession}
+                        verificationByPubkey={verificationByPubkey}
                     />
                 </section>
             )}
@@ -545,6 +610,7 @@ export function App({ mapBridge, services }: AppProps) {
                     networkProfiles={overlay.activeProfileNetworkProfiles}
                     networkLoading={overlay.activeProfileNetworkLoading}
                     networkError={overlay.activeProfileNetworkError}
+                    verification={verificationByPubkey[overlay.activeProfilePubkey]}
                     onLoadMorePosts={overlay.loadMoreActiveProfilePosts}
                     onClose={overlay.closeActiveProfileModal}
                 />

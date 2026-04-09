@@ -459,6 +459,46 @@
     font-size: 0.92rem;
 }
 
+.nostr-identity-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    max-width: 100%;
+}
+
+.nostr-nip05-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.24rem;
+    font-size: 0.66rem;
+    line-height: 1;
+    border: 1px solid rgba(166, 180, 190, 0.95);
+    color: #4a6472;
+    background: rgba(245, 249, 252, 0.95);
+    border-radius: 999px;
+    padding: 0.16rem 0.42rem;
+    max-width: 150px;
+    flex-shrink: 0;
+}
+
+.nostr-nip05-chip.is-verified {
+    border-color: rgba(89, 154, 105, 0.9);
+    color: #1f6130;
+    background: rgba(224, 246, 231, 0.95);
+}
+
+.nostr-nip05-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 118px;
+}
+
+.nostr-nip05-check {
+    font-size: 0.68rem;
+    font-weight: 700;
+}
+
 .nostr-profile-pubkey {
     margin: 0.14rem 0 0;
     font-size: 0.76rem;

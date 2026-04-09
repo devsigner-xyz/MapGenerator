@@ -7,6 +7,7 @@ function createMainApiStub(overrides: Partial<MapMainApi> = {}): MapMainApi {
         roadsEmpty: vi.fn().mockReturnValue(false),
         getBuildingCentroidsWorld: vi.fn().mockReturnValue([{ x: 10, y: 20 }, { x: 30, y: 40 }]),
         setOccupancyByBuildingIndex: vi.fn(),
+        setVerifiedBuildingIndexes: vi.fn(),
         setViewportInsetLeft: vi.fn(),
         setSelectedBuildingIndex: vi.fn(),
         setModalHighlightedBuildingIndex: vi.fn(),
@@ -109,6 +110,15 @@ describe('createMapBridge', () => {
 
         expect(api.setViewportInsetLeft).toHaveBeenNthCalledWith(1, 380);
         expect(api.setViewportInsetLeft).toHaveBeenNthCalledWith(2, 0);
+    });
+
+    test('setVerifiedBuildingIndexes delegates verified indexes to map api', () => {
+        const api = createMainApiStub();
+        const bridge = createMapBridge(api);
+
+        bridge.setVerifiedBuildingIndexes([1, 4, 9]);
+
+        expect(api.setVerifiedBuildingIndexes).toHaveBeenCalledWith([1, 4, 9]);
     });
 
     test('street label settings delegate to map api', () => {

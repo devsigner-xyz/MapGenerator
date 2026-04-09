@@ -1,6 +1,7 @@
 export const UI_SETTINGS_STORAGE_KEY = 'nostr.overlay.ui.v1';
 const DEFAULT_OCCUPIED_LABELS_ZOOM_LEVEL = 8;
 const DEFAULT_STREET_LABELS_ENABLED = true;
+const DEFAULT_VERIFIED_BUILDINGS_OVERLAY_ENABLED = false;
 const DEFAULT_STREET_LABELS_ZOOM_LEVEL = 10;
 const DEFAULT_TRAFFIC_PARTICLES_COUNT = 12;
 const DEFAULT_TRAFFIC_PARTICLES_SPEED = 1;
@@ -8,6 +9,7 @@ const DEFAULT_TRAFFIC_PARTICLES_SPEED = 1;
 interface UiSettingsPayload {
     occupiedLabelsZoomLevel?: number;
     streetLabelsEnabled?: boolean;
+    verifiedBuildingsOverlayEnabled?: boolean;
     streetLabelsZoomLevel?: number;
     trafficParticlesCount?: number;
     trafficParticlesSpeed?: number;
@@ -21,6 +23,7 @@ interface StorageLike {
 export interface UiSettingsState {
     occupiedLabelsZoomLevel: number;
     streetLabelsEnabled: boolean;
+    verifiedBuildingsOverlayEnabled: boolean;
     streetLabelsZoomLevel: number;
     trafficParticlesCount: number;
     trafficParticlesSpeed: number;
@@ -58,6 +61,10 @@ function normalizeStreetLabelsEnabled(value: boolean): boolean {
     return typeof value === 'boolean' ? value : DEFAULT_STREET_LABELS_ENABLED;
 }
 
+function normalizeVerifiedBuildingsOverlayEnabled(value: boolean): boolean {
+    return typeof value === 'boolean' ? value : DEFAULT_VERIFIED_BUILDINGS_OVERLAY_ENABLED;
+}
+
 function normalizeTrafficParticlesCount(value: number): number {
     if (!Number.isFinite(value)) {
         return DEFAULT_TRAFFIC_PARTICLES_COUNT;
@@ -87,6 +94,7 @@ export function getDefaultUiSettings(): UiSettingsState {
     return {
         occupiedLabelsZoomLevel: DEFAULT_OCCUPIED_LABELS_ZOOM_LEVEL,
         streetLabelsEnabled: DEFAULT_STREET_LABELS_ENABLED,
+        verifiedBuildingsOverlayEnabled: DEFAULT_VERIFIED_BUILDINGS_OVERLAY_ENABLED,
         streetLabelsZoomLevel: DEFAULT_STREET_LABELS_ZOOM_LEVEL,
         trafficParticlesCount: DEFAULT_TRAFFIC_PARTICLES_COUNT,
         trafficParticlesSpeed: DEFAULT_TRAFFIC_PARTICLES_SPEED,
@@ -112,6 +120,7 @@ export function loadUiSettings(storage: StorageLike | null = getDefaultStorage()
         return {
             occupiedLabelsZoomLevel: normalizeOccupiedLabelsZoomLevel(parsed.occupiedLabelsZoomLevel),
             streetLabelsEnabled: normalizeStreetLabelsEnabled(parsed.streetLabelsEnabled),
+            verifiedBuildingsOverlayEnabled: normalizeVerifiedBuildingsOverlayEnabled(parsed.verifiedBuildingsOverlayEnabled),
             streetLabelsZoomLevel: normalizeStreetLabelsZoomLevel(parsed.streetLabelsZoomLevel),
             trafficParticlesCount: normalizeTrafficParticlesCount(parsed.trafficParticlesCount),
             trafficParticlesSpeed: normalizeTrafficParticlesSpeed(parsed.trafficParticlesSpeed),
@@ -128,6 +137,7 @@ export function saveUiSettings(
     const nextState: UiSettingsState = {
         occupiedLabelsZoomLevel: normalizeOccupiedLabelsZoomLevel(state.occupiedLabelsZoomLevel),
         streetLabelsEnabled: normalizeStreetLabelsEnabled(state.streetLabelsEnabled),
+        verifiedBuildingsOverlayEnabled: normalizeVerifiedBuildingsOverlayEnabled(state.verifiedBuildingsOverlayEnabled),
         streetLabelsZoomLevel: normalizeStreetLabelsZoomLevel(state.streetLabelsZoomLevel),
         trafficParticlesCount: normalizeTrafficParticlesCount(state.trafficParticlesCount),
         trafficParticlesSpeed: normalizeTrafficParticlesSpeed(state.trafficParticlesSpeed),
@@ -137,6 +147,7 @@ export function saveUiSettings(
         const payload: UiSettingsPayload = {
             occupiedLabelsZoomLevel: nextState.occupiedLabelsZoomLevel,
             streetLabelsEnabled: nextState.streetLabelsEnabled,
+            verifiedBuildingsOverlayEnabled: nextState.verifiedBuildingsOverlayEnabled,
             streetLabelsZoomLevel: nextState.streetLabelsZoomLevel,
             trafficParticlesCount: nextState.trafficParticlesCount,
             trafficParticlesSpeed: nextState.trafficParticlesSpeed,

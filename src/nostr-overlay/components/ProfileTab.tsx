@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
+import type { Nip05ValidationResult } from '../../nostr/nip05';
 import type { AuthSessionState } from '../../nostr/auth/session';
 import type { NostrProfile } from '../../nostr/types';
 import { encodeHexToNpub } from '../../nostr/npub';
+import { Nip05Identifier } from './Nip05Identifier';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
@@ -16,6 +18,7 @@ interface ProfileTabProps {
     canEncrypt?: boolean;
     onLocateOwner?: () => void;
     onCopyOwnerNpub?: (value: string) => void | Promise<void>;
+    ownerVerification?: Nip05ValidationResult;
 }
 
 function displayName(profile: NostrProfile | undefined, fallback: string): string {
@@ -33,6 +36,7 @@ export function ProfileTab({
     canEncrypt = false,
     onLocateOwner,
     onCopyOwnerNpub,
+    ownerVerification,
 }: ProfileTabProps) {
     const [avatarLoadError, setAvatarLoadError] = useState(false);
 
@@ -92,7 +96,10 @@ export function ProfileTab({
                     )}
 
                     <div>
-                        <p className="nostr-profile-name">{displayName(ownerProfile, shortPubkey)}</p>
+                        <p className="nostr-profile-name nostr-identity-row">
+                            <span className="truncate">{displayName(ownerProfile, shortPubkey)}</span>
+                            <Nip05Identifier profile={ownerProfile} verification={ownerVerification} />
+                        </p>
                         <p className="nostr-profile-pubkey">{pubkeyLabel}</p>
                     </div>
                 </div>

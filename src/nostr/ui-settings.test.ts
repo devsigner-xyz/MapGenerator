@@ -16,6 +16,7 @@ describe('ui-settings', () => {
         expect(state).toEqual(getDefaultUiSettings());
         expect(state.occupiedLabelsZoomLevel).toBe(8);
         expect(state.streetLabelsEnabled).toBe(true);
+        expect(state.verifiedBuildingsOverlayEnabled).toBe(false);
         expect(state.streetLabelsZoomLevel).toBe(10);
         expect(state.trafficParticlesCount).toBe(12);
         expect(state.trafficParticlesSpeed).toBe(1);
@@ -31,6 +32,7 @@ describe('ui-settings', () => {
             {
                 occupiedLabelsZoomLevel: 99,
                 streetLabelsEnabled: true,
+                verifiedBuildingsOverlayEnabled: true,
                 streetLabelsZoomLevel: 99,
                 trafficParticlesCount: 99,
                 trafficParticlesSpeed: 99,
@@ -53,6 +55,7 @@ describe('ui-settings', () => {
             {
                 occupiedLabelsZoomLevel: 8,
                 streetLabelsEnabled: true,
+                verifiedBuildingsOverlayEnabled: false,
                 streetLabelsZoomLevel: 10,
                 trafficParticlesCount: -5,
                 trafficParticlesSpeed: -10,
@@ -77,5 +80,17 @@ describe('ui-settings', () => {
 
         const loaded = loadUiSettings(window.localStorage);
         expect(loaded.streetLabelsEnabled).toBe(true);
+    });
+
+    test('normalizes verified buildings overlay flag when payload is malformed', () => {
+        window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({
+            occupiedLabelsZoomLevel: 8,
+            streetLabelsEnabled: true,
+            verifiedBuildingsOverlayEnabled: 'true',
+            streetLabelsZoomLevel: 10,
+        }));
+
+        const loaded = loadUiSettings(window.localStorage);
+        expect(loaded.verifiedBuildingsOverlayEnabled).toBe(false);
     });
 });

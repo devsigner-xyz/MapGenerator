@@ -36,6 +36,7 @@ export interface NostrProfile {
     name?: string;
     displayName?: string;
     picture?: string;
+    nip05?: string;
 }
 
 export interface FollowGraphResult {

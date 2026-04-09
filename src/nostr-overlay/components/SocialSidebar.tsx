@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import { encodeHexToNpub } from '../../nostr/npub';
+import type { Nip05ValidationResult } from '../../nostr/nip05';
 import type { ProviderResolveInput } from '../../nostr/auth/providers/types';
 import type { AuthSessionState, LoginMethod } from '../../nostr/auth/session';
 import type { NostrProfile } from '../../nostr/types';
@@ -27,6 +29,7 @@ interface SocialSidebarProps {
     canWrite?: boolean;
     canEncrypt?: boolean;
     onStartSession?: (method: LoginMethod, input: ProviderResolveInput) => Promise<void> | void;
+    verificationByPubkey?: Record<string, Nip05ValidationResult | undefined>;
 }
 
 export function SocialSidebar({
@@ -47,6 +50,7 @@ export function SocialSidebar({
     canWrite = false,
     canEncrypt = false,
     onStartSession,
+    verificationByPubkey = {},
 }: SocialSidebarProps) {
     const [activeTab, setActiveTab] = useState<SocialTab>('profile');
     const [followingSearch, setFollowingSearch] = useState('');
@@ -63,7 +67,14 @@ export function SocialSidebar({
             const profile = profiles[pubkey];
             const displayName = profile?.displayName || '';
             const name = profile?.name || '';
+            let npub = '';
+            try {
+                npub = encodeHexToNpub(pubkey);
+            } catch {
+                npub = '';
+            }
             return pubkey.toLowerCase().includes(query)
+                || npub.toLowerCase().includes(query)
                 || displayName.toLowerCase().includes(query)
                 || name.toLowerCase().includes(query);
         });
@@ -105,6 +116,7 @@ export function SocialSidebar({
                             canEncrypt={canEncrypt}
                             onLocateOwner={onLocateOwner}
                             onCopyOwnerNpub={onCopyOwnerNpub}
+                            ownerVerification={ownerPubkey ? verificationByPubkey[ownerPubkey] : undefined}
                         />
                     </TabsContent>
 
@@ -121,6 +133,7 @@ export function SocialSidebar({
                             searchQuery={followingSearch}
                             onSearchQueryChange={setFollowingSearch}
                             searchAriaLabel="Buscar en seguidos"
+                            verificationByPubkey={verificationByPubkey}
                         />
                     </TabsContent>
 
@@ -131,6 +144,7 @@ export function SocialSidebar({
                             emptyText="No se encontraron seguidores aún."
                             loading={followersLoading}
                             onCopyNpub={onCopyOwnerNpub}
+                            verificationByPubkey={verificationByPubkey}
                         />
                     </TabsContent>
                 </Tabs>

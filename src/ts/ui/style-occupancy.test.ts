@@ -29,6 +29,14 @@ describe('resolveBuildingRenderColours', () => {
         });
     });
 
+    test('returns verified colors for verified buildings', () => {
+        const colours = resolveBuildingRenderColours('verified', baseScheme);
+        expect(colours).toEqual({
+            fill: 'rgb(210,244,220)',
+            stroke: 'rgb(77,156,94)',
+        });
+    });
+
     test('returns selected colors for selected buildings', () => {
         const colours = resolveBuildingRenderColours('selected', baseScheme);
         expect(colours).toEqual({

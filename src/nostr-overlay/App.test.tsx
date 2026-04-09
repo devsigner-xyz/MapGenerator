@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { RELAY_SETTINGS_STORAGE_KEY } from '../nostr/relay-settings';
 import { UI_SETTINGS_STORAGE_KEY } from '../nostr/ui-settings';
+import { encodeHexToNpub } from '../nostr/npub';
 import { App } from './App';
 import type { MapBridge } from './map-bridge';
 import type { NostrClient } from '../nostr/types';
@@ -57,6 +58,7 @@ function createMapBridgeStub(buildingsCount = 0): MapBridgeStub {
             }))
         ),
         applyOccupancy: vi.fn(),
+        setVerifiedBuildingIndexes: vi.fn(),
         setViewportInsetLeft: vi.fn(),
         setZoom: vi.fn(),
         setModalBuildingHighlight: vi.fn(),
@@ -1267,10 +1269,11 @@ describe('Nostr overlay App', () => {
 
         const searchInput = rendered.container.querySelector('input[aria-label="Buscar en seguidos"]') as HTMLInputElement;
         expect(searchInput).toBeDefined();
+        const bobNpub = encodeHexToNpub(bobPubkey);
 
         await act(async () => {
             const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-            valueSetter?.call(searchInput, 'bob');
+            valueSetter?.call(searchInput, bobNpub);
             searchInput.dispatchEvent(new Event('input', { bubbles: true }));
             searchInput.dispatchEvent(new Event('change', { bubbles: true }));
         });
@@ -1286,6 +1289,186 @@ describe('Nostr overlay App', () => {
         });
 
         await waitFor(() => (rendered.container.textContent || '').includes('Alice'));
+    });
+
+    test('applies verified building overlay indexes when toggle is enabled', async () => {
+        window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({
+            occupiedLabelsZoomLevel: 8,
+            streetLabelsEnabled: true,
+            verifiedBuildingsOverlayEnabled: true,
+            streetLabelsZoomLevel: 10,
+            trafficParticlesCount: 12,
+            trafficParticlesSpeed: 1,
+        }));
+
+        const ownerPubkey = 'f'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+        const { bridge } = createMapBridgeStub(12);
+
+        const originalFetch = globalThis.fetch;
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                names: {
+                    _: followedPubkey,
+                },
+            }),
+        });
+        (globalThis as any).fetch = fetchMock;
+
+        try {
+            const rendered = await renderApp(
+                <App
+                    mapBridge={bridge}
+                    services={{
+                        createClient: () => ({
+                            connect: async () => {},
+                            fetchLatestReplaceableEvent: async () => null,
+                            fetchEvents: async () => [],
+                        }),
+                        fetchFollowsByNpubFn: vi.fn().mockResolvedValue({
+                            ownerPubkey,
+                            follows: [followedPubkey],
+                            relayHints: [],
+                        }),
+                        fetchProfilesFn: vi.fn().mockImplementation(async (pubkeys: string[]) => {
+                            const profiles: Record<string, { pubkey: string; displayName: string; nip05?: string }> = {};
+                            for (const pubkey of pubkeys) {
+                                if (pubkey === ownerPubkey) {
+                                    profiles[pubkey] = { pubkey, displayName: 'Owner' };
+                                }
+                                if (pubkey === followedPubkey) {
+                                    profiles[pubkey] = { pubkey, displayName: 'Alice', nip05: '_@verified.example' };
+                                }
+                            }
+                            return profiles;
+                        }),
+                    }}
+                />
+            );
+            mounted.push(rendered);
+
+            const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+            const form = rendered.container.querySelector('form');
+
+            await act(async () => {
+                const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+                valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
+                npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+                npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+
+            await act(async () => {
+                form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            });
+
+            await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+            await waitFor(() => {
+                const calls = (bridge.setVerifiedBuildingIndexes as any).mock.calls as number[][];
+                return calls.some((call) => Array.isArray(call[0]) && call[0].length > 0);
+            });
+
+            expect(fetchMock).toHaveBeenCalled();
+        } finally {
+            (globalThis as any).fetch = originalFetch;
+        }
+    });
+
+    test('shows verified nip05 identifiers in profile and following list', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+        const { bridge } = createMapBridgeStub(6);
+
+        const originalFetch = globalThis.fetch;
+        const fetchMock = vi.fn().mockImplementation(async (input: string | URL) => {
+            const url = String(input);
+            const parsed = new URL(url);
+            const name = parsed.searchParams.get('name') || '';
+            if (parsed.hostname === 'owner.test' && name === 'owner') {
+                return {
+                    ok: true,
+                    json: async () => ({ names: { owner: ownerPubkey } }),
+                };
+            }
+
+            if (parsed.hostname === 'alice.test' && name === 'alice') {
+                return {
+                    ok: true,
+                    json: async () => ({ names: { alice: followedPubkey } }),
+                };
+            }
+
+            return {
+                ok: true,
+                json: async () => ({ names: {} }),
+            };
+        });
+        (globalThis as any).fetch = fetchMock;
+
+        try {
+            const rendered = await renderApp(
+                <App
+                    mapBridge={bridge}
+                    services={{
+                        createClient: () => ({
+                            connect: async () => {},
+                            fetchLatestReplaceableEvent: async () => null,
+                            fetchEvents: async () => [],
+                        }),
+                        fetchFollowsByNpubFn: vi.fn().mockResolvedValue({
+                            ownerPubkey,
+                            follows: [followedPubkey],
+                            relayHints: [],
+                        }),
+                        fetchProfilesFn: vi.fn().mockImplementation(async (pubkeys: string[]) => {
+                            const profiles: Record<string, { pubkey: string; displayName: string; nip05?: string }> = {};
+                            for (const pubkey of pubkeys) {
+                                if (pubkey === ownerPubkey) {
+                                    profiles[pubkey] = { pubkey, displayName: 'Owner', nip05: 'owner@owner.test' };
+                                }
+                                if (pubkey === followedPubkey) {
+                                    profiles[pubkey] = { pubkey, displayName: 'Alice', nip05: 'alice@alice.test' };
+                                }
+                            }
+                            return profiles;
+                        }),
+                    }}
+                />
+            );
+            mounted.push(rendered);
+
+            const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+            const form = rendered.container.querySelector('form');
+
+            await act(async () => {
+                const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+                valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
+                npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+                npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+
+            await act(async () => {
+                form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            });
+
+            await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+            await waitFor(() => (rendered.container.textContent || '').includes('owner@owner.test'));
+            await waitFor(() => Boolean(rendered.container.querySelector('[aria-label="NIP-05 verificado: owner@owner.test"]')));
+
+            const followingTab = Array.from(rendered.container.querySelectorAll('button')).find(button =>
+                (button.textContent || '').includes('Sigues (1)')
+            ) as HTMLButtonElement;
+
+            await act(async () => {
+                followingTab.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+                followingTab.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            });
+
+            await waitFor(() => (rendered.container.textContent || '').includes('alice@alice.test'));
+            await waitFor(() => Boolean(rendered.container.querySelector('[aria-label="NIP-05 verificado: alice@alice.test"]')));
+        } finally {
+            (globalThis as any).fetch = originalFetch;
+        }
     });
 
     test('loads active profile stats and latest posts when occupant modal opens', async () => {

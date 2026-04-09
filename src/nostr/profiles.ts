@@ -14,6 +14,7 @@ interface MetadataContent {
     name?: string;
     display_name?: string;
     picture?: string;
+    nip05?: string;
 }
 
 export function parseProfileMetadata(event: NostrEvent): NostrProfile {
@@ -30,6 +31,7 @@ export function parseProfileMetadata(event: NostrEvent): NostrProfile {
         name: parsed.name,
         displayName: parsed.display_name,
         picture: parsed.picture,
+        nip05: parsed.nip05,
     };
 }
 

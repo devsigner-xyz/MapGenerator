@@ -20,6 +20,7 @@ export interface MapMainApi {
     roadsEmpty(): boolean;
     getBuildingCentroidsWorld(): WorldPoint[];
     setOccupancyByBuildingIndex(byBuildingIndex: Record<number, string>): void;
+    setVerifiedBuildingIndexes?(indexes: number[]): void;
     setViewportInsetLeft(inset: number): void;
     setSelectedBuildingIndex(index?: number): void;
     setModalHighlightedBuildingIndex(index?: number): void;
@@ -47,6 +48,7 @@ export interface MapBridge {
     listBuildings(): MapBuildingSlot[];
     applyOccupancy(input: { byBuildingIndex: Record<number, string>; selectedBuildingIndex?: number }): void;
     setViewportInsetLeft(inset: number): void;
+    setVerifiedBuildingIndexes(indexes: number[]): void;
     setModalBuildingHighlight(index?: number): void;
     setStreetLabelsEnabled(enabled: boolean): void;
     setStreetLabelsZoomLevel(level: number): void;
@@ -95,6 +97,10 @@ export function createMapBridge(mainApi: MapMainApi): MapBridge {
 
         setViewportInsetLeft(inset: number): void {
             mainApi.setViewportInsetLeft(inset);
+        },
+
+        setVerifiedBuildingIndexes(indexes: number[]): void {
+            mainApi.setVerifiedBuildingIndexes?.(indexes);
         },
 
         setModalBuildingHighlight(index?: number): void {

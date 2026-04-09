@@ -18,6 +18,7 @@ function createMapBridgeStub(buildingsCount: number): { bridge: MapBridge; trigg
             }))
         ),
         applyOccupancy: vi.fn(),
+        setVerifiedBuildingIndexes: vi.fn(),
         setViewportInsetLeft: vi.fn(),
         setModalBuildingHighlight: vi.fn(),
         setStreetLabelsEnabled: vi.fn(),

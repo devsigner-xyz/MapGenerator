@@ -75,6 +75,7 @@ export default class MainGUI {
 
     private redraw: boolean = true;
     private occupiedPubkeyByBuildingIndex: Record<number, string> = {};
+    private verifiedBuildingIndexSet = new Set<number>();
     private selectedBuildingIndex: number = null;
     private hoveredBuildingIndex: number = null;
     private modalHighlightedBuildingIndex: number = null;
@@ -429,9 +430,31 @@ export default class MainGUI {
         });
 
         this.occupiedPubkeyByBuildingIndex = nextState;
+        this.verifiedBuildingIndexSet = new Set(
+            [...this.verifiedBuildingIndexSet].filter((index) => Boolean(this.occupiedPubkeyByBuildingIndex[index]))
+        );
         if (this.hoveredBuildingIndex !== null && !this.occupiedPubkeyByBuildingIndex[this.hoveredBuildingIndex]) {
             this.hoveredBuildingIndex = null;
         }
+        this.redraw = true;
+    }
+
+    setVerifiedBuildingIndexes(indexes: number[]): void {
+        const nextSet = new Set<number>();
+        for (const value of indexes || []) {
+            if (!Number.isInteger(value) || value < 0 || !this.occupiedPubkeyByBuildingIndex[value]) {
+                continue;
+            }
+
+            nextSet.add(value);
+        }
+
+        if (nextSet.size === this.verifiedBuildingIndexSet.size
+            && [...nextSet].every((index) => this.verifiedBuildingIndexSet.has(index))) {
+            return;
+        }
+
+        this.verifiedBuildingIndexSet = nextSet;
         this.redraw = true;
     }
 
@@ -606,6 +629,7 @@ export default class MainGUI {
 
     private resetOccupancyState(): void {
         this.occupiedPubkeyByBuildingIndex = {};
+        this.verifiedBuildingIndexSet.clear();
         this.selectedBuildingIndex = null;
         this.hoveredBuildingIndex = null;
         this.modalHighlightedBuildingIndex = null;
@@ -624,6 +648,10 @@ export default class MainGUI {
 
             if (this.hoveredBuildingIndex === index) {
                 return 'hovered';
+            }
+
+            if (this.verifiedBuildingIndexSet.has(index)) {
+                return 'verified';
             }
 
             if (this.occupiedPubkeyByBuildingIndex[index]) {

@@ -287,6 +287,22 @@ export function MapSettingsModal({
                             />
                         </div>
 
+                        <div className="nostr-ui-toggle-row">
+                            <Label className="nostr-label" htmlFor="nostr-verified-buildings-overlay-enabled">Verified buildings overlay</Label>
+                            <Switch
+                                id="nostr-verified-buildings-overlay-enabled"
+                                size="sm"
+                                aria-label="Verified buildings overlay enabled"
+                                checked={uiSettings.verifiedBuildingsOverlayEnabled}
+                                onCheckedChange={(checked) => {
+                                    persistUiSettings({
+                                        ...uiSettings,
+                                        verifiedBuildingsOverlayEnabled: checked,
+                                    });
+                                }}
+                            />
+                        </div>
+
                         <div className="nostr-ui-slider-row">
                             <Label className="nostr-label" htmlFor="nostr-street-zoom-level">Street labels zoom level</Label>
                             <span className="nostr-ui-slider-value">{uiSettings.streetLabelsZoomLevel}</span>

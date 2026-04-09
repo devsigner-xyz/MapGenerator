@@ -21,6 +21,7 @@ function createMapBridgeStub(zoom: number): MapBridge {
             },
         ]),
         applyOccupancy: vi.fn(),
+        setVerifiedBuildingIndexes: vi.fn(),
         setViewportInsetLeft: vi.fn(),
         setModalBuildingHighlight: vi.fn(),
         setStreetLabelsEnabled: vi.fn(),

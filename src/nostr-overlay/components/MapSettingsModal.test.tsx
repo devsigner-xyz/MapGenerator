@@ -29,6 +29,7 @@ function createBridgeStub(): MapBridge {
         regenerateMap: vi.fn().mockResolvedValue(undefined),
         listBuildings: vi.fn().mockReturnValue([]),
         applyOccupancy: vi.fn(),
+        setVerifiedBuildingIndexes: vi.fn(),
         setViewportInsetLeft: vi.fn(),
         setModalBuildingHighlight: vi.fn(),
         setStreetLabelsEnabled: vi.fn(),
@@ -101,6 +102,10 @@ describe('MapSettingsModal UI settings', () => {
         expect(streetLabelsToggle).toBeDefined();
         expect(streetLabelsToggle.getAttribute('aria-checked')).toBe('true');
 
+        const verifiedOverlayToggle = rendered.container.querySelector('button[aria-label="Verified buildings overlay enabled"]') as HTMLButtonElement;
+        expect(verifiedOverlayToggle).toBeDefined();
+        expect(verifiedOverlayToggle.getAttribute('aria-checked')).toBe('false');
+
         const streetZoomInput = rendered.container.querySelector('input[aria-label="Street labels zoom level"]') as HTMLInputElement;
         expect(streetZoomInput).toBeDefined();
         expect(streetZoomInput.value).toBe('10');
@@ -122,6 +127,10 @@ describe('MapSettingsModal UI settings', () => {
 
         await act(async () => {
             streetLabelsToggle.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await act(async () => {
+            verifiedOverlayToggle.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
         await act(async () => {
@@ -154,6 +163,7 @@ describe('MapSettingsModal UI settings', () => {
         expect(raw).not.toBeNull();
         expect(raw || '').toContain('12');
         expect(raw || '').toContain('streetLabelsEnabled');
+        expect(raw || '').toContain('verifiedBuildingsOverlayEnabled');
         expect(raw || '').toContain('14');
         expect(raw || '').toContain('"trafficParticlesCount":22');
         expect(raw || '').toContain('"trafficParticlesSpeed":1.7');

@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, type UIEvent } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { encodeHexToNpub } from '../../nostr/npub';
+import type { Nip05ValidationResult } from '../../nostr/nip05';
 import type { NostrProfile } from '../../nostr/types';
 import { ListLoadingFooter } from './ListLoadingFooter';
+import { Nip05Identifier } from './Nip05Identifier';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -26,6 +28,7 @@ interface PeopleListTabProps {
     searchQuery?: string;
     onSearchQueryChange?: (value: string) => void;
     searchAriaLabel?: string;
+    verificationByPubkey?: Record<string, Nip05ValidationResult | undefined>;
 }
 
 function personName(pubkey: string, profile: NostrProfile | undefined): string {
@@ -62,6 +65,14 @@ function pubkeyToNpub(pubkey: string): string {
     }
 }
 
+function truncateIdentifier(identifier: string): string {
+    if (identifier.length <= 22) {
+        return identifier;
+    }
+
+    return `${identifier.slice(0, 14)}...${identifier.slice(-6)}`;
+}
+
 export function PeopleListTab({
     people,
     profiles,
@@ -75,6 +86,7 @@ export function PeopleListTab({
     searchQuery,
     onSearchQueryChange,
     searchAriaLabel,
+    verificationByPubkey = {},
 }: PeopleListTabProps) {
     const hasSearch = typeof onSearchQueryChange === 'function';
     const shouldVirtualize = people.length >= VIRTUALIZATION_THRESHOLD;
@@ -158,8 +170,10 @@ export function PeopleListTab({
         const selectable = typeof onSelectPerson === 'function';
         const canLocate = typeof onLocatePerson === 'function';
         const canCopy = typeof onCopyNpub === 'function';
-        const shortKey = `${pubkey.slice(0, 8)}...${pubkey.slice(-6)}`;
         const display = personName(pubkey, profile);
+        const npub = pubkeyToNpub(pubkey);
+        const npubLabel = npub.startsWith('npub1') ? truncateIdentifier(npub) : `${pubkey.slice(0, 8)}...${pubkey.slice(-6)}`;
+        const verification = verificationByPubkey[pubkey];
 
         return (
             <Item
@@ -185,8 +199,11 @@ export function PeopleListTab({
                             </Avatar>
                         </ItemMedia>
                         <ItemContent className="min-w-0">
-                            <ItemTitle className="w-full truncate">{display}</ItemTitle>
-                            <ItemDescription className="truncate">{shortKey}</ItemDescription>
+                            <ItemTitle className="nostr-identity-row">
+                                <span className="truncate">{display}</span>
+                                <Nip05Identifier profile={profile} verification={verification} />
+                            </ItemTitle>
+                            <ItemDescription className="truncate">{npubLabel}</ItemDescription>
                         </ItemContent>
                     </button>
                 ) : (
@@ -200,8 +217,11 @@ export function PeopleListTab({
                             </Avatar>
                         </ItemMedia>
                         <ItemContent className="min-w-0">
-                            <ItemTitle className="w-full truncate">{display}</ItemTitle>
-                            <ItemDescription className="truncate">{shortKey}</ItemDescription>
+                            <ItemTitle className="nostr-identity-row">
+                                <span className="truncate">{display}</span>
+                                <Nip05Identifier profile={profile} verification={verification} />
+                            </ItemTitle>
+                            <ItemDescription className="truncate">{npubLabel}</ItemDescription>
                         </ItemContent>
                     </>
                 )}

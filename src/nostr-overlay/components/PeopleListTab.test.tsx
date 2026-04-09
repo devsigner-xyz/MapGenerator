@@ -1,6 +1,7 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
+import { encodeHexToNpub } from '../../nostr/npub';
 import type { NostrProfile } from '../../nostr/types';
 import { PeopleListTab } from './PeopleListTab';
 
@@ -158,6 +159,40 @@ describe('PeopleListTab', () => {
         expect(onCopyNpub).toHaveBeenCalledTimes(1);
         expect(onSelectPerson).not.toHaveBeenCalled();
         expect((onCopyNpub.mock.calls[0][0] as string).startsWith('npub1')).toBe(true);
+    });
+
+    test('shows npub label and nip05 badge next to username', async () => {
+        const alice = makePubkey(1);
+        const aliceNpub = encodeHexToNpub(alice);
+
+        const rendered = await renderElement(
+            <PeopleListTab
+                people={[alice]}
+                profiles={{
+                    [alice]: { pubkey: alice, displayName: 'Alice', nip05: '_@example.com' },
+                }}
+                verificationByPubkey={{
+                    [alice]: {
+                        status: 'verified',
+                        identifier: '_@example.com',
+                        displayIdentifier: 'example.com',
+                        checkedAt: Date.now(),
+                    },
+                }}
+                emptyText="Sin resultados"
+                loading={false}
+            />
+        );
+        mounted.push(rendered);
+
+        const content = rendered.container.textContent || '';
+        expect(content).toContain('Alice');
+        expect(content).toContain('example.com');
+        expect(content).toContain(`${aliceNpub.slice(0, 14)}...${aliceNpub.slice(-6)}`);
+        expect(content).not.toContain(`${alice.slice(0, 8)}...${alice.slice(-6)}`);
+
+        const verifiedBadge = rendered.container.querySelector('[aria-label="NIP-05 verificado: example.com"]');
+        expect(verifiedBadge).toBeDefined();
     });
 
     test('shows only copy action for followers rows', async () => {

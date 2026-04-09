@@ -209,6 +209,10 @@ class Main {
         this.mainGui.setOccupancyByBuildingIndex(byBuildingIndex);
     }
 
+    setVerifiedBuildingIndexes(indexes: number[]): void {
+        this.mainGui.setVerifiedBuildingIndexes(indexes);
+    }
+
     setSelectedBuildingIndex(index?: number): void {
         this.mainGui.setSelectedBuildingIndex(index);
     }

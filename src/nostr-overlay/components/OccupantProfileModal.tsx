@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState, type UIEvent } from 'react';
+import type { Nip05ValidationResult } from '../../nostr/nip05';
+import { encodeHexToNpub } from '../../nostr/npub';
 import type { NostrProfile } from '../../nostr/types';
 import type { NostrPostPreview } from '../../nostr/posts';
 import { ListLoadingFooter } from './ListLoadingFooter';
+import { Nip05Identifier } from './Nip05Identifier';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
@@ -22,6 +25,7 @@ interface OccupantProfileModalProps {
     networkProfiles: Record<string, NostrProfile>;
     networkLoading: boolean;
     networkError?: string;
+    verification?: Nip05ValidationResult;
     onLoadMorePosts: () => Promise<void>;
     onClose: () => void;
 }
@@ -49,6 +53,7 @@ export function OccupantProfileModal({
     networkProfiles,
     networkLoading,
     networkError,
+    verification,
     onLoadMorePosts,
     onClose,
 }: OccupantProfileModalProps) {
@@ -59,7 +64,13 @@ export function OccupantProfileModal({
     const [followsLoadingMore, setFollowsLoadingMore] = useState(false);
     const [followersLoadingMore, setFollowersLoadingMore] = useState(false);
 
-    const shortPubkey = `${pubkey.slice(0, 10)}...${pubkey.slice(-6)}`;
+    let npubLabel = `${pubkey.slice(0, 10)}...${pubkey.slice(-6)}`;
+    try {
+        const npub = encodeHexToNpub(pubkey);
+        npubLabel = `${npub.slice(0, 14)}...${npub.slice(-6)}`;
+    } catch {
+        npubLabel = `${pubkey.slice(0, 10)}...${pubkey.slice(-6)}`;
+    }
 
     useEffect(() => {
         setVisibleFollowsCount(Math.min(NETWORK_PAGE_SIZE, follows.length));
@@ -165,8 +176,11 @@ export function OccupantProfileModal({
                         )}
 
                         <div>
-                            <p className="nostr-modal-name">{resolveName(pubkey, profile)}</p>
-                            <p className="nostr-modal-pubkey">{shortPubkey}</p>
+                            <p className="nostr-modal-name nostr-identity-row">
+                                <span className="truncate">{resolveName(pubkey, profile)}</span>
+                                <Nip05Identifier profile={profile} verification={verification} />
+                            </p>
+                            <p className="nostr-modal-pubkey">{npubLabel}</p>
                         </div>
                     </div>
 
