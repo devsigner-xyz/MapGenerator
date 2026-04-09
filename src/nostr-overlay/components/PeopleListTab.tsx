@@ -201,7 +201,7 @@ export function PeopleListTab({
                         <ItemContent className="min-w-0">
                             <ItemTitle className="nostr-identity-row">
                                 <span className="truncate">{display}</span>
-                                <Nip05Identifier profile={profile} verification={verification} />
+                                <Nip05Identifier profile={profile} verification={verification} mode="icon" />
                             </ItemTitle>
                             <ItemDescription className="truncate">{npubLabel}</ItemDescription>
                         </ItemContent>
@@ -219,7 +219,7 @@ export function PeopleListTab({
                         <ItemContent className="min-w-0">
                             <ItemTitle className="nostr-identity-row">
                                 <span className="truncate">{display}</span>
-                                <Nip05Identifier profile={profile} verification={verification} />
+                                <Nip05Identifier profile={profile} verification={verification} mode="icon" />
                             </ItemTitle>
                             <ItemDescription className="truncate">{npubLabel}</ItemDescription>
                         </ItemContent>

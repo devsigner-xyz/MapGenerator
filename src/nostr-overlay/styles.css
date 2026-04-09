@@ -487,6 +487,26 @@
     background: rgba(224, 246, 231, 0.95);
 }
 
+.nostr-nip05-status-icon {
+    width: 0.54rem;
+    height: 0.54rem;
+    border-radius: 999px;
+    display: inline-block;
+    flex-shrink: 0;
+    border: 1px solid rgba(130, 144, 154, 0.95);
+    background: rgba(204, 214, 222, 0.98);
+}
+
+.nostr-nip05-status-icon.is-verified {
+    border-color: rgba(65, 138, 84, 0.95);
+    background: rgba(115, 197, 136, 0.98);
+}
+
+.nostr-nip05-status-icon.is-unverified {
+    border-color: rgba(130, 144, 154, 0.95);
+    background: rgba(204, 214, 222, 0.98);
+}
+
 .nostr-nip05-text {
     overflow: hidden;
     text-overflow: ellipsis;

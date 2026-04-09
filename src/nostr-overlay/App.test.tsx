@@ -422,7 +422,7 @@ describe('Nostr overlay App', () => {
             },
         });
 
-        const { bridge } = createMapBridgeStub(6);
+        const { bridge, triggerOccupiedBuildingClick } = createMapBridgeStub(6);
         const rendered = await renderApp(
             <App
                 mapBridge={bridge}
@@ -513,7 +513,7 @@ describe('Nostr overlay App', () => {
         const profilesDeferred = createDeferred<Record<string, { pubkey: string; displayName: string }>>();
         const mapDeferred = createDeferred<void>();
 
-        const { bridge } = createMapBridgeStub(6);
+        const { bridge, triggerOccupiedBuildingClick } = createMapBridgeStub(6);
         (bridge.ensureGenerated as any).mockImplementation(() => mapDeferred.promise);
 
         const rendered = await renderApp(
@@ -1377,7 +1377,7 @@ describe('Nostr overlay App', () => {
     test('shows verified nip05 identifiers in profile and following list', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const followedPubkey = 'a'.repeat(64);
-        const { bridge } = createMapBridgeStub(6);
+        const { bridge, triggerOccupiedBuildingClick } = createMapBridgeStub(6);
 
         const originalFetch = globalThis.fetch;
         const fetchMock = vi.fn().mockImplementation(async (input: string | URL) => {
@@ -1453,7 +1453,7 @@ describe('Nostr overlay App', () => {
 
             await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
             await waitFor(() => (rendered.container.textContent || '').includes('owner@owner.test'));
-            await waitFor(() => Boolean(rendered.container.querySelector('[aria-label="NIP-05 verificado: owner@owner.test"]')));
+            await waitFor(() => Boolean(rendered.container.querySelector('[aria-label="NIP-05 verificado por DNS: owner@owner.test"]')));
 
             const followingTab = Array.from(rendered.container.querySelectorAll('button')).find(button =>
                 (button.textContent || '').includes('Sigues (1)')
@@ -1464,8 +1464,20 @@ describe('Nostr overlay App', () => {
                 followingTab.dispatchEvent(new MouseEvent('click', { bubbles: true }));
             });
 
+            await waitFor(() => Boolean(rendered.container.querySelector('[aria-label="NIP-05 verificado por DNS: alice@alice.test"]')));
+            expect(rendered.container.textContent || '').not.toContain('alice@alice.test');
+
+            await act(async () => {
+                triggerOccupiedBuildingClick({
+                    buildingIndex: 1,
+                    pubkey: followedPubkey,
+                });
+            });
+
             await waitFor(() => (rendered.container.textContent || '').includes('alice@alice.test'));
-            await waitFor(() => Boolean(rendered.container.querySelector('[aria-label="NIP-05 verificado: alice@alice.test"]')));
+            const modalBadge = rendered.container.querySelector('[aria-label="NIP-05 verificado por DNS: alice@alice.test"]') as HTMLElement;
+            expect(modalBadge).toBeDefined();
+            expect(modalBadge.getAttribute('title')).toBe('NIP-05 verificado por DNS: alice@alice.test');
         } finally {
             (globalThis as any).fetch = originalFetch;
         }

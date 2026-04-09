@@ -6,21 +6,49 @@ interface Nip05IdentifierProps {
     profile?: NostrProfile;
     verification?: Nip05ValidationResult;
     className?: string;
+    mode?: 'full' | 'icon';
 }
 
-export function Nip05Identifier({ profile, verification, className }: Nip05IdentifierProps) {
+function buildNip05StatusLabel(display: string, verification?: Nip05ValidationResult): string {
+    if (verification?.status === 'verified') {
+        return `NIP-05 verificado por DNS: ${display}`;
+    }
+
+    if (verification?.status === 'error') {
+        return `NIP-05 no se pudo verificar por DNS: ${display}`;
+    }
+
+    if (verification?.status === 'unverified') {
+        return `NIP-05 declarado sin verificacion DNS: ${display}`;
+    }
+
+    return `NIP-05 pendiente de verificacion DNS: ${display}`;
+}
+
+export function Nip05Identifier({ profile, verification, className, mode = 'full' }: Nip05IdentifierProps) {
     const display = getNip05DisplayIdentifier(profile?.nip05);
     if (!display) {
         return null;
     }
 
     const verified = verification?.status === 'verified';
+    const statusLabel = buildNip05StatusLabel(display, verification);
+
+    if (mode === 'icon') {
+        return (
+            <span
+                className={`nostr-nip05-status-icon${verified ? ' is-verified' : ' is-unverified'}${className ? ` ${className}` : ''}`}
+                title={statusLabel}
+                aria-label={statusLabel}
+            />
+        );
+    }
 
     return (
         <span
             className={`nostr-nip05-chip${verified ? ' is-verified' : ''}${className ? ` ${className}` : ''}`}
-            title={profile?.nip05}
-            aria-label={verified ? `NIP-05 verificado: ${display}` : `NIP-05: ${display}`}
+            title={statusLabel}
+            aria-label={statusLabel}
         >
             <span className="nostr-nip05-text">{display}</span>
             {verified ? (

@@ -161,7 +161,7 @@ describe('PeopleListTab', () => {
         expect((onCopyNpub.mock.calls[0][0] as string).startsWith('npub1')).toBe(true);
     });
 
-    test('shows npub label and nip05 badge next to username', async () => {
+    test('shows npub label and nip05 status icon without text in list rows', async () => {
         const alice = makePubkey(1);
         const aliceNpub = encodeHexToNpub(alice);
 
@@ -187,12 +187,13 @@ describe('PeopleListTab', () => {
 
         const content = rendered.container.textContent || '';
         expect(content).toContain('Alice');
-        expect(content).toContain('example.com');
+        expect(content).not.toContain('example.com');
         expect(content).toContain(`${aliceNpub.slice(0, 14)}...${aliceNpub.slice(-6)}`);
         expect(content).not.toContain(`${alice.slice(0, 8)}...${alice.slice(-6)}`);
 
-        const verifiedBadge = rendered.container.querySelector('[aria-label="NIP-05 verificado: example.com"]');
+        const verifiedBadge = rendered.container.querySelector('[aria-label="NIP-05 verificado por DNS: example.com"]') as HTMLElement;
         expect(verifiedBadge).toBeDefined();
+        expect(verifiedBadge.getAttribute('title')).toBe('NIP-05 verificado por DNS: example.com');
     });
 
     test('shows only copy action for followers rows', async () => {
