@@ -19,19 +19,13 @@ import CanvasWrapper from './canvas_wrapper';
 import Buildings, {BuildingModel} from './buildings';
 import PolygonUtil from '../impl/polygon_util';
 import { findOccupiedBuildingHit, type OccupiedBuildingHit } from './occupied_building_hit';
-import {
-    createOccupiedBuildingSpatialIndex,
-    type OccupiedBuildingSpatialIndex,
-} from './occupied_building_spatial_index';
 import mapLabelNamePool from '../../data/map-label-name-pool.json';
 import {
-    createStreetLabelCacheKey,
     createBigParkLabels,
     createStreetLabels,
     createWaterLabel,
     normalizeMapLabelNamePool,
     type MapLabelNamePool,
-    type StreetLabel,
 } from './street_labels';
 import {
     TrafficParticlesSimulation,
@@ -86,24 +80,11 @@ export default class MainGUI {
     private streetLabelsZoomLevel = 10;
     private streetLabelUsernames: string[] = [];
     private readonly labelNamePool: MapLabelNamePool = normalizeMapLabelNamePool(mapLabelNamePool as MapLabelNamePool);
-    private parkGeometryRevision = 0;
-    private projectedParkCache: {
-        parkGeometryRevision: number;
-        viewRevision: number;
-        bigParks: Vector[][];
-        smallParks: Vector[][];
-    } | null = null;
-    private streetLabelCache: {
-        key: string;
-        labels: StreetLabel[];
-    } | null = null;
     private trafficParticlesCount = 12;
     private trafficParticlesSpeed = 1;
     private trafficParticlesWorld: TrafficRenderParticle[] = [];
     private readonly trafficSimulation = new TrafficParticlesSimulation();
     private trafficNetworkDirty = true;
-    private occupiedHitIndex: OccupiedBuildingSpatialIndex | null = null;
-    private occupiedHitIndexNeedsRebuild = true;
 
     constructor(private guiFolder: dat.GUI, private tensorField: TensorField, private closeTensorFolder: () => void) {
         const guiBindings = this as unknown as Record<string, unknown>;
@@ -191,7 +172,6 @@ export default class MainGUI {
             this.minorRoads.clearStreamlines();
             this.bigParks = [];
             this.smallParks = [];
-            this.markParkGeometryDirty();
             this.buildings.reset();
             this.resetOccupancyState();
             tensorField.parks = [];
@@ -205,7 +185,6 @@ export default class MainGUI {
             this.minorRoads.clearStreamlines();
             this.bigParks = [];
             this.smallParks = [];
-            this.markParkGeometryDirty();
             this.buildings.reset();
             this.resetOccupancyState();
             tensorField.parks = [];
@@ -222,7 +201,6 @@ export default class MainGUI {
             this.minorRoads.clearStreamlines();
             this.bigParks = [];
             this.smallParks = [];
-            this.markParkGeometryDirty();
             this.buildings.reset();
             this.resetOccupancyState();
             tensorField.parks = [];
@@ -241,7 +219,6 @@ export default class MainGUI {
             this.buildings.reset();
             this.resetOccupancyState();
             this.smallParks = [];
-            this.markParkGeometryDirty();
             tensorField.parks = this.bigParks;
             this.markTrafficNetworkDirty();
         });
@@ -299,7 +276,6 @@ export default class MainGUI {
         this.tensorField.parks = [];
         this.tensorField.parks.push(...this.bigParks);
         this.tensorField.parks.push(...this.smallParks);
-        this.markParkGeometryDirty();
     }
 
     async generateEverything() {
@@ -352,9 +328,8 @@ export default class MainGUI {
             style.buildingModels = this.buildings.models;    
         }
 
-        const projectedParks = this.getProjectedParks();
-        const bigParksScreen = projectedParks.bigParks;
-        const smallParksScreen = projectedParks.smallParks;
+        const bigParksScreen = this.bigParks.map((park) => park.map((point) => this.domainController.worldToScreen(point.clone())));
+        const smallParksScreen = this.smallParks.map((park) => park.map((point) => this.domainController.worldToScreen(point.clone())));
 
         style.parks = [];
         style.parks.push(...bigParksScreen);
@@ -370,16 +345,50 @@ export default class MainGUI {
             haloPx: particle.haloPx,
             alpha: particle.alpha,
         }));
-        style.streetLabels = this.resolveStreetLabels({
-            mainRoads: style.mainRoads,
-            majorRoads: style.majorRoads,
-            minorRoads: style.minorRoads,
-            coastlineRoads: style.coastlineRoads,
-            secondaryRiver: style.secondaryRiver,
-            seaPolygon: style.seaPolygon,
+        const roadsForStreetLabels: Vector[][] = [];
+        roadsForStreetLabels.push(...style.mainRoads);
+        roadsForStreetLabels.push(...style.majorRoads);
+        roadsForStreetLabels.push(...style.minorRoads);
+        roadsForStreetLabels.push(...style.coastlineRoads);
+        if (style.secondaryRiver.length > 1) {
+            roadsForStreetLabels.push(style.secondaryRiver);
+        }
+        const streetLabels = createStreetLabels({
+            enabled: this.streetLabelsEnabled,
+            zoom: this.domainController.zoom,
+            zoomThreshold: this.streetLabelsZoomLevel,
+            roads: roadsForStreetLabels,
             parks: style.parks,
-            bigParksScreen,
+            usernames: this.streetLabelUsernames,
+            pool: this.labelNamePool.street,
+            seed: this.getStreetLabelSeed(),
         });
+
+        const waterLabel = createWaterLabel({
+            polygon: style.seaPolygon,
+            pool: this.labelNamePool.water,
+            seed: this.getStreetLabelSeed(),
+        });
+
+        const bigParkLabels = createBigParkLabels({
+            polygons: bigParksScreen,
+            pool: this.labelNamePool.park,
+            seed: this.getStreetLabelSeed(),
+        });
+
+        style.streetLabels = [
+            ...streetLabels,
+            ...(waterLabel ? [{
+                ...waterLabel,
+                color: 'rgb(67, 120, 207)',
+                fontScale: 1.35,
+            }] : []),
+            ...bigParkLabels.map((label) => ({
+                ...label,
+                color: 'rgb(59, 139, 74)',
+                fontScale: 1.2,
+            })),
+        ];
         style.draw(customCanvas);
     }
 
@@ -413,7 +422,6 @@ export default class MainGUI {
         });
 
         this.occupiedPubkeyByBuildingIndex = nextState;
-        this.markOccupiedHitIndexDirty();
         if (this.hoveredBuildingIndex !== null && !this.occupiedPubkeyByBuildingIndex[this.hoveredBuildingIndex]) {
             this.hoveredBuildingIndex = null;
         }
@@ -521,12 +529,10 @@ export default class MainGUI {
     }
 
     getOccupiedBuildingAtWorldPoint(point: Vector): OccupiedBuildingHit | null {
-        const spatialIndex = this.ensureOccupiedHitIndex();
         return findOccupiedBuildingHit({
             point,
             footprints: this.getBuildingFootprintsWorld(),
             occupiedPubkeyByBuildingIndex: this.occupiedPubkeyByBuildingIndex,
-            spatialIndex: spatialIndex || undefined,
         });
     }
 
@@ -564,157 +570,6 @@ export default class MainGUI {
         return PolygonUtil.resizeGeometry(this.coastline.coastline, 15 * this.domainController.zoom, false);
     }
 
-    private getProjectedParks(): { bigParks: Vector[][]; smallParks: Vector[][] } {
-        const viewRevision = this.domainController.viewRevision;
-        if (
-            this.projectedParkCache
-            && this.projectedParkCache.parkGeometryRevision === this.parkGeometryRevision
-            && this.projectedParkCache.viewRevision === viewRevision
-        ) {
-            return {
-                bigParks: this.projectedParkCache.bigParks,
-                smallParks: this.projectedParkCache.smallParks,
-            };
-        }
-
-        const bigParks = this.bigParks.map((park) => park.map((point) => this.domainController.worldToScreen(point.clone())));
-        const smallParks = this.smallParks.map((park) => park.map((point) => this.domainController.worldToScreen(point.clone())));
-
-        this.projectedParkCache = {
-            parkGeometryRevision: this.parkGeometryRevision,
-            viewRevision,
-            bigParks,
-            smallParks,
-        };
-
-        return { bigParks, smallParks };
-    }
-
-    private resolveStreetLabels(input: {
-        mainRoads: Vector[][];
-        majorRoads: Vector[][];
-        minorRoads: Vector[][];
-        coastlineRoads: Vector[][];
-        secondaryRiver: Vector[];
-        seaPolygon: Vector[];
-        parks: Vector[][];
-        bigParksScreen: Vector[][];
-    }): StreetLabel[] {
-        const roadsForStreetLabels: Vector[][] = [];
-        roadsForStreetLabels.push(...input.mainRoads);
-        roadsForStreetLabels.push(...input.majorRoads);
-        roadsForStreetLabels.push(...input.minorRoads);
-        roadsForStreetLabels.push(...input.coastlineRoads);
-        if (input.secondaryRiver.length > 1) {
-            roadsForStreetLabels.push(input.secondaryRiver);
-        }
-
-        const minRoadLengthPx = 120;
-        const minLabelSpacingPx = 110;
-        const maxLabels = 48;
-        const seed = this.getStreetLabelSeed();
-        const cacheKey = createStreetLabelCacheKey({
-            enabled: this.streetLabelsEnabled,
-            viewRevision: this.domainController.viewRevision,
-            roadsRevision: this.getRoadsRevisionToken(),
-            parksRevision: `parks:${this.parkGeometryRevision}`,
-            zoom: this.domainController.zoom,
-            zoomBucketStep: 0.25,
-            zoomThreshold: this.streetLabelsZoomLevel,
-            seed,
-            usernames: this.streetLabelUsernames,
-            minRoadLengthPx,
-            minLabelSpacingPx,
-            maxLabels,
-        });
-
-        if (this.streetLabelCache?.key === cacheKey) {
-            return this.streetLabelCache.labels;
-        }
-
-        const streetLabels = createStreetLabels({
-            enabled: this.streetLabelsEnabled,
-            zoom: this.domainController.zoom,
-            zoomThreshold: this.streetLabelsZoomLevel,
-            roads: roadsForStreetLabels,
-            parks: input.parks,
-            usernames: this.streetLabelUsernames,
-            pool: this.labelNamePool.street,
-            seed,
-            minRoadLengthPx,
-            minLabelSpacingPx,
-            maxLabels,
-        });
-
-        const waterLabel = createWaterLabel({
-            polygon: input.seaPolygon,
-            pool: this.labelNamePool.water,
-            seed,
-        });
-
-        const bigParkLabels = createBigParkLabels({
-            polygons: input.bigParksScreen,
-            pool: this.labelNamePool.park,
-            seed,
-        });
-
-        const labels = [
-            ...streetLabels,
-            ...(waterLabel ? [{
-                ...waterLabel,
-                color: 'rgb(67, 120, 207)',
-                fontScale: 1.35,
-            }] : []),
-            ...bigParkLabels.map((label) => ({
-                ...label,
-                color: 'rgb(59, 139, 74)',
-                fontScale: 1.2,
-            })),
-        ];
-
-        this.streetLabelCache = {
-            key: cacheKey,
-            labels,
-        };
-
-        return labels;
-    }
-
-    private getRoadsRevisionToken(): string {
-        return [
-            this.mainRoads.projectionGeometryRevision,
-            this.majorRoads.projectionGeometryRevision,
-            this.minorRoads.projectionGeometryRevision,
-            this.coastline.projectionGeometryRevision,
-            this.buildings.getProjectionGeometryRevision(),
-        ].join(':');
-    }
-
-    private markParkGeometryDirty(): void {
-        this.parkGeometryRevision += 1;
-        this.projectedParkCache = null;
-    }
-
-    private markOccupiedHitIndexDirty(): void {
-        this.occupiedHitIndexNeedsRebuild = true;
-        this.occupiedHitIndex = null;
-    }
-
-    private ensureOccupiedHitIndex(): OccupiedBuildingSpatialIndex | null {
-        if (!this.occupiedHitIndexNeedsRebuild) {
-            return this.occupiedHitIndex;
-        }
-
-        this.occupiedHitIndexNeedsRebuild = false;
-        this.occupiedHitIndex = createOccupiedBuildingSpatialIndex({
-            footprints: this.getBuildingFootprintsWorld(),
-            occupiedPubkeyByBuildingIndex: this.occupiedPubkeyByBuildingIndex,
-            cellSize: 100,
-        });
-
-        return this.occupiedHitIndex;
-    }
-
     private markTrafficNetworkDirty(): void {
         this.trafficNetworkDirty = true;
     }
@@ -747,7 +602,6 @@ export default class MainGUI {
         this.selectedBuildingIndex = null;
         this.hoveredBuildingIndex = null;
         this.modalHighlightedBuildingIndex = null;
-        this.markOccupiedHitIndexDirty();
         this.redraw = true;
     }
 

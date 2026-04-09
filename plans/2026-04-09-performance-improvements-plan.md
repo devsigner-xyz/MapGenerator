@@ -102,24 +102,24 @@
 - Modify: `src/ts/ui/buildings.ts`
 - Modify: `plans/2026-04-09-performance-improvements-plan.md`
 
-- [x] **Step 1: Add view revision/invalidation signal**
+- [ ] **Step 1: Add view revision/invalidation signal**
   - Introduce monotonic view revision in `DomainController` bumped on pan/zoom/resize/inset/camera changes.
 
-- [x] **Step 2: Cache projected roads/water/lots/models**
+- [ ] **Step 2: Cache projected roads/water/lots/models**
   - Recompute only when geometry changed or view revision changed.
 
-- [x] **Step 3: Update `MainGUI.draw` to consume cached projections**
+- [ ] **Step 3: Update `MainGUI.draw` to consume cached projections**
   - Avoid rebuilding screen arrays every frame.
 
-- [x] **Step 4: Keep cache invalidation explicit**
+- [ ] **Step 4: Keep cache invalidation explicit**
   - Invalidate caches on map regeneration, park changes, building changes, and occupancy-affecting state.
 
-- [x] **Step 5: Verify and measure**
+- [ ] **Step 5: Verify and measure**
   - Run: `pnpm test`
   - Run: `pnpm build`
   - Validate lower scripting time during pan/zoom in manual check.
 
-- [x] **Step 6: Commit Phase 2**
+- [ ] **Step 6: Commit Phase 2**
   - Commit message: `perf(render): cache projected geometry by view revision`
 
 ---
@@ -136,25 +136,25 @@
 - Add: `src/ts/ui/occupied_building_spatial_index.ts` (if needed)
 - Modify: `plans/2026-04-09-performance-improvements-plan.md`
 
-- [x] **Step 1: Introduce street-label cache keying**
+- [ ] **Step 1: Introduce street-label cache keying**
   - Cache labels by deterministic key (`seed`, zoom bucket, geometry/version tokens, usernames hash).
 
-- [x] **Step 2: Recompute labels only on cache miss**
+- [ ] **Step 2: Recompute labels only on cache miss**
   - Keep label output deterministic and equivalent in rendering intent.
 
-- [x] **Step 3: Add occupied-building spatial index**
+- [ ] **Step 3: Add occupied-building spatial index**
   - Build quadtree/grid index for occupied footprint candidates.
   - Narrow hit-test to nearby candidates, then polygon test.
 
-- [x] **Step 4: Integrate index lifecycle**
+- [ ] **Step 4: Integrate index lifecycle**
   - Rebuild index only when occupancy map or building footprints change.
 
-- [x] **Step 5: Verify and measure**
+- [ ] **Step 5: Verify and measure**
   - Run: `pnpm test`
   - Run: `pnpm build`
   - Manual check: hover remains accurate and smoother on dense maps.
 
-- [x] **Step 6: Commit Phase 3**
+- [ ] **Step 6: Commit Phase 3**
   - Commit message: `perf(interaction): cache labels and accelerate occupied hit-testing`
 
 ---

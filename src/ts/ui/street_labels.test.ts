@@ -2,7 +2,6 @@ import { describe, expect, test } from 'vitest';
 import Vector from '../vector';
 import {
     buildStreetNames,
-    createStreetLabelCacheKey,
     createBigParkLabels,
     createStreetLabels,
     createWaterLabel,
@@ -151,56 +150,6 @@ describe('street_labels', () => {
         });
 
         expect(labels.length).toBe(1);
-    });
-
-    test('createStreetLabelCacheKey is deterministic and captures revision inputs', () => {
-        const keyA = createStreetLabelCacheKey({
-            enabled: true,
-            viewRevision: 3,
-            roadsRevision: 'roads:2',
-            parksRevision: 'parks:1',
-            zoom: 11.36,
-            zoomBucketStep: 0.5,
-            zoomThreshold: 10,
-            seed: 'city-seed',
-            usernames: ['alice', ' bob '],
-            minRoadLengthPx: 120,
-            minLabelSpacingPx: 110,
-            maxLabels: 48,
-        });
-
-        const keyB = createStreetLabelCacheKey({
-            enabled: true,
-            viewRevision: 3,
-            roadsRevision: 'roads:2',
-            parksRevision: 'parks:1',
-            zoom: 11.35,
-            zoomBucketStep: 0.5,
-            zoomThreshold: 10,
-            seed: 'city-seed',
-            usernames: ['Alice', 'bob'],
-            minRoadLengthPx: 120,
-            minLabelSpacingPx: 110,
-            maxLabels: 48,
-        });
-
-        const keyC = createStreetLabelCacheKey({
-            enabled: true,
-            viewRevision: 4,
-            roadsRevision: 'roads:2',
-            parksRevision: 'parks:1',
-            zoom: 11.36,
-            zoomBucketStep: 0.5,
-            zoomThreshold: 10,
-            seed: 'city-seed',
-            usernames: ['alice', 'bob'],
-            minRoadLengthPx: 120,
-            minLabelSpacingPx: 110,
-            maxLabels: 48,
-        });
-
-        expect(keyA).toBe(keyB);
-        expect(keyA).not.toBe(keyC);
     });
 
     test('street names stay stable for already-visible streets when zoom changes', () => {
