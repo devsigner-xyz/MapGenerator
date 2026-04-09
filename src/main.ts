@@ -15,9 +15,9 @@ import Vector from './ts/vector';
 import { applyMapFirstStartup, shouldShowTensorField } from './ts/ui/startup_mode';
 import { shouldRegenerateMapOnViewportInsetChange } from './ts/ui/viewport_inset';
 import { SVG } from '@svgdotjs/svg.js';
-import ModelGenerator from './ts/model_generator';
+import type ModelGenerator from './ts/model_generator';
 import { saveAs } from 'file-saver';
-import { mountNostrOverlay } from './nostr-overlay/bootstrap';
+import { mountNostrOverlayDeferred } from './nostr-overlay/deferred-bootstrap';
 import { createMiddlePanState, stopMiddlePanState, type MiddlePanState, updateMiddlePanState } from './ts/ui/middle_pan_drag';
 import { createViewChangeScheduler } from './ts/ui/view_change_scheduler';
 
@@ -69,7 +69,7 @@ class Main {
     private cameraY = 0;
 
     private firstGenerate = true;  // Don't randomise tensor field on first generate
-    private modelGenerator: ModelGenerator;
+    private modelGenerator: ModelGenerator | undefined;
     private mapGeneratedListeners: Array<() => void> = [];
     private occupiedBuildingClickListeners: Array<(payload: OccupiedBuildingClickPayload) => void> = [];
     private viewChangedListeners: Array<() => void> = [];
@@ -364,7 +364,8 @@ class Main {
             new Vector(this.domainController.screenDimensions.x + extendScreenX, -extendScreenY),
         ];
 
-        this.mainGui.getBlocks().then((blocks) => {
+        this.mainGui.getBlocks().then(async (blocks) => {
+            const { default: ModelGenerator } = await import('./ts/model_generator');
             this.modelGenerator = new ModelGenerator(ground,
                 this.mainGui.seaPolygon,
                 this.mainGui.coastlinePolygon,
@@ -695,5 +696,5 @@ class Main {
 window.addEventListener('load', (): void => {
     const main = new Main();
     (window as any).mapGeneratorMain = main;
-    mountNostrOverlay();
+    mountNostrOverlayDeferred();
 });

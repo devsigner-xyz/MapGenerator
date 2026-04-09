@@ -64,3 +64,26 @@
 2. Run `pnpm build`.
 3. Record resulting `dist/assets/*.js` and `dist/assets/*.css` sizes.
 4. Confirm no behavior regressions for touched flows.
+
+## Phase 1 Results (Post-Change)
+
+### Verification
+
+- `pnpm test`: PASS (39 files, 152 tests)
+- `pnpm build`: PASS (`BUILD_SECONDS=0.98`)
+
+### Bundle Comparison
+
+- Baseline main JS: `dist/assets/index-BS7EQowK.js` = 3,667.56 kB
+- Phase 1 entry JS: `dist/assets/index-D-xYOUTV.js` = 379.47 kB
+- Entry chunk reduction: approximately 89.65%
+
+### New Deferred Chunks (Phase 1)
+
+- `dist/assets/three-stl-C4NiZtmZ.js` = 1,600.89 kB
+- `dist/assets/overlay-7HRfkP3g.js` = 741.88 kB
+- `dist/assets/nostr-BZSVBYW-.js` = 392.58 kB
+- `dist/assets/model_generator-ZBVgmRV6.js` = 99.64 kB
+- `dist/assets/ndk-client-DEE_LKZZ.js` = 0.77 kB
+
+This confirms heavy dependencies were moved out of the startup entry chunk and into on-demand chunks.

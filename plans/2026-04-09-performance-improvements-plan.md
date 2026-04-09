@@ -62,30 +62,30 @@
 - Modify: `vite.config.mts`
 - Modify: `plans/2026-04-09-performance-improvements-plan.md`
 
-- [ ] **Step 1: Lazy-load STL stack**
+- [x] **Step 1: Lazy-load STL stack**
   - Move `ModelGenerator` loading to dynamic import inside STL export path.
   - Keep same user-facing behavior for `downloadSTL()`.
 
-- [ ] **Step 2: Lazy-load Nostr overlay bootstrap**
+- [x] **Step 2: Lazy-load Nostr overlay bootstrap**
   - Defer overlay bootstrap import from startup path to dynamic load.
   - Ensure overlay still mounts after main app initialization.
 
-- [ ] **Step 3: Defer NDK-heavy path where safe**
+- [x] **Step 3: Defer NDK-heavy path where safe**
   - Load NDK client implementation only when Nostr submission flow starts.
   - Preserve existing service API contracts in `useNostrOverlay`.
 
-- [ ] **Step 4: Configure Vite chunk splitting**
+- [x] **Step 4: Configure Vite chunk splitting**
   - Add `manualChunks` strategy for `nostr`, `three/stl`, and overlay/UI bundles.
 
-- [ ] **Step 5: Remove dead imports**
+- [x] **Step 5: Remove dead imports**
   - Remove unused `dat.gui` import from `src/ts/ui/style.ts`.
 
-- [ ] **Step 6: Verify and measure**
+- [x] **Step 6: Verify and measure**
   - Run: `pnpm test`
   - Run: `pnpm build`
   - Compare bundle sizes against Phase 0 baseline.
 
-- [ ] **Step 7: Commit Phase 1**
+- [x] **Step 7: Commit Phase 1**
   - Commit message: `perf(bundle): defer heavy modules and split runtime chunks`
 
 ---

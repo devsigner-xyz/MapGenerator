@@ -3,7 +3,7 @@ import { assignPubkeysToBuildings, hashPubkeyToIndex, type AssignmentResult } fr
 import { buildOccupancyState } from '../../nostr/domain/occupancy';
 import { fetchFollowersBestEffort } from '../../nostr/followers';
 import { fetchFollowsByNpub, parseFollowsFromKind3 } from '../../nostr/follows';
-import { NdkClient } from '../../nostr/ndk-client';
+import { createLazyNdkClient } from '../../nostr/lazy-ndk-client';
 import { fetchLatestPostsByPubkey, type NostrPostPreview } from '../../nostr/posts';
 import { fetchProfileStats } from '../../nostr/profile-stats';
 import { fetchProfiles } from '../../nostr/profiles';
@@ -165,7 +165,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
     const ACTIVE_PROFILE_POST_LIMIT = 10;
     const OCCUPANCY_BATCH_SIZE = 8;
     const OCCUPANCY_BATCH_DELAY_MS = 22;
-    const createClient = services?.createClient || ((relays: string[] = []) => new NdkClient(relays));
+    const createClient = services?.createClient || ((relays: string[] = []) => createLazyNdkClient({ relays }));
     const fetchFollowsByNpubFn = services?.fetchFollowsByNpubFn || fetchFollowsByNpub;
     const fetchProfilesFn = services?.fetchProfilesFn || fetchProfiles;
     const fetchFollowersBestEffortFn = services?.fetchFollowersBestEffortFn || fetchFollowersBestEffort;
