@@ -185,6 +185,44 @@ describe('MapSettingsModal UI settings', () => {
         expect(content).toContain('Caracteristicas');
     });
 
+    test('opens advanced settings section and mounts MapGenerator settings host', async () => {
+        const bridge = createBridgeStub();
+        const rendered = await renderElement(
+            <MapSettingsModal
+                mapBridge={bridge}
+                onClose={() => {}}
+            />
+        );
+        mounted.push(rendered);
+
+        const mountedOnOpen = (bridge.mountSettingsPanel as any).mock.calls.some((call: [unknown]) => call[0] instanceof HTMLElement);
+        expect(mountedOnOpen).toBe(false);
+
+        const advancedButton = Array.from(rendered.container.querySelectorAll('.nostr-settings-content .nostr-settings-item')).find((item) =>
+            (item.textContent || '').trim() === 'Advanced settings'
+        ) as HTMLButtonElement;
+        expect(advancedButton).toBeDefined();
+
+        await act(async () => {
+            advancedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const mountedCalls = (bridge.mountSettingsPanel as any).mock.calls;
+        expect(mountedCalls.some((call: [unknown]) => call[0] instanceof HTMLElement)).toBe(true);
+
+        const backButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').trim() === 'Volver'
+        ) as HTMLButtonElement;
+        expect(backButton).toBeDefined();
+
+        await act(async () => {
+            backButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const callsAfterBack = (bridge.mountSettingsPanel as any).mock.calls;
+        expect(callsAfterBack[callsAfterBack.length - 1]?.[0]).toBeNull();
+    });
+
     test('shows zaps settings from main menu and persists edited amounts', async () => {
         const bridge = createBridgeStub();
         const rendered = await renderElement(

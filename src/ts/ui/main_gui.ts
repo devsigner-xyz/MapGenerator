@@ -26,7 +26,9 @@ import {
     createWaterLabel,
     normalizeMapLabelNamePool,
     type MapLabelNamePool,
+    type MapLabelNamePoolInput,
 } from './street_labels';
+import { nextStreetLabelSeed } from './street_label_seed';
 import {
     TrafficParticlesSimulation,
     type TrafficRenderParticle,
@@ -79,7 +81,8 @@ export default class MainGUI {
     private streetLabelsEnabled = true;
     private streetLabelsZoomLevel = 10;
     private streetLabelUsernames: string[] = [];
-    private readonly labelNamePool: MapLabelNamePool = normalizeMapLabelNamePool(mapLabelNamePool as MapLabelNamePool);
+    private streetLabelSeed = nextStreetLabelSeed();
+    private readonly labelNamePool: MapLabelNamePool = normalizeMapLabelNamePool(mapLabelNamePool as MapLabelNamePoolInput);
     private trafficParticlesCount = 12;
     private trafficParticlesSpeed = 1;
     private trafficParticlesWorld: TrafficRenderParticle[] = [];
@@ -167,6 +170,7 @@ export default class MainGUI {
         this.trafficSimulation.setSpeedMultiplier(this.trafficParticlesSpeed);
 
         this.coastline.setPreGenerateCallback(() => {
+            this.streetLabelSeed = nextStreetLabelSeed(this.streetLabelSeed, true);
             this.mainRoads.clearStreamlines();
             this.majorRoads.clearStreamlines();
             this.minorRoads.clearStreamlines();
@@ -181,6 +185,7 @@ export default class MainGUI {
         });
 
         this.mainRoads.setPreGenerateCallback(() => {
+            this.streetLabelSeed = nextStreetLabelSeed(this.streetLabelSeed, true);
             this.majorRoads.clearStreamlines();
             this.minorRoads.clearStreamlines();
             this.bigParks = [];
@@ -198,6 +203,7 @@ export default class MainGUI {
         });
 
         this.majorRoads.setPreGenerateCallback(() => {
+            this.streetLabelSeed = nextStreetLabelSeed(this.streetLabelSeed, true);
             this.minorRoads.clearStreamlines();
             this.bigParks = [];
             this.smallParks = [];
@@ -216,6 +222,7 @@ export default class MainGUI {
         });
 
         this.minorRoads.setPreGenerateCallback(() => {
+            this.streetLabelSeed = nextStreetLabelSeed(this.streetLabelSeed, true);
             this.buildings.reset();
             this.resetOccupancyState();
             this.smallParks = [];
@@ -654,12 +661,7 @@ export default class MainGUI {
     }
 
     private getStreetLabelSeed(): string {
-        return [
-            this.mainRoads.allStreamlines.length,
-            this.majorRoads.allStreamlines.length,
-            this.minorRoads.allStreamlines.length,
-            this.coastline.streamlinesWithSecondaryRoad.length,
-            this.buildings.lotWorlds.length,
-        ].join(':');
+        this.streetLabelSeed = nextStreetLabelSeed(this.streetLabelSeed, false);
+        return this.streetLabelSeed;
     }
 }

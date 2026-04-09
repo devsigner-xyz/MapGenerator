@@ -31,7 +31,7 @@ interface MapSettingsModalProps {
     onClose: () => void;
 }
 
-export type SettingsView = 'settings' | 'ui' | 'shortcuts' | 'relays' | 'about' | 'zaps';
+export type SettingsView = 'settings' | 'advanced' | 'ui' | 'shortcuts' | 'relays' | 'about' | 'zaps';
 
 function normalizeRelayInput(value: string): string | null {
     const trimmed = value.trim();
@@ -141,7 +141,7 @@ export function MapSettingsModal({
     }, [zapSettings]);
 
     useEffect(() => {
-        if (!mapBridge || view !== 'settings' || !settingsHostRef.current) {
+        if (!mapBridge || view !== 'advanced' || !settingsHostRef.current) {
             return;
         }
 
@@ -161,7 +161,7 @@ export function MapSettingsModal({
                 <DialogTitle className="sr-only">Ajustes</DialogTitle>
                 <DialogDescription className="sr-only">Configuracion del overlay del mapa.</DialogDescription>
                 <div className="nostr-settings-header">
-                    {view === 'ui' || view === 'shortcuts' || view === 'relays' || view === 'about' || view === 'zaps' ? (
+                    {view === 'advanced' || view === 'ui' || view === 'shortcuts' || view === 'relays' || view === 'about' || view === 'zaps' ? (
                         <Button type="button" variant="ghost" className="nostr-settings-back" onClick={() => setView('settings')}>
                             Volver
                         </Button>
@@ -172,6 +172,8 @@ export function MapSettingsModal({
                     <p className="nostr-settings-title">
                         {view === 'settings'
                             ? 'Settings'
+                            : view === 'advanced'
+                                ? 'Advanced settings'
                             : view === 'ui'
                                 ? 'UI'
                                 : view === 'shortcuts'
@@ -210,6 +212,10 @@ export function MapSettingsModal({
                             Zaps
                         </Button>
 
+                        <Button type="button" variant="outline" className="nostr-settings-item" onClick={() => setView('advanced')}>
+                            Advanced settings
+                        </Button>
+
                         {hasActiveSession ? (
                             <Button
                                 type="button"
@@ -224,6 +230,10 @@ export function MapSettingsModal({
                             </Button>
                         ) : null}
 
+                    </div>
+                ) : view === 'advanced' ? (
+                    <div className="nostr-shortcuts-content">
+                        <p>Configuracion avanzada del MapGenerator.</p>
                         <div ref={settingsHostRef} className="nostr-settings-host" />
                     </div>
                 ) : view === 'ui' ? (

@@ -320,14 +320,14 @@ describe('DefaultStyle occupied/selected rendering with building models', () => 
         const style = new TestStyle({} as HTMLCanvasElement, {} as any, { ...baseScheme }) as any;
         style.streetLabels = [
             {
-                text: 'Azul Mar',
+                text: 'Blue Sea',
                 anchor: new Vector(10, 10),
                 angleRad: 0,
                 color: 'rgb(67, 120, 207)',
                 fontScale: 1.35,
             },
             {
-                text: 'Central Parque',
+                text: 'Central Park',
                 anchor: new Vector(20, 20),
                 angleRad: 0,
                 color: 'rgb(59, 139, 74)',
@@ -344,8 +344,8 @@ describe('DefaultStyle occupied/selected rendering with building models', () => 
         expect(setFillStyle).toHaveBeenCalledWith('rgb(59, 139, 74)');
 
         const baseFontPx = Math.max(9, Math.min(14, 8 + domainController.zoom * 0.65));
-        const waterCall = drawRotatedText.mock.calls.find((call) => call[0] === 'Azul Mar');
-        const parkCall = drawRotatedText.mock.calls.find((call) => call[0] === 'Central Parque');
+        const waterCall = drawRotatedText.mock.calls.find((call) => call[0] === 'Blue Sea');
+        const parkCall = drawRotatedText.mock.calls.find((call) => call[0] === 'Central Park');
 
         expect(waterCall).toBeDefined();
         expect(parkCall).toBeDefined();

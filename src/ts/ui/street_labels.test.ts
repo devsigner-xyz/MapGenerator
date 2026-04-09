@@ -15,12 +15,12 @@ const POOL = normalizeMapLabelNamePool({
         fallbackBases: ['Relay', 'Zap', 'NIP-03'],
     },
     water: {
-        suffixes: ['Mar', 'Lago'],
-        fallbackBases: ['Azul', 'Atlantico'],
+        suffixes: ['Sea', 'Lake'],
+        fallbackBases: ['Blue', 'Atlantic'],
     },
     park: {
-        suffixes: ['Parque', 'Jardin'],
-        fallbackBases: ['Central', 'Verde'],
+        suffixes: ['Park', 'Garden'],
+        fallbackBases: ['Central', 'Green'],
     },
 });
 
@@ -32,12 +32,32 @@ describe('street_labels', () => {
     test('normalizacion del pool generico conserva categorias y strings unicos', () => {
         const normalizedPool = normalizeMapLabelNamePool({
             street: { suffixes: ['Street'], fallbackBases: ['Relay'] },
-            water: { suffixes: ['Mar', 'Lago'], fallbackBases: ['Atlantico'] },
-            park: { suffixes: ['Parque', 'Jardin'], fallbackBases: ['Central'] },
+            water: { suffixes: ['Sea', 'Lake'], fallbackBases: ['Atlantic'] },
+            park: { suffixes: ['Park', 'Garden'], fallbackBases: ['Central'] },
         });
 
-        expect(normalizedPool.water.suffixes).toEqual(['Mar', 'Lago']);
-        expect(normalizedPool.park.suffixes).toEqual(['Parque', 'Jardin']);
+        expect(normalizedPool.water.suffixes).toEqual(['Sea', 'Lake']);
+        expect(normalizedPool.park.suffixes).toEqual(['Park', 'Garden']);
+    });
+
+    test('normalizacion permite una sola lista fallback compartida', () => {
+        const normalizedPool = normalizeMapLabelNamePool({
+            sharedFallbackBases: ['Relay', 'Client'],
+            street: { suffixes: ['Street'] },
+            water: { suffixes: ['Sea', 'Lake'] },
+            park: { suffixes: ['Park', 'Garden'] },
+        });
+
+        expect(normalizedPool.street.fallbackBases).toEqual(['Relay', 'Client']);
+        expect(normalizedPool.water.fallbackBases).toEqual(['Relay', 'Client']);
+        expect(normalizedPool.park.fallbackBases).toEqual(['Relay', 'Client']);
+    });
+
+    test('default map pools use english suffixes for water and parks', () => {
+        const normalizedPool = normalizeMapLabelNamePool({});
+
+        expect(normalizedPool.water.suffixes).toEqual(['Sea', 'Lake']);
+        expect(normalizedPool.park.suffixes).toEqual(['Park', 'Garden']);
     });
 
     test('buildStreetNames prioritizes usernames and falls back to pool', () => {
@@ -187,7 +207,43 @@ describe('street_labels', () => {
         expect(lowFarRoad.text).toBe(highFarRoad.text);
     });
 
-    test('createStreetLabels exclusion por parque', () => {
+    test('already visible labels remain stable when zoom increases and label cap applies', () => {
+        const baseRoads = [
+            [new Vector(0, 0), new Vector(300, 0)],
+            [new Vector(0, 90), new Vector(290, 90)],
+            [new Vector(0, 220), new Vector(280, 220)],
+        ];
+
+        const labelsAtThreshold = createStreetLabels({
+            enabled: true,
+            zoom: 10,
+            zoomThreshold: 10,
+            roads: scaleRoads(baseRoads, 1),
+            seed: 'stable-cap-seed',
+            pool: POOL.street,
+            minRoadLengthPx: 100,
+            minLabelSpacingPx: 120,
+            maxLabels: 2,
+        });
+
+        const labelsAfterZoomIn = createStreetLabels({
+            enabled: true,
+            zoom: 14,
+            zoomThreshold: 10,
+            roads: scaleRoads(baseRoads, 1.4),
+            seed: 'stable-cap-seed',
+            pool: POOL.street,
+            minRoadLengthPx: 100,
+            minLabelSpacingPx: 120,
+            maxLabels: 2,
+        });
+
+        expect(labelsAtThreshold.map((label) => label.text)).toEqual(
+            labelsAfterZoomIn.map((label) => label.text)
+        );
+    });
+
+    test('createStreetLabels excludes labels inside parks', () => {
         const labels = createStreetLabels({
             enabled: true,
             zoom: 12,
@@ -201,17 +257,17 @@ describe('street_labels', () => {
         expect(labels).toEqual([]);
     });
 
-    test('createWaterLabel crea label determinista de mar', () => {
+    test('createWaterLabel creates deterministic water label', () => {
         const waterLabel = createWaterLabel({
             polygon: [new Vector(0, 0), new Vector(200, 0), new Vector(200, 120), new Vector(0, 120)],
             seed: 'seed-city',
             pool: POOL.water,
         });
 
-        expect(waterLabel?.text).toMatch(/(Mar|Lago)$/);
+        expect(waterLabel?.text).toMatch(/(Sea|Lake)$/);
     });
 
-    test('createBigParkLabels crea una etiqueta por parque grande', () => {
+    test('createBigParkLabels creates one label per big park', () => {
         const parkLabels = createBigParkLabels({
             polygons: [
                 [new Vector(0, 0), new Vector(180, 0), new Vector(180, 180), new Vector(0, 180)],
@@ -222,6 +278,6 @@ describe('street_labels', () => {
         });
 
         expect(parkLabels).toHaveLength(2);
-        expect(parkLabels[0].text).toMatch(/(Parque|Jardin)$/);
+        expect(parkLabels[0].text).toMatch(/(Park|Garden)$/);
     });
 });

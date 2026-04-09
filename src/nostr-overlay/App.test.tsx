@@ -1051,7 +1051,7 @@ describe('Nostr overlay App', () => {
         expect(document.body.textContent || '').not.toContain('Configurar cantidades');
     });
 
-    test('opens settings modal, mounts map settings and shows shortcuts screen', async () => {
+    test('opens settings modal, mounts map settings from advanced section and shows shortcuts screen', async () => {
         const { bridge } = createMapBridgeStub();
         const rendered = await renderApp(<App mapBridge={bridge} />);
         mounted.push(rendered);
@@ -1064,9 +1064,29 @@ describe('Nostr overlay App', () => {
             settingsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
+        const mountedOnOpen = (bridge.mountSettingsPanel as any).mock.calls.some((call: [unknown]) => call[0] instanceof HTMLElement);
+        expect(mountedOnOpen).toBe(false);
+
+        const advancedButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Advanced settings')
+        ) as HTMLButtonElement;
+        expect(advancedButton).toBeDefined();
+
+        await act(async () => {
+            advancedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
         await waitFor(() => {
             const calls = (bridge.mountSettingsPanel as any).mock.calls;
             return calls.length > 0 && calls[calls.length - 1][0] instanceof HTMLElement;
+        });
+
+        const backButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Volver')
+        ) as HTMLButtonElement;
+        expect(backButton).toBeDefined();
+        await act(async () => {
+            backButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
         const shortcutsButton = Array.from(rendered.container.querySelectorAll('button')).find(button =>

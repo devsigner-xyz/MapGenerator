@@ -5,6 +5,11 @@ export interface LabelNamePool {
     fallbackBases: string[];
 }
 
+export interface LabelNamePoolInput {
+    suffixes?: string[];
+    fallbackBases?: string[];
+}
+
 export interface MapLabel {
     text: string;
     anchor: Vector;
@@ -19,6 +24,13 @@ export interface MapLabelNamePool {
     street: LabelNamePool;
     water: LabelNamePool;
     park: LabelNamePool;
+}
+
+export interface MapLabelNamePoolInput {
+    sharedFallbackBases?: string[];
+    street?: LabelNamePoolInput;
+    water?: LabelNamePoolInput;
+    park?: LabelNamePoolInput;
 }
 
 export type StreetNamePool = LabelNamePool;
@@ -60,20 +72,21 @@ const DEFAULT_SEED = 'street-labels';
 const DEFAULT_MIN_ROAD_LENGTH_PX = 120;
 const DEFAULT_MIN_LABEL_SPACING_PX = 110;
 const DEFAULT_MAX_LABELS = 48;
+const DEFAULT_SHARED_FALLBACK_BASES = ['Relay', 'Zap', 'NIP-03'];
 
 const DEFAULT_STREET_NAME_POOL: LabelNamePool = {
     suffixes: ['Street', 'Avenue', 'Lane', 'Road', 'Boulevard', 'Way'],
-    fallbackBases: ['Relay', 'Zap', 'NIP-03'],
+    fallbackBases: DEFAULT_SHARED_FALLBACK_BASES,
 };
 
 const DEFAULT_WATER_NAME_POOL: LabelNamePool = {
-    suffixes: ['Mar', 'Lago'],
-    fallbackBases: ['Azul', 'Atlantico'],
+    suffixes: ['Sea', 'Lake'],
+    fallbackBases: DEFAULT_SHARED_FALLBACK_BASES,
 };
 
 const DEFAULT_PARK_NAME_POOL: LabelNamePool = {
-    suffixes: ['Parque', 'Jardin'],
-    fallbackBases: ['Central', 'Verde'],
+    suffixes: ['Park', 'Garden'],
+    fallbackBases: DEFAULT_SHARED_FALLBACK_BASES,
 };
 
 const DEFAULT_MAP_LABEL_NAME_POOL: MapLabelNamePool = {
@@ -183,13 +196,19 @@ function resolveSeed(seed?: string): string {
     return normalized || DEFAULT_SEED;
 }
 
-function normalizeLabelNamePool(pool: Partial<LabelNamePool> | undefined, defaults: LabelNamePool): LabelNamePool {
+function normalizeLabelNamePool(
+    pool: LabelNamePoolInput | undefined,
+    defaults: LabelNamePool,
+    sharedFallbackBases?: string[],
+): LabelNamePool {
     const suffixes = normalizeUniqueStrings(pool?.suffixes || defaults.suffixes);
-    const fallbackBases = normalizeUniqueStrings(pool?.fallbackBases || defaults.fallbackBases);
+    const sourceFallbackBases = pool?.fallbackBases || sharedFallbackBases || defaults.fallbackBases;
+    const fallbackBases = normalizeUniqueStrings(sourceFallbackBases);
+    const defaultFallbackBases = sharedFallbackBases || defaults.fallbackBases;
 
     return {
         suffixes: suffixes.length > 0 ? suffixes : defaults.suffixes.slice(),
-        fallbackBases: fallbackBases.length > 0 ? fallbackBases : defaults.fallbackBases.slice(),
+        fallbackBases: fallbackBases.length > 0 ? fallbackBases : defaultFallbackBases.slice(),
     };
 }
 
@@ -197,11 +216,14 @@ export function normalizeStreetNamePool(pool?: LabelNamePool): LabelNamePool {
     return normalizeLabelNamePool(pool, DEFAULT_STREET_NAME_POOL);
 }
 
-export function normalizeMapLabelNamePool(pool?: Partial<MapLabelNamePool>): MapLabelNamePool {
+export function normalizeMapLabelNamePool(pool?: MapLabelNamePoolInput): MapLabelNamePool {
+    const sharedFallbackBases = normalizeUniqueStrings(pool?.sharedFallbackBases || []);
+    const effectiveSharedFallbackBases = sharedFallbackBases.length > 0 ? sharedFallbackBases : undefined;
+
     return {
-        street: normalizeLabelNamePool(pool?.street, DEFAULT_MAP_LABEL_NAME_POOL.street),
-        water: normalizeLabelNamePool(pool?.water, DEFAULT_MAP_LABEL_NAME_POOL.water),
-        park: normalizeLabelNamePool(pool?.park, DEFAULT_MAP_LABEL_NAME_POOL.park),
+        street: normalizeLabelNamePool(pool?.street, DEFAULT_MAP_LABEL_NAME_POOL.street, effectiveSharedFallbackBases),
+        water: normalizeLabelNamePool(pool?.water, DEFAULT_MAP_LABEL_NAME_POOL.water, effectiveSharedFallbackBases),
+        park: normalizeLabelNamePool(pool?.park, DEFAULT_MAP_LABEL_NAME_POOL.park, effectiveSharedFallbackBases),
     };
 }
 
@@ -381,8 +403,10 @@ export function createStreetLabels(input: CreateStreetLabelsInput): StreetLabel[
         return [];
     }
 
-    const minRoadLengthPx = Math.max(1, input.minRoadLengthPx || DEFAULT_MIN_ROAD_LENGTH_PX);
-    const minLabelSpacingPx = Math.max(1, input.minLabelSpacingPx || DEFAULT_MIN_LABEL_SPACING_PX);
+    const zoomThreshold = Math.max(1, input.zoomThreshold);
+    const zoomStabilityScale = input.zoom / zoomThreshold;
+    const minRoadLengthPx = Math.max(1, (input.minRoadLengthPx || DEFAULT_MIN_ROAD_LENGTH_PX) * zoomStabilityScale);
+    const minLabelSpacingPx = Math.max(1, (input.minLabelSpacingPx || DEFAULT_MIN_LABEL_SPACING_PX) * zoomStabilityScale);
     const maxLabels = Math.max(1, Math.floor(input.maxLabels || DEFAULT_MAX_LABELS));
     const parks = input.parks || [];
 
@@ -485,7 +509,7 @@ export function createBigParkLabels(input: CreateBigParkLabelsInput): MapLabel[]
     });
 
     return validPolygons.map((polygon, index) => ({
-        text: names[index] || `Parque ${index + 1}`,
+        text: names[index] || `Park ${index + 1}`,
         anchor: averagePoint(polygon),
         angleRad: 0,
     }));
