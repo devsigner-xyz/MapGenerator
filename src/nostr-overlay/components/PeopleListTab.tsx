@@ -1,8 +1,11 @@
 import { useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { encodeHexToNpub } from '../../nostr/npub';
 import type { NostrProfile } from '../../nostr/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 const VIRTUALIZATION_THRESHOLD = 120;
@@ -16,6 +19,8 @@ interface PeopleListTabProps {
     loading: boolean;
     selectedPubkey?: string;
     onSelectPerson?: (pubkey: string) => void;
+    onLocatePerson?: (pubkey: string) => void;
+    onCopyNpub?: (value: string) => void | Promise<void>;
     searchQuery?: string;
     onSearchQueryChange?: (value: string) => void;
     searchAriaLabel?: string;
@@ -33,6 +38,28 @@ function personName(pubkey: string, profile: NostrProfile | undefined): string {
     return `${pubkey.slice(0, 10)}...${pubkey.slice(-6)}`;
 }
 
+function personInitials(pubkey: string, profile: NostrProfile | undefined): string {
+    const name = personName(pubkey, profile).trim();
+    if (!name) {
+        return pubkey.slice(0, 2).toUpperCase();
+    }
+
+    const parts = name.split(/\s+/).filter((part) => part.length > 0);
+    if (parts.length === 1) {
+        return parts[0].slice(0, 2).toUpperCase();
+    }
+
+    return `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase();
+}
+
+function pubkeyToNpub(pubkey: string): string {
+    try {
+        return encodeHexToNpub(pubkey);
+    } catch {
+        return pubkey;
+    }
+}
+
 export function PeopleListTab({
     people,
     profiles,
@@ -41,6 +68,8 @@ export function PeopleListTab({
     loading,
     selectedPubkey,
     onSelectPerson,
+    onLocatePerson,
+    onCopyNpub,
     searchQuery,
     onSearchQueryChange,
     searchAriaLabel,
@@ -77,20 +106,104 @@ export function PeopleListTab({
         ? rowVirtualizer.getTotalSize()
         : people.length * VIRTUAL_ROW_HEIGHT_PX;
 
-    const renderPersonButton = (pubkey: string) => {
+    const renderPersonItem = (pubkey: string, key?: string) => {
         const profile = profiles[pubkey];
         const active = selectedPubkey === pubkey;
+        const selectable = typeof onSelectPerson === 'function';
+        const canLocate = typeof onLocatePerson === 'function';
+        const canCopy = typeof onCopyNpub === 'function';
+        const shortKey = `${pubkey.slice(0, 8)}...${pubkey.slice(-6)}`;
+        const display = personName(pubkey, profile);
 
         return (
-            <Button
-                type="button"
-                variant="ghost"
-                className={`nostr-person${active ? ' nostr-person-active' : ''}`}
-                onClick={() => onSelectPerson?.(pubkey)}
+            <Item
+                key={key || pubkey}
+                variant={active ? 'outline' : 'default'}
+                size="sm"
+                data-active={active ? 'true' : 'false'}
+                className={selectable ? 'cursor-pointer gap-2' : undefined}
             >
-                <span className="nostr-person-name">{personName(pubkey, profile)}</span>
-                <span className="nostr-person-key">{`${pubkey.slice(0, 8)}...${pubkey.slice(-6)}`}</span>
-            </Button>
+                {selectable ? (
+                    <button
+                        type="button"
+                        className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 text-left outline-none"
+                        aria-pressed={active}
+                        onClick={() => onSelectPerson?.(pubkey)}
+                    >
+                        <ItemMedia>
+                            <Avatar className="size-8">
+                                {profile?.picture ? (
+                                    <AvatarImage src={profile.picture} alt={display} />
+                                ) : null}
+                                <AvatarFallback>{personInitials(pubkey, profile)}</AvatarFallback>
+                            </Avatar>
+                        </ItemMedia>
+                        <ItemContent className="min-w-0">
+                            <ItemTitle className="w-full truncate">{display}</ItemTitle>
+                            <ItemDescription className="truncate">{shortKey}</ItemDescription>
+                        </ItemContent>
+                    </button>
+                ) : (
+                    <>
+                        <ItemMedia>
+                            <Avatar className="size-8">
+                                {profile?.picture ? (
+                                    <AvatarImage src={profile.picture} alt={display} />
+                                ) : null}
+                                <AvatarFallback>{personInitials(pubkey, profile)}</AvatarFallback>
+                            </Avatar>
+                        </ItemMedia>
+                        <ItemContent className="min-w-0">
+                            <ItemTitle className="w-full truncate">{display}</ItemTitle>
+                            <ItemDescription className="truncate">{shortKey}</ItemDescription>
+                        </ItemContent>
+                    </>
+                )}
+
+                {canLocate || canCopy ? (
+                    <div className="ml-auto flex shrink-0 items-center gap-1">
+                        {canLocate ? (
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-sm"
+                                className="cursor-pointer"
+                                aria-label={`Ubicar ${display} en el mapa`}
+                                title="Locate on map"
+                                onClick={(event) => {
+                                    event.stopPropagation();
+                                    onLocatePerson?.(pubkey);
+                                }}
+                            >
+                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                    <path d="M12 22s7-4.35 7-11a7 7 0 1 0-14 0c0 6.65 7 11 7 11z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                    <circle cx="12" cy="11" r="2.5" fill="none" stroke="currentColor" strokeWidth="2" />
+                                </svg>
+                            </Button>
+                        ) : null}
+
+                        {canCopy ? (
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-sm"
+                                className="cursor-pointer"
+                                aria-label={`Copiar npub de ${display}`}
+                                title="Copy npub"
+                                onClick={(event) => {
+                                    event.stopPropagation();
+                                    void onCopyNpub?.(pubkeyToNpub(pubkey));
+                                }}
+                            >
+                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                    <rect x="9" y="9" width="11" height="11" rx="2" ry="2" fill="none" stroke="currentColor" strokeWidth="2" />
+                                    <path d="M5 15V6a2 2 0 0 1 2-2h9" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                            </Button>
+                        ) : null}
+                    </div>
+                ) : null}
+            </Item>
         );
     };
 
@@ -120,7 +233,7 @@ export function PeopleListTab({
                                     transform: `translateY(${virtualItem.start}px)`,
                                 }}
                             >
-                                {renderPersonButton(pubkey)}
+                                {renderPersonItem(pubkey)}
                             </div>
                         );
                     })}
@@ -128,15 +241,11 @@ export function PeopleListTab({
             </div>
         ) : (
             <ScrollArea className="nostr-people-scroll-area">
-                <ul className="nostr-people-list">
+                <ItemGroup className="nostr-people-list">
                     {people.map((pubkey) => {
-                        return (
-                            <li key={pubkey}>
-                                {renderPersonButton(pubkey)}
-                            </li>
-                        );
+                        return renderPersonItem(pubkey, pubkey);
                     })}
-                </ul>
+                </ItemGroup>
             </ScrollArea>
         );
 

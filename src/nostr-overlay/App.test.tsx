@@ -367,6 +367,99 @@ describe('Nostr overlay App', () => {
         expect((bridge.focusBuilding as any).mock.calls.some((call: unknown[]) => call[0] === 0)).toBe(true);
     });
 
+    test('shows locate/copy actions for following rows', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+        const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+        Object.assign(navigator, {
+            clipboard: {
+                writeText: clipboardWriteText,
+            },
+        });
+
+        const { bridge } = createMapBridgeStub(6);
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByNpubFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [followedPubkey],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockImplementation(async (pubkeys: string[]) => {
+                        const profiles: Record<string, { pubkey: string; displayName: string }> = {};
+                        for (const pubkey of pubkeys) {
+                            if (pubkey === ownerPubkey) {
+                                profiles[pubkey] = { pubkey, displayName: 'Owner' };
+                            }
+                            if (pubkey === followedPubkey) {
+                                profiles[pubkey] = { pubkey, displayName: 'Alice' };
+                            }
+                        }
+                        return profiles;
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+        const form = rendered.container.querySelector('form');
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
+            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const followingTab = Array.from(rendered.container.querySelectorAll('button')).find(button =>
+            (button.textContent || '').includes('Sigues (1)')
+        ) as HTMLButtonElement;
+        expect(followingTab).toBeDefined();
+
+        await act(async () => {
+            followingTab.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+            followingTab.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Alice'));
+
+        const locateFollowingButton = rendered.container.querySelector('button[aria-label="Ubicar Alice en el mapa"]') as HTMLButtonElement;
+        const copyFollowingButton = rendered.container.querySelector('button[aria-label="Copiar npub de Alice"]') as HTMLButtonElement;
+        expect(locateFollowingButton).toBeDefined();
+        expect(copyFollowingButton).toBeDefined();
+
+        const focusCallsBeforeLocate = (bridge.focusBuilding as any).mock.calls.length;
+        await act(async () => {
+            locateFollowingButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+        expect((bridge.focusBuilding as any).mock.calls.length).toBeGreaterThan(focusCallsBeforeLocate);
+
+        await act(async () => {
+            copyFollowingButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+        expect(clipboardWriteText).toHaveBeenCalledTimes(1);
+        expect((clipboardWriteText.mock.calls[0][0] as string).startsWith('npub1')).toBe(true);
+    });
+
     test('shows map loader stage messages while processing npub', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const followedPubkey = 'a'.repeat(64);
@@ -576,6 +669,7 @@ describe('Nostr overlay App', () => {
         expect(followersTab).toBeDefined();
 
         await act(async () => {
+            followersTab?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
             followersTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
@@ -922,6 +1016,7 @@ describe('Nostr overlay App', () => {
         expect(followingTab).toBeDefined();
 
         await act(async () => {
+            followingTab.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
             followingTab.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 

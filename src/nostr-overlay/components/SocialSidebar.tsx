@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import type { NostrProfile } from '../../nostr/types';
 import { PeopleListTab } from './PeopleListTab';
 import { ProfileTab } from './ProfileTab';
-import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 type SocialTab = 'profile' | 'following' | 'followers';
 
@@ -16,6 +16,7 @@ interface SocialSidebarProps {
     followersLoading?: boolean;
     selectedFollowingPubkey?: string;
     onSelectFollowing?: (pubkey: string) => void;
+    onLocateFollowing?: (pubkey: string) => void;
     onLocateOwner?: () => void;
     onCopyOwnerNpub?: (value: string) => void | Promise<void>;
 }
@@ -30,6 +31,7 @@ export function SocialSidebar({
     followersLoading = false,
     selectedFollowingPubkey,
     onSelectFollowing,
+    onLocateFollowing,
     onLocateOwner,
     onCopyOwnerNpub,
 }: SocialSidebarProps) {
@@ -55,79 +57,56 @@ export function SocialSidebar({
     }, [followingPeople, profiles, followingSearch]);
 
     return (
-        <div className="nostr-social-sidebar" aria-label="Panel social">
-            <div className="nostr-tabs" role="tablist" aria-label="Pestañas sociales">
-                <Button
-                    type="button"
-                    variant="outline"
-                    className={`nostr-tab${activeTab === 'profile' ? ' nostr-tab-active' : ''}`}
-                    role="tab"
-                    aria-selected={activeTab === 'profile'}
-                    onClick={() => setActiveTab('profile')}
-                >
-                    Información
-                </Button>
+        <Tabs
+            value={activeTab}
+            onValueChange={(value) => setActiveTab(value as SocialTab)}
+            className="nostr-social-sidebar"
+            aria-label="Panel social"
+        >
+            <TabsList className="grid h-auto w-full grid-cols-3" aria-label="Pestanas sociales">
+                <TabsTrigger value="profile">Información</TabsTrigger>
+                <TabsTrigger value="following">{`Sigues (${followingPeople.length})`}</TabsTrigger>
+                <TabsTrigger value="followers">{`Seguidores (${followerPeople.length})`}</TabsTrigger>
+            </TabsList>
 
-                <Button
-                    type="button"
-                    variant="outline"
-                    className={`nostr-tab${activeTab === 'following' ? ' nostr-tab-active' : ''}`}
-                    role="tab"
-                    aria-selected={activeTab === 'following'}
-                    onClick={() => setActiveTab('following')}
-                >
-                    {`Sigues (${followingPeople.length})`}
-                </Button>
+            <TabsContent value="profile" className="nostr-tab-panel">
+                <ProfileTab
+                    ownerPubkey={ownerPubkey}
+                    ownerProfile={ownerProfile}
+                    followsCount={followingPeople.length}
+                    followersCount={followerPeople.length}
+                    followersLoading={followersLoading}
+                    onLocateOwner={onLocateOwner}
+                    onCopyOwnerNpub={onCopyOwnerNpub}
+                />
+            </TabsContent>
 
-                <Button
-                    type="button"
-                    variant="outline"
-                    className={`nostr-tab${activeTab === 'followers' ? ' nostr-tab-active' : ''}`}
-                    role="tab"
-                    aria-selected={activeTab === 'followers'}
-                    onClick={() => setActiveTab('followers')}
-                >
-                    {`Seguidores (${followerPeople.length})`}
-                </Button>
-            </div>
+            <TabsContent value="following" className="nostr-tab-panel">
+                <PeopleListTab
+                    people={filteredFollowingPeople}
+                    profiles={profiles}
+                    emptyText={followingSearch ? 'No hay resultados para esta busqueda.' : 'No hay cuentas seguidas todavía.'}
+                    loading={false}
+                    selectedPubkey={selectedFollowingPubkey}
+                    onSelectPerson={onSelectFollowing}
+                    onLocatePerson={onLocateFollowing}
+                    onCopyNpub={onCopyOwnerNpub}
+                    searchQuery={followingSearch}
+                    onSearchQueryChange={setFollowingSearch}
+                    searchAriaLabel="Buscar en seguidos"
+                />
+            </TabsContent>
 
-            <div className="nostr-tab-panel" role="tabpanel">
-                {activeTab === 'profile' ? (
-                    <ProfileTab
-                        ownerPubkey={ownerPubkey}
-                        ownerProfile={ownerProfile}
-                        followsCount={followingPeople.length}
-                        followersCount={followerPeople.length}
-                        followersLoading={followersLoading}
-                        onLocateOwner={onLocateOwner}
-                        onCopyOwnerNpub={onCopyOwnerNpub}
-                    />
-                ) : null}
-
-                {activeTab === 'following' ? (
-                    <PeopleListTab
-                        people={filteredFollowingPeople}
-                        profiles={profiles}
-                        emptyText={followingSearch ? 'No hay resultados para esta busqueda.' : 'No hay cuentas seguidas todavía.'}
-                        loading={false}
-                        selectedPubkey={selectedFollowingPubkey}
-                        onSelectPerson={onSelectFollowing}
-                        searchQuery={followingSearch}
-                        onSearchQueryChange={setFollowingSearch}
-                        searchAriaLabel="Buscar en seguidos"
-                    />
-                ) : null}
-
-                {activeTab === 'followers' ? (
-                    <PeopleListTab
-                        people={followerPeople}
-                        profiles={followerProfiles}
-                        emptyText="No se encontraron seguidores aún."
-                        loadingText="Buscando seguidores en relays..."
-                        loading={followersLoading}
-                    />
-                ) : null}
-            </div>
-        </div>
+            <TabsContent value="followers" className="nostr-tab-panel">
+                <PeopleListTab
+                    people={followerPeople}
+                    profiles={followerProfiles}
+                    emptyText="No se encontraron seguidores aún."
+                    loadingText="Buscando seguidores en relays..."
+                    loading={followersLoading}
+                    onCopyNpub={onCopyOwnerNpub}
+                />
+            </TabsContent>
+        </Tabs>
     );
 }

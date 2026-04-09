@@ -67,11 +67,11 @@ describe('PeopleListTab', () => {
         );
         mounted.push(rendered);
 
-        const buttons = Array.from(rendered.container.querySelectorAll('button.nostr-person')) as HTMLButtonElement[];
+        const buttons = Array.from(rendered.container.querySelectorAll('button[aria-pressed]')) as HTMLButtonElement[];
         expect(buttons).toHaveLength(2);
         expect(rendered.container.textContent || '').toContain('Alice');
         expect(rendered.container.textContent || '').toContain('Bob');
-        expect(buttons[1].classList.contains('nostr-person-active')).toBe(true);
+        expect(buttons[1].getAttribute('aria-pressed')).toBe('true');
 
         await act(async () => {
             buttons[0].dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -108,7 +108,7 @@ describe('PeopleListTab', () => {
             input.dispatchEvent(new Event('change', { bubbles: true }));
         });
 
-        const clearButton = rendered.container.querySelector('button.nostr-search-clear') as HTMLButtonElement;
+        const clearButton = rendered.container.querySelector('button[aria-label="Limpiar busqueda"]') as HTMLButtonElement;
         expect(clearButton).toBeDefined();
 
         await act(async () => {
@@ -117,6 +117,78 @@ describe('PeopleListTab', () => {
 
         expect(onSearchQueryChange).toHaveBeenCalled();
         expect(onSearchQueryChange).toHaveBeenLastCalledWith('');
+    });
+
+    test('shows locate and copy actions for following rows', async () => {
+        const alice = makePubkey(1);
+        const onSelectPerson = vi.fn();
+        const onLocatePerson = vi.fn();
+        const onCopyNpub = vi.fn();
+
+        const rendered = await renderElement(
+            <PeopleListTab
+                people={[alice]}
+                profiles={{
+                    [alice]: { pubkey: alice, displayName: 'Alice' },
+                }}
+                emptyText="Sin resultados"
+                loading={false}
+                onSelectPerson={onSelectPerson}
+                onLocatePerson={onLocatePerson}
+                onCopyNpub={onCopyNpub}
+            />
+        );
+        mounted.push(rendered);
+
+        const locateButton = rendered.container.querySelector('button[aria-label^="Ubicar "]') as HTMLButtonElement;
+        const copyButton = rendered.container.querySelector('button[aria-label^="Copiar npub"]') as HTMLButtonElement;
+        expect(locateButton).toBeDefined();
+        expect(copyButton).toBeDefined();
+
+        await act(async () => {
+            locateButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+        expect(onLocatePerson).toHaveBeenCalledWith(alice);
+        expect(onSelectPerson).not.toHaveBeenCalled();
+
+        await act(async () => {
+            copyButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onCopyNpub).toHaveBeenCalledTimes(1);
+        expect(onSelectPerson).not.toHaveBeenCalled();
+        expect((onCopyNpub.mock.calls[0][0] as string).startsWith('npub1')).toBe(true);
+    });
+
+    test('shows only copy action for followers rows', async () => {
+        const bob = makePubkey(2);
+        const onCopyNpub = vi.fn();
+
+        const rendered = await renderElement(
+            <PeopleListTab
+                people={[bob]}
+                profiles={{
+                    [bob]: { pubkey: bob, displayName: 'Bob' },
+                }}
+                emptyText="Sin resultados"
+                loading={false}
+                onCopyNpub={onCopyNpub}
+            />
+        );
+        mounted.push(rendered);
+
+        const locateButton = rendered.container.querySelector('button[aria-label^="Ubicar "]');
+        const copyButton = rendered.container.querySelector('button[aria-label^="Copiar npub"]') as HTMLButtonElement;
+
+        expect(locateButton).toBeNull();
+        expect(copyButton).toBeDefined();
+
+        await act(async () => {
+            copyButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onCopyNpub).toHaveBeenCalledTimes(1);
+        expect((onCopyNpub.mock.calls[0][0] as string).startsWith('npub1')).toBe(true);
     });
 
     test('virtualizes large people lists', async () => {
@@ -138,8 +210,8 @@ describe('PeopleListTab', () => {
         );
         mounted.push(rendered);
 
-        const buttons = rendered.container.querySelectorAll('button.nostr-person');
-        expect(buttons.length).toBeGreaterThan(0);
-        expect(buttons.length).toBeLessThan(people.length);
+        const renderedItems = rendered.container.querySelectorAll('[data-slot="item"]');
+        expect(renderedItems.length).toBeGreaterThan(0);
+        expect(renderedItems.length).toBeLessThan(people.length);
     });
 });

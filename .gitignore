@@ -7,3 +7,4 @@ npm-debug.log*
 /context
 .playwright-mcp/
 .worktrees/
+/dist

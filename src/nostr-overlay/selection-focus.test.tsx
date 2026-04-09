@@ -154,6 +154,7 @@ describe('Nostr overlay selection map interaction', () => {
         expect(followingTab).toBeDefined();
 
         await act(async () => {
+            followingTab?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
             followingTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 

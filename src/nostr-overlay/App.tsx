@@ -119,6 +119,24 @@ export function App({ mapBridge, services }: AppProps) {
         mapBridge.focusBuilding(overlay.ownerBuildingIndex);
     };
 
+    const locateFollowingOnMap = (pubkey: string): void => {
+        if (!mapBridge || !pubkey) {
+            return;
+        }
+
+        const match = Object.entries(overlay.occupancyByBuildingIndex).find(([, assignedPubkey]) => assignedPubkey === pubkey);
+        if (!match) {
+            return;
+        }
+
+        const buildingIndex = Number(match[0]);
+        if (!Number.isInteger(buildingIndex)) {
+            return;
+        }
+
+        mapBridge.focusBuilding(buildingIndex);
+    };
+
     return (
         <div className={`nostr-overlay-shell${panelCollapsed ? ' nostr-overlay-shell-collapsed' : ''}`}>
             {panelCollapsed ? (
@@ -269,6 +287,7 @@ export function App({ mapBridge, services }: AppProps) {
                         followersLoading={overlay.followersLoading}
                         selectedFollowingPubkey={overlay.selectedPubkey}
                         onSelectFollowing={overlay.selectFollowing}
+                        onLocateFollowing={locateFollowingOnMap}
                         onLocateOwner={locateOwnerOnMap}
                         onCopyOwnerNpub={copyOwnerIdentifier}
                     />
