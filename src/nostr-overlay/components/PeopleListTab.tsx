@@ -211,9 +211,9 @@ export function PeopleListTab({
                         {canLocate ? (
                             <Button
                                 type="button"
-                                variant="ghost"
+                                variant="outline"
                                 size="icon-sm"
-                                className="cursor-pointer"
+                                className="nostr-icon-button"
                                 aria-label={`Ubicar ${display} en el mapa`}
                                 title="Locate on map"
                                 onClick={(event) => {
@@ -231,9 +231,9 @@ export function PeopleListTab({
                         {canCopy ? (
                             <Button
                                 type="button"
-                                variant="ghost"
+                                variant="outline"
                                 size="icon-sm"
-                                className="cursor-pointer"
+                                className="nostr-icon-button"
                                 aria-label={`Copiar npub de ${display}`}
                                 title="Copy npub"
                                 onClick={(event) => {
