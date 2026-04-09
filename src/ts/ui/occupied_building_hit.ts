@@ -1,4 +1,5 @@
 import Vector from '../vector';
+import type { OccupiedBuildingSpatialIndex } from './occupied_building_spatial_index';
 
 export interface OccupiedBuildingHit {
     index: number;
@@ -9,14 +10,19 @@ interface FindOccupiedBuildingHitInput {
     point: Vector;
     footprints: Vector[][];
     occupiedPubkeyByBuildingIndex: Record<number, string>;
+    spatialIndex?: OccupiedBuildingSpatialIndex;
 }
 
 export function findOccupiedBuildingHit({
     point,
     footprints,
     occupiedPubkeyByBuildingIndex,
+    spatialIndex,
 }: FindOccupiedBuildingHitInput): OccupiedBuildingHit | null {
-    for (let i = footprints.length - 1; i >= 0; i--) {
+    const candidateIndices = spatialIndex?.query(point)
+        ?? Array.from({ length: footprints.length }, (_, index) => footprints.length - 1 - index);
+
+    for (const i of candidateIndices) {
         const pubkey = occupiedPubkeyByBuildingIndex[i];
         if (!pubkey) {
             continue;

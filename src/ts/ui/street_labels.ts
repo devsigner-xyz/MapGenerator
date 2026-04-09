@@ -56,6 +56,21 @@ export interface CreateBigParkLabelsInput {
     pool?: LabelNamePool;
 }
 
+export interface CreateStreetLabelCacheKeyInput {
+    enabled: boolean;
+    viewRevision: number;
+    roadsRevision: string;
+    parksRevision: string;
+    zoom: number;
+    zoomBucketStep?: number;
+    zoomThreshold: number;
+    seed: string;
+    usernames: string[];
+    minRoadLengthPx: number;
+    minLabelSpacingPx: number;
+    maxLabels: number;
+}
+
 const DEFAULT_SEED = 'street-labels';
 const DEFAULT_MIN_ROAD_LENGTH_PX = 120;
 const DEFAULT_MIN_LABEL_SPACING_PX = 110;
@@ -181,6 +196,33 @@ function deterministicSortBySeed(values: string[], seed: string, namespace: stri
 function resolveSeed(seed?: string): string {
     const normalized = normalizeLabelPart(seed);
     return normalized || DEFAULT_SEED;
+}
+
+function normalizeUsernamesForCache(usernames: string[]): string[] {
+    return normalizeUniqueStrings(usernames || [])
+        .map((value) => value.toLocaleLowerCase())
+        .sort();
+}
+
+export function createStreetLabelCacheKey(input: CreateStreetLabelCacheKeyInput): string {
+    const zoomBucketStep = Math.max(0.05, input.zoomBucketStep || 0.25);
+    const zoomBucket = Math.round(input.zoom / zoomBucketStep) * zoomBucketStep;
+    const usernameToken = normalizeUsernamesForCache(input.usernames).join('|');
+    const usernameHash = fnv1aHash(usernameToken);
+
+    return [
+        input.enabled ? 'on' : 'off',
+        input.viewRevision,
+        input.roadsRevision,
+        input.parksRevision,
+        zoomBucket.toFixed(4),
+        input.zoomThreshold,
+        input.seed,
+        usernameHash,
+        input.minRoadLengthPx,
+        input.minLabelSpacingPx,
+        input.maxLabels,
+    ].join(':');
 }
 
 function normalizeLabelNamePool(pool: Partial<LabelNamePool> | undefined, defaults: LabelNamePool): LabelNamePool {

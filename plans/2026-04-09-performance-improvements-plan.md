@@ -136,25 +136,25 @@
 - Add: `src/ts/ui/occupied_building_spatial_index.ts` (if needed)
 - Modify: `plans/2026-04-09-performance-improvements-plan.md`
 
-- [ ] **Step 1: Introduce street-label cache keying**
+- [x] **Step 1: Introduce street-label cache keying**
   - Cache labels by deterministic key (`seed`, zoom bucket, geometry/version tokens, usernames hash).
 
-- [ ] **Step 2: Recompute labels only on cache miss**
+- [x] **Step 2: Recompute labels only on cache miss**
   - Keep label output deterministic and equivalent in rendering intent.
 
-- [ ] **Step 3: Add occupied-building spatial index**
+- [x] **Step 3: Add occupied-building spatial index**
   - Build quadtree/grid index for occupied footprint candidates.
   - Narrow hit-test to nearby candidates, then polygon test.
 
-- [ ] **Step 4: Integrate index lifecycle**
+- [x] **Step 4: Integrate index lifecycle**
   - Rebuild index only when occupancy map or building footprints change.
 
-- [ ] **Step 5: Verify and measure**
+- [x] **Step 5: Verify and measure**
   - Run: `pnpm test`
   - Run: `pnpm build`
   - Manual check: hover remains accurate and smoother on dense maps.
 
-- [ ] **Step 6: Commit Phase 3**
+- [x] **Step 6: Commit Phase 3**
   - Commit message: `perf(interaction): cache labels and accelerate occupied hit-testing`
 
 ---
