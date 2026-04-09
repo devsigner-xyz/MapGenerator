@@ -16,6 +16,12 @@ export default class RoadGUI {
     protected domainController = DomainController.getInstance();
     protected preGenerateCallback: () => any = () => {};
     protected postGenerateCallback: () => any = () => {};
+    private geometryRevision = 0;
+    private projectedRoadsCache: {
+        geometryRevision: number;
+        viewRevision: number;
+        roads: Vector[][];
+    } | null = null;
 
     private streamlinesInProgress: boolean = false;
 
@@ -65,11 +71,31 @@ export default class RoadGUI {
         return this.streamlines.allStreamlinesSimple;
     }
 
+    get projectionGeometryRevision(): number {
+        return this.geometryRevision;
+    }
+
     get roads(): Vector[][] {
-        // For drawing not generation, probably fine to leave map
-        return this.streamlines.allStreamlinesSimple.map(s =>
+        const viewRevision = this.domainController.viewRevision;
+        if (
+            this.projectedRoadsCache
+            && this.projectedRoadsCache.geometryRevision === this.geometryRevision
+            && this.projectedRoadsCache.viewRevision === viewRevision
+        ) {
+            return this.projectedRoadsCache.roads;
+        }
+
+        const roads = this.streamlines.allStreamlinesSimple.map(s =>
             s.map(v => this.domainController.worldToScreen(v.clone()))
         );
+
+        this.projectedRoadsCache = {
+            geometryRevision: this.geometryRevision,
+            viewRevision,
+            roads,
+        };
+
+        return roads;
     }
 
     roadsEmpty(): boolean {
@@ -90,6 +116,7 @@ export default class RoadGUI {
 
     clearStreamlines(): void {
         this.streamlines.clearStreamlines();
+        this.markGeometryDirty();
     }
 
     async generateRoads(animate=false): Promise<unknown> {
@@ -99,6 +126,7 @@ export default class RoadGUI {
         this.streamlines = new StreamlineGenerator(
             this.integrator, this.domainController.origin,
             this.domainController.worldDimensions, Object.assign({},this.params));
+        this.markGeometryDirty();
         this.domainController.zoom = this.domainController.zoom * Util.DRAW_INFLATE_AMOUNT;
 
         for (const s of this.existingStreamlines) {
@@ -115,7 +143,12 @@ export default class RoadGUI {
      * Returns true if streamlines changes
      */
     update(): boolean {
-        return this.streamlines.update();
+        const changed = this.streamlines.update();
+        if (changed) {
+            this.markGeometryDirty();
+        }
+
+        return changed;
     }
 
     protected addDevParamsToFolder(params: StreamlineParams, folder: dat.GUI): void {
@@ -136,5 +169,10 @@ export default class RoadGUI {
         const max = 1.5 * Math.max(window.innerWidth, window.innerHeight);
         this.params.pathIterations = max/this.params.dstep;
         Util.updateGui(this.guiFolder);
+    }
+
+    protected markGeometryDirty(): void {
+        this.geometryRevision += 1;
+        this.projectedRoadsCache = null;
     }
 }

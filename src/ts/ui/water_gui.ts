@@ -18,6 +18,14 @@ import TensorField from '../impl/tensor_field';
  */
 export default class WaterGUI extends RoadGUI {
     protected streamlines: WaterGenerator;
+    private projectedWaterCache: {
+        geometryRevision: number;
+        viewRevision: number;
+        river: Vector[];
+        secondaryRiver: Vector[];
+        coastline: Vector[];
+        seaPolygon: Vector[];
+    } | null = null;
 
     constructor(private tensorField: TensorField,
                 protected params: WaterParams,
@@ -60,6 +68,7 @@ export default class WaterGUI extends RoadGUI {
             this.integrator, this.domainController.origin,
             this.domainController.worldDimensions,
             Object.assign({},this.params), this.tensorField);
+        this.markGeometryDirty();
         this.domainController.zoom = this.domainController.zoom * Util.DRAW_INFLATE_AMOUNT;
 
         this.streamlines.createCoast();
@@ -81,21 +90,21 @@ export default class WaterGUI extends RoadGUI {
     }
 
     get river(): Vector[] {
-        return this.streamlines.riverPolygon.map(v => this.domainController.worldToScreen(v.clone()));
+        return this.getProjectedWater().river;
     }
 
     get secondaryRiver(): Vector[] {
-        return this.streamlines.riverSecondaryRoad.map(v => this.domainController.worldToScreen(v.clone()));
+        return this.getProjectedWater().secondaryRiver;
     }
 
     get coastline(): Vector[] {
         // Use unsimplified noisy streamline as coastline
         // Visual only, no road logic performed using this
-        return this.streamlines.coastline.map(v => this.domainController.worldToScreen(v.clone()));
+        return this.getProjectedWater().coastline;
     }
 
     get seaPolygon(): Vector[] {
-        return this.streamlines.seaPolygon.map(v => this.domainController.worldToScreen(v.clone()));
+        return this.getProjectedWater().seaPolygon;
     }
 
     protected addDevParamsToFolder(params: StreamlineParams, folder: dat.GUI): void {
@@ -107,6 +116,41 @@ export default class WaterGUI extends RoadGUI {
         folder.add(params, 'dlookahead');
         folder.add(params, 'dcirclejoin');
         folder.add(params, 'joinangle');
+    }
+
+    protected markGeometryDirty(): void {
+        super.markGeometryDirty();
+        this.projectedWaterCache = null;
+    }
+
+    private getProjectedWater(): {
+        river: Vector[];
+        secondaryRiver: Vector[];
+        coastline: Vector[];
+        seaPolygon: Vector[];
+    } {
+        const viewRevision = this.domainController.viewRevision;
+        const geometryRevision = this.projectionGeometryRevision;
+
+        if (
+            this.projectedWaterCache
+            && this.projectedWaterCache.geometryRevision === geometryRevision
+            && this.projectedWaterCache.viewRevision === viewRevision
+        ) {
+            return this.projectedWaterCache;
+        }
+
+        const projected = {
+            geometryRevision,
+            viewRevision,
+            river: this.streamlines.riverPolygon.map((v) => this.domainController.worldToScreen(v.clone())),
+            secondaryRiver: this.streamlines.riverSecondaryRoad.map((v) => this.domainController.worldToScreen(v.clone())),
+            coastline: this.streamlines.coastline.map((v) => this.domainController.worldToScreen(v.clone())),
+            seaPolygon: this.streamlines.seaPolygon.map((v) => this.domainController.worldToScreen(v.clone())),
+        };
+
+        this.projectedWaterCache = projected;
+        return projected;
     }
     
 }

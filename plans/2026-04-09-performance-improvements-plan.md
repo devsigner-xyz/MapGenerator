@@ -102,24 +102,24 @@
 - Modify: `src/ts/ui/buildings.ts`
 - Modify: `plans/2026-04-09-performance-improvements-plan.md`
 
-- [ ] **Step 1: Add view revision/invalidation signal**
+- [x] **Step 1: Add view revision/invalidation signal**
   - Introduce monotonic view revision in `DomainController` bumped on pan/zoom/resize/inset/camera changes.
 
-- [ ] **Step 2: Cache projected roads/water/lots/models**
+- [x] **Step 2: Cache projected roads/water/lots/models**
   - Recompute only when geometry changed or view revision changed.
 
-- [ ] **Step 3: Update `MainGUI.draw` to consume cached projections**
+- [x] **Step 3: Update `MainGUI.draw` to consume cached projections**
   - Avoid rebuilding screen arrays every frame.
 
-- [ ] **Step 4: Keep cache invalidation explicit**
+- [x] **Step 4: Keep cache invalidation explicit**
   - Invalidate caches on map regeneration, park changes, building changes, and occupancy-affecting state.
 
-- [ ] **Step 5: Verify and measure**
+- [x] **Step 5: Verify and measure**
   - Run: `pnpm test`
   - Run: `pnpm build`
   - Validate lower scripting time during pan/zoom in manual check.
 
-- [ ] **Step 6: Commit Phase 2**
+- [x] **Step 6: Commit Phase 2**
   - Commit message: `perf(render): cache projected geometry by view revision`
 
 ---

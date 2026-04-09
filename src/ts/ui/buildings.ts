@@ -89,6 +89,24 @@ export default class Buildings {
     private postGenerateCallback: () => any = () => {};
     private _models: BuildingModels = new BuildingModels([]);
     private _blocks: Vector[][] = [];
+    private geometryRevision = 0;
+    private projectedLotsCache: {
+        geometryRevision: number;
+        viewRevision: number;
+        lots: Vector[][];
+    } | null = null;
+    private lotWorldsCache: {
+        geometryRevision: number;
+        lotWorlds: Vector[][];
+    } | null = null;
+    private lotWorldCentroidsCache: {
+        geometryRevision: number;
+        centroids: Vector[];
+    } | null = null;
+    private modelProjectionCache: {
+        geometryRevision: number;
+        viewRevision: number;
+    } | null = null;
 
     private buildingParams: PolygonParams = {
         maxLength: 20,
@@ -113,16 +131,56 @@ export default class Buildings {
         this._animate = v;
     }
 
+    getProjectionGeometryRevision(): number {
+        return this.geometryRevision;
+    }
+
     get lots(): Vector[][] {
-        return this.polygonFinder.polygons.map(p => p.map(v => this.domainController.worldToScreen(v.clone())));
+        const viewRevision = this.domainController.viewRevision;
+        if (
+            this.projectedLotsCache
+            && this.projectedLotsCache.geometryRevision === this.geometryRevision
+            && this.projectedLotsCache.viewRevision === viewRevision
+        ) {
+            return this.projectedLotsCache.lots;
+        }
+
+        const lots = this.polygonFinder.polygons.map((p) => p.map((v) => this.domainController.worldToScreen(v.clone())));
+        this.projectedLotsCache = {
+            geometryRevision: this.geometryRevision,
+            viewRevision,
+            lots,
+        };
+
+        return lots;
     }
 
     get lotWorlds(): Vector[][] {
-        return this.polygonFinder.polygons.map(p => p.map(v => v.clone()));
+        if (this.lotWorldsCache && this.lotWorldsCache.geometryRevision === this.geometryRevision) {
+            return this.lotWorldsCache.lotWorlds;
+        }
+
+        const lotWorlds = this.polygonFinder.polygons.map((p) => p.map((v) => v.clone()));
+        this.lotWorldsCache = {
+            geometryRevision: this.geometryRevision,
+            lotWorlds,
+        };
+
+        return lotWorlds;
     }
 
     get lotWorldCentroids(): Vector[] {
-        return this.lotWorlds.map(polygon => this.polygonCentroid(polygon));
+        if (this.lotWorldCentroidsCache && this.lotWorldCentroidsCache.geometryRevision === this.geometryRevision) {
+            return this.lotWorldCentroidsCache.centroids;
+        }
+
+        const centroids = this.lotWorlds.map((polygon) => this.polygonCentroid(polygon));
+        this.lotWorldCentroidsCache = {
+            geometryRevision: this.geometryRevision,
+            centroids,
+        };
+
+        return centroids;
     }
 
     getLotWorldCentroid(index: number): Vector | null {
@@ -147,7 +205,19 @@ export default class Buildings {
     }
 
     get models(): BuildingModel[] {
-        this._models.setBuildingProjections();
+        const viewRevision = this.domainController.viewRevision;
+        if (
+            !this.modelProjectionCache
+            || this.modelProjectionCache.geometryRevision !== this.geometryRevision
+            || this.modelProjectionCache.viewRevision !== viewRevision
+        ) {
+            this._models.setBuildingProjections();
+            this.modelProjectionCache = {
+                geometryRevision: this.geometryRevision,
+                viewRevision,
+            };
+        }
+
         return this._models.buildingModels;
     }
 
@@ -158,10 +228,16 @@ export default class Buildings {
     reset(): void {
         this.polygonFinder.reset();
         this._models = new BuildingModels([]);
+        this.markGeometryDirty();
     }
 
     update(): boolean {
-        return this.polygonFinder.update();
+        const changed = this.polygonFinder.update();
+        if (changed) {
+            this.markGeometryDirty();
+        }
+
+        return changed;
     }
 
     /**
@@ -170,6 +246,7 @@ export default class Buildings {
     async generate(animate: boolean): Promise<void> {
         this.preGenerateCallback();
         this._models = new BuildingModels([]);
+        this.markGeometryDirty();
         const g = new Graph(this.allStreamlines, this.dstep, true);
 
         this.polygonFinder = new PolygonFinder(g.nodes, this.buildingParams, this.tensorField);
@@ -178,6 +255,7 @@ export default class Buildings {
         await this.polygonFinder.divide(animate);
         this.redraw();
         this._models = new BuildingModels(this.polygonFinder.polygons);
+        this.markGeometryDirty();
 
         this.postGenerateCallback();
     }
@@ -204,5 +282,13 @@ export default class Buildings {
         }
 
         return new Vector(x / polygon.length, y / polygon.length);
+    }
+
+    private markGeometryDirty(): void {
+        this.geometryRevision += 1;
+        this.projectedLotsCache = null;
+        this.lotWorldsCache = null;
+        this.lotWorldCentroidsCache = null;
+        this.modelProjectionCache = null;
     }
 }

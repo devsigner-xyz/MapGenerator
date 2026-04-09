@@ -31,6 +31,7 @@ export default class DomainController {
     private _orthographic = false;
     private viewAnimationFrame: number | null = null;
     private viewportInsetLeft = 0;
+    private _viewRevision = 0;
 
     // Set after pan or zoom
     public moved = false;
@@ -76,15 +77,31 @@ export default class DomainController {
         return Date.now() - this.lastScrolltime < this.SCROLL_DELAY;
     }
 
+    get viewRevision(): number {
+        return this._viewRevision;
+    }
+
     private setScreenDimensions(): void {
-        this.moved = true;
         const inset = Math.max(0, Math.min(window.innerWidth, this.viewportInsetLeft));
-        this._screenDimensions.setX(Math.max(1, window.innerWidth - inset));
-        this._screenDimensions.setY(window.innerHeight);
+        const nextWidth = Math.max(1, window.innerWidth - inset);
+        const nextHeight = window.innerHeight;
+
+        if (this._screenDimensions.x === nextWidth && this._screenDimensions.y === nextHeight) {
+            return;
+        }
+
+        this._screenDimensions.setX(nextWidth);
+        this._screenDimensions.setY(nextHeight);
+        this.markMoved();
     }
 
     setViewportInsetLeft(inset: number): void {
-        this.viewportInsetLeft = Math.max(0, inset);
+        const nextInset = Math.max(0, inset);
+        if (this.viewportInsetLeft === nextInset) {
+            return;
+        }
+
+        this.viewportInsetLeft = nextInset;
         this.setScreenDimensions();
     }
 
@@ -98,9 +115,15 @@ export default class DomainController {
     /**
      * @param {Vector} delta in world space
      */
-    pan(delta: Vector) {
-        this.moved = true;
+    pan(delta: Vector, markViewChange = true): void {
+        if (delta.x === 0 && delta.y === 0) {
+            return;
+        }
+
         this._origin.sub(delta);
+        if (markViewChange) {
+            this.markMoved();
+        }
     }
 
     /**
@@ -126,27 +149,33 @@ export default class DomainController {
     }
 
     set screenDimensions(v: Vector) {
-        this.moved = true;
+        if (this._screenDimensions.equals(v)) {
+            return;
+        }
+
         this._screenDimensions.copy(v);
+        this.markMoved();
     }
 
     set zoom(z: number) {
         this.stopViewAnimation();
-        if (z >= 0.3 && z <= 20) {
-            this.moved = true;
-            const oldWorldSpaceMidpoint = this.origin.add(this.worldDimensions.divideScalar(2));
-            this._zoom = z;
-            const newWorldSpaceMidpoint = this.origin.add(this.worldDimensions.divideScalar(2));
-            this.pan(newWorldSpaceMidpoint.sub(oldWorldSpaceMidpoint));
-            this.zoomCallback();
+        if (z < 0.3 || z > 20 || z === this._zoom) {
+            return;
         }
+
+        const oldWorldSpaceMidpoint = this.origin.add(this.worldDimensions.divideScalar(2));
+        this._zoom = z;
+        const newWorldSpaceMidpoint = this.origin.add(this.worldDimensions.divideScalar(2));
+        this.pan(newWorldSpaceMidpoint.sub(oldWorldSpaceMidpoint), false);
+        this.markMoved();
+        this.zoomCallback();
     }
 
     centerOnWorldPoint(point: Vector): void {
         this.stopViewAnimation();
         const halfWorld = this.worldDimensions.divideScalar(2);
         this._origin = point.clone().sub(halfWorld);
-        this.moved = true;
+        this.markMoved();
     }
 
     animateToWorldPoint(point: Vector, options?: { zoom?: number; durationMs?: number }): void {
@@ -200,8 +229,12 @@ export default class DomainController {
     }
 
     set orthographic(v: boolean) {
+        if (this._orthographic === v) {
+            return;
+        }
+
         this._orthographic = v;
-        this.moved = true;
+        this.markMoved();
     }
 
     get orthographic(): boolean {
@@ -209,9 +242,12 @@ export default class DomainController {
     }
 
     set cameraDirection(v: Vector) {
+        if (this._cameraDirection.equals(v)) {
+            return;
+        }
+
         this._cameraDirection = v;
-        // Screen update
-        this.moved = true;
+        this.markMoved();
     }
 
     get cameraDirection(): Vector {
@@ -239,11 +275,20 @@ export default class DomainController {
     }
 
     private applyViewState(center: Vector, zoom: number): void {
+        const previousZoom = this._zoom;
+        const previousOrigin = this._origin;
         this._zoom = zoom;
         const halfWorld = this.screenDimensions.divideScalar(2 * this._zoom);
         this._origin = center.clone().sub(halfWorld);
-        this.moved = true;
+        if (previousZoom !== this._zoom || !previousOrigin.equals(this._origin)) {
+            this.markMoved();
+        }
         this.zoomCallback();
+    }
+
+    private markMoved(): void {
+        this.moved = true;
+        this._viewRevision += 1;
     }
 
     private easeInOutCubic(t: number): number {
