@@ -1,7 +1,9 @@
 import type { NostrClient } from './types';
+import type { DmTransport } from './dm-transport';
 
 interface NdkModule {
     NdkClient: new (relays?: string[]) => NostrClient;
+    createNdkDmTransportClient?: (relays?: string[]) => DmTransport;
 }
 
 export interface CreateLazyNdkClientOptions {
@@ -38,6 +40,58 @@ export function createLazyNdkClient(options: CreateLazyNdkClientOptions = {}): N
         async fetchLatestReplaceableEvent(pubkey, kind) {
             const client = await getClient();
             return client.fetchLatestReplaceableEvent(pubkey, kind);
+        },
+    };
+}
+
+export function createLazyNdkDmTransport(options: CreateLazyNdkClientOptions = {}): DmTransport {
+    const relays = options.relays ?? [];
+    const importer = options.importer ?? defaultImporter;
+    let transportPromise: Promise<DmTransport> | null = null;
+
+    const getTransport = async (): Promise<DmTransport> => {
+        if (!transportPromise) {
+            transportPromise = importer().then((mod) => {
+                if (!mod.createNdkDmTransportClient) {
+                    throw new Error('createNdkDmTransportClient export is required from ndk-client module');
+                }
+
+                return mod.createNdkDmTransportClient(relays);
+            });
+        }
+
+        return transportPromise;
+    };
+
+    return {
+        async publishToRelays(event, relayUrls) {
+            const transport = await getTransport();
+            return transport.publishToRelays(event, relayUrls);
+        },
+
+        subscribe(filters, onEvent) {
+            let subscription: ReturnType<DmTransport['subscribe']> | null = null;
+            let closed = false;
+
+            void getTransport().then((transport) => {
+                if (closed) {
+                    return;
+                }
+
+                subscription = transport.subscribe(filters, onEvent);
+            });
+
+            return {
+                unsubscribe() {
+                    closed = true;
+                    subscription?.unsubscribe();
+                },
+            };
+        },
+
+        async fetchBackfill(filters) {
+            const transport = await getTransport();
+            return transport.fetchBackfill(filters);
         },
     };
 }

@@ -22,6 +22,10 @@ interface SocialSidebarProps {
     selectedFollowingPubkey?: string;
     onSelectFollowing?: (pubkey: string) => void;
     onLocateFollowing?: (pubkey: string) => void;
+    onMessagePerson?: (pubkey: string) => void | Promise<void>;
+    onViewPersonDetails?: (pubkey: string) => void;
+    zapAmounts?: number[];
+    onConfigureZapAmounts?: () => void;
     onLocateOwner?: () => void;
     onCopyOwnerNpub?: (value: string) => void | Promise<void>;
     loginDisabled?: boolean;
@@ -43,6 +47,10 @@ export function SocialSidebar({
     selectedFollowingPubkey,
     onSelectFollowing,
     onLocateFollowing,
+    onMessagePerson,
+    onViewPersonDetails,
+    zapAmounts = [21, 128, 256],
+    onConfigureZapAmounts,
     onLocateOwner,
     onCopyOwnerNpub,
     loginDisabled = false,
@@ -130,6 +138,10 @@ export function SocialSidebar({
                             onSelectPerson={onSelectFollowing}
                             onLocatePerson={onLocateFollowing}
                             onCopyNpub={onCopyOwnerNpub}
+                            onSendMessage={onMessagePerson}
+                            onViewDetails={onViewPersonDetails}
+                            zapAmounts={zapAmounts}
+                            onConfigureZapAmounts={onConfigureZapAmounts}
                             searchQuery={followingSearch}
                             onSearchQueryChange={setFollowingSearch}
                             searchAriaLabel="Buscar en seguidos"
@@ -144,6 +156,10 @@ export function SocialSidebar({
                             emptyText="No se encontraron seguidores aún."
                             loading={followersLoading}
                             onCopyNpub={onCopyOwnerNpub}
+                            onSendMessage={onMessagePerson}
+                            onViewDetails={onViewPersonDetails}
+                            zapAmounts={zapAmounts}
+                            onConfigureZapAmounts={onConfigureZapAmounts}
                             verificationByPubkey={verificationByPubkey}
                         />
                     </TabsContent>

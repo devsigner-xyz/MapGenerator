@@ -22,6 +22,20 @@ async function renderElement(element: ReactElement): Promise<RenderResult> {
     return { container, root };
 }
 
+async function waitFor(condition: () => boolean): Promise<void> {
+    for (let i = 0; i < 40; i += 1) {
+        if (condition()) {
+            return;
+        }
+
+        await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        });
+    }
+
+    throw new Error('Condition was not met in time');
+}
+
 function makePubkey(index: number): string {
     return index.toString(16).padStart(64, '0');
 }
@@ -120,11 +134,33 @@ describe('PeopleListTab', () => {
         expect(onSearchQueryChange).toHaveBeenLastCalledWith('');
     });
 
-    test('shows locate and copy actions for following rows', async () => {
+    test('keeps clear button disabled when search query is empty', async () => {
+        const rendered = await renderElement(
+            <PeopleListTab
+                people={[]}
+                profiles={{}}
+                emptyText="Sin resultados"
+                loading={false}
+                searchQuery=""
+                onSearchQueryChange={vi.fn()}
+                searchAriaLabel="Buscar en personas"
+            />
+        );
+        mounted.push(rendered);
+
+        const clearButton = rendered.container.querySelector('button[aria-label="Limpiar busqueda"]') as HTMLButtonElement;
+        expect(clearButton).toBeDefined();
+        expect(clearButton.disabled).toBe(true);
+    });
+
+    test('shows people action menu for following rows and executes actions', async () => {
         const alice = makePubkey(1);
         const onSelectPerson = vi.fn();
         const onLocatePerson = vi.fn();
         const onCopyNpub = vi.fn();
+        const onSendMessage = vi.fn();
+        const onViewDetails = vi.fn();
+        const onConfigureZapAmounts = vi.fn();
 
         const rendered = await renderElement(
             <PeopleListTab
@@ -137,28 +173,112 @@ describe('PeopleListTab', () => {
                 onSelectPerson={onSelectPerson}
                 onLocatePerson={onLocatePerson}
                 onCopyNpub={onCopyNpub}
+                onSendMessage={onSendMessage}
+                onViewDetails={onViewDetails}
+                zapAmounts={[21, 128, 256]}
+                onConfigureZapAmounts={onConfigureZapAmounts}
             />
         );
         mounted.push(rendered);
 
-        const locateButton = rendered.container.querySelector('button[aria-label^="Ubicar "]') as HTMLButtonElement;
-        const copyButton = rendered.container.querySelector('button[aria-label^="Copiar npub"]') as HTMLButtonElement;
-        expect(locateButton).toBeDefined();
-        expect(copyButton).toBeDefined();
+        const actionsButton = rendered.container.querySelector('button[aria-label="Abrir acciones para Alice"]') as HTMLButtonElement;
+        expect(actionsButton).toBeDefined();
 
         await act(async () => {
-            locateButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            actionsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
+
+        await waitFor(() => (document.body.textContent || '').includes('Ubicar en el mapa'));
+        const locateItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Ubicar en el mapa'
+        ) as HTMLElement;
+        expect(locateItem).toBeDefined();
+
+        await act(async () => {
+            locateItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
         expect(onLocatePerson).toHaveBeenCalledWith(alice);
         expect(onSelectPerson).not.toHaveBeenCalled();
 
         await act(async () => {
-            copyButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            actionsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (document.body.textContent || '').includes('Copiar npub'));
+        const copyItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Copiar npub'
+        ) as HTMLElement;
+
+        await act(async () => {
+            copyItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
         expect(onCopyNpub).toHaveBeenCalledTimes(1);
         expect(onSelectPerson).not.toHaveBeenCalled();
         expect((onCopyNpub.mock.calls[0][0] as string).startsWith('npub1')).toBe(true);
+
+        await act(async () => {
+            actionsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (document.body.textContent || '').includes('Enviar mensaje'));
+        const messageItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Enviar mensaje'
+        ) as HTMLElement;
+        const detailsItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Ver detalles'
+        ) as HTMLElement;
+
+        await act(async () => {
+            messageItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+        expect(onSendMessage).toHaveBeenCalledWith(alice);
+
+        await act(async () => {
+            actionsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+        await waitFor(() => (document.body.textContent || '').includes('Ver detalles'));
+        const detailsItemRefreshed = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Ver detalles'
+        ) as HTMLElement;
+
+        await act(async () => {
+            detailsItemRefreshed.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+        expect(detailsItem || detailsItemRefreshed).toBeDefined();
+        expect(onViewDetails).toHaveBeenCalledWith(alice);
+
+        await act(async () => {
+            actionsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (document.body.textContent || '').includes('Zap'));
+        const zapSubmenuTrigger = Array.from(document.body.querySelectorAll('[data-slot="context-menu-sub-trigger"]')).find((item) =>
+            (item.textContent || '').trim() === 'Zap'
+        ) as HTMLElement;
+        expect(zapSubmenuTrigger).toBeDefined();
+
+        await act(async () => {
+            zapSubmenuTrigger.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+            zapSubmenuTrigger.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+            zapSubmenuTrigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (document.body.textContent || '').includes('Configurar cantidades'));
+        expect(document.body.textContent || '').toContain('21 sats');
+        expect(document.body.textContent || '').toContain('128 sats');
+        expect(document.body.textContent || '').toContain('256 sats');
+
+        const configureItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Configurar cantidades'
+        ) as HTMLElement;
+
+        await act(async () => {
+            configureItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onConfigureZapAmounts).toHaveBeenCalledTimes(1);
     });
 
     test('shows npub label and nip05 status icon without text in list rows', async () => {
@@ -196,7 +316,7 @@ describe('PeopleListTab', () => {
         expect(verifiedBadge.getAttribute('title')).toBe('NIP-05 verificado por DNS: example.com');
     });
 
-    test('shows only copy action for followers rows', async () => {
+    test('shows copy action and zap submenu for followers rows', async () => {
         const bob = makePubkey(2);
         const onCopyNpub = vi.fn();
 
@@ -209,22 +329,56 @@ describe('PeopleListTab', () => {
                 emptyText="Sin resultados"
                 loading={false}
                 onCopyNpub={onCopyNpub}
+                zapAmounts={[21, 128, 256]}
             />
         );
         mounted.push(rendered);
 
-        const locateButton = rendered.container.querySelector('button[aria-label^="Ubicar "]');
-        const copyButton = rendered.container.querySelector('button[aria-label^="Copiar npub"]') as HTMLButtonElement;
-
-        expect(locateButton).toBeNull();
-        expect(copyButton).toBeDefined();
+        const actionsButton = rendered.container.querySelector('button[aria-label="Abrir acciones para Bob"]') as HTMLButtonElement;
+        expect(actionsButton).toBeDefined();
 
         await act(async () => {
-            copyButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            actionsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (document.body.textContent || '').includes('Copiar npub'));
+
+        const locateItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Ubicar en el mapa'
+        );
+        const zapSubmenuTrigger = Array.from(document.body.querySelectorAll('[data-slot="context-menu-sub-trigger"]')).find((item) =>
+            (item.textContent || '').trim() === 'Zap'
+        );
+        const copyItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Copiar npub'
+        ) as HTMLElement;
+
+        expect(locateItem).toBeUndefined();
+        expect(zapSubmenuTrigger).toBeDefined();
+        expect(copyItem).toBeDefined();
+
+        await act(async () => {
+            copyItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
         expect(onCopyNpub).toHaveBeenCalledTimes(1);
         expect((onCopyNpub.mock.calls[0][0] as string).startsWith('npub1')).toBe(true);
+    });
+
+    test('renders separators between people rows', async () => {
+        const people = [makePubkey(1), makePubkey(2), makePubkey(3)];
+        const rendered = await renderElement(
+            <PeopleListTab
+                people={people}
+                profiles={{}}
+                emptyText="Sin resultados"
+                loading={false}
+            />
+        );
+        mounted.push(rendered);
+
+        const separators = rendered.container.querySelectorAll('[data-slot="separator"]');
+        expect(separators).toHaveLength(2);
     });
 
     test('virtualizes large people lists', async () => {
@@ -292,5 +446,53 @@ describe('PeopleListTab', () => {
 
         const rowsAfterLoad = rendered.container.querySelectorAll('[data-slot="item"]');
         expect(rowsAfterLoad.length).toBeGreaterThan(initialRows.length);
+    });
+
+    test('resets scroll position when filtered people change', async () => {
+        const allPeople = makePeople(180);
+        const filteredPeople = allPeople.slice(0, 130);
+        const profiles: Record<string, NostrProfile> = {};
+        for (const pubkey of allPeople) {
+            profiles[pubkey] = { pubkey, displayName: `Person ${pubkey.slice(-4)}` };
+        }
+
+        const rendered = await renderElement(
+            <div style={{ height: '420px' }}>
+                <PeopleListTab
+                    people={allPeople}
+                    profiles={profiles}
+                    emptyText="No hay personas"
+                    loading={false}
+                    searchQuery=""
+                    onSearchQueryChange={vi.fn()}
+                />
+            </div>
+        );
+        mounted.push(rendered);
+
+        const initialScrollContainer = rendered.container.querySelector('.nostr-people-scroll-area') as HTMLDivElement;
+        expect(initialScrollContainer).toBeDefined();
+
+        initialScrollContainer.scrollTop = 260;
+        expect(initialScrollContainer.scrollTop).toBe(260);
+
+        await act(async () => {
+            rendered.root.render(
+                <div style={{ height: '420px' }}>
+                    <PeopleListTab
+                        people={filteredPeople}
+                        profiles={profiles}
+                        emptyText="No hay personas"
+                        loading={false}
+                        searchQuery="abc"
+                        onSearchQueryChange={vi.fn()}
+                    />
+                </div>
+            );
+        });
+
+        const updatedScrollContainer = rendered.container.querySelector('.nostr-people-scroll-area') as HTMLDivElement;
+        expect(updatedScrollContainer).toBeDefined();
+        expect(updatedScrollContainer.scrollTop).toBe(0);
     });
 });

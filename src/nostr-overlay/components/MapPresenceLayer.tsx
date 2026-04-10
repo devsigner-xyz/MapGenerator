@@ -35,6 +35,26 @@ function resolveInitials(pubkey: string, profile?: NostrProfile): string {
     return resolveName(pubkey, profile).slice(0, 2).toUpperCase();
 }
 
+function areBuildingSlotsEqual(left: MapBuildingSlot[], right: MapBuildingSlot[]): boolean {
+    if (left.length !== right.length) {
+        return false;
+    }
+
+    for (let index = 0; index < left.length; index += 1) {
+        const leftBuilding = left[index];
+        const rightBuilding = right[index];
+        if (
+            leftBuilding.index !== rightBuilding.index
+            || leftBuilding.centroid.x !== rightBuilding.centroid.x
+            || leftBuilding.centroid.y !== rightBuilding.centroid.y
+        ) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 export function MapPresenceLayer({
     mapBridge,
     occupancyByBuildingIndex,
@@ -136,7 +156,10 @@ export function MapPresenceLayer({
         }
 
         const refreshBuildings = (): void => {
-            setBuildings(mapBridge.listBuildings());
+            setBuildings((current) => {
+                const next = mapBridge.listBuildings();
+                return areBuildingSlotsEqual(current, next) ? current : next;
+            });
         };
 
         const refreshView = (): void => {

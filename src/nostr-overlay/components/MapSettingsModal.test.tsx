@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { MapBridge } from '../map-bridge';
 import { MapSettingsModal } from './MapSettingsModal';
+import { RELAY_SETTINGS_STORAGE_KEY } from '../../nostr/relay-settings';
 import { UI_SETTINGS_STORAGE_KEY } from '../../nostr/ui-settings';
 import { ZAP_SETTINGS_STORAGE_KEY } from '../../nostr/zap-settings';
 
@@ -71,24 +72,18 @@ afterEach(async () => {
 });
 
 describe('MapSettingsModal UI settings', () => {
-    test('shows UI as first settings section and persists occupied label zoom level', async () => {
+    test('shows UI settings section and persists occupied label zoom level', async () => {
         const onUiSettingsChange = vi.fn();
         const bridge = createBridgeStub();
         const rendered = await renderElement(
             <MapSettingsModal
                 mapBridge={bridge}
+                initialView="ui"
                 onClose={() => {}}
                 onUiSettingsChange={onUiSettingsChange}
             />
         );
         mounted.push(rendered);
-
-        const settingsItems = Array.from(rendered.container.querySelectorAll('.nostr-settings-content .nostr-settings-item'));
-        expect(settingsItems[0]?.textContent || '').toContain('UI');
-
-        await act(async () => {
-            (settingsItems[0] as HTMLButtonElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
 
         const zoomInput = rendered.container.querySelector('input[aria-label="Occupied labels zoom level"]') as HTMLInputElement;
         expect(zoomInput).toBeDefined();
@@ -174,19 +169,11 @@ describe('MapSettingsModal UI settings', () => {
         const rendered = await renderElement(
             <MapSettingsModal
                 mapBridge={bridge}
+                initialView="about"
                 onClose={() => {}}
             />
         );
         mounted.push(rendered);
-
-        const aboutButton = Array.from(rendered.container.querySelectorAll('.nostr-settings-content .nostr-settings-item')).find((item) =>
-            (item.textContent || '').trim() === 'About'
-        ) as HTMLButtonElement;
-        expect(aboutButton).toBeDefined();
-
-        await act(async () => {
-            aboutButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
 
         const content = rendered.container.textContent || '';
         expect(content).toContain('NIPs soportadas');
@@ -200,37 +187,19 @@ describe('MapSettingsModal UI settings', () => {
         const rendered = await renderElement(
             <MapSettingsModal
                 mapBridge={bridge}
+                initialView="advanced"
                 onClose={() => {}}
             />
         );
         mounted.push(rendered);
-
-        const mountedOnOpen = (bridge.mountSettingsPanel as any).mock.calls.some((call: [unknown]) => call[0] instanceof HTMLElement);
-        expect(mountedOnOpen).toBe(false);
-
-        const advancedButton = Array.from(rendered.container.querySelectorAll('.nostr-settings-content .nostr-settings-item')).find((item) =>
-            (item.textContent || '').trim() === 'Advanced settings'
-        ) as HTMLButtonElement;
-        expect(advancedButton).toBeDefined();
-
-        await act(async () => {
-            advancedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
 
         const mountedCalls = (bridge.mountSettingsPanel as any).mock.calls;
         expect(mountedCalls.some((call: [unknown]) => call[0] instanceof HTMLElement)).toBe(true);
 
         const backButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
             (button.textContent || '').trim() === 'Volver'
-        ) as HTMLButtonElement;
-        expect(backButton).toBeDefined();
-
-        await act(async () => {
-            backButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
-
-        const callsAfterBack = (bridge.mountSettingsPanel as any).mock.calls;
-        expect(callsAfterBack[callsAfterBack.length - 1]?.[0]).toBeNull();
+        );
+        expect(backButton).toBeUndefined();
     });
 
     test('shows zaps settings from main menu and persists edited amounts', async () => {
@@ -238,19 +207,11 @@ describe('MapSettingsModal UI settings', () => {
         const rendered = await renderElement(
             <MapSettingsModal
                 mapBridge={bridge}
+                initialView="zaps"
                 onClose={() => {}}
             />
         );
         mounted.push(rendered);
-
-        const zapsButton = Array.from(rendered.container.querySelectorAll('.nostr-settings-content .nostr-settings-item')).find((item) =>
-            (item.textContent || '').trim() === 'Zaps'
-        ) as HTMLButtonElement;
-        expect(zapsButton).toBeDefined();
-
-        await act(async () => {
-            zapsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
 
         expect(rendered.container.textContent || '').toContain('Cantidad de zaps');
         expect(rendered.container.textContent || '').toContain('21 sats');
@@ -278,5 +239,165 @@ describe('MapSettingsModal UI settings', () => {
         const raw = window.localStorage.getItem(ZAP_SETTINGS_STORAGE_KEY);
         expect(raw).not.toBeNull();
         expect(raw || '').toContain('512');
+    });
+
+    test('renders relay list in table and removes a relay from context menu action', async () => {
+        window.localStorage.setItem(
+            RELAY_SETTINGS_STORAGE_KEY,
+            JSON.stringify({ relays: ['wss://relay.one', 'wss://relay.two'] })
+        );
+
+        const bridge = createBridgeStub();
+        const rendered = await renderElement(
+            <MapSettingsModal
+                mapBridge={bridge}
+                initialView="relays"
+                onClose={() => {}}
+            />
+        );
+        mounted.push(rendered);
+
+        const relayTable = rendered.container.querySelector('[data-slot="table"]');
+        expect(relayTable).toBeDefined();
+
+        const actionsButton = rendered.container.querySelector('button[aria-label="Abrir acciones para wss://relay.one"]') as HTMLButtonElement;
+        expect(actionsButton).toBeDefined();
+
+        await act(async () => {
+            actionsButton.dispatchEvent(new MouseEvent('contextmenu', {
+                bubbles: true,
+                cancelable: true,
+                clientX: 24,
+                clientY: 24,
+            }));
+        });
+
+        const removeItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Remove'
+        ) as HTMLElement;
+        expect(removeItem).toBeDefined();
+
+        await act(async () => {
+            removeItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(rendered.container.textContent || '').not.toContain('wss://relay.one');
+        expect(rendered.container.textContent || '').toContain('wss://relay.two');
+
+        const raw = window.localStorage.getItem(RELAY_SETTINGS_STORAGE_KEY);
+        expect(raw).not.toBeNull();
+        expect(raw || '').not.toContain('wss://relay.one');
+        expect(raw || '').toContain('wss://relay.two');
+    });
+
+    test('uses wider relays layout and shows compact relay metadata in table', async () => {
+        window.localStorage.setItem(
+            RELAY_SETTINGS_STORAGE_KEY,
+            JSON.stringify({ relays: ['wss://relay.one/socket'] })
+        );
+
+        const bridge = createBridgeStub();
+        const rendered = await renderElement(
+            <MapSettingsModal
+                mapBridge={bridge}
+                initialView="relays"
+                onClose={() => {}}
+            />
+        );
+        mounted.push(rendered);
+
+        const modalContent = rendered.container.querySelector('.nostr-settings-modal-relays');
+        expect(modalContent).toBeDefined();
+
+        expect(rendered.container.textContent || '').toContain('relay.one');
+        expect(rendered.container.textContent || '').toContain('wss');
+        expect(rendered.container.textContent || '').not.toContain('Info');
+
+        const closeButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').trim() === 'Cerrar'
+        ) as HTMLButtonElement;
+        expect(closeButton).toBeDefined();
+
+        const backButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').trim() === 'Volver'
+        );
+        expect(backButton).toBeUndefined();
+    });
+
+    test('opens relay details modal from context menu for configured and suggested rows', async () => {
+        window.localStorage.setItem(
+            RELAY_SETTINGS_STORAGE_KEY,
+            JSON.stringify({ relays: ['wss://relay.one'] })
+        );
+
+        const bridge = createBridgeStub();
+        const rendered = await renderElement(
+            <MapSettingsModal
+                mapBridge={bridge}
+                initialView="relays"
+                suggestedRelays={['wss://relay.suggested.example']}
+                onClose={() => {}}
+            />
+        );
+        mounted.push(rendered);
+
+        const configuredActions = rendered.container.querySelector('button[aria-label="Abrir acciones para wss://relay.one"]') as HTMLButtonElement;
+        expect(configuredActions).toBeDefined();
+
+        await act(async () => {
+            configuredActions.dispatchEvent(new MouseEvent('contextmenu', {
+                bubbles: true,
+                cancelable: true,
+                clientX: 24,
+                clientY: 24,
+            }));
+        });
+
+        const detailsConfigured = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Details'
+        ) as HTMLElement;
+        expect(detailsConfigured).toBeDefined();
+
+        await act(async () => {
+            detailsConfigured.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(rendered.container.textContent || '').toContain('Relay details');
+        expect(rendered.container.textContent || '').toContain('wss://relay.one');
+
+        const detailTable = rendered.container.querySelector('.nostr-relay-detail-table');
+        expect(detailTable).toBeDefined();
+
+        const backDetails = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').trim() === 'Volver'
+        ) as HTMLButtonElement;
+        expect(backDetails).toBeDefined();
+
+        await act(async () => {
+            backDetails.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const suggestedActions = rendered.container.querySelector('button[aria-label="Abrir acciones sugeridas para wss://relay.suggested.example"]') as HTMLButtonElement;
+        expect(suggestedActions).toBeDefined();
+
+        await act(async () => {
+            suggestedActions.dispatchEvent(new MouseEvent('contextmenu', {
+                bubbles: true,
+                cancelable: true,
+                clientX: 28,
+                clientY: 28,
+            }));
+        });
+
+        const detailsSuggested = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Details'
+        ) as HTMLElement;
+        expect(detailsSuggested).toBeDefined();
+
+        await act(async () => {
+            detailsSuggested.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(rendered.container.textContent || '').toContain('wss://relay.suggested.example');
     });
 });

@@ -1,17 +1,32 @@
-import { useEffect, useRef, useState, type UIEvent } from 'react';
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type UIEvent } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { EllipsisVerticalIcon, SearchIcon } from 'lucide-react';
 import { encodeHexToNpub } from '../../nostr/npub';
 import type { Nip05ValidationResult } from '../../nostr/nip05';
 import type { NostrProfile } from '../../nostr/types';
 import { ListLoadingFooter } from './ListLoadingFooter';
 import { Nip05Identifier } from './Nip05Identifier';
+import { PersonContextMenuItems } from './PersonContextMenuItems';
 import { Button } from '@/components/ui/button';
+import { ButtonGroup, ButtonGroupText } from '@/components/ui/button-group';
+import {
+    ContextMenu,
+    ContextMenuContent,
+    ContextMenuGroup,
+    ContextMenuItem,
+    ContextMenuSeparator,
+    ContextMenuSub,
+    ContextMenuSubContent,
+    ContextMenuSubTrigger,
+    ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item';
+import { Separator } from '@/components/ui/separator';
 
 const VIRTUALIZATION_THRESHOLD = 120;
-const VIRTUAL_ROW_HEIGHT_PX = 62;
+const VIRTUAL_ROW_HEIGHT_PX = 68;
 const LOAD_MORE_PAGE_SIZE = 20;
 const LOAD_MORE_DELAY_MS = 120;
 
@@ -25,6 +40,10 @@ interface PeopleListTabProps {
     onSelectPerson?: (pubkey: string) => void;
     onLocatePerson?: (pubkey: string) => void;
     onCopyNpub?: (value: string) => void | Promise<void>;
+    onSendMessage?: (pubkey: string) => void | Promise<void>;
+    onViewDetails?: (pubkey: string) => void;
+    zapAmounts?: number[];
+    onConfigureZapAmounts?: () => void;
     searchQuery?: string;
     onSearchQueryChange?: (value: string) => void;
     searchAriaLabel?: string;
@@ -83,12 +102,17 @@ export function PeopleListTab({
     onSelectPerson,
     onLocatePerson,
     onCopyNpub,
+    onSendMessage,
+    onViewDetails,
+    zapAmounts = [21, 128, 256],
+    onConfigureZapAmounts,
     searchQuery,
     onSearchQueryChange,
     searchAriaLabel,
     verificationByPubkey = {},
 }: PeopleListTabProps) {
     const hasSearch = typeof onSearchQueryChange === 'function';
+    const hasSearchQuery = (searchQuery || '').trim().length > 0;
     const shouldVirtualize = people.length >= VIRTUALIZATION_THRESHOLD;
     const scrollContainerRef = useRef<HTMLDivElement | null>(null);
     const loadMoreTimerRef = useRef<number | null>(null);
@@ -98,6 +122,9 @@ export function PeopleListTab({
     useEffect(() => {
         setVisibleCount(Math.min(LOAD_MORE_PAGE_SIZE, people.length));
         setLoadingMore(false);
+        if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTop = 0;
+        }
         if (loadMoreTimerRef.current !== null) {
             window.clearTimeout(loadMoreTimerRef.current);
             loadMoreTimerRef.current = null;
@@ -136,6 +163,18 @@ export function PeopleListTab({
         }
     };
 
+    const openActionsMenu = (event: ReactMouseEvent<HTMLButtonElement>): void => {
+        event.preventDefault();
+        event.stopPropagation();
+        const rect = event.currentTarget.getBoundingClientRect();
+        event.currentTarget.dispatchEvent(new window.MouseEvent('contextmenu', {
+            bubbles: true,
+            cancelable: true,
+            clientX: rect.left + rect.width / 2,
+            clientY: rect.top + rect.height / 2,
+        }));
+    };
+
     const rowVirtualizer = useVirtualizer({
         count: visiblePeople.length,
         getScrollElement: () => scrollContainerRef.current,
@@ -164,12 +203,16 @@ export function PeopleListTab({
         ? rowVirtualizer.getTotalSize()
         : visiblePeople.length * VIRTUAL_ROW_HEIGHT_PX;
 
-    const renderPersonItem = (pubkey: string, key?: string) => {
+    const renderPersonItem = (pubkey: string) => {
         const profile = profiles[pubkey];
         const active = selectedPubkey === pubkey;
         const selectable = typeof onSelectPerson === 'function';
         const canLocate = typeof onLocatePerson === 'function';
         const canCopy = typeof onCopyNpub === 'function';
+        const canSendMessage = typeof onSendMessage === 'function';
+        const canViewDetails = typeof onViewDetails === 'function';
+        const hasZapSubmenu = zapAmounts.length > 0;
+        const hasActions = canLocate || canCopy || canSendMessage || canViewDetails || hasZapSubmenu;
         const display = personName(pubkey, profile);
         const npub = pubkeyToNpub(pubkey);
         const npubLabel = npub.startsWith('npub1') ? truncateIdentifier(npub) : `${pubkey.slice(0, 8)}...${pubkey.slice(-6)}`;
@@ -177,7 +220,6 @@ export function PeopleListTab({
 
         return (
             <Item
-                key={key || pubkey}
                 variant={active ? 'outline' : 'default'}
                 size="sm"
                 data-active={active ? 'true' : 'false'}
@@ -226,55 +268,59 @@ export function PeopleListTab({
                     </>
                 )}
 
-                {canLocate || canCopy ? (
-                    <div className="ml-auto flex shrink-0 items-center gap-1">
-                        {canLocate ? (
+                {hasActions ? (
+                    <ContextMenu>
+                        <ContextMenuTrigger asChild>
                             <Button
                                 type="button"
                                 variant="outline"
                                 size="icon-sm"
-                                className="nostr-icon-button"
-                                aria-label={`Ubicar ${display} en el mapa`}
-                                title="Locate on map"
-                                onClick={(event) => {
-                                    event.stopPropagation();
-                                    onLocatePerson?.(pubkey);
-                                }}
+                                aria-label={`Abrir acciones para ${display}`}
+                                data-testid={`person-actions-${pubkey}`}
+                                onClick={openActionsMenu}
                             >
-                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                    <path d="M12 22s7-4.35 7-11a7 7 0 1 0-14 0c0 6.65 7 11 7 11z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                    <circle cx="12" cy="11" r="2.5" fill="none" stroke="currentColor" strokeWidth="2" />
-                                </svg>
+                                <EllipsisVerticalIcon data-icon="inline-start" />
                             </Button>
-                        ) : null}
-
-                        {canCopy ? (
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="icon-sm"
-                                className="nostr-icon-button"
-                                aria-label={`Copiar npub de ${display}`}
-                                title="Copy npub"
-                                onClick={(event) => {
-                                    event.stopPropagation();
-                                    void onCopyNpub?.(pubkeyToNpub(pubkey));
-                                }}
-                            >
-                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                    <rect x="9" y="9" width="11" height="11" rx="2" ry="2" fill="none" stroke="currentColor" strokeWidth="2" />
-                                    <path d="M5 15V6a2 2 0 0 1 2-2h9" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
-                            </Button>
-                        ) : null}
-                    </div>
+                        </ContextMenuTrigger>
+                        <ContextMenuContent className="w-48">
+                            <ContextMenuGroup>
+                                <PersonContextMenuItems
+                                    onLocateOnMap={canLocate ? () => onLocatePerson?.(pubkey) : undefined}
+                                    onCopyNpub={canCopy ? () => onCopyNpub?.(pubkeyToNpub(pubkey)) : undefined}
+                                    onSendMessage={canSendMessage ? () => onSendMessage?.(pubkey) : undefined}
+                                    onViewDetails={canViewDetails ? () => onViewDetails?.(pubkey) : undefined}
+                                />
+                            </ContextMenuGroup>
+                            {hasZapSubmenu ? (
+                                <>
+                                    <ContextMenuSeparator />
+                                    <ContextMenuSub>
+                                        <ContextMenuSubTrigger>Zap</ContextMenuSubTrigger>
+                                        <ContextMenuSubContent className="w-44">
+                                            {zapAmounts.map((amount) => (
+                                                <ContextMenuItem
+                                                    key={`person-zap-${pubkey}-${amount}`}
+                                                >
+                                                    {`${amount} sats`}
+                                                </ContextMenuItem>
+                                            ))}
+                                            <ContextMenuSeparator />
+                                            <ContextMenuItem onSelect={onConfigureZapAmounts}>
+                                                Configurar cantidades
+                                            </ContextMenuItem>
+                                        </ContextMenuSubContent>
+                                    </ContextMenuSub>
+                                </>
+                            ) : null}
+                        </ContextMenuContent>
+                    </ContextMenu>
                 ) : null}
             </Item>
         );
     };
 
     const listContent = people.length === 0
-        ? <p className="nostr-empty">{loading && loadingText ? loadingText : emptyText}</p>
+        ? <p className="nostr-empty nostr-people-empty">{loading && loadingText ? loadingText : emptyText}</p>
         : shouldVirtualize ? (
             <div
                 ref={scrollContainerRef}
@@ -305,6 +351,7 @@ export function PeopleListTab({
                                 }}
                             >
                                 {renderPersonItem(pubkey)}
+                                {virtualItem.index < visiblePeople.length - 1 ? <Separator className="nostr-people-separator" /> : null}
                             </div>
                         );
                     })}
@@ -314,9 +361,12 @@ export function PeopleListTab({
         ) : (
             <div className="nostr-people-scroll-area" onScroll={handleScroll}>
                 <ItemGroup className="nostr-people-list">
-                    {visiblePeople.map((pubkey) => {
-                        return renderPersonItem(pubkey, pubkey);
-                    })}
+                    {visiblePeople.map((pubkey, index) => (
+                        <div key={pubkey} className="nostr-people-item-wrap">
+                            {renderPersonItem(pubkey)}
+                            {index < visiblePeople.length - 1 ? <Separator className="nostr-people-separator" /> : null}
+                        </div>
+                    ))}
                 </ItemGroup>
                 <ListLoadingFooter loading={loadingMore} />
             </div>
@@ -329,26 +379,30 @@ export function PeopleListTab({
     return (
         <div className="nostr-people-tab-content">
             <div className="nostr-search-row">
-                <Input
-                    className="nostr-input nostr-search-input"
-                    type="text"
-                    value={searchQuery || ''}
-                    placeholder="Buscar por nombre o npub"
-                    aria-label={searchAriaLabel || 'Buscar'}
-                    onChange={(event) => onSearchQueryChange?.(event.target.value)}
-                />
+                <ButtonGroup className="w-full">
+                    <ButtonGroupText aria-hidden="true">
+                        <SearchIcon />
+                    </ButtonGroupText>
+                    <Input
+                        className="nostr-input nostr-search-input"
+                        type="text"
+                        value={searchQuery || ''}
+                        placeholder="Buscar por nombre o npub"
+                        aria-label={searchAriaLabel || 'Buscar'}
+                        onChange={(event) => onSearchQueryChange?.(event.target.value)}
+                    />
 
-                {searchQuery ? (
                     <Button
                         type="button"
-                        variant="ghost"
+                        variant="outline"
                         className="nostr-search-clear"
                         aria-label="Limpiar busqueda"
+                        disabled={!hasSearchQuery}
                         onClick={() => onSearchQueryChange?.('')}
                     >
-                        x
+                        Clear
                     </Button>
-                ) : null}
+                </ButtonGroup>
             </div>
 
             {listContent}

@@ -95,5 +95,9 @@ export function isEncryptionEnabled(
         return session.capabilities.encryptionSchemes.length > 0;
     }
 
+    return hasEncryptionScheme(session, scheme);
+}
+
+export function hasEncryptionScheme(session: AuthSessionState, scheme: EncryptionScheme | string): boolean {
     return session.capabilities.encryptionSchemes.includes(scheme as EncryptionScheme);
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { loadUiSettings, type UiSettingsState } from '../nostr/ui-settings';
 import { loadZapSettings, type ZapSettingsState } from '../nostr/zap-settings';
 import { encodeHexToNpub } from '../nostr/npub';
@@ -9,6 +9,9 @@ import { EasterEggModal } from './components/EasterEggModal';
 import { SocialSidebar } from './components/SocialSidebar';
 import { MapZoomControls } from './components/MapZoomControls';
 import { CityStatsModal } from './components/CityStatsModal';
+import { ChatIconButton } from './components/ChatIconButton';
+import { ChatModal, type ChatConversationSummary, type ChatDetailMessage } from './components/ChatModal';
+import { PersonContextMenuItems } from './components/PersonContextMenuItems';
 import { useNostrOverlay, type MapLoaderStage, type NostrOverlayServices } from './hooks/useNostrOverlay';
 import { useNip05Verification } from './hooks/useNip05Verification';
 import type { EasterEggBuildingClickPayload, MapBridge, OccupiedBuildingContextPayload } from './map-bridge';
@@ -61,13 +64,17 @@ function mapLoaderStageLabel(stage: MapLoaderStage | null): string | null {
 export function App({ mapBridge, services }: AppProps) {
     const overlay = useNostrOverlay({ mapBridge, services });
     const [settingsOpen, setSettingsOpen] = useState(false);
-    const [settingsInitialView, setSettingsInitialView] = useState<SettingsView>('settings');
+    const [settingsInitialView, setSettingsInitialView] = useState<SettingsView>('ui');
     const [cityStatsOpen, setCityStatsOpen] = useState(false);
     const [panelCollapsed, setPanelCollapsed] = useState(false);
     const [uiSettings, setUiSettings] = useState<UiSettingsState>(() => loadUiSettings());
     const [zapSettings, setZapSettings] = useState<ZapSettingsState>(() => loadZapSettings());
     const [buildingContextMenu, setBuildingContextMenu] = useState<OccupiedBuildingContextMenuState | null>(null);
     const [activeEasterEgg, setActiveEasterEgg] = useState<EasterEggModalState | null>(null);
+    const [chatOpen, setChatOpen] = useState(false);
+    const [chatComposerFocusKey, setChatComposerFocusKey] = useState('');
+    const [chatStateVersion, setChatStateVersion] = useState(0);
+    const [chatPinnedConversationId, setChatPinnedConversationId] = useState<string | null>(null);
     const contextMenuTriggerRef = useRef<HTMLSpanElement | null>(null);
     const contextMenuNonceRef = useRef(0);
     const easterEggNonceRef = useRef(0);
@@ -250,6 +257,91 @@ export function App({ mapBridge, services }: AppProps) {
         }
     };
 
+    const refreshChatState = (): void => {
+        setChatStateVersion((version) => version + 1);
+    };
+
+    const chatState = overlay.directMessages?.getState();
+
+    useEffect(() => {
+        refreshChatState();
+    }, [overlay.directMessages, overlay.ownerPubkey]);
+
+    const chatConversations = useMemo<ChatConversationSummary[]>(() => {
+        if (!chatState) {
+            if (!chatPinnedConversationId) {
+                return [];
+            }
+
+            const profile = overlay.profiles[chatPinnedConversationId] || overlay.followerProfiles[chatPinnedConversationId];
+            const title = profile?.displayName ?? profile?.name ?? `${chatPinnedConversationId.slice(0, 10)}...${chatPinnedConversationId.slice(-6)}`;
+            return [{
+                id: chatPinnedConversationId,
+                peerPubkey: chatPinnedConversationId,
+                title,
+                lastMessagePreview: '',
+                lastMessageAt: 0,
+                hasUnread: false,
+            }];
+        }
+
+        const summaries = Object.values(chatState.conversations)
+            .map((conversation) => {
+                const lastMessage = conversation.messages[conversation.messages.length - 1];
+                const profile = overlay.profiles[conversation.id] || overlay.followerProfiles[conversation.id];
+                const title = profile?.displayName ?? profile?.name ?? `${conversation.id.slice(0, 10)}...${conversation.id.slice(-6)}`;
+
+                return {
+                    id: conversation.id,
+                    peerPubkey: conversation.id,
+                    title,
+                    lastMessagePreview: lastMessage?.plaintext || '',
+                    lastMessageAt: lastMessage?.createdAt || 0,
+                    hasUnread: conversation.hasUnread,
+                };
+            })
+            .sort((left, right) => right.lastMessageAt - left.lastMessageAt);
+
+        if (chatPinnedConversationId && !summaries.some((conversation) => conversation.id === chatPinnedConversationId)) {
+            const profile = overlay.profiles[chatPinnedConversationId] || overlay.followerProfiles[chatPinnedConversationId];
+            const title = profile?.displayName ?? profile?.name ?? `${chatPinnedConversationId.slice(0, 10)}...${chatPinnedConversationId.slice(-6)}`;
+            summaries.unshift({
+                id: chatPinnedConversationId,
+                peerPubkey: chatPinnedConversationId,
+                title,
+                lastMessagePreview: '',
+                lastMessageAt: 0,
+                hasUnread: false,
+            });
+        }
+
+        return summaries;
+    }, [chatStateVersion, chatState, overlay.profiles, overlay.followerProfiles, chatPinnedConversationId]);
+
+    const chatActiveConversationId = chatState?.activeConversationId ?? chatPinnedConversationId;
+
+    const chatMessages = useMemo<ChatDetailMessage[]>(() => {
+        if (!chatState || !chatActiveConversationId) {
+            return [];
+        }
+
+        const conversation = chatState.conversations[chatActiveConversationId];
+        if (!conversation) {
+            return [];
+        }
+
+        return conversation.messages.map((message) => ({
+            id: message.id,
+            direction: message.direction,
+            plaintext: message.plaintext,
+            createdAt: message.createdAt,
+            deliveryState: message.deliveryState,
+            isUndecryptable: message.isUndecryptable,
+        }));
+    }, [chatStateVersion, chatState, chatActiveConversationId]);
+
+    const canSendChatMessages = Boolean(overlay.ownerPubkey && overlay.canWrite && overlay.canEncrypt);
+
     const copyOwnerIdentifier = async (value: string): Promise<void> => {
         if (!value) {
             return;
@@ -306,10 +398,76 @@ export function App({ mapBridge, services }: AppProps) {
         setBuildingContextMenu(null);
     };
 
-    const openSettingsModal = (view: SettingsView = 'settings'): void => {
+    const openChatList = (): void => {
+        if (!overlay.directMessages) {
+            return;
+        }
+
+        overlay.directMessages.openList();
+        setChatPinnedConversationId(null);
+        setChatOpen(true);
+        refreshChatState();
+    };
+
+    const openChatConversation = (conversationId: string, focusComposer: boolean = false): void => {
+        if (!overlay.directMessages) {
+            return;
+        }
+
+        overlay.directMessages.openConversation(conversationId);
+        setChatPinnedConversationId(conversationId);
+        setChatOpen(true);
+        if (focusComposer) {
+            setChatComposerFocusKey(`${conversationId}:${Date.now()}`);
+        }
+        refreshChatState();
+    };
+
+    const closeChat = (): void => {
+        setChatOpen(false);
+    };
+
+    const openSettingsModal = (view: SettingsView = 'ui'): void => {
         setSettingsInitialView(view);
         setSettingsOpen(true);
     };
+
+    const openSettingsContextMenu = (event: ReactMouseEvent<HTMLButtonElement>): void => {
+        event.preventDefault();
+        const rect = event.currentTarget.getBoundingClientRect();
+        event.currentTarget.dispatchEvent(new window.MouseEvent('contextmenu', {
+            bubbles: true,
+            cancelable: true,
+            clientX: rect.left + rect.width / 2,
+            clientY: rect.top + rect.height / 2,
+        }));
+    };
+
+    const renderSettingsContextMenu = () => (
+        <ContextMenuContent className="w-52">
+            <ContextMenuItem onSelect={() => openSettingsModal('ui')}>UI</ContextMenuItem>
+            <ContextMenuItem onSelect={() => openSettingsModal('shortcuts')}>Shortcuts</ContextMenuItem>
+            <ContextMenuItem onSelect={() => openSettingsModal('relays')}>Relays</ContextMenuItem>
+            <ContextMenuItem onSelect={() => openSettingsModal('zaps')}>Zaps</ContextMenuItem>
+            <ContextMenuItem onSelect={() => openSettingsModal('about')}>About</ContextMenuItem>
+            <ContextMenuItem onSelect={() => openSettingsModal('advanced')}>Advanced settings</ContextMenuItem>
+            {overlay.authSession ? (
+                <>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem
+                        variant="destructive"
+                        onSelect={() => {
+                            void overlay.logoutSession?.();
+                            setSettingsOpen(false);
+                            setSettingsInitialView('ui');
+                        }}
+                    >
+                        Cerrar sesión
+                    </ContextMenuItem>
+                </>
+            ) : null}
+        </ContextMenuContent>
+    );
 
     const writeDmToPubkey = async (pubkey: string): Promise<void> => {
         const npub = encodePubkeyAsNpub(pubkey);
@@ -322,6 +480,15 @@ export function App({ mapBridge, services }: AppProps) {
 
         await copyOwnerIdentifier(npub);
         toast.message('No se pudo abrir el cliente DM; npub copiada', { duration: 2200 });
+    };
+
+    const openDmFromContextMenu = async (pubkey: string): Promise<void> => {
+        if (!overlay.ownerPubkey || !overlay.directMessages) {
+            await writeDmToPubkey(pubkey);
+            return;
+        }
+
+        openChatConversation(pubkey, true);
     };
 
     return (
@@ -342,19 +509,26 @@ export function App({ mapBridge, services }: AppProps) {
                         </svg>
                     </Button>
 
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="nostr-settings-button"
-                        aria-label="Abrir ajustes"
-                        title="Settings"
-                        onClick={() => openSettingsModal('settings')}
-                    >
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                            <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.56 7.56 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.57.23-1.11.54-1.63.94l-2.39-.96a.5.5 0 0 0-.61.22L2.71 8.84a.5.5 0 0 0 .12.64L4.86 11c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.31.61.22l2.39-.96c.5.4 1.05.72 1.63.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.57-.23 1.12-.54 1.63-.94l2.39.96c.22.09.48 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z" />
-                        </svg>
-                    </Button>
+                    <ContextMenu>
+                        <ContextMenuTrigger asChild>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="nostr-settings-button"
+                                aria-label="Abrir ajustes"
+                                title="Settings"
+                                onClick={openSettingsContextMenu}
+                            >
+                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                    <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.56 7.56 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.57.23-1.11.54-1.63.94l-2.39-.96a.5.5 0 0 0-.61.22L2.71 8.84a.5.5 0 0 0 .12.64L4.86 11c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.31.61.22l2.39-.96c.5.4 1.05.72 1.63.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.57-.23 1.12-.54 1.63-.94l2.39.96c.22.09.48 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z" />
+                                </svg>
+                            </Button>
+                        </ContextMenuTrigger>
+                        {renderSettingsContextMenu()}
+                    </ContextMenu>
+
+                    <ChatIconButton hasUnread={chatState?.hasUnreadGlobal ?? false} onClick={openChatList} />
 
                     <Button
                         type="button"
@@ -416,6 +590,8 @@ export function App({ mapBridge, services }: AppProps) {
                                 </svg>
                             </Button>
 
+                            <ChatIconButton hasUnread={chatState?.hasUnreadGlobal ?? false} onClick={openChatList} />
+
                             <Button
                                 type="button"
                                 variant="outline"
@@ -434,19 +610,24 @@ export function App({ mapBridge, services }: AppProps) {
                                 </svg>
                             </Button>
 
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="nostr-settings-button"
-                                aria-label="Abrir ajustes"
-                                title="Settings"
-                                onClick={() => openSettingsModal('settings')}
-                            >
-                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                    <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.56 7.56 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.57.23-1.11.54-1.63.94l-2.39-.96a.5.5 0 0 0-.61.22L2.71 8.84a.5.5 0 0 0 .12.64L4.86 11c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.31.61.22l2.39-.96c.5.4 1.05.72 1.63.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.57-.23 1.12-.54 1.63-.94l2.39.96c.22.09.48 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z" />
-                                </svg>
-                            </Button>
+                            <ContextMenu>
+                                <ContextMenuTrigger asChild>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="icon"
+                                        className="nostr-settings-button"
+                                        aria-label="Abrir ajustes"
+                                        title="Settings"
+                                        onClick={openSettingsContextMenu}
+                                    >
+                                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                            <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.56 7.56 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.57.23-1.11.54-1.63.94l-2.39-.96a.5.5 0 0 0-.61.22L2.71 8.84a.5.5 0 0 0 .12.64L4.86 11c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.31.61.22l2.39-.96c.5.4 1.05.72 1.63.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.57-.23 1.12-.54 1.63-.94l2.39.96c.22.09.48 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z" />
+                                        </svg>
+                                    </Button>
+                                </ContextMenuTrigger>
+                                {renderSettingsContextMenu()}
+                            </ContextMenu>
 
                             <Button
                                 type="button"
@@ -475,6 +656,10 @@ export function App({ mapBridge, services }: AppProps) {
                         selectedFollowingPubkey={overlay.selectedPubkey}
                         onSelectFollowing={overlay.selectFollowing}
                         onLocateFollowing={locateFollowingOnMap}
+                        onMessagePerson={openDmFromContextMenu}
+                        onViewPersonDetails={(pubkey) => overlay.openActiveProfile(pubkey)}
+                        zapAmounts={zapSettings.amounts}
+                        onConfigureZapAmounts={() => openSettingsModal('zaps')}
                         onLocateOwner={locateOwnerOnMap}
                         onCopyOwnerNpub={copyOwnerIdentifier}
                         loginDisabled={loginDisabled}
@@ -504,33 +689,13 @@ export function App({ mapBridge, services }: AppProps) {
                             <span ref={contextMenuTriggerRef} className="nostr-context-anchor-trigger" aria-hidden="true" />
                         </ContextMenuTrigger>
                         <ContextMenuContent className="w-48">
-                            <ContextMenuItem
-                                data-testid="context-copy-npub"
-                                onSelect={() => {
-                                    void copyOwnerIdentifier(encodePubkeyAsNpub(buildingContextMenu.pubkey));
-                                    closeOccupiedContextMenu();
-                                }}
-                            >
-                                Copiar npub
-                            </ContextMenuItem>
-                            <ContextMenuItem
-                                data-testid="context-write-dm"
-                                onSelect={() => {
-                                    void writeDmToPubkey(buildingContextMenu.pubkey);
-                                    closeOccupiedContextMenu();
-                                }}
-                            >
-                                Enviar mensaje
-                            </ContextMenuItem>
-                            <ContextMenuItem
-                                data-testid="context-view-details"
-                                onSelect={() => {
-                                    overlay.openActiveProfile(buildingContextMenu.pubkey, buildingContextMenu.buildingIndex);
-                                    closeOccupiedContextMenu();
-                                }}
-                            >
-                                Ver detalles
-                            </ContextMenuItem>
+                            <PersonContextMenuItems
+                                testIdPrefix="context"
+                                onCopyNpub={() => copyOwnerIdentifier(encodePubkeyAsNpub(buildingContextMenu.pubkey))}
+                                onSendMessage={() => openDmFromContextMenu(buildingContextMenu.pubkey)}
+                                onViewDetails={() => overlay.openActiveProfile(buildingContextMenu.pubkey, buildingContextMenu.buildingIndex)}
+                                closeMenu={closeOccupiedContextMenu}
+                            />
 
                             <ContextMenuSub>
                                 <ContextMenuSubTrigger data-testid="context-zap-submenu">Zap</ContextMenuSubTrigger>
@@ -574,6 +739,34 @@ export function App({ mapBridge, services }: AppProps) {
 
             <Toaster richColors position="bottom-center" closeButton={false} />
 
+            <ChatModal
+                open={chatOpen}
+                hasUnreadGlobal={chatState?.hasUnreadGlobal ?? false}
+                conversations={chatConversations}
+                messages={chatMessages}
+                activeConversationId={chatActiveConversationId}
+                composerAutoFocusKey={chatComposerFocusKey}
+                canSend={canSendChatMessages}
+                disabledReason={!overlay.ownerPubkey
+                    ? 'Inicia sesión para enviar mensajes privados.'
+                    : !overlay.canWrite
+                        ? 'Tu sesión está en modo de solo lectura o bloqueada.'
+                        : !overlay.canEncrypt
+                            ? 'Tu método de acceso no soporta cifrado para DM.'
+                            : undefined}
+                onClose={closeChat}
+                onOpenConversation={(conversationId) => openChatConversation(conversationId)}
+                onBackToList={openChatList}
+                onSendMessage={async (plaintext) => {
+                    if (!overlay.directMessages || !chatActiveConversationId || !canSendChatMessages) {
+                        return;
+                    }
+
+                    await overlay.directMessages.sendMessage(chatActiveConversationId, plaintext);
+                    refreshChatState();
+                }}
+            />
+
             {settingsOpen ? (
                 <MapSettingsModal
                     mapBridge={mapBridge}
@@ -582,11 +775,9 @@ export function App({ mapBridge, services }: AppProps) {
                     zapSettings={zapSettings}
                     onZapSettingsChange={setZapSettings}
                     initialView={settingsInitialView}
-                    hasActiveSession={Boolean(overlay.authSession)}
-                    onLogoutSession={overlay.logoutSession}
                     onClose={() => {
                         setSettingsOpen(false);
-                        setSettingsInitialView('settings');
+                        setSettingsInitialView('ui');
                     }}
                 />
             ) : null}

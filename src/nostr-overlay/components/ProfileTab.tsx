@@ -1,11 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type MouseEvent as ReactMouseEvent } from 'react';
+import { EllipsisVerticalIcon } from 'lucide-react';
 import type { Nip05ValidationResult } from '../../nostr/nip05';
 import type { AuthSessionState } from '../../nostr/auth/session';
 import type { NostrProfile } from '../../nostr/types';
 import { encodeHexToNpub } from '../../nostr/npub';
 import { Nip05Identifier } from './Nip05Identifier';
+import { PersonContextMenuItems } from './PersonContextMenuItems';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { ContextMenu, ContextMenuContent, ContextMenuGroup, ContextMenuTrigger } from '@/components/ui/context-menu';
 
 interface ProfileTabProps {
     ownerPubkey?: string;
@@ -39,6 +42,18 @@ export function ProfileTab({
     ownerVerification,
 }: ProfileTabProps) {
     const [avatarLoadError, setAvatarLoadError] = useState(false);
+
+    const openActionsMenu = (event: ReactMouseEvent<HTMLButtonElement>): void => {
+        event.preventDefault();
+        event.stopPropagation();
+        const rect = event.currentTarget.getBoundingClientRect();
+        event.currentTarget.dispatchEvent(new window.MouseEvent('contextmenu', {
+            bubbles: true,
+            cancelable: true,
+            clientX: rect.left + rect.width / 2,
+            clientY: rect.top + rect.height / 2,
+        }));
+    };
 
     useEffect(() => {
         setAvatarLoadError(false);
@@ -105,37 +120,29 @@ export function ProfileTab({
                 </div>
 
                 <div className="nostr-profile-actions" aria-label="Acciones de perfil">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="icon-sm"
-                        className="nostr-icon-button"
-                        aria-label="Ubicarme en el mapa"
-                        title="Locate on map"
-                        onClick={onLocateOwner}
-                    >
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                            <path d="M12 22s7-4.35 7-11a7 7 0 1 0-14 0c0 6.65 7 11 7 11z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                            <circle cx="12" cy="11" r="2.5" fill="none" stroke="currentColor" strokeWidth="2" />
-                        </svg>
-                    </Button>
-
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="icon-sm"
-                        className="nostr-icon-button"
-                        aria-label="Copiar npub"
-                        title="Copy npub"
-                        onClick={() => {
-                            void onCopyOwnerNpub?.(ownerNpub || ownerPubkey);
-                        }}
-                    >
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                            <rect x="9" y="9" width="11" height="11" rx="2" ry="2" fill="none" stroke="currentColor" strokeWidth="2" />
-                            <path d="M5 15V6a2 2 0 0 1 2-2h9" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                    </Button>
+                    <ContextMenu>
+                        <ContextMenuTrigger asChild>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="icon-sm"
+                                className="nostr-icon-button"
+                                aria-label="Abrir acciones de perfil"
+                                title="Profile actions"
+                                onClick={openActionsMenu}
+                            >
+                                <EllipsisVerticalIcon data-icon="inline-start" />
+                            </Button>
+                        </ContextMenuTrigger>
+                        <ContextMenuContent className="w-48">
+                            <ContextMenuGroup>
+                                <PersonContextMenuItems
+                                    onLocateOnMap={onLocateOwner}
+                                    onCopyNpub={() => onCopyOwnerNpub?.(ownerNpub || ownerPubkey)}
+                                />
+                            </ContextMenuGroup>
+                        </ContextMenuContent>
+                    </ContextMenu>
                 </div>
             </div>
 

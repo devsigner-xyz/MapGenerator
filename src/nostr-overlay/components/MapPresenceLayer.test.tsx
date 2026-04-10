@@ -205,4 +205,41 @@ describe('MapPresenceLayer', () => {
         expect(layer).toBeDefined();
         expect(layer.style.clipPath).toBe('inset(0 0 0 180px)');
     });
+
+    test('does not hit maximum update depth when listBuildings returns fresh arrays', async () => {
+        const bridge = createMapBridgeStub(10);
+        (bridge.listBuildings as any).mockImplementation(() => [
+            {
+                index: 0,
+                centroid: { x: 100, y: 80 },
+            },
+        ]);
+        const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        try {
+            const rendered = await renderElement(
+                <MapPresenceLayer
+                    mapBridge={bridge}
+                    occupancyByBuildingIndex={{ 0: occupantPubkey }}
+                    profiles={profiles}
+                    ownerPubkey={ownerPubkey}
+                    ownerProfile={{ pubkey: ownerPubkey, displayName: 'Owner' }}
+                    ownerBuildingIndex={0}
+                    occupiedLabelsZoomLevel={8}
+                />
+            );
+            mounted.push(rendered);
+
+            await act(async () => {
+                await Promise.resolve();
+            });
+
+            const hasMaximumDepthError = consoleErrorSpy.mock.calls.some((callArgs) =>
+                callArgs.some((value) => typeof value === 'string' && value.includes('Maximum update depth exceeded'))
+            );
+            expect(hasMaximumDepthError).toBe(false);
+        } finally {
+            consoleErrorSpy.mockRestore();
+        }
+    });
 });

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { EllipsisVerticalIcon } from 'lucide-react';
 import { addRelay, loadRelaySettings, removeRelay, saveRelaySettings, type RelaySettingsState } from '../../nostr/relay-settings';
 import { normalizeRelayUrl } from '../../nostr/relay-policy';
 import { loadUiSettings, saveUiSettings, type UiSettingsState } from '../../nostr/ui-settings';
@@ -11,12 +12,17 @@ import {
     type ZapSettingsState,
 } from '../../nostr/zap-settings';
 import type { MapBridge } from '../map-bridge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { ContextMenu, ContextMenuContent, ContextMenuGroup, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 
 interface MapSettingsModalProps {
@@ -26,12 +32,180 @@ interface MapSettingsModalProps {
     zapSettings?: ZapSettingsState;
     onZapSettingsChange?: (nextState: ZapSettingsState) => void;
     initialView?: SettingsView;
-    hasActiveSession?: boolean;
-    onLogoutSession?: () => Promise<void> | void;
     onClose: () => void;
 }
 
-export type SettingsView = 'settings' | 'advanced' | 'ui' | 'shortcuts' | 'relays' | 'about' | 'zaps';
+const EMPTY_RELAYS: string[] = [];
+
+export type SettingsView = 'advanced' | 'ui' | 'shortcuts' | 'relays' | 'relay-detail' | 'about' | 'zaps';
+
+type RelaySource = 'configured' | 'suggested';
+
+interface RelayDetails {
+    relayUrl: string;
+    source: RelaySource;
+    host: string;
+    protocol: string;
+    path: string;
+    port: string;
+    secure: boolean;
+}
+
+interface RelayFee {
+    amount?: number;
+    unit?: string;
+    period?: number;
+    kinds?: number[];
+}
+
+interface RelayInformationDocument {
+    name?: string;
+    description?: string;
+    icon?: string;
+    pubkey?: string;
+    contact?: string;
+    supported_nips?: number[];
+    software?: string;
+    version?: string;
+    terms_of_service?: string;
+    payments_url?: string;
+    limitation?: {
+        payment_required?: boolean;
+        auth_required?: boolean;
+        restricted_writes?: boolean;
+        max_limit?: number;
+        default_limit?: number;
+        max_subscriptions?: number;
+    };
+    fees?: {
+        admission?: RelayFee[];
+        subscription?: RelayFee[];
+        publication?: RelayFee[];
+    };
+}
+
+interface RelayInfoState {
+    status: 'loading' | 'ready' | 'error';
+    data?: RelayInformationDocument;
+}
+
+interface RelaySelection {
+    relayUrl: string;
+    source: RelaySource;
+}
+
+function describeRelay(relayUrl: string, source: RelaySource): RelayDetails {
+    try {
+        const parsed = new URL(relayUrl);
+        return {
+            relayUrl,
+            source,
+            host: parsed.hostname || 'unknown',
+            protocol: parsed.protocol.replace(':', ''),
+            path: parsed.pathname || '/',
+            port: parsed.port || (parsed.protocol === 'wss:' ? '443' : parsed.protocol === 'ws:' ? '80' : 'unknown'),
+            secure: parsed.protocol === 'wss:',
+        };
+    } catch {
+        return {
+            relayUrl,
+            source,
+            host: 'unknown',
+            protocol: relayUrl.startsWith('wss://') ? 'wss' : relayUrl.startsWith('ws://') ? 'ws' : 'unknown',
+            path: '/',
+            port: 'unknown',
+            secure: relayUrl.startsWith('wss://'),
+        };
+    }
+}
+
+function relayHttpEndpoint(relayUrl: string): string | null {
+    try {
+        const parsed = new URL(relayUrl);
+        if (parsed.protocol === 'wss:') {
+            parsed.protocol = 'https:';
+        } else if (parsed.protocol === 'ws:') {
+            parsed.protocol = 'http:';
+        } else {
+            return null;
+        }
+        return parsed.toString();
+    } catch {
+        return null;
+    }
+}
+
+async function fetchRelayInformation(relayUrl: string): Promise<RelayInformationDocument> {
+    const endpoint = relayHttpEndpoint(relayUrl);
+    if (!endpoint) {
+        throw new Error('invalid relay endpoint');
+    }
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => {
+        controller.abort();
+    }, 3500);
+
+    try {
+        const response = await fetch(endpoint, {
+            method: 'GET',
+            headers: {
+                Accept: 'application/nostr+json, application/json;q=0.9',
+            },
+            signal: controller.signal,
+        });
+
+        if (!response.ok) {
+            throw new Error(`status ${response.status}`);
+        }
+
+        const payload = await response.json() as unknown;
+        if (!payload || typeof payload !== 'object') {
+            throw new Error('invalid payload');
+        }
+
+        return payload as RelayInformationDocument;
+    } finally {
+        window.clearTimeout(timeout);
+    }
+}
+
+function relayRequiresPayment(document?: RelayInformationDocument): boolean | null {
+    if (!document) {
+        return null;
+    }
+
+    if (typeof document.limitation?.payment_required === 'boolean') {
+        return document.limitation.payment_required;
+    }
+
+    const hasFees = Boolean(
+        (document.fees?.admission && document.fees.admission.length > 0)
+        || (document.fees?.subscription && document.fees.subscription.length > 0)
+        || (document.fees?.publication && document.fees.publication.length > 0)
+    );
+    return hasFees ? true : null;
+}
+
+function relayAvatarFallback(details: RelayDetails, document?: RelayInformationDocument): string {
+    const source = document?.name || details.host || details.relayUrl;
+    const parts = source.split(/[^a-zA-Z0-9]+/).filter((part) => part.length > 0);
+    if (parts.length >= 2) {
+        return `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase();
+    }
+    return source.slice(0, 2).toUpperCase();
+}
+
+function formatRelayFee(fee: RelayFee): string {
+    const amount = typeof fee.amount === 'number' ? `${fee.amount} ${fee.unit || ''}`.trim() : 'unknown amount';
+    if (typeof fee.period === 'number') {
+        return `${amount} / ${fee.period}s`;
+    }
+    if (Array.isArray(fee.kinds) && fee.kinds.length > 0) {
+        return `${amount} (kinds ${fee.kinds.join(', ')})`;
+    }
+    return amount;
+}
 
 function normalizeRelayInput(value: string): string | null {
     const trimmed = value.trim();
@@ -48,13 +222,11 @@ function normalizeRelayInput(value: string): string | null {
 
 export function MapSettingsModal({
     mapBridge,
-    suggestedRelays = [],
+    suggestedRelays = EMPTY_RELAYS,
     onUiSettingsChange,
     zapSettings,
     onZapSettingsChange,
-    initialView = 'settings',
-    hasActiveSession = false,
-    onLogoutSession,
+    initialView = 'ui',
     onClose,
 }: MapSettingsModalProps) {
     const [view, setView] = useState<SettingsView>(initialView);
@@ -64,6 +236,8 @@ export function MapSettingsModal({
     const [newRelayInput, setNewRelayInput] = useState('');
     const [newZapAmountInput, setNewZapAmountInput] = useState('');
     const [invalidRelayInputs, setInvalidRelayInputs] = useState<string[]>([]);
+    const [selectedRelay, setSelectedRelay] = useState<RelaySelection | null>(null);
+    const [relayInfoByUrl, setRelayInfoByUrl] = useState<Record<string, RelayInfoState>>({});
     const settingsHostRef = useRef<HTMLDivElement | null>(null);
 
     const persistRelaySettings = (nextState: RelaySettingsState): void => {
@@ -132,6 +306,26 @@ export function MapSettingsModal({
 
     const suggestedNotAdded = suggestedRelays.filter((relayUrl) => !relaySettings.relays.includes(relayUrl));
 
+    const relayInfoTargets = useMemo(() => {
+        return [...new Set([...relaySettings.relays, ...suggestedRelays])];
+    }, [relaySettings.relays, suggestedRelays]);
+
+    const openRelayDetails = (relayUrl: string, source: RelaySource): void => {
+        setSelectedRelay({ relayUrl, source });
+        setView('relay-detail');
+    };
+
+    const openRelayActionsMenu = (event: MouseEvent<HTMLButtonElement>): void => {
+        event.preventDefault();
+        const rect = event.currentTarget.getBoundingClientRect();
+        event.currentTarget.dispatchEvent(new MouseEvent('contextmenu', {
+            bubbles: true,
+            cancelable: true,
+            clientX: rect.left + rect.width / 2,
+            clientY: rect.top + rect.height / 2,
+        }));
+    };
+
     useEffect(() => {
         if (!zapSettings) {
             return;
@@ -151,28 +345,79 @@ export function MapSettingsModal({
         };
     }, [mapBridge, view]);
 
+    useEffect(() => {
+        if (view !== 'relays' || relayInfoTargets.length === 0 || typeof fetch !== 'function') {
+            return;
+        }
+
+        const pending: string[] = [];
+        setRelayInfoByUrl((current) => {
+            let changed = false;
+            const next = { ...current };
+            for (const relayUrl of relayInfoTargets) {
+                if (!next[relayUrl]) {
+                    next[relayUrl] = { status: 'loading' };
+                    pending.push(relayUrl);
+                    changed = true;
+                }
+            }
+            return changed ? next : current;
+        });
+
+        if (pending.length === 0) {
+            return;
+        }
+
+        let cancelled = false;
+        void Promise.all(pending.map(async (relayUrl) => {
+            try {
+                const data = await fetchRelayInformation(relayUrl);
+                if (cancelled) {
+                    return;
+                }
+
+                setRelayInfoByUrl((current) => ({
+                    ...current,
+                    [relayUrl]: {
+                        status: 'ready',
+                        data,
+                    },
+                }));
+            } catch {
+                if (cancelled) {
+                    return;
+                }
+
+                setRelayInfoByUrl((current) => ({
+                    ...current,
+                    [relayUrl]: {
+                        status: 'error',
+                    },
+                }));
+            }
+        }));
+
+        return () => {
+            cancelled = true;
+        };
+    }, [view, relayInfoTargets]);
+
+    const selectedRelayDetails = selectedRelay ? describeRelay(selectedRelay.relayUrl, selectedRelay.source) : null;
+    const selectedRelayInfo = selectedRelay ? relayInfoByUrl[selectedRelay.relayUrl] : undefined;
+    const canGoBack = view === 'relay-detail';
+
     return (
         <Dialog open onOpenChange={(open) => {
             if (!open) {
                 onClose();
             }
         }}>
-            <DialogContent className="nostr-modal nostr-settings-modal" showCloseButton={false} aria-label="Ajustes">
+            <DialogContent className={`nostr-settings-modal${view === 'relays' || view === 'relay-detail' ? ' nostr-settings-modal-relays' : ''}`} aria-label="Ajustes">
                 <DialogTitle className="sr-only">Ajustes</DialogTitle>
                 <DialogDescription className="sr-only">Configuracion del overlay del mapa.</DialogDescription>
                 <div className="nostr-settings-header">
-                    {view === 'advanced' || view === 'ui' || view === 'shortcuts' || view === 'relays' || view === 'about' || view === 'zaps' ? (
-                        <Button type="button" variant="ghost" className="nostr-settings-back" onClick={() => setView('settings')}>
-                            Volver
-                        </Button>
-                    ) : (
-                        <span className="nostr-settings-spacer" aria-hidden="true" />
-                    )}
-
                     <p className="nostr-settings-title">
-                        {view === 'settings'
-                            ? 'Settings'
-                            : view === 'advanced'
+                        {view === 'advanced'
                                 ? 'Advanced settings'
                             : view === 'ui'
                                 ? 'UI'
@@ -180,58 +425,17 @@ export function MapSettingsModal({
                                     ? 'Shortcuts'
                                     : view === 'relays'
                                         ? 'Relays'
+                                        : view === 'relay-detail'
+                                            ? 'Relay details'
                                         : view === 'zaps'
                                             ? 'Zaps'
                                             : 'About'}
                     </p>
 
-                    <Button type="button" variant="ghost" className="nostr-modal-close" onClick={onClose} aria-label="Cerrar ajustes">
-                        x
-                    </Button>
                 </div>
 
-                {view === 'settings' ? (
-                    <div className="nostr-settings-content">
-                        <Button type="button" variant="outline" className="nostr-settings-item" onClick={() => setView('ui')}>
-                            UI
-                        </Button>
-
-                        <Button type="button" variant="outline" className="nostr-settings-item" onClick={() => setView('shortcuts')}>
-                            Shortcuts
-                        </Button>
-
-                        <Button type="button" variant="outline" className="nostr-settings-item" onClick={() => setView('relays')}>
-                            Relays
-                        </Button>
-
-                        <Button type="button" variant="outline" className="nostr-settings-item" onClick={() => setView('about')}>
-                            About
-                        </Button>
-
-                        <Button type="button" variant="outline" className="nostr-settings-item" onClick={() => setView('zaps')}>
-                            Zaps
-                        </Button>
-
-                        <Button type="button" variant="outline" className="nostr-settings-item" onClick={() => setView('advanced')}>
-                            Advanced settings
-                        </Button>
-
-                        {hasActiveSession ? (
-                            <Button
-                                type="button"
-                                variant="outline"
-                                className="nostr-settings-item nostr-settings-danger"
-                                onClick={() => {
-                                    void onLogoutSession?.();
-                                    onClose();
-                                }}
-                            >
-                                Cerrar sesión
-                            </Button>
-                        ) : null}
-
-                    </div>
-                ) : view === 'advanced' ? (
+                <div className="nostr-settings-body">
+                    {view === 'advanced' ? (
                     <div className="nostr-shortcuts-content">
                         <p>Configuracion avanzada del MapGenerator.</p>
                         <div ref={settingsHostRef} className="nostr-settings-host" />
@@ -387,22 +591,65 @@ export function MapSettingsModal({
                     <div className="nostr-relays-content">
                         <p className="nostr-relays-help">Conecta varios relays. Puedes agregar uno por linea.</p>
 
-                        <ul className="nostr-relay-list">
-                            {relaySettings.relays.map((relayUrl) => (
-                                <li key={relayUrl} className="nostr-relay-item">
-                                    <span className="nostr-relay-url">{relayUrl}</span>
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        className="nostr-relay-remove"
-                                        aria-label={`Eliminar relay ${relayUrl}`}
-                                        onClick={() => handleRemoveRelay(relayUrl)}
-                                    >
-                                        Remove
-                                    </Button>
-                                </li>
-                            ))}
-                        </ul>
+                        <div className="nostr-relay-table-wrap">
+                            <Table className="nostr-relay-table">
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Relay</TableHead>
+                                        <TableHead className="nostr-relay-actions-head">Actions</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {relaySettings.relays.map((relayUrl) => {
+                                        const details = describeRelay(relayUrl, 'configured');
+                                        const info = relayInfoByUrl[relayUrl];
+                                        const document = info?.data;
+
+                                        return (
+                                            <TableRow key={relayUrl}>
+                                                <TableCell className="nostr-relay-url-cell">
+                                                    <div className="nostr-relay-main-cell">
+                                                        <Avatar className="size-8">
+                                                            {document?.icon ? <AvatarImage src={document.icon} alt={document.name || details.host} /> : null}
+                                                            <AvatarFallback>{relayAvatarFallback(details, document)}</AvatarFallback>
+                                                        </Avatar>
+                                                        <div className="min-w-0">
+                                                            <p className="nostr-relay-summary-primary">{document?.name || relayUrl}</p>
+                                                            <p className="nostr-relay-summary-sub">Configured relay</p>
+                                                        </div>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="nostr-relay-actions-cell">
+                                                    <ContextMenu>
+                                                        <ContextMenuTrigger asChild>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="icon-sm"
+                                                                aria-label={`Abrir acciones para ${relayUrl}`}
+                                                                onClick={openRelayActionsMenu}
+                                                            >
+                                                                <EllipsisVerticalIcon data-icon="inline-start" />
+                                                            </Button>
+                                                        </ContextMenuTrigger>
+                                                        <ContextMenuContent>
+                                                            <ContextMenuGroup>
+                                                                <ContextMenuItem onSelect={() => openRelayDetails(relayUrl, 'configured')}>
+                                                                    Details
+                                                                </ContextMenuItem>
+                                                                <ContextMenuItem variant="destructive" onSelect={() => handleRemoveRelay(relayUrl)}>
+                                                                    Remove
+                                                                </ContextMenuItem>
+                                                            </ContextMenuGroup>
+                                                        </ContextMenuContent>
+                                                    </ContextMenu>
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
+                                </TableBody>
+                            </Table>
+                        </div>
 
                         <Textarea
                             className="nostr-input nostr-relay-editor"
@@ -434,21 +681,65 @@ export function MapSettingsModal({
                                 </div>
 
                                 {suggestedNotAdded.length > 0 ? (
-                                    <ul className="nostr-relay-list">
-                                        {suggestedNotAdded.map((relayUrl) => (
-                                            <li key={`suggested-${relayUrl}`} className="nostr-relay-item">
-                                                <span className="nostr-relay-url">{relayUrl}</span>
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    className="nostr-relay-remove"
-                                                    onClick={() => handleAddSuggestedRelay(relayUrl)}
-                                                >
-                                                    Agregar
-                                                </Button>
-                                            </li>
-                                        ))}
-                                    </ul>
+                                    <div className="nostr-relay-table-wrap">
+                                        <Table className="nostr-relay-table">
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Relay</TableHead>
+                                                    <TableHead className="nostr-relay-actions-head">Actions</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {suggestedNotAdded.map((relayUrl) => {
+                                                    const details = describeRelay(relayUrl, 'suggested');
+                                                    const info = relayInfoByUrl[relayUrl];
+                                                    const document = info?.data;
+
+                                                    return (
+                                                        <TableRow key={`suggested-${relayUrl}`}>
+                                                            <TableCell className="nostr-relay-url-cell">
+                                                                <div className="nostr-relay-main-cell">
+                                                                    <Avatar className="size-8">
+                                                                        {document?.icon ? <AvatarImage src={document.icon} alt={document.name || details.host} /> : null}
+                                                                        <AvatarFallback>{relayAvatarFallback(details, document)}</AvatarFallback>
+                                                                    </Avatar>
+                                                                    <div className="min-w-0">
+                                                                        <p className="nostr-relay-summary-primary">{document?.name || relayUrl}</p>
+                                                                        <p className="nostr-relay-summary-sub">Suggested by NIP-65</p>
+                                                                    </div>
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell className="nostr-relay-actions-cell">
+                                                                <ContextMenu>
+                                                                    <ContextMenuTrigger asChild>
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="outline"
+                                                                            size="icon-sm"
+                                                                            aria-label={`Abrir acciones sugeridas para ${relayUrl}`}
+                                                                            onClick={openRelayActionsMenu}
+                                                                        >
+                                                                            <EllipsisVerticalIcon data-icon="inline-start" />
+                                                                        </Button>
+                                                                    </ContextMenuTrigger>
+                                                                    <ContextMenuContent>
+                                                                        <ContextMenuGroup>
+                                                                            <ContextMenuItem onSelect={() => openRelayDetails(relayUrl, 'suggested')}>
+                                                                                Details
+                                                                            </ContextMenuItem>
+                                                                            <ContextMenuItem onSelect={() => handleAddSuggestedRelay(relayUrl)}>
+                                                                                Add
+                                                                            </ContextMenuItem>
+                                                                        </ContextMenuGroup>
+                                                                    </ContextMenuContent>
+                                                                </ContextMenu>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    );
+                                                })}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
                                 ) : (
                                     <p className="nostr-relays-help">Todos los relays sugeridos ya estan agregados.</p>
                                 )}
@@ -456,6 +747,148 @@ export function MapSettingsModal({
                         ) : (
                             <p className="nostr-relays-help">No hay relays sugeridos todavia. Carga una npub para intentar descubrirlos via NIP-65.</p>
                         )}
+                    </div>
+                ) : view === 'relay-detail' && selectedRelayDetails ? (
+                    <div className="nostr-relays-content">
+                        {selectedRelayInfo?.status === 'loading' ? (
+                            <p className="nostr-relay-meta-loading"><Spinner className="size-3" /> Cargando metadata NIP-11...</p>
+                        ) : null}
+
+                        {selectedRelayInfo?.status === 'error' ? (
+                            <p className="nostr-relay-meta-loading">No se pudo obtener metadata remota del relay.</p>
+                        ) : null}
+
+                        <div className="nostr-relay-detail-header">
+                            <Avatar className="size-10">
+                                {selectedRelayInfo?.data?.icon ? <AvatarImage src={selectedRelayInfo.data.icon} alt={selectedRelayInfo.data.name || selectedRelayDetails.host} /> : null}
+                                <AvatarFallback>{relayAvatarFallback(selectedRelayDetails, selectedRelayInfo?.data)}</AvatarFallback>
+                            </Avatar>
+
+                            <div className="min-w-0">
+                                <p className="nostr-relay-summary-primary">{selectedRelayInfo?.data?.name || selectedRelayDetails.relayUrl}</p>
+                                <p className="nostr-relay-summary-sub">{selectedRelayDetails.source === 'configured' ? 'Configured relay' : 'Suggested by NIP-65'}</p>
+                            </div>
+                        </div>
+
+                        {selectedRelayInfo?.data?.description ? (
+                            <p className="nostr-relay-detail-description">{selectedRelayInfo.data.description}</p>
+                        ) : null}
+
+                        <div className="nostr-relay-detail-table-wrap">
+                            <Table className="nostr-relay-detail-table">
+                                <TableBody>
+                                    <TableRow>
+                                        <TableHead className="nostr-relay-detail-key">URL</TableHead>
+                                        <TableCell className="nostr-relay-detail-value">{selectedRelayDetails.relayUrl}</TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                        <TableHead className="nostr-relay-detail-key">Source</TableHead>
+                                        <TableCell className="nostr-relay-detail-value">{selectedRelayDetails.source === 'configured' ? 'Configured' : 'Suggested (NIP-65)'}</TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                        <TableHead className="nostr-relay-detail-key">Host</TableHead>
+                                        <TableCell className="nostr-relay-detail-value">{selectedRelayDetails.host}</TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                        <TableHead className="nostr-relay-detail-key">Protocol</TableHead>
+                                        <TableCell className="nostr-relay-detail-value">{selectedRelayDetails.protocol.toUpperCase()}</TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                        <TableHead className="nostr-relay-detail-key">Port</TableHead>
+                                        <TableCell className="nostr-relay-detail-value">{selectedRelayDetails.port}</TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                        <TableHead className="nostr-relay-detail-key">Path</TableHead>
+                                        <TableCell className="nostr-relay-detail-value">{selectedRelayDetails.path}</TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                        <TableHead className="nostr-relay-detail-key">Transport</TableHead>
+                                        <TableCell className="nostr-relay-detail-value">{selectedRelayDetails.secure ? 'Secure WebSocket (WSS)' : 'WebSocket (WS)'}</TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                        <TableHead className="nostr-relay-detail-key">Billing</TableHead>
+                                        <TableCell className="nostr-relay-detail-value">
+                                            {relayRequiresPayment(selectedRelayInfo?.data) === true
+                                                ? 'Paid relay'
+                                                : relayRequiresPayment(selectedRelayInfo?.data) === false
+                                                    ? 'No payment required'
+                                                    : 'Unknown'}
+                                        </TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                        <TableHead className="nostr-relay-detail-key">NIP support</TableHead>
+                                        <TableCell className="nostr-relay-detail-value">
+                                            {typeof selectedRelayInfo?.data?.supported_nips?.length === 'number'
+                                                ? `${selectedRelayInfo.data.supported_nips.length} NIPs`
+                                                : 'Unknown'}
+                                        </TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                        <TableHead className="nostr-relay-detail-key">Event limit</TableHead>
+                                        <TableCell className="nostr-relay-detail-value">
+                                            {selectedRelayInfo?.data?.limitation?.max_limit
+                                                ?? selectedRelayInfo?.data?.limitation?.default_limit
+                                                ?? 'Unknown'}
+                                        </TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                        <TableHead className="nostr-relay-detail-key">Writes</TableHead>
+                                        <TableCell className="nostr-relay-detail-value">{selectedRelayInfo?.data?.limitation?.restricted_writes ? 'Restricted' : 'Open/Unknown'}</TableCell>
+                                    </TableRow>
+                                    {selectedRelayInfo?.data?.payments_url ? (
+                                        <TableRow>
+                                            <TableHead className="nostr-relay-detail-key">Payments URL</TableHead>
+                                            <TableCell className="nostr-relay-detail-value">{selectedRelayInfo.data.payments_url}</TableCell>
+                                        </TableRow>
+                                    ) : null}
+                                    {selectedRelayInfo?.data?.software ? (
+                                        <TableRow>
+                                            <TableHead className="nostr-relay-detail-key">Software</TableHead>
+                                            <TableCell className="nostr-relay-detail-value">{selectedRelayInfo.data.version ? `${selectedRelayInfo.data.software} (${selectedRelayInfo.data.version})` : selectedRelayInfo.data.software}</TableCell>
+                                        </TableRow>
+                                    ) : null}
+                                    {selectedRelayInfo?.data?.contact ? (
+                                        <TableRow>
+                                            <TableHead className="nostr-relay-detail-key">Contact</TableHead>
+                                            <TableCell className="nostr-relay-detail-value">{selectedRelayInfo.data.contact}</TableCell>
+                                        </TableRow>
+                                    ) : null}
+                                    {selectedRelayInfo?.data?.fees ? (
+                                        <TableRow>
+                                            <TableHead className="nostr-relay-detail-key">Fees</TableHead>
+                                            <TableCell className="nostr-relay-detail-value">
+                                                <div className="nostr-relay-detail-inline-list">
+                                                    {selectedRelayInfo.data.fees.admission?.map((fee, index) => (
+                                                        <span key={`admission-${index}`}>Admission: {formatRelayFee(fee)}</span>
+                                                    ))}
+                                                    {selectedRelayInfo.data.fees.subscription?.map((fee, index) => (
+                                                        <span key={`subscription-${index}`}>Subscription: {formatRelayFee(fee)}</span>
+                                                    ))}
+                                                    {selectedRelayInfo.data.fees.publication?.map((fee, index) => (
+                                                        <span key={`publication-${index}`}>Publication: {formatRelayFee(fee)}</span>
+                                                    ))}
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : null}
+                                    {selectedRelayInfo?.data?.supported_nips && selectedRelayInfo.data.supported_nips.length > 0 ? (
+                                        <TableRow>
+                                            <TableHead className="nostr-relay-detail-key">Supported NIPs</TableHead>
+                                            <TableCell className="nostr-relay-detail-value">
+                                                <div className="nostr-relay-nip-badges">
+                                                    {selectedRelayInfo.data.supported_nips.slice(0, 24).map((nip) => (
+                                                        <Badge key={`nip-${nip}`} variant="outline">NIP-{nip}</Badge>
+                                                    ))}
+                                                    {selectedRelayInfo.data.supported_nips.length > 24 ? (
+                                                        <Badge variant="secondary">+{selectedRelayInfo.data.supported_nips.length - 24}</Badge>
+                                                    ) : null}
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : null}
+                                </TableBody>
+                            </Table>
+                        </div>
                     </div>
                 ) : view === 'about' ? (
                     <div className="nostr-shortcuts-content">
@@ -545,11 +978,29 @@ export function MapSettingsModal({
                             </Button>
                         </div>
                     </div>
-                ) : (
+                    ) : (
                     <div className="nostr-shortcuts-content">
                         <p>Mantener pulsada la barra espaciadora y arrastrar para desplazarte por el mapa.</p>
                         <p>Mantener pulsado el wheel del raton y mover el raton para desplazarte por el mapa.</p>
                     </div>
+                    )}
+                </div>
+
+                {canGoBack ? (
+                    <DialogFooter className="sm:justify-between">
+                        <Button type="button" variant="outline" onClick={() => setView('relays')}>
+                            Volver
+                        </Button>
+                        <DialogClose asChild>
+                            <Button type="button" variant="outline">Cerrar</Button>
+                        </DialogClose>
+                    </DialogFooter>
+                ) : (
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button type="button" variant="outline">Cerrar</Button>
+                        </DialogClose>
+                    </DialogFooter>
                 )}
             </DialogContent>
         </Dialog>

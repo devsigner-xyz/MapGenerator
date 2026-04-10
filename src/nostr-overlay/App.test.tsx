@@ -146,6 +146,30 @@ async function waitFor(condition: () => boolean): Promise<void> {
     throw new Error('Condition was not met in time');
 }
 
+async function openSettingsContextMenu(container: HTMLDivElement): Promise<void> {
+    const settingsButton = container.querySelector('button[aria-label="Abrir ajustes"]') as HTMLButtonElement;
+    expect(settingsButton).toBeDefined();
+
+    await act(async () => {
+        settingsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    await waitFor(() => (document.body.textContent || '').includes('Advanced settings'));
+}
+
+async function selectSettingsContextAction(container: HTMLDivElement, label: string): Promise<void> {
+    await openSettingsContextMenu(container);
+
+    const action = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+        (item.textContent || '').trim() === label
+    ) as HTMLElement;
+    expect(action).toBeDefined();
+
+    await act(async () => {
+        action.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+}
+
 let mounted: RenderResult[] = [];
 
 beforeAll(() => {
@@ -281,9 +305,10 @@ describe('Nostr overlay App', () => {
         mounted.push(rendered);
 
         const toolbarButtons = Array.from(rendered.container.querySelectorAll('.nostr-panel-toolbar button')) as HTMLButtonElement[];
-        expect(toolbarButtons.length).toBeGreaterThanOrEqual(3);
+        expect(toolbarButtons.length).toBeGreaterThanOrEqual(4);
         expect(toolbarButtons[0].getAttribute('aria-label')).toBe('Abrir estadisticas de la ciudad');
-        expect(toolbarButtons[1].getAttribute('aria-label')).toBe('Regenerar mapa');
+        expect(toolbarButtons[1].getAttribute('aria-label')).toBe('Abrir chats');
+        expect(toolbarButtons[2].getAttribute('aria-label')).toBe('Regenerar mapa');
 
         const statsButton = rendered.container.querySelector('button[aria-label="Abrir estadisticas de la ciudad"]') as HTMLButtonElement;
         const regenerateButton = rendered.container.querySelector('button[aria-label="Regenerar mapa"]') as HTMLButtonElement;
@@ -305,6 +330,30 @@ describe('Nostr overlay App', () => {
         });
 
         expect(bridge.regenerateMap).toHaveBeenCalledTimes(1);
+    });
+
+    test('renders chat button in panel and compact toolbar and opens chat modal in list view', async () => {
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(<App mapBridge={bridge} />);
+        mounted.push(rendered);
+
+        const panelChatButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir chats"]') as HTMLButtonElement;
+        expect(panelChatButton).toBeDefined();
+
+        await act(async () => {
+            panelChatButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(rendered.container.textContent || '').toContain('Chats');
+        expect(rendered.container.textContent || '').toContain('No hay conversaciones todavía');
+
+        const hidePanelButton = rendered.container.querySelector('button[aria-label="Ocultar panel"]') as HTMLButtonElement;
+        await act(async () => {
+            hidePanelButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const compactChatButton = rendered.container.querySelector('.nostr-compact-toolbar button[aria-label="Abrir chats"]') as HTMLButtonElement;
+        expect(compactChatButton).toBeDefined();
     });
 
     test('renders map zoom controls with current zoom level', async () => {
@@ -351,7 +400,7 @@ describe('Nostr overlay App', () => {
         expect(buttons[1].getAttribute('aria-label')).toBe('Acercar mapa');
     });
 
-    test('shows owner profile icon buttons and copies npub with success toast', async () => {
+    test('shows owner profile actions menu and runs locate/copy actions', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const followedPubkey = 'a'.repeat(64);
         const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
@@ -406,15 +455,33 @@ describe('Nostr overlay App', () => {
 
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
-        const focusButton = rendered.container.querySelector('button[aria-label="Ubicarme en el mapa"]') as HTMLButtonElement;
-        const copyButton = rendered.container.querySelector('button[aria-label="Copiar npub"]') as HTMLButtonElement;
-        expect(focusButton).toBeDefined();
-        expect(copyButton).toBeDefined();
-        expect(focusButton.getAttribute('title')).toBe('Locate on map');
-        expect(copyButton.getAttribute('title')).toBe('Copy npub');
+        const actionsButton = rendered.container.querySelector('button[aria-label="Abrir acciones de perfil"]') as HTMLButtonElement;
+        expect(actionsButton).toBeDefined();
 
         await act(async () => {
-            copyButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            actionsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).some((node) =>
+            (node.textContent || '').trim() === 'Copiar npub'
+        ));
+
+        const copyItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((node) =>
+            (node.textContent || '').trim() === 'Copiar npub'
+        ) as HTMLElement;
+        const locateItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((node) =>
+            (node.textContent || '').trim() === 'Ubicar en el mapa'
+        ) as HTMLElement;
+        const messageItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((node) =>
+            (node.textContent || '').trim() === 'Enviar mensaje'
+        );
+
+        expect(copyItem).toBeDefined();
+        expect(locateItem).toBeDefined();
+        expect(messageItem).toBeUndefined();
+
+        await act(async () => {
+            copyItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
         expect(clipboardWriteText).toHaveBeenCalledTimes(1);
@@ -422,7 +489,19 @@ describe('Nostr overlay App', () => {
         await waitFor(() => (rendered.container.textContent || '').includes('npub copiada'));
 
         await act(async () => {
-            focusButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            actionsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).some((node) =>
+            (node.textContent || '').trim() === 'Ubicar en el mapa'
+        ));
+
+        const locateItemAgain = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((node) =>
+            (node.textContent || '').trim() === 'Ubicar en el mapa'
+        ) as HTMLElement;
+
+        await act(async () => {
+            locateItemAgain.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
         expect((bridge.focusBuilding as any).mock.calls.some((call: unknown[]) => call[0] === 0)).toBe(true);
@@ -503,19 +582,47 @@ describe('Nostr overlay App', () => {
 
         await waitFor(() => (rendered.container.textContent || '').includes('Alice'));
 
-        const locateFollowingButton = rendered.container.querySelector('button[aria-label="Ubicar Alice en el mapa"]') as HTMLButtonElement;
-        const copyFollowingButton = rendered.container.querySelector('button[aria-label="Copiar npub de Alice"]') as HTMLButtonElement;
-        expect(locateFollowingButton).toBeDefined();
-        expect(copyFollowingButton).toBeDefined();
+        const actionsButton = rendered.container.querySelector('button[aria-label="Abrir acciones para Alice"]') as HTMLButtonElement;
+        expect(actionsButton).toBeDefined();
+
+        await act(async () => {
+            actionsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).some((node) =>
+            (node.textContent || '').trim() === 'Ubicar en el mapa'
+        ));
+
+        const zapSubTrigger = Array.from(document.body.querySelectorAll('[data-slot="context-menu-sub-trigger"]')).find((node) =>
+            (node.textContent || '').trim() === 'Zap'
+        ) as HTMLElement;
+        expect(zapSubTrigger).toBeDefined();
+
+        const locateFollowingItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((node) =>
+            (node.textContent || '').trim() === 'Ubicar en el mapa'
+        ) as HTMLElement;
+        expect(locateFollowingItem).toBeDefined();
 
         const focusCallsBeforeLocate = (bridge.focusBuilding as any).mock.calls.length;
         await act(async () => {
-            locateFollowingButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            locateFollowingItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
         expect((bridge.focusBuilding as any).mock.calls.length).toBeGreaterThan(focusCallsBeforeLocate);
 
         await act(async () => {
-            copyFollowingButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            actionsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).some((node) =>
+            (node.textContent || '').trim() === 'Copiar npub'
+        ));
+
+        const copyFollowingItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((node) =>
+            (node.textContent || '').trim() === 'Copiar npub'
+        ) as HTMLElement;
+
+        await act(async () => {
+            copyFollowingItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
         expect(clipboardWriteText).toHaveBeenCalledTimes(1);
         expect((clipboardWriteText.mock.calls[0][0] as string).startsWith('npub1')).toBe(true);
@@ -1055,10 +1162,13 @@ describe('Nostr overlay App', () => {
             });
         });
 
+        await waitFor(() => Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).some((node) =>
+            (node.textContent || '').includes('Ver detalles')
+        ));
+
         const detailsItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((node) =>
             (node.textContent || '').includes('Ver detalles')
         ) as HTMLElement;
-        expect(detailsItem).toBeDefined();
 
         await act(async () => {
             detailsItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -1067,6 +1177,206 @@ describe('Nostr overlay App', () => {
         await waitFor(() => (rendered.container.textContent || '').includes('Ultimas publicaciones'));
 
         expect(document.body.textContent || '').not.toContain('Configurar cantidades');
+    });
+
+    test('opens chat detail directly from context menu and focuses composer', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+        const { bridge, triggerOccupiedBuildingContextMenu } = createMapBridgeStub();
+
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByNpubFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [followedPubkey],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                        [followedPubkey]: { pubkey: followedPubkey, displayName: 'Alice' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                    directMessagesService: {
+                        subscribeInbox: () => () => {},
+                        sendDm: vi.fn(async (input) => ({
+                            id: `msg:${input.clientMessageId}`,
+                            clientMessageId: input.clientMessageId,
+                            conversationId: input.peerPubkey,
+                            peerPubkey: input.peerPubkey,
+                            direction: 'outgoing' as const,
+                            createdAt: 100,
+                            plaintext: input.plaintext,
+                            deliveryState: 'sent' as const,
+                        })),
+                    },
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+        const form = rendered.container.querySelector('form');
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
+            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        await act(async () => {
+            triggerOccupiedBuildingContextMenu({
+                buildingIndex: 2,
+                pubkey: followedPubkey,
+                clientX: 320,
+                clientY: 240,
+            });
+        });
+
+        await waitFor(() => (document.body.textContent || '').includes('Enviar mensaje'));
+
+        const dmItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((node) =>
+            (node.textContent || '').includes('Enviar mensaje')
+        ) as HTMLElement;
+
+        await act(async () => {
+            dmItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Chats'));
+        await waitFor(() => (rendered.container.textContent || '').includes('Alice'));
+
+        const composer = rendered.container.querySelector('.nostr-chat-composer-input') as HTMLTextAreaElement;
+        expect(composer).toBeDefined();
+        expect(document.activeElement).toBe(composer);
+    });
+
+    test('falls back to nostr:npub when dm module is not initialized', async () => {
+        const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+        const { bridge, triggerOccupiedBuildingContextMenu } = createMapBridgeStub();
+        const rendered = await renderApp(<App mapBridge={bridge} />);
+        mounted.push(rendered);
+
+        await act(async () => {
+            triggerOccupiedBuildingContextMenu({
+                buildingIndex: 1,
+                pubkey: 'a'.repeat(64),
+                clientX: 300,
+                clientY: 220,
+            });
+        });
+
+        await waitFor(() => (document.body.textContent || '').includes('Enviar mensaje'));
+
+        const dmItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((node) =>
+            (node.textContent || '').includes('Enviar mensaje')
+        ) as HTMLElement;
+
+        await act(async () => {
+            dmItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(openSpy).toHaveBeenCalledTimes(1);
+        expect((openSpy.mock.calls[0]?.[0] as string).startsWith('nostr:npub')).toBe(true);
+        openSpy.mockRestore();
+    });
+
+    test('keeps chat open but disables composer after logout', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+        const { bridge, triggerOccupiedBuildingContextMenu } = createMapBridgeStub();
+
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByNpubFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [followedPubkey],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                        [followedPubkey]: { pubkey: followedPubkey, displayName: 'Alice' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                    directMessagesService: {
+                        subscribeInbox: () => () => {},
+                    },
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+        const form = rendered.container.querySelector('form');
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
+            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        await act(async () => {
+            triggerOccupiedBuildingContextMenu({
+                buildingIndex: 2,
+                pubkey: followedPubkey,
+                clientX: 320,
+                clientY: 240,
+            });
+        });
+
+        await waitFor(() => (document.body.textContent || '').includes('Enviar mensaje'));
+        const dmItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((node) =>
+            (node.textContent || '').includes('Enviar mensaje')
+        ) as HTMLElement;
+
+        await act(async () => {
+            dmItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Chats'));
+
+        await selectSettingsContextAction(rendered.container, 'Cerrar sesión');
+
+        const composer = rendered.container.querySelector('.nostr-chat-composer-input') as HTMLTextAreaElement;
+        expect(composer).toBeDefined();
+
+        const sendButton = rendered.container.querySelector('.nostr-chat-send') as HTMLButtonElement;
+        expect(sendButton.disabled).toBe(true);
     });
 
     test('opens easter egg modal with embedded pdf actions', async () => {
@@ -1119,43 +1429,25 @@ describe('Nostr overlay App', () => {
         expect(settingsButton).toBeDefined();
         expect(settingsButton.getAttribute('title')).toBe('Settings');
 
-        await act(async () => {
-            settingsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
-
         const mountedOnOpen = (bridge.mountSettingsPanel as any).mock.calls.some((call: [unknown]) => call[0] instanceof HTMLElement);
         expect(mountedOnOpen).toBe(false);
 
-        const advancedButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
-            (button.textContent || '').includes('Advanced settings')
-        ) as HTMLButtonElement;
-        expect(advancedButton).toBeDefined();
-
-        await act(async () => {
-            advancedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
+        await selectSettingsContextAction(rendered.container, 'Advanced settings');
 
         await waitFor(() => {
             const calls = (bridge.mountSettingsPanel as any).mock.calls;
             return calls.length > 0 && calls[calls.length - 1][0] instanceof HTMLElement;
         });
 
-        const backButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
-            (button.textContent || '').includes('Volver')
+        const closeButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').trim() === 'Cerrar'
         ) as HTMLButtonElement;
-        expect(backButton).toBeDefined();
+        expect(closeButton).toBeDefined();
         await act(async () => {
-            backButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            closeButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
-        const shortcutsButton = Array.from(rendered.container.querySelectorAll('button')).find(button =>
-            (button.textContent || '').includes('Shortcuts')
-        ) as HTMLButtonElement;
-
-        expect(shortcutsButton).toBeDefined();
-        await act(async () => {
-            shortcutsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
+        await selectSettingsContextAction(rendered.container, 'Shortcuts');
 
         expect(rendered.container.textContent || '').toContain('Mantener pulsada la barra espaciadora y arrastrar');
         expect(rendered.container.textContent || '').toContain('Mantener pulsado el wheel del raton y mover el raton');
@@ -1183,19 +1475,7 @@ describe('Nostr overlay App', () => {
         expect((bridge.setTrafficParticlesCount as any)).toHaveBeenCalledWith(20);
         expect((bridge.setTrafficParticlesSpeed as any)).toHaveBeenCalledWith(1.4);
 
-        const settingsButton = rendered.container.querySelector('button[aria-label="Abrir ajustes"]') as HTMLButtonElement;
-        await act(async () => {
-            settingsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
-
-        const uiButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
-            (button.textContent || '').trim() === 'UI'
-        ) as HTMLButtonElement;
-        expect(uiButton).toBeDefined();
-
-        await act(async () => {
-            uiButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
+        await selectSettingsContextAction(rendered.container, 'UI');
 
         const trafficCountInput = rendered.container.querySelector('input[aria-label="Cars in city"]') as HTMLInputElement;
         const trafficSpeedInput = rendered.container.querySelector('input[aria-label="Cars speed"]') as HTMLInputElement;
@@ -1241,11 +1521,12 @@ describe('Nostr overlay App', () => {
         expect(showPanelButton.getAttribute('title')).toBe('Show panel');
         expect(rendered.container.querySelector('button[aria-label="Abrir ajustes"]')).not.toBeNull();
         const compactButtons = Array.from(rendered.container.querySelectorAll('.nostr-compact-toolbar button')) as HTMLButtonElement[];
-        expect(compactButtons.length).toBe(4);
+        expect(compactButtons.length).toBe(5);
         expect(compactButtons[0].getAttribute('aria-label')).toBe('Mostrar panel');
         expect(compactButtons[1].getAttribute('aria-label')).toBe('Abrir ajustes');
-        expect(compactButtons[2].getAttribute('aria-label')).toBe('Regenerar mapa');
-        expect(compactButtons[3].getAttribute('aria-label')).toBe('Abrir estadisticas de la ciudad');
+        expect(compactButtons[2].getAttribute('aria-label')).toBe('Abrir chats');
+        expect(compactButtons[3].getAttribute('aria-label')).toBe('Regenerar mapa');
+        expect(compactButtons[4].getAttribute('aria-label')).toBe('Abrir estadisticas de la ciudad');
         expect((bridge.setViewportInsetLeft as any).mock.calls[(bridge.setViewportInsetLeft as any).mock.calls.length - 1][0]).toBe(0);
 
         await act(async () => {
@@ -2002,17 +2283,7 @@ describe('Nostr overlay App', () => {
 
         await waitFor(() => (rendered.container.textContent || '').includes('User-ffff'));
 
-        const settingsButton = rendered.container.querySelector('button[aria-label="Abrir ajustes"]') as HTMLButtonElement;
-        await act(async () => {
-            settingsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
-
-        const relaysButton = Array.from(rendered.container.querySelectorAll('button')).find(button =>
-            (button.textContent || '').includes('Relays')
-        ) as HTMLButtonElement;
-        await act(async () => {
-            relaysButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
+        await selectSettingsContextAction(rendered.container, 'Relays');
 
         await waitFor(() => (rendered.container.textContent || '').includes('relay.suggested.example'));
     });
@@ -2081,17 +2352,7 @@ describe('Nostr overlay App', () => {
 
         await waitFor(() => (rendered.container.textContent || '').includes('User-ffff'));
 
-        const settingsButton = rendered.container.querySelector('button[aria-label="Abrir ajustes"]') as HTMLButtonElement;
-        await act(async () => {
-            settingsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
-
-        const relaysButton = Array.from(rendered.container.querySelectorAll('button')).find(button =>
-            (button.textContent || '').includes('Relays')
-        ) as HTMLButtonElement;
-        await act(async () => {
-            relaysButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
+        await selectSettingsContextAction(rendered.container, 'Relays');
 
         await waitFor(() =>
             (rendered.container.textContent || '').includes('Todos los relays sugeridos ya estan agregados.')
@@ -2146,7 +2407,7 @@ describe('Nostr overlay App', () => {
         delete (window as any).nostr;
     });
 
-    test('allows logout from settings modal', async () => {
+    test('allows logout from settings context menu', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const followedPubkey = 'a'.repeat(64);
         const { bridge } = createMapBridgeStub(1);
@@ -2194,21 +2455,7 @@ describe('Nostr overlay App', () => {
 
         await waitFor(() => (rendered.container.textContent || '').includes('Información'));
 
-        const settingsButton = rendered.container.querySelector('button[aria-label="Abrir ajustes"]') as HTMLButtonElement;
-        await act(async () => {
-            settingsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
-
-        await waitFor(() => (rendered.container.textContent || '').includes('Cerrar sesión'));
-
-        const logoutButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
-            (button.textContent || '').includes('Cerrar sesión')
-        ) as HTMLButtonElement;
-        expect(logoutButton).toBeDefined();
-
-        await act(async () => {
-            logoutButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
+        await selectSettingsContextAction(rendered.container, 'Cerrar sesión');
 
         await waitFor(() => (rendered.container.textContent || '').includes('Accede o explora'));
 

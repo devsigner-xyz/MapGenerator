@@ -17,6 +17,7 @@ import { createWriteGateway } from '../../nostr/write-gateway';
 import type { MapBridge } from '../map-bridge';
 import { FEATURED_OCCUPANT_PUBKEYS } from '../domain/featured-occupants';
 import { createFollowerBatcher } from './follower-batcher';
+import { createDmReadStateStorage, useDirectMessages, type DirectMessagesService } from './useDirectMessages';
 
 export type OverlayStatus =
     | 'idle'
@@ -81,12 +82,19 @@ export interface NostrOverlayServices {
     fetchFollowersBestEffortFn?: typeof fetchFollowersBestEffort;
     fetchLatestPostsByPubkeyFn?: typeof fetchLatestPostsByPubkey;
     fetchProfileStatsFn?: typeof fetchProfileStats;
+    directMessagesService?: DirectMessagesService;
 }
 
 interface UseNostrOverlayOptions {
     mapBridge: MapBridge | null;
     services?: NostrOverlayServices;
 }
+
+const NOOP_DIRECT_MESSAGES_SERVICE: DirectMessagesService = {
+    subscribeInbox: () => {
+        return () => {};
+    },
+};
 
 function createEmptyActiveProfileState(): Pick<
     OverlayData,
@@ -179,6 +187,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
     const fetchFollowersBestEffortFn = services?.fetchFollowersBestEffortFn || fetchFollowersBestEffort;
     const fetchLatestPostsByPubkeyFn = services?.fetchLatestPostsByPubkeyFn || fetchLatestPostsByPubkey;
     const fetchProfileStatsFn = services?.fetchProfileStatsFn || fetchProfileStats;
+    const directMessagesService = services?.directMessagesService ?? NOOP_DIRECT_MESSAGES_SERVICE;
     const authService = useMemo(() => createAuthService(), []);
     const writeGateway = useMemo(
         () =>
@@ -200,6 +209,20 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
     const occupancyAnimationTokenRef = useRef(0);
     const skipNextMapGeneratedRef = useRef(false);
     const didRestoreSessionRef = useRef(false);
+    const dmReadStateStorage = useMemo(
+        () =>
+            createDmReadStateStorage({
+                storage: window.localStorage,
+                now: () => Math.floor(Date.now() / 1000),
+                version: 'v1',
+            }),
+        []
+    );
+    const directMessages = useDirectMessages({
+        ownerPubkey: state.data.ownerPubkey,
+        dmService: directMessagesService,
+        storage: dmReadStateStorage,
+    });
 
     const cancelOccupancyAnimation = (): number => {
         occupancyAnimationTokenRef.current += 1;
@@ -1217,6 +1240,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         unlockSession,
         logoutSession,
         writeGateway,
+        directMessages,
         submitNpub,
         regenerateMap,
         selectFollowing,

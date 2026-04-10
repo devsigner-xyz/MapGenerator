@@ -1,5 +1,7 @@
 import NDK from '@nostr-dev-kit/ndk';
+import { createNdkDmTransport } from './dm-transport-ndk';
 import { getBootstrapRelays, mergeRelaySets } from './relay-policy';
+import type { DmTransport } from './dm-transport';
 import type { NostrClient, NostrEvent, NostrFilter } from './types';
 
 function toNostrEvent(rawEvent: {
@@ -78,4 +80,8 @@ export class NdkClient implements NostrClient {
 
         return events[0];
     }
+}
+
+export function createNdkDmTransportClient(relays: string[] = []): DmTransport {
+    return createNdkDmTransport({ relays });
 }

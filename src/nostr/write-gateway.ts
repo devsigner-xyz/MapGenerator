@@ -1,4 +1,4 @@
-import type { AuthSessionState } from './auth/session';
+import { isEncryptionEnabled, type AuthSessionState, type EncryptionScheme } from './auth/session';
 import {
     AUTH_PROVIDER_ERROR,
     AuthProviderError,
@@ -39,9 +39,12 @@ function requireWritableSession(options: WriteGatewayOptions): { session: AuthSe
     return { session, provider };
 }
 
-function requireEncryption(options: WriteGatewayOptions): { session: AuthSessionState; provider: AuthProvider } {
+function requireEncryption(
+    options: WriteGatewayOptions,
+    scheme: EncryptionScheme = 'nip44'
+): { session: AuthSessionState; provider: AuthProvider } {
     const required = requireWritableSession(options);
-    if (!required.session.capabilities.canEncrypt) {
+    if (!isEncryptionEnabled(required.session, scheme)) {
         throw new AuthProviderError(AUTH_PROVIDER_ERROR.AUTH_PROVIDER_UNAVAILABLE, 'Current auth session cannot encrypt messages');
     }
 
@@ -78,12 +81,12 @@ export function createWriteGateway(options: WriteGatewayOptions) {
         },
 
         async encryptDm(pubkey: string, plaintext: string): Promise<string> {
-            const { provider } = requireEncryption(options);
+            const { provider } = requireEncryption(options, 'nip44');
             return provider.encrypt(pubkey, plaintext, 'nip44');
         },
 
         async decryptDm(pubkey: string, ciphertext: string): Promise<string> {
-            const { provider } = requireEncryption(options);
+            const { provider } = requireEncryption(options, 'nip44');
             return provider.decrypt(pubkey, ciphertext, 'nip44');
         },
     };

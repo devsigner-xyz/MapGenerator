@@ -118,4 +118,42 @@ describe('createWriteGateway', () => {
             code: AUTH_PROVIDER_ERROR.AUTH_LOCKED,
         });
     });
+
+    test('blocks dm encryption when nip44 scheme is not enabled in session capabilities', async () => {
+        const provider = buildProvider();
+        const gateway = createWriteGateway({
+            getSession: () =>
+                buildSession({
+                    capabilities: {
+                        canSign: true,
+                        canEncrypt: true,
+                        encryptionSchemes: ['nip04'],
+                    },
+                }),
+            getProvider: () => provider,
+        });
+
+        await expect(gateway.encryptDm('a'.repeat(64), 'secret')).rejects.toMatchObject({
+            code: AUTH_PROVIDER_ERROR.AUTH_PROVIDER_UNAVAILABLE,
+        });
+    });
+
+    test('blocks dm decryption when nip44 scheme is not enabled in session capabilities', async () => {
+        const provider = buildProvider();
+        const gateway = createWriteGateway({
+            getSession: () =>
+                buildSession({
+                    capabilities: {
+                        canSign: true,
+                        canEncrypt: true,
+                        encryptionSchemes: ['nip04'],
+                    },
+                }),
+            getProvider: () => provider,
+        });
+
+        await expect(gateway.decryptDm('a'.repeat(64), 'ciphertext')).rejects.toMatchObject({
+            code: AUTH_PROVIDER_ERROR.AUTH_PROVIDER_UNAVAILABLE,
+        });
+    });
 });
