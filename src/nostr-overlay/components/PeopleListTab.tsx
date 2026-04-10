@@ -211,8 +211,7 @@ export function PeopleListTab({
         const canCopy = typeof onCopyNpub === 'function';
         const canSendMessage = typeof onSendMessage === 'function';
         const canViewDetails = typeof onViewDetails === 'function';
-        const hasZapSubmenu = zapAmounts.length > 0;
-        const hasActions = canLocate || canCopy || canSendMessage || canViewDetails || hasZapSubmenu;
+        const hasActions = true;
         const display = personName(pubkey, profile);
         const npub = pubkeyToNpub(pubkey);
         const npubLabel = npub.startsWith('npub1') ? truncateIdentifier(npub) : `${pubkey.slice(0, 8)}...${pubkey.slice(-6)}`;
@@ -291,27 +290,23 @@ export function PeopleListTab({
                                     onViewDetails={canViewDetails ? () => onViewDetails?.(pubkey) : undefined}
                                 />
                             </ContextMenuGroup>
-                            {hasZapSubmenu ? (
-                                <>
+                            <ContextMenuSeparator />
+                            <ContextMenuSub>
+                                <ContextMenuSubTrigger>Zap</ContextMenuSubTrigger>
+                                <ContextMenuSubContent className="w-44">
+                                    {zapAmounts.map((amount) => (
+                                        <ContextMenuItem
+                                            key={`person-zap-${pubkey}-${amount}`}
+                                        >
+                                            {`${amount} sats`}
+                                        </ContextMenuItem>
+                                    ))}
                                     <ContextMenuSeparator />
-                                    <ContextMenuSub>
-                                        <ContextMenuSubTrigger>Zap</ContextMenuSubTrigger>
-                                        <ContextMenuSubContent className="w-44">
-                                            {zapAmounts.map((amount) => (
-                                                <ContextMenuItem
-                                                    key={`person-zap-${pubkey}-${amount}`}
-                                                >
-                                                    {`${amount} sats`}
-                                                </ContextMenuItem>
-                                            ))}
-                                            <ContextMenuSeparator />
-                                            <ContextMenuItem onSelect={onConfigureZapAmounts}>
-                                                Configurar cantidades
-                                            </ContextMenuItem>
-                                        </ContextMenuSubContent>
-                                    </ContextMenuSub>
-                                </>
-                            ) : null}
+                                    <ContextMenuItem onSelect={onConfigureZapAmounts}>
+                                        Configurar cantidades
+                                    </ContextMenuItem>
+                                </ContextMenuSubContent>
+                            </ContextMenuSub>
                         </ContextMenuContent>
                     </ContextMenu>
                 ) : null}
