@@ -5,13 +5,15 @@ import { encodeHexToNpub } from '../nostr/npub';
 import { MapPresenceLayer } from './components/MapPresenceLayer';
 import { MapSettingsModal, type SettingsView } from './components/MapSettingsModal';
 import { OccupantProfileModal } from './components/OccupantProfileModal';
+import { EasterEggModal } from './components/EasterEggModal';
 import { SocialSidebar } from './components/SocialSidebar';
 import { MapZoomControls } from './components/MapZoomControls';
 import { CityStatsModal } from './components/CityStatsModal';
 import { useNostrOverlay, type MapLoaderStage, type NostrOverlayServices } from './hooks/useNostrOverlay';
 import { useNip05Verification } from './hooks/useNip05Verification';
-import type { MapBridge, OccupiedBuildingContextPayload } from './map-bridge';
+import type { EasterEggBuildingClickPayload, MapBridge, OccupiedBuildingContextPayload } from './map-bridge';
 import { extractStreetLabelUsernames } from './domain/street-label-users';
+import { getEasterEggEntry } from './easter-eggs/catalog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
@@ -33,6 +35,10 @@ interface AppProps {
 }
 
 interface OccupiedBuildingContextMenuState extends OccupiedBuildingContextPayload {
+    nonce: number;
+}
+
+interface EasterEggModalState extends EasterEggBuildingClickPayload {
     nonce: number;
 }
 
@@ -61,8 +67,10 @@ export function App({ mapBridge, services }: AppProps) {
     const [uiSettings, setUiSettings] = useState<UiSettingsState>(() => loadUiSettings());
     const [zapSettings, setZapSettings] = useState<ZapSettingsState>(() => loadZapSettings());
     const [buildingContextMenu, setBuildingContextMenu] = useState<OccupiedBuildingContextMenuState | null>(null);
+    const [activeEasterEgg, setActiveEasterEgg] = useState<EasterEggModalState | null>(null);
     const contextMenuTriggerRef = useRef<HTMLSpanElement | null>(null);
     const contextMenuNonceRef = useRef(0);
+    const easterEggNonceRef = useRef(0);
     const loginDisabled = overlay.status !== 'idle' && overlay.status !== 'success' && overlay.status !== 'error';
     const mapLoaderText = mapLoaderStageLabel(overlay.mapLoaderStage);
     const regenerateDisabled = !mapBridge || overlay.mapLoaderStage !== null;
@@ -196,6 +204,20 @@ export function App({ mapBridge, services }: AppProps) {
             setBuildingContextMenu({
                 ...payload,
                 nonce: contextMenuNonceRef.current,
+            });
+        });
+    }, [mapBridge]);
+
+    useEffect(() => {
+        if (!mapBridge || !mapBridge.onEasterEggBuildingClick) {
+            return;
+        }
+
+        return mapBridge.onEasterEggBuildingClick((payload) => {
+            easterEggNonceRef.current += 1;
+            setActiveEasterEgg({
+                ...payload,
+                nonce: easterEggNonceRef.current,
             });
         });
     }, [mapBridge]);
@@ -613,6 +635,15 @@ export function App({ mapBridge, services }: AppProps) {
                     verification={verificationByPubkey[overlay.activeProfilePubkey]}
                     onLoadMorePosts={overlay.loadMoreActiveProfilePosts}
                     onClose={overlay.closeActiveProfileModal}
+                />
+            ) : null}
+
+            {activeEasterEgg ? (
+                <EasterEggModal
+                    key={activeEasterEgg.nonce}
+                    buildingIndex={activeEasterEgg.buildingIndex}
+                    entry={getEasterEggEntry(activeEasterEgg.easterEggId)}
+                    onClose={() => setActiveEasterEgg(null)}
                 />
             ) : null}
         </div>

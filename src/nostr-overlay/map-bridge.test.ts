@@ -25,6 +25,7 @@ function createMainApiStub(overrides: Partial<MapMainApi> = {}): MapMainApi {
         subscribeMapGenerated: vi.fn().mockReturnValue(() => {}),
         subscribeOccupiedBuildingClick: vi.fn().mockReturnValue(() => {}),
         subscribeOccupiedBuildingContextMenu: vi.fn().mockReturnValue(() => {}),
+        subscribeEasterEggBuildingClick: vi.fn().mockReturnValue(() => {}),
         subscribeViewChanged: vi.fn().mockReturnValue(() => {}),
         ...overrides,
     };
@@ -233,6 +234,20 @@ describe('createMapBridge', () => {
 
         expect(subscribe).toHaveBeenCalledWith(listener);
         off();
+        expect(unsubscribe).toHaveBeenCalledTimes(1);
+    });
+
+    test('onEasterEggBuildingClick subscribes and unsubscribes using map api listener hooks', () => {
+        const unsubscribe = vi.fn();
+        const subscribe = vi.fn().mockReturnValue(unsubscribe);
+        const api = createMainApiStub({ subscribeEasterEggBuildingClick: subscribe });
+        const bridge = createMapBridge(api);
+        const listener = vi.fn();
+
+        const off = bridge.onEasterEggBuildingClick?.(listener);
+
+        expect(subscribe).toHaveBeenCalledWith(listener);
+        off?.();
         expect(unsubscribe).toHaveBeenCalledTimes(1);
     });
 

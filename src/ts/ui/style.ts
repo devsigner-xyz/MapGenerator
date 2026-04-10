@@ -35,7 +35,7 @@ export interface ColourScheme {
     frameTextColour?: string;
 }
 
-export type BuildingRenderState = 'empty' | 'occupied' | 'verified' | 'hovered' | 'selected';
+export type BuildingRenderState = 'empty' | 'occupied' | 'verified' | 'hovered' | 'selected' | 'easter_egg_debug';
 
 export interface BuildingRenderColours {
     fill: string;
@@ -75,6 +75,13 @@ export function resolveBuildingRenderColours(state: BuildingRenderState, colourS
         return {
             fill: 'rgb(210,244,220)',
             stroke: 'rgb(77,156,94)',
+        };
+    }
+
+    if (state === 'easter_egg_debug') {
+        return {
+            fill: 'rgb(202,169,255)',
+            stroke: 'rgb(124,76,201)',
         };
     }
 

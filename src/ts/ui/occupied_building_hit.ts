@@ -5,10 +5,32 @@ export interface OccupiedBuildingHit {
     pubkey: string;
 }
 
+export interface BuildingHit {
+    index: number;
+}
+
+interface FindBuildingHitInput {
+    point: Vector;
+    footprints: Vector[][];
+}
+
 interface FindOccupiedBuildingHitInput {
     point: Vector;
     footprints: Vector[][];
     occupiedPubkeyByBuildingIndex: Record<number, string>;
+}
+
+export function findBuildingHit({
+    point,
+    footprints,
+}: FindBuildingHitInput): BuildingHit | null {
+    for (let i = footprints.length - 1; i >= 0; i--) {
+        if (insidePolygon(point, footprints[i])) {
+            return { index: i };
+        }
+    }
+
+    return null;
 }
 
 export function findOccupiedBuildingHit({
@@ -17,17 +39,19 @@ export function findOccupiedBuildingHit({
     occupiedPubkeyByBuildingIndex,
 }: FindOccupiedBuildingHitInput): OccupiedBuildingHit | null {
     for (let i = footprints.length - 1; i >= 0; i--) {
+        if (!insidePolygon(point, footprints[i])) {
+            continue;
+        }
+
         const pubkey = occupiedPubkeyByBuildingIndex[i];
         if (!pubkey) {
             continue;
         }
 
-        if (insidePolygon(point, footprints[i])) {
-            return {
-                index: i,
-                pubkey,
-            };
-        }
+        return {
+            index: i,
+            pubkey,
+        };
     }
 
     return null;

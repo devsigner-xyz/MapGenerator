@@ -20,6 +20,7 @@ import { saveAs } from 'file-saver';
 import { mountNostrOverlayDeferred } from './nostr-overlay/deferred-bootstrap';
 import { createMiddlePanState, stopMiddlePanState, type MiddlePanState, updateMiddlePanState } from './ts/ui/middle_pan_drag';
 import { createViewChangeScheduler } from './ts/ui/view_change_scheduler';
+import type { EasterEggId } from './ts/ui/easter_eggs';
 
 interface OccupiedBuildingClickPayload {
     buildingIndex: number;
@@ -31,6 +32,11 @@ interface OccupiedBuildingContextMenuPayload {
     pubkey: string;
     clientX: number;
     clientY: number;
+}
+
+interface EasterEggBuildingClickPayload {
+    buildingIndex: number;
+    easterEggId: EasterEggId;
 }
 
 class Main {
@@ -80,6 +86,7 @@ class Main {
     private mapGeneratedListeners: Array<() => void> = [];
     private occupiedBuildingClickListeners: Array<(payload: OccupiedBuildingClickPayload) => void> = [];
     private occupiedBuildingContextMenuListeners: Array<(payload: OccupiedBuildingContextMenuPayload) => void> = [];
+    private easterEggBuildingClickListeners: Array<(payload: EasterEggBuildingClickPayload) => void> = [];
     private viewChangedListeners: Array<() => void> = [];
     private viewChangeScheduler = createViewChangeScheduler(() => this.notifyViewChanged());
     private viewportInsetLeft = 0;
@@ -328,6 +335,16 @@ class Main {
             const index = this.occupiedBuildingContextMenuListeners.indexOf(listener);
             if (index >= 0) {
                 this.occupiedBuildingContextMenuListeners.splice(index, 1);
+            }
+        };
+    }
+
+    subscribeEasterEggBuildingClick(listener: (payload: EasterEggBuildingClickPayload) => void): () => void {
+        this.easterEggBuildingClickListeners.push(listener);
+        return (): void => {
+            const index = this.easterEggBuildingClickListeners.indexOf(listener);
+            if (index >= 0) {
+                this.easterEggBuildingClickListeners.splice(index, 1);
             }
         };
     }
@@ -619,13 +636,22 @@ class Main {
 
             const worldPoint = this.domainController.screenToWorld(new Vector(event.clientX, event.clientY));
             const hit = this.mainGui.getOccupiedBuildingAtWorldPoint(worldPoint);
-            if (!hit) {
+            if (hit) {
+                this.notifyOccupiedBuildingClick({
+                    buildingIndex: hit.index,
+                    pubkey: hit.pubkey,
+                });
                 return;
             }
 
-            this.notifyOccupiedBuildingClick({
-                buildingIndex: hit.index,
-                pubkey: hit.pubkey,
+            const easterEggHit = this.mainGui.getEasterEggBuildingAtWorldPoint(worldPoint);
+            if (!easterEggHit) {
+                return;
+            }
+
+            this.notifyEasterEggBuildingClick({
+                buildingIndex: easterEggHit.index,
+                easterEggId: easterEggHit.easterEggId,
             });
         });
 
@@ -728,6 +754,12 @@ class Main {
 
     private notifyOccupiedBuildingContextMenu(payload: OccupiedBuildingContextMenuPayload): void {
         for (const listener of this.occupiedBuildingContextMenuListeners) {
+            listener(payload);
+        }
+    }
+
+    private notifyEasterEggBuildingClick(payload: EasterEggBuildingClickPayload): void {
+        for (const listener of this.easterEggBuildingClickListeners) {
             listener(payload);
         }
     }

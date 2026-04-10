@@ -1,0 +1,78 @@
+export type EasterEggId = 'bitcoin_whitepaper' | 'crypto_anarchist_manifesto' | 'cyberspace_independence';
+
+export const EASTER_EGG_IDS: EasterEggId[] = [
+    'bitcoin_whitepaper',
+    'crypto_anarchist_manifesto',
+    'cyberspace_independence',
+];
+
+interface PickEmptyBuildingIndicesInput {
+    buildingCount: number;
+    occupiedPubkeyByBuildingIndex: Record<number, string>;
+    maxCount?: number;
+    random?: () => number;
+}
+
+interface BuildEasterEggAssignmentInput {
+    buildingCount: number;
+    occupiedPubkeyByBuildingIndex: Record<number, string>;
+    easterEggIds?: EasterEggId[];
+    random?: () => number;
+}
+
+export function pickEmptyBuildingIndices({
+    buildingCount,
+    occupiedPubkeyByBuildingIndex,
+    maxCount = EASTER_EGG_IDS.length,
+    random = Math.random,
+}: PickEmptyBuildingIndicesInput): number[] {
+    const safeBuildingCount = Number.isFinite(buildingCount) ? Math.max(0, Math.floor(buildingCount)) : 0;
+    const safeMaxCount = Number.isFinite(maxCount) ? Math.max(0, Math.floor(maxCount)) : 0;
+
+    if (safeBuildingCount === 0 || safeMaxCount === 0) {
+        return [];
+    }
+
+    const emptyBuildingIndices: number[] = [];
+    for (let index = 0; index < safeBuildingCount; index++) {
+        if (!occupiedPubkeyByBuildingIndex[index]) {
+            emptyBuildingIndices.push(index);
+        }
+    }
+
+    if (emptyBuildingIndices.length <= safeMaxCount) {
+        return emptyBuildingIndices;
+    }
+
+    for (let i = emptyBuildingIndices.length - 1; i > 0; i--) {
+        const randomValue = random();
+        const normalizedRandom = Number.isFinite(randomValue) ? Math.max(0, Math.min(0.9999999, randomValue)) : 0;
+        const j = Math.floor(normalizedRandom * (i + 1));
+        const current = emptyBuildingIndices[i];
+        emptyBuildingIndices[i] = emptyBuildingIndices[j];
+        emptyBuildingIndices[j] = current;
+    }
+
+    return emptyBuildingIndices.slice(0, safeMaxCount);
+}
+
+export function buildEasterEggAssignment({
+    buildingCount,
+    occupiedPubkeyByBuildingIndex,
+    easterEggIds = EASTER_EGG_IDS,
+    random = Math.random,
+}: BuildEasterEggAssignmentInput): Record<number, EasterEggId> {
+    const selectedBuildingIndices = pickEmptyBuildingIndices({
+        buildingCount,
+        occupiedPubkeyByBuildingIndex,
+        maxCount: easterEggIds.length,
+        random,
+    });
+
+    const assignment: Record<number, EasterEggId> = {};
+    for (let i = 0; i < selectedBuildingIndices.length; i++) {
+        assignment[selectedBuildingIndices[i]] = easterEggIds[i];
+    }
+
+    return assignment;
+}

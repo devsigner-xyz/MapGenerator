@@ -17,6 +17,7 @@ interface MapBridgeStub {
     bridge: MapBridge;
     triggerOccupiedBuildingClick: (payload: { buildingIndex: number; pubkey: string }) => void;
     triggerOccupiedBuildingContextMenu: (payload: { buildingIndex: number; pubkey: string; clientX: number; clientY: number }) => void;
+    triggerEasterEggBuildingClick: (payload: { buildingIndex: number; easterEggId: 'bitcoin_whitepaper' | 'crypto_anarchist_manifesto' | 'cyberspace_independence' }) => void;
 }
 
 interface Deferred<T> {
@@ -44,6 +45,9 @@ function createMapBridgeStub(buildingsCount = 0): MapBridgeStub {
     const occupiedBuildingClickListeners: Array<(payload: { buildingIndex: number; pubkey: string }) => void> = [];
     const occupiedBuildingContextMenuListeners: Array<
         (payload: { buildingIndex: number; pubkey: string; clientX: number; clientY: number }) => void
+    > = [];
+    const easterEggBuildingClickListeners: Array<
+        (payload: { buildingIndex: number; easterEggId: 'bitcoin_whitepaper' | 'crypto_anarchist_manifesto' | 'cyberspace_independence' }) => void
     > = [];
     const bridge = {
         ensureGenerated: vi.fn().mockResolvedValue(undefined),
@@ -92,6 +96,15 @@ function createMapBridgeStub(buildingsCount = 0): MapBridgeStub {
                 }
             };
         }),
+        onEasterEggBuildingClick: vi.fn().mockImplementation((listener: (payload: { buildingIndex: number; easterEggId: 'bitcoin_whitepaper' | 'crypto_anarchist_manifesto' | 'cyberspace_independence' }) => void) => {
+            easterEggBuildingClickListeners.push(listener);
+            return () => {
+                const index = easterEggBuildingClickListeners.indexOf(listener);
+                if (index >= 0) {
+                    easterEggBuildingClickListeners.splice(index, 1);
+                }
+            };
+        }),
         onViewChanged: vi.fn().mockReturnValue(() => {}),
     } as unknown as MapBridge;
 
@@ -102,6 +115,9 @@ function createMapBridgeStub(buildingsCount = 0): MapBridgeStub {
         },
         triggerOccupiedBuildingContextMenu: (payload: { buildingIndex: number; pubkey: string; clientX: number; clientY: number }) => {
             occupiedBuildingContextMenuListeners.forEach((listener) => listener(payload));
+        },
+        triggerEasterEggBuildingClick: (payload: { buildingIndex: number; easterEggId: 'bitcoin_whitepaper' | 'crypto_anarchist_manifesto' | 'cyberspace_independence' }) => {
+            easterEggBuildingClickListeners.forEach((listener) => listener(payload));
         },
     };
 }
@@ -1051,6 +1067,47 @@ describe('Nostr overlay App', () => {
         await waitFor(() => (rendered.container.textContent || '').includes('Ultimas publicaciones'));
 
         expect(document.body.textContent || '').not.toContain('Configurar cantidades');
+    });
+
+    test('opens easter egg modal with embedded pdf actions', async () => {
+        const { bridge, triggerEasterEggBuildingClick } = createMapBridgeStub();
+        const rendered = await renderApp(<App mapBridge={bridge} />);
+        mounted.push(rendered);
+
+        expect(rendered.container.textContent || '').not.toContain('Bitcoin: A Peer-to-Peer Electronic Cash System');
+
+        await act(async () => {
+            triggerEasterEggBuildingClick({
+                buildingIndex: 7,
+                easterEggId: 'bitcoin_whitepaper',
+            });
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Bitcoin: A Peer-to-Peer Electronic Cash System'));
+
+        const pdfFrame = rendered.container.querySelector('iframe.nostr-easter-egg-pdf') as HTMLIFrameElement;
+        expect(pdfFrame).toBeDefined();
+        expect(pdfFrame.getAttribute('src')).toBe('/easter-eggs/bitcoin.pdf');
+
+        const links = Array.from(rendered.container.querySelectorAll('.nostr-easter-egg-action')) as HTMLAnchorElement[];
+        expect(links.some((link) => (link.textContent || '').includes('Descargar PDF'))).toBe(true);
+        expect(links.some((link) => (link.textContent || '').includes('Abrir / Ampliar'))).toBe(true);
+    });
+
+    test('opens easter egg modal for text content', async () => {
+        const { bridge, triggerEasterEggBuildingClick } = createMapBridgeStub();
+        const rendered = await renderApp(<App mapBridge={bridge} />);
+        mounted.push(rendered);
+
+        await act(async () => {
+            triggerEasterEggBuildingClick({
+                buildingIndex: 3,
+                easterEggId: 'cyberspace_independence',
+            });
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('A Declaration of the Independence of Cyberspace'));
+        expect(rendered.container.textContent || '').toContain('Governments of the Industrial World');
     });
 
     test('opens settings modal, mounts map settings from advanced section and shows shortcuts screen', async () => {

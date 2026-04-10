@@ -1,3 +1,5 @@
+import type { EasterEggId } from '../ts/ui/easter_eggs';
+
 export interface WorldPoint {
     x: number;
     y: number;
@@ -13,6 +15,11 @@ export interface OccupiedBuildingContextPayload {
     pubkey: string;
     clientX: number;
     clientY: number;
+}
+
+export interface EasterEggBuildingClickPayload {
+    buildingIndex: number;
+    easterEggId: EasterEggId;
 }
 
 export interface MapMainApi {
@@ -39,6 +46,7 @@ export interface MapMainApi {
     subscribeMapGenerated?(listener: () => void): (() => void) | void;
     subscribeOccupiedBuildingClick?(listener: (payload: { buildingIndex: number; pubkey: string }) => void): (() => void) | void;
     subscribeOccupiedBuildingContextMenu?(listener: (payload: OccupiedBuildingContextPayload) => void): (() => void) | void;
+    subscribeEasterEggBuildingClick?(listener: (payload: EasterEggBuildingClickPayload) => void): (() => void) | void;
     subscribeViewChanged?(listener: () => void): (() => void) | void;
 }
 
@@ -65,6 +73,7 @@ export interface MapBridge {
     onMapGenerated(listener: () => void): () => void;
     onOccupiedBuildingClick(listener: (payload: { buildingIndex: number; pubkey: string }) => void): () => void;
     onOccupiedBuildingContextMenu(listener: (payload: OccupiedBuildingContextPayload) => void): () => void;
+    onEasterEggBuildingClick?(listener: (payload: EasterEggBuildingClickPayload) => void): () => void;
     onViewChanged(listener: () => void): () => void;
 }
 
@@ -187,6 +196,19 @@ export function createMapBridge(mainApi: MapMainApi): MapBridge {
             }
 
             const maybeUnsubscribe = mainApi.subscribeOccupiedBuildingContextMenu(listener);
+            if (typeof maybeUnsubscribe === 'function') {
+                return maybeUnsubscribe;
+            }
+
+            return () => {};
+        },
+
+        onEasterEggBuildingClick(listener: (payload: EasterEggBuildingClickPayload) => void): () => void {
+            if (!mainApi.subscribeEasterEggBuildingClick) {
+                return () => {};
+            }
+
+            const maybeUnsubscribe = mainApi.subscribeEasterEggBuildingClick(listener);
             if (typeof maybeUnsubscribe === 'function') {
                 return maybeUnsubscribe;
             }

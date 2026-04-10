@@ -18,7 +18,8 @@ import {BuildingRenderState, DefaultStyle, RoughStyle} from './style';
 import CanvasWrapper from './canvas_wrapper';
 import Buildings, {BuildingModel} from './buildings';
 import PolygonUtil from '../impl/polygon_util';
-import { findOccupiedBuildingHit, type OccupiedBuildingHit } from './occupied_building_hit';
+import { findBuildingHit, findOccupiedBuildingHit, type OccupiedBuildingHit } from './occupied_building_hit';
+import { buildEasterEggAssignment, type EasterEggId } from './easter_eggs';
 import mapLabelNamePool from '../../data/map-label-name-pool.json';
 import {
     createBigParkLabels,
@@ -79,6 +80,8 @@ export default class MainGUI {
     private selectedBuildingIndex: number = null;
     private hoveredBuildingIndex: number = null;
     private modalHighlightedBuildingIndex: number = null;
+    private easterEggByBuildingIndex: Record<number, EasterEggId> = {};
+    private readonly easterEggDebugEnabled = import.meta.env.DEV;
     private streetLabelsEnabled = true;
     private streetLabelsZoomLevel = 10;
     private streetLabelUsernames: string[] = [];
@@ -293,6 +296,7 @@ export default class MainGUI {
         await this.minorRoads.generateRoads(this.animate);
         this.redraw = true;
         await this.buildings.generate(this.animate);
+        this.recalculateEasterEggAssignments();
         this.markTrafficNetworkDirty();
     }
 
@@ -430,6 +434,7 @@ export default class MainGUI {
         });
 
         this.occupiedPubkeyByBuildingIndex = nextState;
+        this.recalculateEasterEggAssignments();
         this.verifiedBuildingIndexSet = new Set(
             [...this.verifiedBuildingIndexSet].filter((index) => Boolean(this.occupiedPubkeyByBuildingIndex[index]))
         );
@@ -566,6 +571,31 @@ export default class MainGUI {
         });
     }
 
+    getEasterEggBuildingAtWorldPoint(point: Vector): { index: number; easterEggId: EasterEggId } | null {
+        const hit = findBuildingHit({
+            point,
+            footprints: this.getBuildingFootprintsWorld(),
+        });
+
+        if (!hit) {
+            return null;
+        }
+
+        if (this.occupiedPubkeyByBuildingIndex[hit.index]) {
+            return null;
+        }
+
+        const easterEggId = this.easterEggByBuildingIndex[hit.index];
+        if (!easterEggId) {
+            return null;
+        }
+
+        return {
+            index: hit.index,
+            easterEggId,
+        };
+    }
+
     // OBJ Export methods
 
     public get seaPolygon(): Vector[] {
@@ -629,6 +659,7 @@ export default class MainGUI {
 
     private resetOccupancyState(): void {
         this.occupiedPubkeyByBuildingIndex = {};
+        this.easterEggByBuildingIndex = {};
         this.verifiedBuildingIndexSet.clear();
         this.selectedBuildingIndex = null;
         this.hoveredBuildingIndex = null;
@@ -658,7 +689,18 @@ export default class MainGUI {
                 return 'occupied';
             }
 
+            if (this.easterEggDebugEnabled && this.easterEggByBuildingIndex[index]) {
+                return 'easter_egg_debug';
+            }
+
             return 'empty';
+        });
+    }
+
+    private recalculateEasterEggAssignments(): void {
+        this.easterEggByBuildingIndex = buildEasterEggAssignment({
+            buildingCount: this.buildings.lotWorlds.length,
+            occupiedPubkeyByBuildingIndex: this.occupiedPubkeyByBuildingIndex,
         });
     }
 

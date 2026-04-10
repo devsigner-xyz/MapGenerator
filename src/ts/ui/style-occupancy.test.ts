@@ -37,6 +37,14 @@ describe('resolveBuildingRenderColours', () => {
         });
     });
 
+    test('returns debug colors for easter egg buildings', () => {
+        const colours = resolveBuildingRenderColours('easter_egg_debug' as any, baseScheme);
+        expect(colours).toEqual({
+            fill: 'rgb(202,169,255)',
+            stroke: 'rgb(124,76,201)',
+        });
+    });
+
     test('returns selected colors for selected buildings', () => {
         const colours = resolveBuildingRenderColours('selected', baseScheme);
         expect(colours).toEqual({

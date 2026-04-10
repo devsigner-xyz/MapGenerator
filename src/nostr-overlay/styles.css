@@ -727,6 +727,80 @@
     padding: 0.9rem;
 }
 
+.nostr-easter-egg-modal {
+    width: min(900px, calc(100vw - 32px));
+    max-height: min(88vh, 980px);
+    padding: 0.9rem;
+}
+
+.nostr-easter-egg-body {
+    max-height: calc(88vh - 1.8rem);
+    overflow: auto;
+    display: grid;
+    gap: 0.7rem;
+    padding-right: 0.1rem;
+}
+
+.nostr-easter-egg-header h3 {
+    margin: 0;
+    color: #1f3340;
+    font-size: 1.04rem;
+}
+
+.nostr-easter-egg-chip {
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    border: 1px solid rgba(190, 175, 222, 0.9);
+    border-radius: 999px;
+    background: rgba(243, 238, 255, 0.96);
+    color: #5a3f90;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.14rem 0.45rem;
+}
+
+.nostr-easter-egg-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.nostr-easter-egg-action {
+    text-decoration: none;
+    border: 1px solid rgba(184, 198, 208, 0.92);
+    border-radius: 8px;
+    background: rgba(248, 251, 253, 0.98);
+    color: #294653;
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 0.34rem 0.55rem;
+}
+
+.nostr-easter-egg-pdf {
+    width: 100%;
+    min-height: 64vh;
+    border: 1px solid rgba(207, 216, 223, 0.96);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 1);
+}
+
+.nostr-easter-egg-text {
+    margin: 0;
+    white-space: pre-wrap;
+    line-height: 1.5;
+    font-size: 0.84rem;
+    color: #1f3441;
+    border: 1px solid rgba(207, 216, 223, 0.96);
+    border-radius: 10px;
+    background: rgba(251, 253, 255, 0.98);
+    padding: 0.65rem;
+    max-height: 64vh;
+    overflow: auto;
+}
+
 .nostr-city-stats-body {
     max-height: calc(86vh - 1.8rem);
     overflow: auto;
