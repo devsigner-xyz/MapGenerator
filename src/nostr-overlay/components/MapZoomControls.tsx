@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { MapBridge } from '../map-bridge';
 import { Button } from '@/components/ui/button';
+import { ButtonGroup, ButtonGroupText } from '@/components/ui/button-group';
 
 interface MapZoomControlsProps {
     mapBridge: MapBridge | null;
@@ -70,15 +71,17 @@ export function MapZoomControls({ mapBridge }: MapZoomControlsProps) {
 
     return (
         <div className="nostr-map-zoom-controls" aria-label="Controles de zoom">
-            <Button type="button" variant="outline" className="nostr-map-zoom-button" aria-label="Alejar mapa" onClick={onZoomOut}>
-                -
-            </Button>
+            <ButtonGroup className="nostr-map-zoom-group">
+                <Button type="button" variant="outline" size="icon-sm" className="nostr-map-zoom-button nostr-map-zoom-button-left" aria-label="Alejar mapa" onClick={onZoomOut}>
+                    -
+                </Button>
 
-            <p className="nostr-map-zoom-level" aria-live="polite">{`${zoom.toFixed(2)}x`}</p>
+                <ButtonGroupText className="nostr-map-zoom-level" aria-live="polite">{`${zoom.toFixed(2)}x`}</ButtonGroupText>
 
-            <Button type="button" variant="outline" className="nostr-map-zoom-button" aria-label="Acercar mapa" onClick={onZoomIn}>
-                +
-            </Button>
+                <Button type="button" variant="outline" size="icon-sm" className="nostr-map-zoom-button nostr-map-zoom-button-right" aria-label="Acercar mapa" onClick={onZoomIn}>
+                    +
+                </Button>
+            </ButtonGroup>
         </div>
     );
 }

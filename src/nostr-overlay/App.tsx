@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
-import { loadUiSettings, type UiSettingsState } from '../nostr/ui-settings';
+import { getDefaultUiSettings, loadUiSettings, saveUiSettings, type UiSettingsState } from '../nostr/ui-settings';
 import { loadZapSettings, type ZapSettingsState } from '../nostr/zap-settings';
 import { encodeHexToNpub } from '../nostr/npub';
 import { MapPresenceLayer } from './components/MapPresenceLayer';
@@ -8,6 +8,7 @@ import { OccupantProfileDialog } from './components/OccupantProfileDialog';
 import { EasterEggDialog } from './components/EasterEggDialog';
 import { SocialSidebar } from './components/SocialSidebar';
 import { MapZoomControls } from './components/MapZoomControls';
+import { MapDisplayToggleControls } from './components/MapDisplayToggleControls';
 import { CityStatsDialog } from './components/CityStatsDialog';
 import { ChatIconButton } from './components/ChatIconButton';
 import { ChatDialog, type ChatConversationSummary, type ChatDetailMessage } from './components/ChatDialog';
@@ -84,6 +85,14 @@ export function App({ mapBridge, services }: AppProps) {
     const contextMenuTriggerRef = useRef<HTMLSpanElement | null>(null);
     const contextMenuNonceRef = useRef(0);
     const easterEggNonceRef = useRef(0);
+    const lastTrafficParticlesCountRef = useRef(
+        Math.max(
+            1,
+            uiSettings.trafficParticlesCount > 0
+                ? uiSettings.trafficParticlesCount
+                : getDefaultUiSettings().trafficParticlesCount
+        )
+    );
     const loginDisabled = overlay.status !== 'idle' && overlay.status !== 'success' && overlay.status !== 'error';
     const mapLoaderText = mapLoaderStageLabel(overlay.mapLoaderStage);
     const regenerateDisabled = !mapBridge || overlay.mapLoaderStage !== null;
@@ -176,6 +185,12 @@ export function App({ mapBridge, services }: AppProps) {
         mapBridge.setTrafficParticlesCount(uiSettings.trafficParticlesCount);
         mapBridge.setTrafficParticlesSpeed(uiSettings.trafficParticlesSpeed);
     }, [mapBridge, uiSettings.trafficParticlesCount, uiSettings.trafficParticlesSpeed]);
+
+    useEffect(() => {
+        if (uiSettings.trafficParticlesCount > 0) {
+            lastTrafficParticlesCountRef.current = uiSettings.trafficParticlesCount;
+        }
+    }, [uiSettings.trafficParticlesCount]);
 
     useEffect(() => {
         if (!mapBridge) {
@@ -480,6 +495,36 @@ export function App({ mapBridge, services }: AppProps) {
         setGlobalSearchOpen(false);
     };
 
+    const setStreetLabelsQuickToggle = (enabled: boolean): void => {
+        setUiSettings((currentSettings) => saveUiSettings({
+            ...currentSettings,
+            streetLabelsEnabled: enabled,
+        }));
+    };
+
+    const setCarsQuickToggle = (enabled: boolean): void => {
+        setUiSettings((currentSettings) => {
+            if (enabled) {
+                const restoredCount = currentSettings.trafficParticlesCount > 0
+                    ? currentSettings.trafficParticlesCount
+                    : Math.max(1, lastTrafficParticlesCountRef.current);
+                return saveUiSettings({
+                    ...currentSettings,
+                    trafficParticlesCount: restoredCount,
+                });
+            }
+
+            if (currentSettings.trafficParticlesCount > 0) {
+                lastTrafficParticlesCountRef.current = currentSettings.trafficParticlesCount;
+            }
+
+            return saveUiSettings({
+                ...currentSettings,
+                trafficParticlesCount: 0,
+            });
+        });
+    };
+
     const openSettingsDialog = (view: SettingsView = 'ui'): void => {
         setSettingsInitialView(view);
         setSettingsDialogOpen(true);
@@ -752,6 +797,12 @@ export function App({ mapBridge, services }: AppProps) {
             )}
 
             <MapZoomControls mapBridge={mapBridge} />
+            <MapDisplayToggleControls
+                carsEnabled={uiSettings.trafficParticlesCount > 0}
+                streetLabelsEnabled={uiSettings.streetLabelsEnabled}
+                onCarsEnabledChange={setCarsQuickToggle}
+                onStreetLabelsEnabledChange={setStreetLabelsQuickToggle}
+            />
 
             {buildingContextMenu ? (
                 <div

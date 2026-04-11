@@ -1082,10 +1082,100 @@ describe('Nostr overlay App', () => {
         const rendered = await renderApp(<App mapBridge={bridge} />);
         mounted.push(rendered);
 
-        const buttons = Array.from(rendered.container.querySelectorAll('.nostr-map-zoom-controls .nostr-map-zoom-button')) as HTMLButtonElement[];
+        const zoomGroup = rendered.container.querySelector('.nostr-map-zoom-controls [data-slot="button-group"]');
+        expect(zoomGroup).toBeDefined();
+
+        const buttons = Array.from(rendered.container.querySelectorAll('.nostr-map-zoom-controls button')) as HTMLButtonElement[];
         expect(buttons.length).toBe(2);
         expect(buttons[0].getAttribute('aria-label')).toBe('Alejar mapa');
         expect(buttons[1].getAttribute('aria-label')).toBe('Acercar mapa');
+        expect(buttons[0].className.includes('nostr-map-zoom-button-left')).toBe(true);
+        expect(buttons[1].className.includes('nostr-map-zoom-button-right')).toBe(true);
+    });
+
+    test('renders floating display toggle group with car and street label toggles', async () => {
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(<App mapBridge={bridge} />);
+        mounted.push(rendered);
+
+        const controls = rendered.container.querySelector('.nostr-map-display-controls [data-slot="toggle-group"]');
+        expect(controls).toBeDefined();
+        const carsButton = rendered.container.querySelector('button[aria-label="Alternar coches del mapa"]') as HTMLButtonElement;
+        const streetsButton = rendered.container.querySelector('button[aria-label="Alternar etiquetas de calles"]') as HTMLButtonElement;
+        expect(carsButton).toBeDefined();
+        expect(streetsButton).toBeDefined();
+        expect(carsButton.className.includes('nostr-map-display-toggle-button')).toBe(true);
+        expect(streetsButton.className.includes('nostr-map-display-toggle-button')).toBe(true);
+    });
+
+    test('toggles street labels from floating controls', async () => {
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(<App mapBridge={bridge} />);
+        mounted.push(rendered);
+
+        const streetLabelsButton = rendered.container.querySelector('button[aria-label="Alternar etiquetas de calles"]') as HTMLButtonElement;
+        expect(streetLabelsButton).toBeDefined();
+
+        await act(async () => {
+            streetLabelsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => {
+            const calls = (bridge.setStreetLabelsEnabled as any).mock.calls;
+            return calls.length > 1;
+        });
+
+        expect((bridge.setStreetLabelsEnabled as any).mock.calls.at(-1)?.[0]).toBe(false);
+
+        await act(async () => {
+            streetLabelsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => {
+            const calls = (bridge.setStreetLabelsEnabled as any).mock.calls;
+            return calls.length > 2;
+        });
+
+        expect((bridge.setStreetLabelsEnabled as any).mock.calls.at(-1)?.[0]).toBe(true);
+    });
+
+    test('toggles cars from floating controls restoring previous count', async () => {
+        window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({
+            occupiedLabelsZoomLevel: 8,
+            streetLabelsEnabled: true,
+            streetLabelsZoomLevel: 10,
+            trafficParticlesCount: 18,
+            trafficParticlesSpeed: 1,
+        }));
+
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(<App mapBridge={bridge} />);
+        mounted.push(rendered);
+
+        const carsButton = rendered.container.querySelector('button[aria-label="Alternar coches del mapa"]') as HTMLButtonElement;
+        expect(carsButton).toBeDefined();
+
+        await act(async () => {
+            carsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => {
+            const calls = (bridge.setTrafficParticlesCount as any).mock.calls;
+            return calls.some((call: unknown[]) => call[0] === 0);
+        });
+
+        expect((bridge.setTrafficParticlesCount as any).mock.calls.at(-1)?.[0]).toBe(0);
+
+        await act(async () => {
+            carsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => {
+            const calls = (bridge.setTrafficParticlesCount as any).mock.calls;
+            return calls.some((call: unknown[]) => call[0] === 18);
+        });
+
+        expect((bridge.setTrafficParticlesCount as any).mock.calls.at(-1)?.[0]).toBe(18);
     });
 
     test('shows owner profile actions menu and runs locate/copy actions', async () => {
