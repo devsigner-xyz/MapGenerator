@@ -592,6 +592,7 @@ export function MapSettingsDialog({
     const selectedRelayInfo = selectedRelay ? relayInfoByUrl[selectedRelay.relayUrl] : undefined;
     const selectedRelayDocument = selectedRelayInfo?.status === 'ready' ? selectedRelayInfo.data : undefined;
     const selectedRelayAdminIdentity = toAdminIdentity(selectedRelayDocument?.pubkey);
+    const selectedRelayConnectionStatus = selectedRelay ? relayConnectionStatusByRelay[selectedRelay.relayUrl] : undefined;
     const canGoBack = view === 'relay-detail';
     const relayHasNip11Metadata = hasNip11Metadata(selectedRelayDocument);
     const relayEventLimit = selectedRelayDocument?.limitation?.max_limit
@@ -1003,6 +1004,20 @@ export function MapSettingsDialog({
                             <p className="nostr-relay-meta-loading"><Spinner /> Cargando metadata NIP-11...</p>
                         ) : null}
 
+                        <div className="nostr-relay-detail-header">
+                            <Avatar className="size-10">
+                                {selectedRelayDocument?.icon ? <AvatarImage src={selectedRelayDocument.icon} alt={selectedRelayDocument.name || selectedRelayDetails.host} /> : null}
+                                <AvatarFallback>{relayAvatarFallback(selectedRelayDetails, selectedRelayDocument)}</AvatarFallback>
+                            </Avatar>
+
+                            <div className="min-w-0">
+                                <p className="nostr-relay-summary-primary">{selectedRelayDocument?.name || selectedRelayDetails.relayUrl}</p>
+                                <p className="nostr-relay-summary-sub">
+                                    {RELAY_TYPE_LABELS[selectedRelay.relayType]}
+                                </p>
+                            </div>
+                        </div>
+
                         {selectedRelayInfo?.status === 'error' ? (
                             <Item variant="outline" size="sm" className="nostr-relay-meta-item">
                                 <ItemMedia variant="icon">
@@ -1025,20 +1040,6 @@ export function MapSettingsDialog({
                             </Item>
                         ) : null}
 
-                        <div className="nostr-relay-detail-header">
-                            <Avatar className="size-10">
-                                {selectedRelayDocument?.icon ? <AvatarImage src={selectedRelayDocument.icon} alt={selectedRelayDocument.name || selectedRelayDetails.host} /> : null}
-                                <AvatarFallback>{relayAvatarFallback(selectedRelayDetails, selectedRelayDocument)}</AvatarFallback>
-                            </Avatar>
-
-                            <div className="min-w-0">
-                                <p className="nostr-relay-summary-primary">{selectedRelayDocument?.name || selectedRelayDetails.relayUrl}</p>
-                                <p className="nostr-relay-summary-sub">
-                                    {RELAY_TYPE_LABELS[selectedRelay.relayType]}
-                                </p>
-                            </div>
-                        </div>
-
                         <div className="nostr-relay-detail-table-wrap">
                             <Table className="nostr-relay-detail-table">
                                 <TableBody>
@@ -1049,6 +1050,10 @@ export function MapSettingsDialog({
                                     <TableRow>
                                         <TableHead className="nostr-relay-detail-key">Category</TableHead>
                                         <TableCell className="nostr-relay-detail-value">{RELAY_TYPE_LABELS[selectedRelay.relayType]}</TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                        <TableHead className="nostr-relay-detail-key">Connection</TableHead>
+                                        <TableCell className="nostr-relay-detail-value">{relayConnectionBadge(selectedRelayConnectionStatus)}</TableCell>
                                     </TableRow>
                                     {selectedRelayDocument?.description ? (
                                         <TableRow>

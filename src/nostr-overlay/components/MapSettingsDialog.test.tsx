@@ -520,6 +520,62 @@ describe('MapSettingsDialog UI settings', () => {
         expect(rendered.container.textContent || '').toContain('wss://relay.suggested.example');
     });
 
+    test('shows relay connection status in relay detail table', async () => {
+        window.localStorage.setItem(
+            RELAY_SETTINGS_STORAGE_KEY,
+            JSON.stringify({
+                relays: ['wss://relay.one'],
+                byType: {
+                    nip65Both: ['wss://relay.one'],
+                    nip65Read: [],
+                    nip65Write: [],
+                    dmInbox: [],
+                },
+            })
+        );
+
+        const bridge = createBridgeStub();
+        const probeRelayStatus = vi.fn(async (relayUrl: string) => relayUrl === 'wss://relay.one');
+        const rendered = await renderElement(
+            <MapSettingsDialog
+                mapBridge={bridge}
+                initialView="relays"
+                onClose={() => {}}
+                relayConnectionProbe={probeRelayStatus}
+                relayConnectionRefreshIntervalMs={0}
+            />
+        );
+        mounted.push(rendered);
+
+        await waitForCondition(() => (rendered.container.textContent || '').includes('Conectado'));
+
+        const configuredActions = rendered.container.querySelector('button[aria-label="Abrir acciones para wss://relay.one (NIP-65 read+write)"]') as HTMLButtonElement;
+        expect(configuredActions).toBeDefined();
+
+        await act(async () => {
+            configuredActions.dispatchEvent(new MouseEvent('contextmenu', {
+                bubbles: true,
+                cancelable: true,
+                clientX: 24,
+                clientY: 24,
+            }));
+        });
+
+        const detailsConfigured = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Details'
+        ) as HTMLElement;
+        expect(detailsConfigured).toBeDefined();
+
+        await act(async () => {
+            detailsConfigured.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const detailTable = rendered.container.querySelector('.nostr-relay-detail-table');
+        expect(detailTable).toBeDefined();
+        expect(detailTable?.textContent || '').toContain('Connection');
+        expect(detailTable?.textContent || '').toContain('Conectado');
+    });
+
     test('shows NIP-11 relay detail fields and hides URL-derived transport rows', async () => {
         const adminHex = '32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245';
         const adminNpub = encodeHexToNpub(adminHex);
@@ -739,6 +795,14 @@ describe('MapSettingsDialog UI settings', () => {
         expect(description).not.toBeNull();
         expect((description?.textContent || '').trim()).toBe('No se pudo obtener metadata remota del relay.');
         expect(item?.querySelector('[data-slot="item-media"] svg')).not.toBeNull();
+
+        const header = rendered.container.querySelector('.nostr-relay-detail-header');
+        const tableWrap = rendered.container.querySelector('.nostr-relay-detail-table-wrap');
+        expect(header).not.toBeNull();
+        expect(tableWrap).not.toBeNull();
+
+        expect(Boolean(header && item && (header.compareDocumentPosition(item) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
+        expect(Boolean(item && tableWrap && (item.compareDocumentPosition(tableWrap) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
     });
 
     test('does not show suggested relays empty-state hint text', async () => {
