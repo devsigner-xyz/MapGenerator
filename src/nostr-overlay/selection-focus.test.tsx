@@ -1,9 +1,10 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { App } from './App';
 import type { MapBridge } from './map-bridge';
 import { assignPubkeysToBuildings } from '../nostr/domain/assignment';
+import * as ndkClientModule from '../nostr/ndk-client';
 
 function createMapBridgeStub(buildingsCount: number): { bridge: MapBridge; triggerMapGenerated: () => void } {
     const listeners: Array<() => void> = [];
@@ -90,9 +91,26 @@ async function renderApp(element: ReactElement): Promise<RenderResult> {
 }
 
 let mounted: RenderResult[] = [];
+let createNdkDmTransportClientSpy: ReturnType<typeof vi.spyOn> | null = null;
 
 beforeAll(() => {
     (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+});
+
+beforeEach(() => {
+    createNdkDmTransportClientSpy = vi.spyOn(ndkClientModule, 'createNdkDmTransportClient').mockReturnValue({
+        publishToRelays: vi.fn(async () => ({
+            ackedRelays: [],
+            failedRelays: [],
+            timeoutRelays: [],
+        })),
+        subscribe: vi.fn(() => ({
+            unsubscribe() {
+                return;
+            },
+        })),
+        fetchBackfill: vi.fn(async () => []),
+    } as any);
 });
 
 afterEach(async () => {
@@ -103,6 +121,8 @@ afterEach(async () => {
         entry.container.remove();
     }
     mounted = [];
+    vi.restoreAllMocks();
+    createNdkDmTransportClientSpy = null;
 });
 
 describe('Nostr overlay selection map interaction', () => {

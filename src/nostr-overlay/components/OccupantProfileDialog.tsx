@@ -254,7 +254,7 @@ export function OccupantProfileDialog({
 
                         {postsLoading ? (
                             <div className="nostr-loading nostr-posts-loading" role="status" aria-live="polite">
-                                <Spinner className="nostr-list-loading-spinner" />
+                                <Spinner />
                                 <span>Cargando publicaciones...</span>
                             </div>
                         ) : null}

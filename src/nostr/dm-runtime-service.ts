@@ -2,7 +2,7 @@ import { createDmService } from './dm-service';
 import type { DmTransport } from './dm-transport';
 import { resolveRelayTargetsByTier } from './dm-transport-ndk';
 import { createLazyNdkDmTransport } from './lazy-ndk-client';
-import { getBootstrapRelays } from './relay-policy';
+import { getBootstrapRelays, mergeRelaySets } from './relay-policy';
 import { getRelaySetByType, loadRelaySettings } from './relay-settings';
 import type { SentIndexItem } from './dm-service';
 
@@ -38,11 +38,15 @@ interface CreateRuntimeDirectMessagesServiceOptions {
 function resolveRuntimeDirectMessageRelays(): { inbox: string[]; outbox: string[] } {
     const settings = loadRelaySettings();
     const fallback = settings.relays.length > 0 ? settings.relays : getBootstrapRelays();
-    const inbox = getRelaySetByType(settings, 'dmInbox');
-    const outbox = getRelaySetByType(settings, 'dmOutbox');
+    const dmInbox = getRelaySetByType(settings, 'dmInbox');
+    const nip65Read = getRelaySetByType(settings, 'nip65Read');
+    const nip65Write = getRelaySetByType(settings, 'nip65Write');
+    const nip65Both = getRelaySetByType(settings, 'nip65Both');
+    const outbox = mergeRelaySets(nip65Write, nip65Both);
+    const inboxFallback = mergeRelaySets(nip65Read, nip65Both, fallback);
 
     return {
-        inbox: inbox.length > 0 ? inbox : fallback,
+        inbox: dmInbox.length > 0 ? dmInbox : inboxFallback,
         outbox: outbox.length > 0 ? outbox : fallback,
     };
 }

@@ -275,7 +275,7 @@ describe('MapSettingsDialog UI settings', () => {
         const relayTable = rendered.container.querySelector('[data-slot="table"]');
         expect(relayTable).toBeDefined();
 
-        const actionsButton = rendered.container.querySelector('button[aria-label="Abrir acciones para wss://relay.one (General)"]') as HTMLButtonElement;
+        const actionsButton = rendered.container.querySelector('button[aria-label="Abrir acciones para wss://relay.one (NIP-65 read+write)"]') as HTMLButtonElement;
         expect(actionsButton).toBeDefined();
 
         await act(async () => {
@@ -350,27 +350,36 @@ describe('MapSettingsDialog UI settings', () => {
         );
         mounted.push(rendered);
 
-        const relayCategorySelect = rendered.container.querySelector('select[aria-label="Relay category"]') as HTMLSelectElement;
-        const relayEditor = rendered.container.querySelector('textarea.nostr-relay-editor') as HTMLTextAreaElement;
+        const relayCategoryTrigger = rendered.container.querySelector('button[aria-label="Relay category"]') as HTMLButtonElement;
+        const relayEditor = rendered.container.querySelector('input[aria-label="Relay URLs"]') as HTMLInputElement;
         const addButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
-            (button.textContent || '').trim() === 'Add relays'
+            (button.textContent || '').trim() === 'Añadir'
         ) as HTMLButtonElement;
 
-        expect(relayCategorySelect).toBeDefined();
+        expect(relayCategoryTrigger).toBeDefined();
         expect(relayEditor).toBeDefined();
         expect(addButton).toBeDefined();
-        expect(rendered.container.textContent || '').toContain('DM inbox');
-        expect(rendered.container.textContent || '').toContain('DM outbox');
+        expect(rendered.container.textContent || '').toContain('NIP-65 read+write');
+        expect(rendered.container.textContent || '').toContain('NIP-65 read');
+        expect(rendered.container.textContent || '').toContain('NIP-65 write');
+        expect(rendered.container.textContent || '').toContain('NIP-17 DM inbox');
 
         await act(async () => {
-            const valueSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
-            valueSetter?.call(relayCategorySelect, 'dmInbox');
-            relayCategorySelect.dispatchEvent(new Event('input', { bubbles: true }));
-            relayCategorySelect.dispatchEvent(new Event('change', { bubbles: true }));
+            relayCategoryTrigger.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+            relayCategoryTrigger.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+        });
+
+        const dmInboxOption = Array.from(document.body.querySelectorAll('[data-slot="dropdown-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'NIP-17 DM inbox'
+        ) as HTMLElement;
+        expect(dmInboxOption).toBeDefined();
+
+        await act(async () => {
+            dmInboxOption.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
         await act(async () => {
-            const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
             valueSetter?.call(relayEditor, 'wss://relay.dm-inbox-only.example');
             relayEditor.dispatchEvent(new Event('input', { bubbles: true }));
             relayEditor.dispatchEvent(new Event('change', { bubbles: true }));
@@ -385,15 +394,17 @@ describe('MapSettingsDialog UI settings', () => {
 
         const parsed = JSON.parse(raw || '{}') as {
             byType?: {
-                general?: string[];
+                nip65Both?: string[];
+                nip65Read?: string[];
+                nip65Write?: string[];
                 dmInbox?: string[];
-                dmOutbox?: string[];
             };
         };
 
         expect(parsed.byType?.dmInbox).toContain('wss://relay.dm-inbox-only.example');
-        expect(parsed.byType?.general || []).not.toContain('wss://relay.dm-inbox-only.example');
-        expect(parsed.byType?.dmOutbox || []).not.toContain('wss://relay.dm-inbox-only.example');
+        expect(parsed.byType?.nip65Both || []).not.toContain('wss://relay.dm-inbox-only.example');
+        expect(parsed.byType?.nip65Read || []).not.toContain('wss://relay.dm-inbox-only.example');
+        expect(parsed.byType?.nip65Write || []).not.toContain('wss://relay.dm-inbox-only.example');
     });
 
     test('opens relay details dialog from context menu for configured and suggested rows', async () => {
@@ -413,7 +424,7 @@ describe('MapSettingsDialog UI settings', () => {
         );
         mounted.push(rendered);
 
-        const configuredActions = rendered.container.querySelector('button[aria-label="Abrir acciones para wss://relay.one (General)"]') as HTMLButtonElement;
+        const configuredActions = rendered.container.querySelector('button[aria-label="Abrir acciones para wss://relay.one (NIP-65 read+write)"]') as HTMLButtonElement;
         expect(configuredActions).toBeDefined();
 
         await act(async () => {
@@ -449,7 +460,7 @@ describe('MapSettingsDialog UI settings', () => {
             backDetails.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
-        const suggestedActions = rendered.container.querySelector('button[aria-label="Abrir acciones sugeridas para wss://relay.suggested.example (General)"]') as HTMLButtonElement;
+        const suggestedActions = rendered.container.querySelector('button[aria-label="Abrir acciones sugeridas para wss://relay.suggested.example (NIP-65 read+write)"]') as HTMLButtonElement;
         expect(suggestedActions).toBeDefined();
 
         await act(async () => {
@@ -473,15 +484,53 @@ describe('MapSettingsDialog UI settings', () => {
         expect(rendered.container.textContent || '').toContain('wss://relay.suggested.example');
     });
 
+    test('rejects invalid relay hostnames when adding relays', async () => {
+        const bridge = createBridgeStub();
+        const rendered = await renderElement(
+            <MapSettingsDialog
+                mapBridge={bridge}
+                initialView="relays"
+                onClose={() => {}}
+            />
+        );
+        mounted.push(rendered);
+
+        const relayEditor = rendered.container.querySelector('input[aria-label="Relay URLs"]') as HTMLInputElement;
+        const addButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').trim() === 'Añadir'
+        ) as HTMLButtonElement;
+
+        expect(relayEditor).toBeDefined();
+        expect(addButton).toBeDefined();
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(relayEditor, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+            relayEditor.dispatchEvent(new Event('input', { bubbles: true }));
+            relayEditor.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            addButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(rendered.container.textContent || '').toContain('Entradas invalidas');
+        expect(rendered.container.textContent || '').not.toContain('wss://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+
+        const raw = window.localStorage.getItem(RELAY_SETTINGS_STORAGE_KEY);
+        expect(raw || '').not.toContain('wss://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+    });
+
     test('shows relay connection summary and per-row connection status in relays table', async () => {
         window.localStorage.setItem(
             RELAY_SETTINGS_STORAGE_KEY,
             JSON.stringify({
                 relays: ['wss://relay.general.one', 'wss://relay.inbox.one', 'wss://relay.shared.one', 'wss://relay.outbox.one'],
                 byType: {
-                    general: ['wss://relay.general.one'],
-                    dmInbox: ['wss://relay.inbox.one', 'wss://relay.shared.one'],
-                    dmOutbox: ['wss://relay.outbox.one', 'wss://relay.shared.one'],
+                    nip65Both: ['wss://relay.general.one'],
+                    nip65Read: ['wss://relay.inbox.one', 'wss://relay.shared.one'],
+                    nip65Write: ['wss://relay.outbox.one', 'wss://relay.shared.one'],
+                    dmInbox: [],
                 },
             })
         );
@@ -506,9 +555,59 @@ describe('MapSettingsDialog UI settings', () => {
 
         expect(rendered.container.textContent || '').toContain('Conectado');
         expect(rendered.container.textContent || '').toContain('Sin conexión');
+
+        const disconnectedBadge = Array.from(rendered.container.querySelectorAll('[data-slot="badge"]')).find((badge) =>
+            (badge.textContent || '').includes('Sin conexión')
+        ) as HTMLElement | undefined;
+        expect(disconnectedBadge).toBeDefined();
+        expect(disconnectedBadge?.getAttribute('data-variant')).toBe('destructive');
+
         expect(probeRelayStatus).toHaveBeenCalledWith('wss://relay.general.one', expect.any(Number));
         expect(probeRelayStatus).toHaveBeenCalledWith('wss://relay.inbox.one', expect.any(Number));
         expect(probeRelayStatus).toHaveBeenCalledWith('wss://relay.shared.one', expect.any(Number));
         expect(probeRelayStatus).toHaveBeenCalledWith('wss://relay.outbox.one', expect.any(Number));
+    });
+
+    test('renders checking status with shadcn spinner badge', async () => {
+        window.localStorage.setItem(
+            RELAY_SETTINGS_STORAGE_KEY,
+            JSON.stringify({
+                relays: ['wss://relay.general.one'],
+                byType: {
+                    nip65Both: ['wss://relay.general.one'],
+                    nip65Read: [],
+                    nip65Write: [],
+                    dmInbox: [],
+                },
+            })
+        );
+
+        const bridge = createBridgeStub();
+        const pendingProbe = vi.fn(
+            async () =>
+                await new Promise<boolean>(() => {
+                    return;
+                })
+        );
+        const rendered = await renderElement(
+            <MapSettingsDialog
+                mapBridge={bridge}
+                initialView="relays"
+                onClose={() => {}}
+                relayConnectionProbe={pendingProbe}
+                relayConnectionRefreshIntervalMs={0}
+            />
+        );
+        mounted.push(rendered);
+
+        await waitForCondition(() => (rendered.container.textContent || '').includes('Comprobando'));
+
+        const checkingBadge = Array.from(rendered.container.querySelectorAll('[data-slot="badge"]')).find((badge) =>
+            (badge.textContent || '').includes('Comprobando')
+        ) as HTMLElement | undefined;
+
+        expect(checkingBadge).toBeDefined();
+        expect(checkingBadge?.getAttribute('data-variant')).toBe('secondary');
+        expect(checkingBadge?.querySelector('[role="status"][aria-label="Loading"]')).not.toBeNull();
     });
 });

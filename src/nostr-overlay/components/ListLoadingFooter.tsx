@@ -12,7 +12,7 @@ export function ListLoadingFooter({ loading, label = 'Cargando mas...' }: ListLo
 
     return (
         <div className="nostr-list-loading-footer" role="status" aria-live="polite">
-            <Spinner className="nostr-list-loading-spinner" />
+            <Spinner />
             <span>{label}</span>
         </div>
     );

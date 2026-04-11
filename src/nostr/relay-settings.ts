@@ -2,18 +2,25 @@ import { getBootstrapRelays, mergeRelaySets, normalizeRelayUrl } from './relay-p
 
 export const RELAY_SETTINGS_STORAGE_KEY = 'nostr.overlay.relays.v1';
 
-export const RELAY_TYPES = ['general', 'dmInbox', 'dmOutbox'] as const;
+export const RELAY_TYPES = ['nip65Both', 'nip65Read', 'nip65Write', 'dmInbox'] as const;
 export type RelayType = (typeof RELAY_TYPES)[number];
 
 export interface RelaySettingsByType {
-    general: string[];
+    nip65Both: string[];
+    nip65Read: string[];
+    nip65Write: string[];
     dmInbox: string[];
-    dmOutbox: string[];
+}
+
+interface LegacyRelaySettingsByType {
+    general?: string[];
+    dmInbox?: string[];
+    dmOutbox?: string[];
 }
 
 interface RelaySettingsPayload {
     relays: string[];
-    byType?: Partial<Record<RelayType, string[]>>;
+    byType?: Partial<Record<RelayType, string[]>> | LegacyRelaySettingsByType;
 }
 
 interface StorageLike {
@@ -32,12 +39,6 @@ const DEFAULT_DM_INBOX_RELAYS = [
     'wss://vault.iris.to',
 ];
 
-const DEFAULT_DM_OUTBOX_RELAYS = [
-    'wss://relay.snort.social',
-    'wss://nostr.wine',
-    'wss://at.nostrworks.com',
-];
-
 function getDefaultStorage(): StorageLike | null {
     if (typeof window === 'undefined') {
         return null;
@@ -54,16 +55,20 @@ function normalizeRelayList(relays: string[]): string[] {
     return mergeRelaySets(relays);
 }
 
-function normalizeByType(byType: Partial<Record<RelayType, string[]>>): RelaySettingsByType {
+function normalizeByType(byType: Partial<Record<RelayType, string[]>> | LegacyRelaySettingsByType): RelaySettingsByType {
+    const typed = byType as Partial<Record<RelayType, string[]>>;
+    const legacy = byType as LegacyRelaySettingsByType;
+
     return {
-        general: normalizeRelayList(byType.general ?? []),
-        dmInbox: normalizeRelayList(byType.dmInbox ?? []),
-        dmOutbox: normalizeRelayList(byType.dmOutbox ?? []),
+        nip65Both: normalizeRelayList(typed.nip65Both ?? legacy.general ?? []),
+        nip65Read: normalizeRelayList(typed.nip65Read ?? legacy.dmInbox ?? []),
+        nip65Write: normalizeRelayList(typed.nip65Write ?? legacy.dmOutbox ?? []),
+        dmInbox: normalizeRelayList(typed.dmInbox ?? legacy.dmInbox ?? []),
     };
 }
 
 function buildAllRelays(byType: RelaySettingsByType): string[] {
-    return mergeRelaySets(byType.general, byType.dmInbox, byType.dmOutbox);
+    return mergeRelaySets(byType.nip65Both, byType.nip65Read, byType.nip65Write, byType.dmInbox);
 }
 
 function normalizeRelayState(state: RelaySettingsState): RelaySettingsState {
@@ -85,22 +90,23 @@ function isRelaySettingsPayload(value: unknown): value is RelaySettingsPayload {
         return false;
     }
 
-    if (!payload.byType || typeof payload.byType !== 'object') {
+    if (!payload.byType || typeof payload.byType !== 'object' || Array.isArray(payload.byType)) {
         return true;
     }
 
-    return RELAY_TYPES.every((type) => {
-        const set = payload.byType?.[type];
-        return set === undefined || (Array.isArray(set) && set.every((relay) => typeof relay === 'string'));
-    });
+    const byType = payload.byType as Record<string, unknown>;
+    return Object.values(byType).every(
+        (set) => set === undefined || (Array.isArray(set) && set.every((relay) => typeof relay === 'string'))
+    );
 }
 
 export function getDefaultRelaySettings(): RelaySettingsState {
     const bootstrap = getBootstrapRelays();
     const byType = normalizeByType({
-        general: bootstrap,
-        dmInbox: mergeRelaySets(bootstrap, DEFAULT_DM_INBOX_RELAYS),
-        dmOutbox: mergeRelaySets(bootstrap, DEFAULT_DM_OUTBOX_RELAYS),
+        nip65Both: bootstrap,
+        nip65Read: bootstrap,
+        nip65Write: bootstrap,
+        dmInbox: DEFAULT_DM_INBOX_RELAYS,
     });
 
     return {
@@ -139,9 +145,10 @@ export function loadRelaySettings(storage: StorageLike | null = getDefaultStorag
 
         const defaults = getDefaultRelaySettings().byType;
         const legacyByType = normalizeByType({
-            general: payload.relays,
+            nip65Both: payload.relays,
+            nip65Read: defaults.nip65Read,
+            nip65Write: defaults.nip65Write,
             dmInbox: defaults.dmInbox,
-            dmOutbox: defaults.dmOutbox,
         });
         return {
             relays: buildAllRelays(legacyByType),
@@ -169,7 +176,7 @@ export function saveRelaySettings(
     return nextState;
 }
 
-export function addRelay(state: RelaySettingsState, relayUrl: string, relayType: RelayType = 'general'): RelaySettingsState {
+export function addRelay(state: RelaySettingsState, relayUrl: string, relayType: RelayType = 'nip65Both'): RelaySettingsState {
     const normalized = normalizeRelayUrl(relayUrl);
     if (!normalized) {
         return state;
@@ -204,9 +211,10 @@ export function removeRelay(state: RelaySettingsState, relayUrl: string, relayTy
     }
 
     const byType = normalizeByType({
-        general: state.byType.general.filter((relay) => relay !== normalized),
+        nip65Both: state.byType.nip65Both.filter((relay) => relay !== normalized),
+        nip65Read: state.byType.nip65Read.filter((relay) => relay !== normalized),
+        nip65Write: state.byType.nip65Write.filter((relay) => relay !== normalized),
         dmInbox: state.byType.dmInbox.filter((relay) => relay !== normalized),
-        dmOutbox: state.byType.dmOutbox.filter((relay) => relay !== normalized),
     });
 
     return {

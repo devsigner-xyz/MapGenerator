@@ -110,4 +110,37 @@ describe('fetchFollowsByNpub cache', () => {
         expect(clientCalls.connect).toBe(1);
         expect(clientCalls.fetchLatestReplaceableEvent).toBe(1);
     });
+
+    test('fails fast when relay query hangs indefinitely', async () => {
+        vi.useFakeTimers();
+
+        try {
+            const client: NostrClient = {
+                connect: async () => {},
+                fetchLatestReplaceableEvent: () => new Promise(() => {}),
+                fetchEvents: async () => [],
+            };
+
+            let outcome: 'resolved' | 'rejected' | null = null;
+            let rejection: unknown;
+
+            void fetchFollowsByPubkey('f'.repeat(64), client).then(
+                () => {
+                    outcome = 'resolved';
+                },
+                (error) => {
+                    outcome = 'rejected';
+                    rejection = error;
+                }
+            );
+
+            await vi.advanceTimersByTimeAsync(12_000);
+
+            expect(outcome).toBe('rejected');
+            expect(rejection).toBeInstanceOf(Error);
+            expect((rejection as Error).message.toLowerCase()).toContain('timeout');
+        } finally {
+            vi.useRealTimers();
+        }
+    });
 });

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
-import { EllipsisVerticalIcon } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactElement } from 'react';
+import { ChevronDownIcon, EllipsisVerticalIcon } from 'lucide-react';
 import {
     addRelay,
     getRelaySetByType,
@@ -32,13 +32,20 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ContextMenu, ContextMenuContent, ContextMenuGroup, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/dialog';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuGroup,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Textarea } from '@/components/ui/textarea';
 
 interface MapSettingsDialogProps {
     mapBridge: MapBridge | null;
@@ -55,15 +62,17 @@ interface MapSettingsDialogProps {
 
 const EMPTY_RELAYS: string[] = [];
 const EMPTY_RELAYS_BY_TYPE: RelaySettingsByType = {
-    general: [],
+    nip65Both: [],
+    nip65Read: [],
+    nip65Write: [],
     dmInbox: [],
-    dmOutbox: [],
 };
 
 const RELAY_TYPE_LABELS: Record<RelayType, string> = {
-    general: 'General',
-    dmInbox: 'DM inbox',
-    dmOutbox: 'DM outbox',
+    nip65Both: 'NIP-65 read+write',
+    nip65Read: 'NIP-65 read',
+    nip65Write: 'NIP-65 write',
+    dmInbox: 'NIP-17 DM inbox',
 };
 
 export type SettingsView = 'advanced' | 'ui' | 'shortcuts' | 'relays' | 'relay-detail' | 'about' | 'zaps';
@@ -237,16 +246,21 @@ function formatRelayFee(fee: RelayFee): string {
     return amount;
 }
 
-function relayConnectionLabel(status: RelayConnectionStatus | undefined): string {
+function relayConnectionBadge(status: RelayConnectionStatus | undefined): ReactElement {
     if (status === 'connected') {
-        return 'Conectado';
+        return <Badge>Conectado</Badge>;
     }
 
     if (status === 'disconnected') {
-        return 'Sin conexión';
+        return <Badge variant="destructive">Sin conexión</Badge>;
     }
 
-    return 'Comprobando...';
+    return (
+        <Badge variant="secondary">
+            <Spinner data-icon="inline-start" />
+            Comprobando
+        </Badge>
+    );
 }
 
 function normalizeRelayInput(value: string): string | null {
@@ -255,11 +269,39 @@ function normalizeRelayInput(value: string): string | null {
         return null;
     }
 
-    if (trimmed.startsWith('ws://') || trimmed.startsWith('wss://')) {
-        return normalizeRelayUrl(trimmed);
+    const candidate = trimmed.startsWith('ws://') || trimmed.startsWith('wss://')
+        ? trimmed
+        : `wss://${trimmed}`;
+    const normalized = normalizeRelayUrl(candidate);
+    if (!normalized) {
+        return null;
     }
 
-    return normalizeRelayUrl(`wss://${trimmed}`);
+    try {
+        const parsed = new URL(normalized);
+        const host = parsed.hostname.toLowerCase();
+        if (!host || host.length > 253) {
+            return null;
+        }
+
+        const isIpv4 = /^\d+\.\d+\.\d+\.\d+$/.test(host)
+            && host.split('.').every((segment) => {
+                const value = Number(segment);
+                return Number.isInteger(value) && value >= 0 && value <= 255;
+            });
+        const isIpv6 = host.includes(':') && /^[0-9a-f:]+$/i.test(host);
+        const isLocalhost = host === 'localhost';
+        const isDomain = host.includes('.')
+            && host.split('.').every((label) => /^[a-z0-9-]+$/i.test(label) && !label.startsWith('-') && !label.endsWith('-'));
+
+        if (!isIpv4 && !isIpv6 && !isLocalhost && !isDomain) {
+            return null;
+        }
+
+        return normalized;
+    } catch {
+        return null;
+    }
 }
 
 export function MapSettingsDialog({
@@ -279,7 +321,7 @@ export function MapSettingsDialog({
     const [uiSettings, setUiSettings] = useState<UiSettingsState>(() => loadUiSettings());
     const [zapSettingsState, setZapSettingsState] = useState<ZapSettingsState>(() => zapSettings ?? loadZapSettings());
     const [newRelayInput, setNewRelayInput] = useState('');
-    const [newRelayType, setNewRelayType] = useState<RelayType>('general');
+    const [newRelayType, setNewRelayType] = useState<RelayType>('nip65Both');
     const [newZapAmountInput, setNewZapAmountInput] = useState('');
     const [invalidRelayInputs, setInvalidRelayInputs] = useState<string[]>([]);
     const [selectedRelay, setSelectedRelay] = useState<RelaySelection | null>(null);
@@ -305,9 +347,10 @@ export function MapSettingsDialog({
 
     const normalizedSuggestedByType = useMemo<RelaySettingsByType>(() => {
         const byTypeFromProps: RelaySettingsByType = {
-            general: mergeRelaySets(suggestedRelaysByType?.general ?? [], suggestedRelays),
+            nip65Both: mergeRelaySets(suggestedRelaysByType?.nip65Both ?? [], suggestedRelays),
+            nip65Read: mergeRelaySets(suggestedRelaysByType?.nip65Read ?? []),
+            nip65Write: mergeRelaySets(suggestedRelaysByType?.nip65Write ?? []),
             dmInbox: mergeRelaySets(suggestedRelaysByType?.dmInbox ?? []),
-            dmOutbox: mergeRelaySets(suggestedRelaysByType?.dmOutbox ?? []),
         };
 
         return byTypeFromProps;
@@ -419,9 +462,10 @@ export function MapSettingsDialog({
     const relayInfoTargets = useMemo(() => {
         return [...new Set([
             ...relaySettings.relays,
-            ...normalizedSuggestedByType.general,
+            ...normalizedSuggestedByType.nip65Both,
+            ...normalizedSuggestedByType.nip65Read,
+            ...normalizedSuggestedByType.nip65Write,
             ...normalizedSuggestedByType.dmInbox,
-            ...normalizedSuggestedByType.dmOutbox,
         ])];
     }, [relaySettings.relays, normalizedSuggestedByType]);
 
@@ -704,7 +748,7 @@ export function MapSettingsDialog({
                     </div>
                 ) : view === 'relays' ? (
                     <div className="nostr-relays-content">
-                        <p className="nostr-relays-help">Conecta varios relays. Puedes agregar uno por linea.</p>
+                        <p className="nostr-relays-help">Conecta varios relays. Puedes agregar uno por vez y elegir categoria.</p>
 
                         <div className="nostr-relay-connection-summary" role="status" aria-live="polite">
                             <p>Relays configurados: {configuredRows.length}</p>
@@ -747,9 +791,7 @@ export function MapSettingsDialog({
                                                     <Badge variant="outline">{RELAY_TYPE_LABELS[relayType]}</Badge>
                                                 </TableCell>
                                                 <TableCell>
-                                                    <span className={`nostr-relay-connection-pill is-${relayConnectionStatus || 'checking'}`}>
-                                                        {relayConnectionLabel(relayConnectionStatus)}
-                                                    </span>
+                                                    {relayConnectionBadge(relayConnectionStatus)}
                                                 </TableCell>
                                                 <TableCell className="nostr-relay-actions-cell">
                                                     <ContextMenu>
@@ -783,32 +825,44 @@ export function MapSettingsDialog({
                             </Table>
                         </div>
 
-                        <Textarea
-                            className="nostr-input nostr-relay-editor"
-                            placeholder="wss://relay.example\nwss://nos.lol"
-                            rows={4}
-                            value={newRelayInput}
-                            onChange={(event) => setNewRelayInput(event.target.value)}
-                        />
+                        <InputGroup>
+                            <InputGroupInput
+                                aria-label="Relay URLs"
+                                placeholder="wss://relay.example"
+                                value={newRelayInput}
+                                onChange={(event) => setNewRelayInput(event.target.value)}
+                            />
+                            <InputGroupAddon align="inline-end">
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <InputGroupButton variant="ghost" aria-label="Relay category">
+                                            {RELAY_TYPE_LABELS[newRelayType]}
+                                            <ChevronDownIcon />
+                                        </InputGroupButton>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuGroup>
+                                            {RELAY_TYPES.map((relayType) => (
+                                                <DropdownMenuItem
+                                                    key={`relay-type-${relayType}`}
+                                                    onSelect={() => setNewRelayType(relayType)}
+                                                >
+                                                    {RELAY_TYPE_LABELS[relayType]}
+                                                </DropdownMenuItem>
+                                            ))}
+                                        </DropdownMenuGroup>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
 
-                        <div className="nostr-ui-slider-row">
-                            <Label className="nostr-label" htmlFor="nostr-relay-type-select">Category</Label>
-                            <select
-                                id="nostr-relay-type-select"
-                                className="nostr-input"
-                                aria-label="Relay category"
-                                value={newRelayType}
-                                onChange={(event) => setNewRelayType(event.target.value as RelayType)}
-                            >
-                                {RELAY_TYPES.map((relayType) => (
-                                    <option key={`relay-type-${relayType}`} value={relayType}>{RELAY_TYPE_LABELS[relayType]}</option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <Button type="button" className="nostr-submit nostr-relay-add" onClick={handleAddRelays}>
-                            Add relays
-                        </Button>
+                                <InputGroupButton
+                                    variant="secondary"
+                                    onClick={handleAddRelays}
+                                    disabled={newRelayInput.trim().length === 0}
+                                >
+                                    Añadir
+                                </InputGroupButton>
+                            </InputGroupAddon>
+                        </InputGroup>
 
                         {invalidRelayInputs.length > 0 ? (
                             <p className="nostr-settings-error">
@@ -819,7 +873,7 @@ export function MapSettingsDialog({
                         {suggestedRows.length > 0 ? (
                             <section className="nostr-relay-suggested">
                                 <div className="nostr-relay-suggested-header">
-                                    <p>Relays sugeridos por tipo (NIP-65)</p>
+                                    <p>Relays sugeridos por protocolo (NIP-65 / NIP-17)</p>
                                     <Button type="button" variant="outline" className="nostr-relay-add-suggested" onClick={handleAddAllSuggestedRelays}>
                                         Agregar todos
                                     </Button>
@@ -852,7 +906,7 @@ export function MapSettingsDialog({
                                                                 </Avatar>
                                                                 <div className="min-w-0">
                                                                     <p className="nostr-relay-summary-primary">{document?.name || relayUrl}</p>
-                                                                    <p className="nostr-relay-summary-sub">Suggested by NIP-65</p>
+                                                                    <p className="nostr-relay-summary-sub">Suggested by protocol metadata</p>
                                                                 </div>
                                                             </div>
                                                         </TableCell>
@@ -860,9 +914,7 @@ export function MapSettingsDialog({
                                                             <Badge variant="outline">{RELAY_TYPE_LABELS[relayType]}</Badge>
                                                         </TableCell>
                                                         <TableCell>
-                                                            <span className={`nostr-relay-connection-pill is-${relayConnectionStatus || 'checking'}`}>
-                                                                {relayConnectionLabel(relayConnectionStatus)}
-                                                            </span>
+                                                            {relayConnectionBadge(relayConnectionStatus)}
                                                         </TableCell>
                                                         <TableCell className="nostr-relay-actions-cell">
                                                             <ContextMenu>
@@ -899,13 +951,13 @@ export function MapSettingsDialog({
                         ) : hasSuggestedRelays ? (
                             <p className="nostr-relays-help">Todos los relays sugeridos ya estan agregados.</p>
                         ) : (
-                            <p className="nostr-relays-help">No hay relays sugeridos todavia. Carga una npub para intentar descubrirlos y separarlos por tipo via NIP-65.</p>
+                            <p className="nostr-relays-help">No hay relays sugeridos todavia. Carga una npub para intentar descubrirlos via NIP-65 y NIP-17.</p>
                         )}
                     </div>
                 ) : view === 'relay-detail' && selectedRelayDetails ? (
                     <div className="nostr-relays-content">
                         {selectedRelayInfo?.status === 'loading' ? (
-                            <p className="nostr-relay-meta-loading"><Spinner className="size-3" /> Cargando metadata NIP-11...</p>
+                            <p className="nostr-relay-meta-loading"><Spinner /> Cargando metadata NIP-11...</p>
                         ) : null}
 
                         {selectedRelayInfo?.status === 'error' ? (
@@ -921,7 +973,7 @@ export function MapSettingsDialog({
                             <div className="min-w-0">
                                 <p className="nostr-relay-summary-primary">{selectedRelayInfo?.data?.name || selectedRelayDetails.relayUrl}</p>
                                 <p className="nostr-relay-summary-sub">
-                                    {selectedRelayDetails.source === 'configured' ? 'Configured relay' : 'Suggested by NIP-65'} · {RELAY_TYPE_LABELS[selectedRelay.relayType]}
+                                    {selectedRelayDetails.source === 'configured' ? 'Configured relay' : 'Suggested by protocol metadata'} · {RELAY_TYPE_LABELS[selectedRelay.relayType]}
                                 </p>
                             </div>
                         </div>
@@ -939,7 +991,7 @@ export function MapSettingsDialog({
                                     </TableRow>
                                     <TableRow>
                                         <TableHead className="nostr-relay-detail-key">Source</TableHead>
-                                        <TableCell className="nostr-relay-detail-value">{selectedRelayDetails.source === 'configured' ? 'Configured' : 'Suggested (NIP-65)'}</TableCell>
+                                        <TableCell className="nostr-relay-detail-value">{selectedRelayDetails.source === 'configured' ? 'Configured' : 'Suggested (NIP-65/NIP-17)'}</TableCell>
                                     </TableRow>
                                     <TableRow>
                                         <TableHead className="nostr-relay-detail-key">Category</TableHead>
@@ -1056,7 +1108,8 @@ export function MapSettingsDialog({
                             <h4>NIPs soportadas</h4>
                             <ul>
                                 <li>NIP-19 (npub)</li>
-                                <li>NIP-65 (relays sugeridos)</li>
+                                <li>NIP-65 (relay list metadata)</li>
+                                <li>NIP-17 (DM inbox relays)</li>
                                 <li>Kind 0 (metadata de perfil)</li>
                                 <li>Kind 1 (publicaciones)</li>
                                 <li>Kind 3 (follows/followers)</li>

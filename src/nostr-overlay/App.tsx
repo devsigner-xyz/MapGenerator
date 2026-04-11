@@ -13,6 +13,7 @@ import { ChatIconButton } from './components/ChatIconButton';
 import { ChatDialog, type ChatConversationSummary, type ChatDetailMessage } from './components/ChatDialog';
 import { NotificationsIconButton } from './components/NotificationsIconButton';
 import { NotificationsDialog } from './components/NotificationsDialog';
+import { GlobalUserSearchDialog } from './components/GlobalUserSearchDialog';
 import { PersonContextMenuItems } from './components/PersonContextMenuItems';
 import { useNostrOverlay, type MapLoaderStage, type NostrOverlayServices } from './hooks/useNostrOverlay';
 import { useNip05Verification } from './hooks/useNip05Verification';
@@ -76,6 +77,7 @@ export function App({ mapBridge, services }: AppProps) {
     const [buildingContextMenu, setBuildingContextMenu] = useState<OccupiedBuildingContextMenuState | null>(null);
     const [activeEasterEgg, setActiveEasterEgg] = useState<EasterEggDialogState | null>(null);
     const [chatOpen, setChatOpen] = useState(false);
+    const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
     const [chatComposerFocusKey, setChatComposerFocusKey] = useState('');
     const [chatStateVersion, setChatStateVersion] = useState(0);
     const [chatPinnedConversationId, setChatPinnedConversationId] = useState<string | null>(null);
@@ -470,6 +472,14 @@ export function App({ mapBridge, services }: AppProps) {
         socialNotifications.closeDialog();
     };
 
+    const openGlobalUserSearch = (): void => {
+        setGlobalSearchOpen(true);
+    };
+
+    const closeGlobalUserSearch = (): void => {
+        setGlobalSearchOpen(false);
+    };
+
     const openSettingsDialog = (view: SettingsView = 'ui'): void => {
         setSettingsInitialView(view);
         setSettingsDialogOpen(true);
@@ -556,6 +566,20 @@ export function App({ mapBridge, services }: AppProps) {
                         </ContextMenuTrigger>
                         {renderSettingsContextMenu()}
                     </ContextMenu>
+
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="nostr-settings-button"
+                        aria-label="Abrir buscador global de usuarios"
+                        title="Buscar usuarios"
+                        onClick={openGlobalUserSearch}
+                    >
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm0-2a9 9 0 1 1 5.65 16l4.7 4.7a1 1 0 0 1-1.42 1.4l-4.7-4.7A9 9 0 0 1 11 2z" />
+                        </svg>
+                    </Button>
 
                     {canAccessDirectMessages ? (
                         <ChatIconButton hasUnread={chatState?.hasUnreadGlobal ?? false} onClick={openChatList} />
@@ -675,6 +699,20 @@ export function App({ mapBridge, services }: AppProps) {
                                 variant="outline"
                                 size="icon"
                                 className="nostr-settings-button"
+                                aria-label="Abrir buscador global de usuarios"
+                                title="Buscar usuarios"
+                                onClick={openGlobalUserSearch}
+                            >
+                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                    <path d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm0-2a9 9 0 1 1 5.65 16l4.7 4.7a1 1 0 0 1-1.42 1.4l-4.7-4.7A9 9 0 0 1 11 2z" />
+                                </svg>
+                            </Button>
+
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="nostr-settings-button"
                                 aria-label="Ocultar panel"
                                 title="Hide panel"
                                 onClick={() => setPanelCollapsed(true)}
@@ -772,7 +810,7 @@ export function App({ mapBridge, services }: AppProps) {
             {mapLoaderText ? (
                 <div className="nostr-map-loader-overlay" role="status" aria-live="polite">
                     <div className="nostr-map-loader-card">
-                        <Spinner className="nostr-map-loader-spinner" />
+                        <Spinner />
                         <p className="nostr-map-loader-text">{mapLoaderText}</p>
                     </div>
                 </div>
@@ -814,6 +852,16 @@ export function App({ mapBridge, services }: AppProps) {
                 hasUnread={socialState.hasUnread}
                 notifications={socialState.pendingSnapshot}
                 onClose={closeNotifications}
+            />
+
+            <GlobalUserSearchDialog
+                open={globalSearchOpen}
+                onClose={closeGlobalUserSearch}
+                onSearch={overlay.searchUsers}
+                onSelectUser={(pubkey) => {
+                    overlay.openActiveProfile(pubkey);
+                }}
+                onMessageUser={canAccessDirectMessages ? openDmFromContextMenu : undefined}
             />
 
             {settingsDialogOpen ? (

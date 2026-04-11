@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type UIEvent } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { EllipsisVerticalIcon, SearchIcon } from 'lucide-react';
+import { EllipsisVerticalIcon, SearchIcon, XIcon } from 'lucide-react';
 import { encodeHexToNpub } from '../../nostr/npub';
 import type { Nip05ValidationResult } from '../../nostr/nip05';
 import type { NostrProfile } from '../../nostr/types';
@@ -8,7 +8,6 @@ import { ListLoadingFooter } from './ListLoadingFooter';
 import { Nip05Identifier } from './Nip05Identifier';
 import { PersonContextMenuItems } from './PersonContextMenuItems';
 import { Button } from '@/components/ui/button';
-import { ButtonGroup, ButtonGroupText } from '@/components/ui/button-group';
 import {
     ContextMenu,
     ContextMenuContent,
@@ -20,7 +19,7 @@ import {
     ContextMenuSubTrigger,
     ContextMenuTrigger,
 } from '@/components/ui/context-menu';
-import { Input } from '@/components/ui/input';
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item';
 import { Separator } from '@/components/ui/separator';
@@ -374,30 +373,28 @@ export function PeopleListTab({
     return (
         <div className="nostr-people-tab-content">
             <div className="nostr-search-row">
-                <ButtonGroup className="w-full">
-                    <ButtonGroupText aria-hidden="true">
+                <InputGroup>
+                    <InputGroupAddon align="inline-start" aria-hidden="true">
                         <SearchIcon />
-                    </ButtonGroupText>
-                    <Input
-                        className="nostr-input nostr-search-input"
+                    </InputGroupAddon>
+                    <InputGroupInput
                         type="text"
                         value={searchQuery || ''}
                         placeholder="Buscar por nombre o npub"
                         aria-label={searchAriaLabel || 'Buscar'}
                         onChange={(event) => onSearchQueryChange?.(event.target.value)}
                     />
-
-                    <Button
-                        type="button"
-                        variant="outline"
-                        className="nostr-search-clear"
-                        aria-label="Limpiar busqueda"
-                        disabled={!hasSearchQuery}
-                        onClick={() => onSearchQueryChange?.('')}
-                    >
-                        Clear
-                    </Button>
-                </ButtonGroup>
+                    <InputGroupAddon align="inline-end">
+                        <InputGroupButton
+                            size="icon-xs"
+                            aria-label="Limpiar busqueda"
+                            disabled={!hasSearchQuery}
+                            onClick={() => onSearchQueryChange?.('')}
+                        >
+                            <XIcon />
+                        </InputGroupButton>
+                    </InputGroupAddon>
+                </InputGroup>
             </div>
 
             {listContent}

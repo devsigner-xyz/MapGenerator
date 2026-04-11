@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { RELAY_SETTINGS_STORAGE_KEY } from '../nostr/relay-settings';
 import { UI_SETTINGS_STORAGE_KEY } from '../nostr/ui-settings';
+import { getBootstrapRelays } from '../nostr/relay-policy';
 import { encodeHexToNpub } from '../nostr/npub';
 import * as ndkClientModule from '../nostr/ndk-client';
 import * as writeGatewayModule from '../nostr/write-gateway';
@@ -456,6 +457,38 @@ describe('Nostr overlay App', () => {
         });
 
         expect(bridge.regenerateMap).toHaveBeenCalledTimes(1);
+    });
+
+    test('renders global user search button in panel and compact toolbar', async () => {
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(<App mapBridge={bridge} />);
+        mounted.push(rendered);
+
+        const panelSearchButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir buscador global de usuarios"]');
+        expect(panelSearchButton).not.toBeNull();
+
+        const hidePanelButton = rendered.container.querySelector('button[aria-label="Ocultar panel"]') as HTMLButtonElement;
+        await act(async () => {
+            hidePanelButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const compactSearchButton = rendered.container.querySelector('.nostr-compact-toolbar button[aria-label="Abrir buscador global de usuarios"]');
+        expect(compactSearchButton).not.toBeNull();
+    });
+
+    test('opens global user search dialog from toolbar', async () => {
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(<App mapBridge={bridge} />);
+        mounted.push(rendered);
+
+        const searchButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir buscador global de usuarios"]') as HTMLButtonElement;
+        expect(searchButton).toBeDefined();
+
+        await act(async () => {
+            searchButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(rendered.container.textContent || '').toContain('Buscar usuarios globalmente');
     });
 
     test('renders chat button in panel and compact toolbar and opens chat dialog in list view', async () => {
@@ -2237,11 +2270,12 @@ describe('Nostr overlay App', () => {
         expect(showPanelButton.getAttribute('title')).toBe('Show panel');
         expect(rendered.container.querySelector('button[aria-label="Abrir ajustes"]')).not.toBeNull();
         const compactButtons = Array.from(rendered.container.querySelectorAll('.nostr-compact-toolbar button')) as HTMLButtonElement[];
-        expect(compactButtons.length).toBe(4);
+        expect(compactButtons.length).toBe(5);
         expect(compactButtons[0].getAttribute('aria-label')).toBe('Mostrar panel');
         expect(compactButtons[1].getAttribute('aria-label')).toBe('Abrir ajustes');
-        expect(compactButtons[2].getAttribute('aria-label')).toBe('Regenerar mapa');
-        expect(compactButtons[3].getAttribute('aria-label')).toBe('Abrir estadisticas de la ciudad');
+        expect(compactButtons[2].getAttribute('aria-label')).toBe('Abrir buscador global de usuarios');
+        expect(compactButtons[3].getAttribute('aria-label')).toBe('Regenerar mapa');
+        expect(compactButtons[4].getAttribute('aria-label')).toBe('Abrir estadisticas de la ciudad');
         expect((bridge.setViewportInsetLeft as any).mock.calls[(bridge.setViewportInsetLeft as any).mock.calls.length - 1][0]).toBe(0);
 
         await act(async () => {
@@ -2732,7 +2766,18 @@ describe('Nostr overlay App', () => {
     test('uses configured relay settings when creating nostr clients', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const followedPubkey = 'a'.repeat(64);
-        window.localStorage.setItem(RELAY_SETTINGS_STORAGE_KEY, JSON.stringify({ relays: ['wss://relay.one', 'wss://relay.two'] }));
+        window.localStorage.setItem(
+            RELAY_SETTINGS_STORAGE_KEY,
+            JSON.stringify({
+                relays: ['wss://relay.one', 'wss://relay.two'],
+                byType: {
+                    nip65Both: ['wss://relay.one', 'wss://relay.two'],
+                    nip65Read: [],
+                    nip65Write: [],
+                    dmInbox: [],
+                },
+            })
+        );
 
         const clientStub: NostrClient = {
             connect: async () => {},
@@ -2786,6 +2831,82 @@ describe('Nostr overlay App', () => {
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
         expect(createClient).toHaveBeenCalled();
         expect(createClient.mock.calls[0]?.[0]).toEqual(['wss://relay.one', 'wss://relay.two']);
+    });
+
+    test('falls back to bootstrap relays when configured graph relays fail', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+        window.localStorage.setItem(
+            RELAY_SETTINGS_STORAGE_KEY,
+            JSON.stringify({
+                relays: ['wss://relay.one'],
+                byType: {
+                    nip65Both: ['wss://relay.one'],
+                    nip65Read: [],
+                    nip65Write: [],
+                    dmInbox: [],
+                },
+            })
+        );
+
+        const clientStub: NostrClient = {
+            connect: async () => {},
+            fetchLatestReplaceableEvent: async () => null,
+            fetchEvents: async () => [],
+        };
+        const createClient = vi.fn().mockReturnValue(clientStub);
+        const fetchFollowsByNpubFn = vi
+            .fn()
+            .mockRejectedValueOnce(new Error('configured relay failed'))
+            .mockResolvedValueOnce({
+                ownerPubkey,
+                follows: [followedPubkey],
+                relayHints: [],
+            });
+
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient,
+                    fetchFollowsByNpubFn,
+                    fetchProfilesFn: vi.fn().mockImplementation(async (pubkeys: string[]) => {
+                        const profiles: Record<string, { pubkey: string; displayName: string }> = {};
+                        for (const pubkey of pubkeys) {
+                            if (pubkey === ownerPubkey) {
+                                profiles[pubkey] = { pubkey, displayName: 'Owner' };
+                            }
+                            if (pubkey === followedPubkey) {
+                                profiles[pubkey] = { pubkey, displayName: 'Alice' };
+                            }
+                        }
+                        return profiles;
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+        const form = rendered.container.querySelector('form');
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
+            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        expect(fetchFollowsByNpubFn).toHaveBeenCalledTimes(2);
+        expect(createClient.mock.calls[0]?.[0]).toEqual(['wss://relay.one']);
+        expect(createClient.mock.calls[1]?.[0]).toEqual(getBootstrapRelays());
     });
 
     test('keeps profile posts visible when stats request fails', async () => {
@@ -3011,9 +3132,10 @@ describe('Nostr overlay App', () => {
             JSON.stringify({
                 relays: ['wss://relay.suggested.example'],
                 byType: {
-                    general: ['wss://relay.suggested.example'],
-                    dmInbox: ['wss://relay.suggested.example'],
-                    dmOutbox: ['wss://relay.suggested.example'],
+                    nip65Both: ['wss://relay.suggested.example'],
+                    nip65Read: ['wss://relay.suggested.example'],
+                    nip65Write: ['wss://relay.suggested.example'],
+                    dmInbox: [],
                 },
             })
         );
@@ -3077,7 +3199,7 @@ describe('Nostr overlay App', () => {
         await selectSettingsContextAction(rendered.container, 'Relays');
 
         await waitFor(() =>
-            !rendered.container.querySelector('button[aria-label="Abrir acciones sugeridas para wss://relay.suggested.example (General)"]')
+            !rendered.container.querySelector('button[aria-label="Abrir acciones sugeridas para wss://relay.suggested.example (NIP-65 read+write)"]')
         );
 
         const addAllButton = Array.from(rendered.container.querySelectorAll('button')).find(button =>

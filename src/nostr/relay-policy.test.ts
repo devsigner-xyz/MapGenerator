@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'vitest';
-import { relayListFromKind10002Event, relaySuggestionsByTypeFromKind10002Event } from './relay-policy';
+import {
+    dmInboxRelayListFromKind10050Event,
+    relayListFromKind10002Event,
+    relaySuggestionsByTypeFromKind10002Event,
+} from './relay-policy';
 import type { NostrEvent } from './types';
 
 describe('relayListFromKind10002Event', () => {
@@ -50,9 +54,45 @@ describe('relayListFromKind10002Event', () => {
         };
 
         expect(relaySuggestionsByTypeFromKind10002Event(event)).toEqual({
-            general: ['wss://relay.read.example', 'wss://relay.write.example', 'wss://relay.both.example'],
-            dmInbox: ['wss://relay.read.example', 'wss://relay.both.example'],
-            dmOutbox: ['wss://relay.write.example', 'wss://relay.both.example'],
+            nip65Both: ['wss://relay.both.example'],
+            nip65Read: ['wss://relay.read.example', 'wss://relay.both.example'],
+            nip65Write: ['wss://relay.write.example', 'wss://relay.both.example'],
         });
+    });
+
+    test('extracts dm inbox relays from kind 10050 relay tags', () => {
+        const event: NostrEvent = {
+            id: 'evt4',
+            pubkey: 'f'.repeat(64),
+            kind: 10050,
+            created_at: 100,
+            tags: [
+                ['relay', 'wss://relay.dm.one'],
+                ['relay', 'wss://relay.dm.two/'],
+                ['r', 'wss://relay.should.not.apply'],
+            ],
+            content: '',
+        };
+
+        expect(dmInboxRelayListFromKind10050Event(event)).toEqual([
+            'wss://relay.dm.one',
+            'wss://relay.dm.two',
+        ]);
+    });
+
+    test('returns empty dm inbox relays for non-10050 events', () => {
+        const event: NostrEvent = {
+            id: 'evt5',
+            pubkey: 'f'.repeat(64),
+            kind: 10002,
+            created_at: 100,
+            tags: [
+                ['relay', 'wss://relay.dm.one'],
+            ],
+            content: '',
+        };
+
+        expect(dmInboxRelayListFromKind10050Event(event)).toEqual([]);
+        expect(dmInboxRelayListFromKind10050Event(null)).toEqual([]);
     });
 });

@@ -7,15 +7,15 @@ const DEFAULT_BOOTSTRAP_RELAYS = [
 ] as const;
 
 export interface RelaySuggestionsByType {
-    general: string[];
-    dmInbox: string[];
-    dmOutbox: string[];
+    nip65Both: string[];
+    nip65Read: string[];
+    nip65Write: string[];
 }
 
 const EMPTY_SUGGESTIONS: RelaySuggestionsByType = {
-    general: [],
-    dmInbox: [],
-    dmOutbox: [],
+    nip65Both: [],
+    nip65Read: [],
+    nip65Write: [],
 };
 
 export function normalizeRelayUrl(url: string): string | null {
@@ -72,7 +72,7 @@ export function relayHintsFromKind3Content(content: string): string[] {
 
 export function relayListFromKind10002Event(event: NostrEvent | null): string[] {
     const typed = relaySuggestionsByTypeFromKind10002Event(event);
-    return mergeRelaySets(typed.general, typed.dmInbox, typed.dmOutbox);
+    return mergeRelaySets(typed.nip65Both, typed.nip65Read, typed.nip65Write);
 }
 
 export function relaySuggestionsByTypeFromKind10002Event(event: NostrEvent | null): RelaySuggestionsByType {
@@ -80,9 +80,9 @@ export function relaySuggestionsByTypeFromKind10002Event(event: NostrEvent | nul
         return EMPTY_SUGGESTIONS;
     }
 
-    const general: string[] = [];
-    const dmInbox: string[] = [];
-    const dmOutbox: string[] = [];
+    const nip65Both: string[] = [];
+    const nip65Read: string[] = [];
+    const nip65Write: string[] = [];
 
     for (const tag of event.tags) {
         if (tag[0] !== 'r' || typeof tag[1] !== 'string' || tag[1].length === 0) {
@@ -92,24 +92,41 @@ export function relaySuggestionsByTypeFromKind10002Event(event: NostrEvent | nul
         const relayUrl = tag[1];
         const marker = typeof tag[2] === 'string' ? tag[2].toLowerCase() : '';
 
-        general.push(relayUrl);
         if (marker === 'read') {
-            dmInbox.push(relayUrl);
+            nip65Read.push(relayUrl);
             continue;
         }
 
         if (marker === 'write') {
-            dmOutbox.push(relayUrl);
+            nip65Write.push(relayUrl);
             continue;
         }
 
-        dmInbox.push(relayUrl);
-        dmOutbox.push(relayUrl);
+        nip65Both.push(relayUrl);
+        nip65Read.push(relayUrl);
+        nip65Write.push(relayUrl);
     }
 
     return {
-        general: mergeRelaySets(general),
-        dmInbox: mergeRelaySets(dmInbox),
-        dmOutbox: mergeRelaySets(dmOutbox),
+        nip65Both: mergeRelaySets(nip65Both),
+        nip65Read: mergeRelaySets(nip65Read),
+        nip65Write: mergeRelaySets(nip65Write),
     };
+}
+
+export function dmInboxRelayListFromKind10050Event(event: NostrEvent | null): string[] {
+    if (!event || event.kind !== 10050) {
+        return [];
+    }
+
+    const relays: string[] = [];
+    for (const tag of event.tags) {
+        if (tag[0] !== 'relay' || typeof tag[1] !== 'string' || tag[1].length === 0) {
+            continue;
+        }
+
+        relays.push(tag[1]);
+    }
+
+    return mergeRelaySets(relays);
 }

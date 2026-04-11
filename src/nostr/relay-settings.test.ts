@@ -18,7 +18,9 @@ describe('relay-settings', () => {
         const state = loadRelaySettings(window.localStorage);
         expect(state).toEqual(getDefaultRelaySettings());
         expect(getRelaySetByType(state, 'dmInbox').length).toBeGreaterThan(0);
-        expect(getRelaySetByType(state, 'dmOutbox').length).toBeGreaterThan(0);
+        expect(getRelaySetByType(state, 'nip65Both').length).toBeGreaterThan(0);
+        expect(getRelaySetByType(state, 'nip65Read').length).toBeGreaterThan(0);
+        expect(getRelaySetByType(state, 'nip65Write').length).toBeGreaterThan(0);
     });
 
     test('falls back to bootstrap relays when storage payload is malformed', () => {
@@ -38,9 +40,10 @@ describe('relay-settings', () => {
                     'https://invalid.example',
                 ],
                 byType: {
-                    general: ['wss://relay.damus.io', 'wss://nos.lol'],
-                    dmInbox: ['wss://relay.damus.io'],
-                    dmOutbox: ['wss://nos.lol'],
+                    nip65Both: ['wss://relay.damus.io'],
+                    nip65Read: ['wss://relay.damus.io', 'wss://nos.lol'],
+                    nip65Write: ['wss://relay.damus.io'],
+                    dmInbox: ['wss://nos.lol'],
                 },
             },
             window.localStorage
@@ -54,9 +57,10 @@ describe('relay-settings', () => {
         const initial = {
             relays: ['wss://relay.damus.io'],
             byType: {
-                general: ['wss://relay.damus.io'],
+                nip65Both: ['wss://relay.damus.io'],
+                nip65Read: [] as string[],
+                nip65Write: [] as string[],
                 dmInbox: [] as string[],
-                dmOutbox: [] as string[],
             },
         };
 
@@ -79,8 +83,28 @@ describe('relay-settings', () => {
         );
 
         const state = loadRelaySettings(window.localStorage);
-        expect(getRelaySetByType(state, 'general')).toEqual(['wss://relay.legacy.example']);
+        expect(getRelaySetByType(state, 'nip65Both')).toEqual(['wss://relay.legacy.example']);
         expect(getRelaySetByType(state, 'dmInbox').length).toBeGreaterThan(0);
-        expect(getRelaySetByType(state, 'dmOutbox').length).toBeGreaterThan(0);
+        expect(getRelaySetByType(state, 'nip65Read').length).toBeGreaterThan(0);
+        expect(getRelaySetByType(state, 'nip65Write').length).toBeGreaterThan(0);
+    });
+
+    test('migrates v1 typed payload into protocol-aligned categories', () => {
+        window.localStorage.setItem(
+            RELAY_SETTINGS_STORAGE_KEY,
+            JSON.stringify({
+                relays: ['wss://relay.legacy.example'],
+                byType: {
+                    general: ['wss://relay.general.example'],
+                    dmInbox: ['wss://relay.legacy.read.example'],
+                    dmOutbox: ['wss://relay.legacy.write.example'],
+                },
+            })
+        );
+
+        const state = loadRelaySettings(window.localStorage);
+        expect(getRelaySetByType(state, 'nip65Both')).toEqual(['wss://relay.general.example']);
+        expect(getRelaySetByType(state, 'nip65Read')).toEqual(['wss://relay.legacy.read.example']);
+        expect(getRelaySetByType(state, 'nip65Write')).toEqual(['wss://relay.legacy.write.example']);
     });
 });

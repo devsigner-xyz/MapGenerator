@@ -8,6 +8,8 @@ const followsCache = createTtlCache<FollowGraphResult>({
     maxEntries: 200,
 });
 
+const FETCH_KIND3_TIMEOUT_MS = 10_000;
+
 export function __resetFollowsCacheForTests(): void {
     followsCache.clear();
 }
@@ -36,6 +38,25 @@ export function parseFollowsFromKind3(event: NostrEvent): string[] {
     return [...follows];
 }
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+        const timer = setTimeout(() => {
+            reject(new Error(message));
+        }, timeoutMs);
+
+        void promise.then(
+            (value) => {
+                clearTimeout(timer);
+                resolve(value);
+            },
+            (error) => {
+                clearTimeout(timer);
+                reject(error);
+            }
+        );
+    });
+}
+
 function relayHintsFromKind3Event(event: NostrEvent): string[] {
     const fromTags = event.tags
         .filter((tag) => tag[0] === 'p' && typeof tag[2] === 'string' && tag[2].length > 0)
@@ -56,7 +77,11 @@ export async function fetchFollowsByPubkey(ownerPubkey: string, client: NostrCli
     return followsCache.getOrLoad(cacheKey, async () => {
         await client.connect();
 
-        const kind3 = await client.fetchLatestReplaceableEvent(ownerPubkey, 3);
+        const kind3 = await withTimeout(
+            client.fetchLatestReplaceableEvent(ownerPubkey, 3),
+            FETCH_KIND3_TIMEOUT_MS,
+            'Relay timeout while fetching follows graph'
+        );
         if (!kind3) {
             return {
                 ownerPubkey,

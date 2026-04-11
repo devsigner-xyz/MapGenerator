@@ -45,10 +45,12 @@ export async function probeRelayConnection(relayUrl: string, timeoutMs: number =
 
             settled = true;
             window.clearTimeout(timer);
-            try {
-                socket.close();
-            } catch {
-                // ignore close errors from half-open sockets
+            if (socket.readyState === WebSocket.OPEN) {
+                try {
+                    socket.close();
+                } catch {
+                    // ignore close errors from half-open sockets
+                }
             }
             resolve(connected);
         };

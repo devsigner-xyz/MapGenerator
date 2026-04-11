@@ -16,8 +16,10 @@ import { createLazyNdkClient } from '../../nostr/lazy-ndk-client';
 import { fetchLatestPostsByPubkey, type NostrPostPreview } from '../../nostr/posts';
 import { fetchProfileStats } from '../../nostr/profile-stats';
 import { fetchProfiles } from '../../nostr/profiles';
+import { searchUsers as searchUsersDomain } from '../../nostr/user-search';
 import { getRelaySetByType, loadRelaySettings, type RelaySettingsByType } from '../../nostr/relay-settings';
 import {
+    dmInboxRelayListFromKind10050Event,
     getBootstrapRelays,
     mergeRelaySets,
     relayListFromKind10002Event,
@@ -93,6 +95,7 @@ export interface NostrOverlayServices {
     fetchFollowsByNpubFn?: typeof fetchFollowsByNpub;
     fetchFollowsByPubkeyFn?: typeof fetchFollowsByPubkey;
     fetchProfilesFn?: typeof fetchProfiles;
+    searchUsersFn?: typeof searchUsersDomain;
     fetchFollowersBestEffortFn?: typeof fetchFollowersBestEffort;
     fetchLatestPostsByPubkeyFn?: typeof fetchLatestPostsByPubkey;
     fetchProfileStatsFn?: typeof fetchProfileStats;
@@ -165,9 +168,10 @@ function createInitialData(): OverlayData {
         relayHints: [],
         suggestedRelays: [],
         suggestedRelaysByType: {
-            general: [],
+            nip65Both: [],
+            nip65Read: [],
+            nip65Write: [],
             dmInbox: [],
-            dmOutbox: [],
         },
         ...createEmptyActiveProfileState(),
     };
@@ -186,6 +190,23 @@ function dedupe(values: string[]): string[] {
     return [...new Set(values)];
 }
 
+function hasSameRelaySet(left: string[], right: string[]): boolean {
+    const leftSet = new Set(mergeRelaySets(left));
+    const rightSet = new Set(mergeRelaySets(right));
+
+    if (leftSet.size !== rightSet.size) {
+        return false;
+    }
+
+    for (const relay of leftSet) {
+        if (!rightSet.has(relay)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 function hasLoadedOverlayData(status: OverlayStatus): boolean {
     return status === 'loading_followers' || status === 'success';
 }
@@ -198,6 +219,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
     const fetchFollowsByNpubFn = services?.fetchFollowsByNpubFn || fetchFollowsByNpub;
     const fetchFollowsByPubkeyFn = services?.fetchFollowsByPubkeyFn || fetchFollowsByPubkey;
     const fetchProfilesFn = services?.fetchProfilesFn || fetchProfiles;
+    const searchUsersFn = services?.searchUsersFn || searchUsersDomain;
     const fetchFollowersBestEffortFn = services?.fetchFollowersBestEffortFn || fetchFollowersBestEffort;
     const fetchLatestPostsByPubkeyFn = services?.fetchLatestPostsByPubkeyFn || fetchLatestPostsByPubkey;
     const fetchProfileStatsFn = services?.fetchProfileStatsFn || fetchProfileStats;
@@ -225,30 +247,42 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
     const runtimeDmRelays = useMemo(() => {
         const loadedSettings = loadRelaySettings();
         const configuredDmInboxRelays = getRelaySetByType(loadedSettings, 'dmInbox');
+        const configuredNip65ReadRelays = getRelaySetByType(loadedSettings, 'nip65Read');
+        const configuredNip65BothRelays = getRelaySetByType(loadedSettings, 'nip65Both');
+        const protocolFallback = mergeRelaySets(configuredNip65ReadRelays, configuredNip65BothRelays);
         const configuredRelays = configuredDmInboxRelays.length > 0
             ? configuredDmInboxRelays
-            : loadedSettings.relays.length > 0
+            : protocolFallback.length > 0
+                ? protocolFallback
+                : loadedSettings.relays.length > 0
                 ? loadedSettings.relays
                 : getBootstrapRelays();
 
         return mergeRelaySets(
             configuredRelays,
             state.data.relayHints,
-            state.data.suggestedRelays,
+            state.data.suggestedRelaysByType.nip65Both,
+            state.data.suggestedRelaysByType.nip65Read,
             state.data.suggestedRelaysByType.dmInbox
         );
-    }, [state.data.relayHints, state.data.suggestedRelays, state.data.suggestedRelaysByType.dmInbox]);
+    }, [state.data.relayHints, state.data.suggestedRelaysByType]);
     const runtimeDmOutboxRelays = useMemo(() => {
         const loadedSettings = loadRelaySettings();
-        const configuredDmOutboxRelays = getRelaySetByType(loadedSettings, 'dmOutbox');
-        const configuredRelays = configuredDmOutboxRelays.length > 0
-            ? configuredDmOutboxRelays
+        const configuredNip65WriteRelays = getRelaySetByType(loadedSettings, 'nip65Write');
+        const configuredNip65BothRelays = getRelaySetByType(loadedSettings, 'nip65Both');
+        const configuredRelaysByProtocol = mergeRelaySets(configuredNip65WriteRelays, configuredNip65BothRelays);
+        const configuredRelays = configuredRelaysByProtocol.length > 0
+            ? configuredRelaysByProtocol
             : loadedSettings.relays.length > 0
                 ? loadedSettings.relays
                 : getBootstrapRelays();
 
-        return mergeRelaySets(configuredRelays, state.data.suggestedRelaysByType.dmOutbox);
-    }, [state.data.suggestedRelaysByType.dmOutbox]);
+        return mergeRelaySets(
+            configuredRelays,
+            state.data.suggestedRelaysByType.nip65Both,
+            state.data.suggestedRelaysByType.nip65Write
+        );
+    }, [state.data.suggestedRelaysByType]);
     const runtimeDmRelayKey = useMemo(
         () => `${runtimeDmRelays.join('|')}::${runtimeDmOutboxRelays.join('|')}`,
         [runtimeDmRelays, runtimeDmOutboxRelays]
@@ -346,8 +380,12 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
     const resolveOverlayRelays = (relayHints: string[]): string[] => {
         const configuredRelays = (() => {
             const loaded = loadRelaySettings();
-            const general = getRelaySetByType(loaded, 'general');
-            const candidates = general.length > 0 ? general : loaded.relays;
+            const protocolRelays = mergeRelaySets(
+                getRelaySetByType(loaded, 'nip65Write'),
+                getRelaySetByType(loaded, 'nip65Both'),
+                getRelaySetByType(loaded, 'nip65Read')
+            );
+            const candidates = protocolRelays.length > 0 ? protocolRelays : loaded.relays;
             return candidates.length > 0 ? candidates : getBootstrapRelays();
         })();
 
@@ -727,34 +765,79 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         try {
             const configuredRelays = (() => {
                 const loaded = loadRelaySettings();
-                const general = getRelaySetByType(loaded, 'general');
-                const candidates = general.length > 0 ? general : loaded.relays;
+                const protocolRelays = mergeRelaySets(
+                    getRelaySetByType(loaded, 'nip65Write'),
+                    getRelaySetByType(loaded, 'nip65Both'),
+                    getRelaySetByType(loaded, 'nip65Read')
+                );
+                const candidates = protocolRelays.length > 0 ? protocolRelays : loaded.relays;
                 return candidates.length > 0 ? candidates : getBootstrapRelays();
             })();
-            const client = createClient(configuredRelays);
-            const graph =
-                input.method === 'npub' && input.credential
-                    ? await fetchFollowsByNpubFn(input.credential, client)
-                    : await fetchFollowsByPubkeyFn(input.session.pubkey, client);
+
+            const fetchGraphWithRelays = async (relays: string[]) => {
+                const client = createClient(relays);
+                const graph =
+                    input.method === 'npub' && input.credential
+                        ? await fetchFollowsByNpubFn(input.credential, client)
+                        : await fetchFollowsByPubkeyFn(input.session.pubkey, client);
+
+                return {
+                    client,
+                    graph,
+                    relays,
+                };
+            };
+
+            let graphClient: NostrClient;
+            let graphRelays = configuredRelays;
+            let graph: Awaited<ReturnType<typeof fetchFollowsByPubkeyFn>>;
+
+            try {
+                const primary = await fetchGraphWithRelays(configuredRelays);
+                graphClient = primary.client;
+                graph = primary.graph;
+                graphRelays = primary.relays;
+            } catch (primaryError) {
+                const bootstrapRelays = getBootstrapRelays();
+                if (hasSameRelaySet(configuredRelays, bootstrapRelays)) {
+                    throw primaryError;
+                }
+
+                const fallback = await fetchGraphWithRelays(bootstrapRelays);
+                graphClient = fallback.client;
+                graph = fallback.graph;
+                graphRelays = fallback.relays;
+            }
+
             const follows = dedupe(graph.follows);
             const featuredPubkeys = FEATURED_OCCUPANT_PUBKEYS;
             const assignmentPubkeys = dedupe([...follows, ...featuredPubkeys]);
             let suggestedRelays: string[] = [];
             let suggestedRelaysByType: RelaySettingsByType = {
-                general: [],
+                nip65Both: [],
+                nip65Read: [],
+                nip65Write: [],
                 dmInbox: [],
-                dmOutbox: [],
             };
             try {
-                const relayListEvent = await client.fetchLatestReplaceableEvent(graph.ownerPubkey, 10002);
-                suggestedRelaysByType = relaySuggestionsByTypeFromKind10002Event(relayListEvent);
+                const [relayListEvent, dmInboxRelayListEvent] = await Promise.all([
+                    graphClient.fetchLatestReplaceableEvent(graph.ownerPubkey, 10002),
+                    graphClient.fetchLatestReplaceableEvent(graph.ownerPubkey, 10050),
+                ]);
+                const nip65ByType = relaySuggestionsByTypeFromKind10002Event(relayListEvent);
+                const dmInboxRelays = dmInboxRelayListFromKind10050Event(dmInboxRelayListEvent);
+                suggestedRelaysByType = {
+                    ...nip65ByType,
+                    dmInbox: dmInboxRelays,
+                };
                 suggestedRelays = relayListFromKind10002Event(relayListEvent);
             } catch {
                 suggestedRelays = [];
                 suggestedRelaysByType = {
-                    general: [],
+                    nip65Both: [],
+                    nip65Read: [],
+                    nip65Write: [],
                     dmInbox: [],
-                    dmOutbox: [],
                 };
             }
 
@@ -770,8 +853,8 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             setMapLoaderStage('fetching_data');
 
             const [ownerProfiles, profiles] = await Promise.all([
-                fetchProfilesFn([graph.ownerPubkey], client),
-                fetchProfilesFn(assignmentPubkeys, client),
+                fetchProfilesFn([graph.ownerPubkey], graphClient),
+                fetchProfilesFn(assignmentPubkeys, graphClient),
             ]);
             const ownerProfile = ownerProfiles[graph.ownerPubkey];
 
@@ -847,7 +930,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                         followerSet.add(pubkey);
                     }
 
-                    const fetchedProfiles = await fetchProfilesFn(newFollowers, client);
+                    const fetchedProfiles = await fetchProfilesFn(newFollowers, graphClient);
                     Object.assign(nextFollowerProfiles, fetchedProfiles);
 
                     if (requestIdRef.current !== requestId) {
@@ -878,7 +961,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 });
 
                 try {
-                    const followersClient = createClient(mergeRelaySets(configuredRelays, graph.relayHints));
+                    const followersClient = createClient(mergeRelaySets(graphRelays, graph.relayHints));
                     await fetchFollowersBestEffortFn({
                         targetPubkey: graph.ownerPubkey,
                         client: followersClient,
@@ -1161,6 +1244,42 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         }));
     };
 
+    const searchUsers = async (query: string): Promise<{ pubkeys: string[]; profiles: Record<string, NostrProfile> }> => {
+        const normalizedQuery = query.trim();
+        if (!normalizedQuery) {
+            return {
+                pubkeys: [],
+                profiles: {},
+            };
+        }
+
+        const current = latestStateRef.current;
+        const relays = resolveOverlayRelays(current.data.relayHints);
+        const client = createClient(relays);
+        const cacheKeyScope = relays.join('|');
+        const result = await searchUsersFn({
+            query: normalizedQuery,
+            client,
+            limit: 20,
+            cacheKeyScope,
+        });
+
+        if (Object.keys(result.profiles).length > 0) {
+            setState((nextState) => ({
+                ...nextState,
+                data: {
+                    ...nextState.data,
+                    profiles: {
+                        ...nextState.data.profiles,
+                        ...result.profiles,
+                    },
+                },
+            }));
+        }
+
+        return result;
+    };
+
     const closeActiveProfileDialog = (): void => {
         activeProfileLoadIdRef.current += 1;
         setState((current) => ({
@@ -1315,6 +1434,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         directMessages,
         submitNpub,
         regenerateMap,
+        searchUsers,
         selectFollowing,
         openActiveProfile,
         closeActiveProfileDialog,

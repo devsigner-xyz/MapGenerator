@@ -17,7 +17,10 @@ interface ProfileTabProps {
     ownerProfile?: NostrProfile;
     followsCount: number;
     followersCount: number;
+    followersLoading?: boolean;
     authSession?: AuthSessionState;
+    canWrite?: boolean;
+    canEncrypt?: boolean;
     onLocateOwner?: () => void;
     onCopyOwnerNpub?: (value: string) => void | Promise<void>;
     ownerVerification?: Nip05ValidationResult;
@@ -42,9 +45,10 @@ export function ProfileTab({
     const [avatarLoadError, setAvatarLoadError] = useState(false);
     const relaySettings = loadRelaySettings();
     const configuredRelayRows = [
-        ...relaySettings.byType.general.map((relayUrl) => ({ relayUrl })),
+        ...relaySettings.byType.nip65Both.map((relayUrl) => ({ relayUrl })),
+        ...relaySettings.byType.nip65Read.map((relayUrl) => ({ relayUrl })),
+        ...relaySettings.byType.nip65Write.map((relayUrl) => ({ relayUrl })),
         ...relaySettings.byType.dmInbox.map((relayUrl) => ({ relayUrl })),
-        ...relaySettings.byType.dmOutbox.map((relayUrl) => ({ relayUrl })),
     ];
     const configuredRelayRowsKey = configuredRelayRows
         .map(({ relayUrl }, index) => `${index}:${relayUrl}`)

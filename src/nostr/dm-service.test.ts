@@ -42,7 +42,9 @@ function createTransportMock() {
             failedRelays: [],
             timeoutRelays: [],
         })),
-        subscribe: vi.fn(() => ({
+        subscribe: vi.fn<
+            (filters: NostrFilter[], onEvent: (event: NostrEvent) => void) => { unsubscribe(): void }
+        >((_filters, _onEvent) => ({
             unsubscribe() {
                 return;
             },
@@ -129,7 +131,7 @@ describe('dm-service parsing and validation', () => {
     test('subscribeInbox emits legacy kind4 inbox messages from any peer', async () => {
         const transport = createTransportMock();
         let onEvent: ((event: NostrEvent) => void) | null = null;
-        transport.subscribe.mockImplementation((_filters, handler) => {
+        transport.subscribe.mockImplementation((_filters: NostrFilter[], handler: (event: NostrEvent) => void) => {
             onEvent = handler;
             return {
                 unsubscribe() {

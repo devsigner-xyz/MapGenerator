@@ -12,7 +12,7 @@ export function ChatConversationList({ conversations, loading, activeConversatio
     if (loading && conversations.length === 0) {
         return (
             <div className="nostr-chat-loading" role="status" aria-live="polite">
-                <Spinner className="nostr-list-loading-spinner" />
+                <Spinner />
                 <span>Cargando conversaciones...</span>
             </div>
         );

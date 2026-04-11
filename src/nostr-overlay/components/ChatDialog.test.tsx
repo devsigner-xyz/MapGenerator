@@ -98,6 +98,12 @@ describe('ChatDialog', () => {
         mounted.push(rendered);
 
         expect(rendered.container.textContent || '').toContain('Cargando conversaciones...');
+
+        const spinner = rendered.container.querySelector('.nostr-chat-loading [aria-label="Loading"]');
+        expect(spinner).not.toBeNull();
+        const spinnerClasses = spinner?.getAttribute('class') || '';
+        expect(spinnerClasses).toContain('size-4');
+        expect(spinnerClasses).not.toContain('nostr-list-loading-spinner');
     });
 
     test('supports list/detail navigation', async () => {

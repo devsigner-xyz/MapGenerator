@@ -77,9 +77,10 @@ describe('ProfileTab relay stats', () => {
             JSON.stringify({
                 relays: ['wss://relay.general.one', 'wss://relay.inbox.one', 'wss://relay.shared.one', 'wss://relay.outbox.one'],
                 byType: {
-                    general: ['wss://relay.general.one'],
-                    dmInbox: ['wss://relay.inbox.one', 'wss://relay.shared.one'],
-                    dmOutbox: ['wss://relay.outbox.one', 'wss://relay.shared.one'],
+                    nip65Both: ['wss://relay.general.one'],
+                    nip65Read: ['wss://relay.inbox.one', 'wss://relay.shared.one'],
+                    nip65Write: ['wss://relay.outbox.one', 'wss://relay.shared.one'],
+                    dmInbox: [],
                 },
             })
         );

@@ -73,7 +73,7 @@ interface CreateDirectMessagesStoreOptions {
     bootstrapWaitTimeoutMs?: number;
 }
 
-interface UseDirectMessagesOptions extends CreateDirectMessagesStoreOptions {}
+type UseDirectMessagesOptions = CreateDirectMessagesStoreOptions;
 
 interface DirectMessagesStore {
     getState: () => DirectMessagesState;
