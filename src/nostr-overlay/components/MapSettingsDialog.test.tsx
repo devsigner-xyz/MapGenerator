@@ -2,7 +2,7 @@ import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { MapBridge } from '../map-bridge';
-import { MapSettingsModal } from './MapSettingsModal';
+import { MapSettingsDialog } from './MapSettingsDialog';
 import { RELAY_SETTINGS_STORAGE_KEY } from '../../nostr/relay-settings';
 import { UI_SETTINGS_STORAGE_KEY } from '../../nostr/ui-settings';
 import { ZAP_SETTINGS_STORAGE_KEY } from '../../nostr/zap-settings';
@@ -47,7 +47,7 @@ function createBridgeStub(): MapBridge {
         applyOccupancy: vi.fn(),
         setVerifiedBuildingIndexes: vi.fn(),
         setViewportInsetLeft: vi.fn(),
-        setModalBuildingHighlight: vi.fn(),
+        setDialogBuildingHighlight: vi.fn(),
         setStreetLabelsEnabled: vi.fn(),
         setStreetLabelsZoomLevel: vi.fn(),
         setStreetLabelUsernames: vi.fn(),
@@ -86,12 +86,12 @@ afterEach(async () => {
     mounted = [];
 });
 
-describe('MapSettingsModal UI settings', () => {
+describe('MapSettingsDialog UI settings', () => {
     test('shows UI settings section and persists occupied label zoom level', async () => {
         const onUiSettingsChange = vi.fn();
         const bridge = createBridgeStub();
         const rendered = await renderElement(
-            <MapSettingsModal
+            <MapSettingsDialog
                 mapBridge={bridge}
                 initialView="ui"
                 onClose={() => {}}
@@ -182,7 +182,7 @@ describe('MapSettingsModal UI settings', () => {
     test('shows about panel with supported nips and app features', async () => {
         const bridge = createBridgeStub();
         const rendered = await renderElement(
-            <MapSettingsModal
+            <MapSettingsDialog
                 mapBridge={bridge}
                 initialView="about"
                 onClose={() => {}}
@@ -200,7 +200,7 @@ describe('MapSettingsModal UI settings', () => {
     test('opens advanced settings section and mounts MapGenerator settings host', async () => {
         const bridge = createBridgeStub();
         const rendered = await renderElement(
-            <MapSettingsModal
+            <MapSettingsDialog
                 mapBridge={bridge}
                 initialView="advanced"
                 onClose={() => {}}
@@ -220,7 +220,7 @@ describe('MapSettingsModal UI settings', () => {
     test('shows zaps settings from main menu and persists edited amounts', async () => {
         const bridge = createBridgeStub();
         const rendered = await renderElement(
-            <MapSettingsModal
+            <MapSettingsDialog
                 mapBridge={bridge}
                 initialView="zaps"
                 onClose={() => {}}
@@ -264,7 +264,7 @@ describe('MapSettingsModal UI settings', () => {
 
         const bridge = createBridgeStub();
         const rendered = await renderElement(
-            <MapSettingsModal
+            <MapSettingsDialog
                 mapBridge={bridge}
                 initialView="relays"
                 onClose={() => {}}
@@ -313,7 +313,7 @@ describe('MapSettingsModal UI settings', () => {
 
         const bridge = createBridgeStub();
         const rendered = await renderElement(
-            <MapSettingsModal
+            <MapSettingsDialog
                 mapBridge={bridge}
                 initialView="relays"
                 onClose={() => {}}
@@ -321,8 +321,8 @@ describe('MapSettingsModal UI settings', () => {
         );
         mounted.push(rendered);
 
-        const modalContent = rendered.container.querySelector('.nostr-settings-modal-relays');
-        expect(modalContent).toBeDefined();
+        const dialogContent = rendered.container.querySelector('.nostr-settings-dialog-relays');
+        expect(dialogContent).toBeDefined();
 
         expect(rendered.container.textContent || '').toContain('relay.one');
         expect(rendered.container.textContent || '').toContain('wss');
@@ -342,7 +342,7 @@ describe('MapSettingsModal UI settings', () => {
     test('separates relay categories in UI and stores relay additions by type', async () => {
         const bridge = createBridgeStub();
         const rendered = await renderElement(
-            <MapSettingsModal
+            <MapSettingsDialog
                 mapBridge={bridge}
                 initialView="relays"
                 onClose={() => {}}
@@ -396,7 +396,7 @@ describe('MapSettingsModal UI settings', () => {
         expect(parsed.byType?.dmOutbox || []).not.toContain('wss://relay.dm-inbox-only.example');
     });
 
-    test('opens relay details modal from context menu for configured and suggested rows', async () => {
+    test('opens relay details dialog from context menu for configured and suggested rows', async () => {
         window.localStorage.setItem(
             RELAY_SETTINGS_STORAGE_KEY,
             JSON.stringify({ relays: ['wss://relay.one'] })
@@ -404,7 +404,7 @@ describe('MapSettingsModal UI settings', () => {
 
         const bridge = createBridgeStub();
         const rendered = await renderElement(
-            <MapSettingsModal
+            <MapSettingsDialog
                 mapBridge={bridge}
                 initialView="relays"
                 suggestedRelays={['wss://relay.suggested.example']}
@@ -489,7 +489,7 @@ describe('MapSettingsModal UI settings', () => {
         const bridge = createBridgeStub();
         const probeRelayStatus = vi.fn(async (relayUrl: string) => relayUrl === 'wss://relay.general.one');
         const rendered = await renderElement(
-            <MapSettingsModal
+            <MapSettingsDialog
                 mapBridge={bridge}
                 initialView="relays"
                 onClose={() => {}}

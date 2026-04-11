@@ -40,7 +40,7 @@ import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 
-interface MapSettingsModalProps {
+interface MapSettingsDialogProps {
     mapBridge: MapBridge | null;
     suggestedRelays?: string[];
     suggestedRelaysByType?: Partial<RelaySettingsByType>;
@@ -262,7 +262,7 @@ function normalizeRelayInput(value: string): string | null {
     return normalizeRelayUrl(`wss://${trimmed}`);
 }
 
-export function MapSettingsModal({
+export function MapSettingsDialog({
     mapBridge,
     suggestedRelays = EMPTY_RELAYS,
     suggestedRelaysByType,
@@ -273,7 +273,7 @@ export function MapSettingsModal({
     onZapSettingsChange,
     initialView = 'ui',
     onClose,
-}: MapSettingsModalProps) {
+}: MapSettingsDialogProps) {
     const [view, setView] = useState<SettingsView>(initialView);
     const [relaySettings, setRelaySettings] = useState<RelaySettingsState>(() => loadRelaySettings());
     const [uiSettings, setUiSettings] = useState<UiSettingsState>(() => loadUiSettings());
@@ -527,7 +527,7 @@ export function MapSettingsModal({
                 onClose();
             }
         }}>
-            <DialogContent className={`nostr-settings-modal${view === 'relays' || view === 'relay-detail' ? ' nostr-settings-modal-relays' : ''}`} aria-label="Ajustes">
+            <DialogContent className={`nostr-settings-dialog${view === 'relays' || view === 'relay-detail' ? ' nostr-settings-dialog-relays' : ''}`} aria-label="Ajustes">
                 <DialogTitle className="sr-only">Ajustes</DialogTitle>
                 <DialogDescription className="sr-only">Configuracion del overlay del mapa.</DialogDescription>
                 <div className="nostr-settings-header">

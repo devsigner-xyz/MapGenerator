@@ -20,7 +20,7 @@ export interface ChatDetailMessage {
     isUndecryptable?: boolean;
 }
 
-interface ChatModalProps {
+interface ChatDialogProps {
     open: boolean;
     hasUnreadGlobal: boolean;
     isLoadingConversations?: boolean;
@@ -36,7 +36,7 @@ interface ChatModalProps {
     disabledReason?: string;
 }
 
-export function ChatModal({
+export function ChatDialog({
     open,
     hasUnreadGlobal,
     isLoadingConversations = false,
@@ -50,7 +50,7 @@ export function ChatModal({
     composerAutoFocusKey,
     canSend = true,
     disabledReason,
-}: ChatModalProps) {
+}: ChatDialogProps) {
     const activeConversation = activeConversationId
         ? conversations.find((conversation) => conversation.id === activeConversationId)
         : undefined;
@@ -64,16 +64,16 @@ export function ChatModal({
                 }
             }}
         >
-            <DialogContent className="nostr-modal nostr-chat-modal sm:max-w-none" showCloseButton={false} aria-label="Chats">
+            <DialogContent className="nostr-dialog nostr-chat-dialog sm:max-w-none" showCloseButton={false} aria-label="Chats">
                 <DialogTitle className="sr-only">Chats</DialogTitle>
                 <DialogDescription className="sr-only">Mensajería directa 1 a 1.</DialogDescription>
 
-                <div className="nostr-chat-modal-header">
-                    <p className="nostr-chat-modal-title">
+                <div className="nostr-chat-dialog-header">
+                    <p className="nostr-chat-dialog-title">
                         Chats
                         {hasUnreadGlobal ? <span className="nostr-chat-unread-dot" aria-hidden="true" /> : null}
                     </p>
-                    <button type="button" className="nostr-modal-close" onClick={onClose} aria-label="Cerrar chats">
+                    <button type="button" className="nostr-dialog-close" onClick={onClose} aria-label="Cerrar chats">
                         ×
                     </button>
                 </div>

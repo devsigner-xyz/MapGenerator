@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ChatConversationSummary, ChatDetailMessage } from './ChatModal';
+import type { ChatConversationSummary, ChatDetailMessage } from './ChatDialog';
 
 interface ChatConversationDetailProps {
     conversation?: ChatConversationSummary;

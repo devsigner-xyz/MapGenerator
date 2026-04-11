@@ -23,6 +23,7 @@ import {
     relayListFromKind10002Event,
     relaySuggestionsByTypeFromKind10002Event,
 } from '../../nostr/relay-policy';
+import type { SocialNotificationsService } from '../../nostr/social-notifications-service';
 import type { NostrClient, NostrProfile } from '../../nostr/types';
 import { createWriteGateway } from '../../nostr/write-gateway';
 import { createRuntimeDirectMessagesService } from '../../nostr/dm-runtime-service';
@@ -96,6 +97,7 @@ export interface NostrOverlayServices {
     fetchLatestPostsByPubkeyFn?: typeof fetchLatestPostsByPubkey;
     fetchProfileStatsFn?: typeof fetchProfileStats;
     directMessagesService?: DirectMessagesService;
+    socialNotificationsService?: SocialNotificationsService;
 }
 
 interface UseNostrOverlayOptions {
@@ -443,12 +445,12 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         }
 
         if (!hasLoadedOverlayData(state.status) || !state.data.activeProfilePubkey) {
-            mapBridge.setModalBuildingHighlight(undefined);
+            mapBridge.setDialogBuildingHighlight(undefined);
             return;
         }
 
         const highlightedIndex = state.data.activeProfileBuildingIndex ?? state.data.assignments.pubkeyToBuildingIndex[state.data.activeProfilePubkey];
-        mapBridge.setModalBuildingHighlight(highlightedIndex);
+        mapBridge.setDialogBuildingHighlight(highlightedIndex);
     }, [mapBridge, state.status, state.data.activeProfilePubkey, state.data.activeProfileBuildingIndex, state.data.assignments]);
 
     useEffect(() => {
@@ -1016,7 +1018,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 byBuildingIndex: {},
                 selectedBuildingIndex: undefined,
             });
-            mapBridge.setModalBuildingHighlight(undefined);
+            mapBridge.setDialogBuildingHighlight(undefined);
         }
     };
 
@@ -1159,7 +1161,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         }));
     };
 
-    const closeActiveProfileModal = (): void => {
+    const closeActiveProfileDialog = (): void => {
         activeProfileLoadIdRef.current += 1;
         setState((current) => ({
             ...current,
@@ -1315,7 +1317,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         regenerateMap,
         selectFollowing,
         openActiveProfile,
-        closeActiveProfileModal,
+        closeActiveProfileDialog,
         loadMoreActiveProfilePosts,
     };
 }

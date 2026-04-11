@@ -1,7 +1,7 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
-import { EasterEggModal } from './EasterEggModal';
+import { EasterEggDialog } from './EasterEggDialog';
 
 interface RenderResult {
     container: HTMLDivElement;
@@ -24,7 +24,7 @@ afterEach(async () => {
     mounted.length = 0;
 });
 
-async function renderModal(element: ReactElement): Promise<RenderResult> {
+async function renderDialog(element: ReactElement): Promise<RenderResult> {
     const container = document.createElement('div');
     document.body.appendChild(container);
     const root = createRoot(container);
@@ -38,10 +38,10 @@ async function renderModal(element: ReactElement): Promise<RenderResult> {
     return result;
 }
 
-describe('EasterEggModal', () => {
+describe('EasterEggDialog', () => {
     test('renders pdf controls and iframe for bitcoin whitepaper', async () => {
-        const rendered = await renderModal(
-            <EasterEggModal
+        const rendered = await renderDialog(
+            <EasterEggDialog
                 buildingIndex={1}
                 onClose={vi.fn()}
                 entry={{
@@ -63,8 +63,8 @@ describe('EasterEggModal', () => {
     });
 
     test('renders plain text for non-pdf entries', async () => {
-        const rendered = await renderModal(
-            <EasterEggModal
+        const rendered = await renderDialog(
+            <EasterEggDialog
                 buildingIndex={0}
                 onClose={vi.fn()}
                 entry={{

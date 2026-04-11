@@ -1,7 +1,7 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
-import { ChatModal, type ChatConversationSummary, type ChatDetailMessage } from './ChatModal';
+import { ChatDialog, type ChatConversationSummary, type ChatDetailMessage } from './ChatDialog';
 
 interface RenderResult {
     container: HTMLDivElement;
@@ -59,10 +59,10 @@ function buildMessage(overrides: Partial<ChatDetailMessage> = {}): ChatDetailMes
     };
 }
 
-describe('ChatModal', () => {
+describe('ChatDialog', () => {
     test('renders unread red dot and empty state', async () => {
         const rendered = await renderElement(
-            <ChatModal
+            <ChatDialog
                 open
                 hasUnreadGlobal
                 conversations={[]}
@@ -82,7 +82,7 @@ describe('ChatModal', () => {
 
     test('shows loader while bootstrapping conversations', async () => {
         const rendered = await renderElement(
-            <ChatModal
+            <ChatDialog
                 open
                 hasUnreadGlobal={false}
                 isLoadingConversations
@@ -104,7 +104,7 @@ describe('ChatModal', () => {
         const onOpenConversation = vi.fn();
 
         const rendered = await renderElement(
-            <ChatModal
+            <ChatDialog
                 open
                 hasUnreadGlobal={false}
                 conversations={[buildConversation()]}
@@ -130,7 +130,7 @@ describe('ChatModal', () => {
 
     test('shows undecryptable placeholder in detail view', async () => {
         const rendered = await renderElement(
-            <ChatModal
+            <ChatDialog
                 open
                 hasUnreadGlobal={false}
                 conversations={[buildConversation()]}
@@ -149,7 +149,7 @@ describe('ChatModal', () => {
 
     test('opts out of dialog small-screen max-width cap for wide chat layout', async () => {
         const rendered = await renderElement(
-            <ChatModal
+            <ChatDialog
                 open
                 hasUnreadGlobal={false}
                 conversations={[buildConversation()]}
@@ -170,7 +170,7 @@ describe('ChatModal', () => {
 
     test('renders outgoing delivery states in conversation detail', async () => {
         const rendered = await renderElement(
-            <ChatModal
+            <ChatDialog
                 open
                 hasUnreadGlobal={false}
                 conversations={[buildConversation()]}

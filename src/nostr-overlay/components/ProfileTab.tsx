@@ -17,10 +17,7 @@ interface ProfileTabProps {
     ownerProfile?: NostrProfile;
     followsCount: number;
     followersCount: number;
-    followersLoading: boolean;
     authSession?: AuthSessionState;
-    canWrite?: boolean;
-    canEncrypt?: boolean;
     onLocateOwner?: () => void;
     onCopyOwnerNpub?: (value: string) => void | Promise<void>;
     ownerVerification?: Nip05ValidationResult;
@@ -36,10 +33,7 @@ export function ProfileTab({
     ownerProfile,
     followsCount,
     followersCount,
-    followersLoading,
     authSession,
-    canWrite = false,
-    canEncrypt = false,
     onLocateOwner,
     onCopyOwnerNpub,
     ownerVerification,
@@ -202,18 +196,6 @@ export function ProfileTab({
                     <dd>{disconnectedRelays}</dd>
                 </div>
             </dl>
-
-            <p className="nostr-auth-hint" role="status" aria-live="polite">
-                {!authSession
-                    ? 'Inicia sesion para interactuar: seguir, publicar y mensajes privados.'
-                    : authSession.locked
-                        ? 'Sesion bloqueada. Desbloquea para firmar eventos.'
-                        : canWrite
-                            ? canEncrypt
-                                ? 'Listo para interactuar con Nostr: seguir, publicar y mensajes privados.'
-                                : 'Listo para publicar y seguir. Cifrado no disponible en este metodo.'
-                            : 'Modo exploracion activo.'}
-            </p>
         </div>
     );
 }

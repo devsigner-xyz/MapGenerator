@@ -30,7 +30,7 @@ export interface MapMainApi {
     setVerifiedBuildingIndexes?(indexes: number[]): void;
     setViewportInsetLeft(inset: number): void;
     setSelectedBuildingIndex(index?: number): void;
-    setModalHighlightedBuildingIndex(index?: number): void;
+    setDialogHighlightedBuildingIndex(index?: number): void;
     setStreetLabelsEnabled?(enabled: boolean): void;
     setStreetLabelsZoomLevel?(level: number): void;
     setStreetLabelUsernames?(usernames: string[]): void;
@@ -57,7 +57,7 @@ export interface MapBridge {
     applyOccupancy(input: { byBuildingIndex: Record<number, string>; selectedBuildingIndex?: number }): void;
     setViewportInsetLeft(inset: number): void;
     setVerifiedBuildingIndexes(indexes: number[]): void;
-    setModalBuildingHighlight(index?: number): void;
+    setDialogBuildingHighlight(index?: number): void;
     setStreetLabelsEnabled(enabled: boolean): void;
     setStreetLabelsZoomLevel(level: number): void;
     setStreetLabelUsernames(usernames: string[]): void;
@@ -112,8 +112,8 @@ export function createMapBridge(mainApi: MapMainApi): MapBridge {
             mainApi.setVerifiedBuildingIndexes?.(indexes);
         },
 
-        setModalBuildingHighlight(index?: number): void {
-            mainApi.setModalHighlightedBuildingIndex(index);
+        setDialogBuildingHighlight(index?: number): void {
+            mainApi.setDialogHighlightedBuildingIndex(index);
         },
 
         setStreetLabelsEnabled(enabled: boolean): void {

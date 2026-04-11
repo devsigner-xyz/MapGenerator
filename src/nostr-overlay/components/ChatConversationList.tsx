@@ -1,4 +1,4 @@
-import type { ChatConversationSummary } from './ChatModal';
+import type { ChatConversationSummary } from './ChatDialog';
 import { Spinner } from '@/components/ui/spinner';
 
 interface ChatConversationListProps {

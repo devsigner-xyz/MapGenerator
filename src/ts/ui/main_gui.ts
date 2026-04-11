@@ -79,7 +79,7 @@ export default class MainGUI {
     private verifiedBuildingIndexSet = new Set<number>();
     private selectedBuildingIndex: number = null;
     private hoveredBuildingIndex: number = null;
-    private modalHighlightedBuildingIndex: number = null;
+    private dialogHighlightedBuildingIndex: number = null;
     private easterEggByBuildingIndex: Record<number, EasterEggId> = {};
     private readonly easterEggDebugEnabled = import.meta.env.DEV;
     private streetLabelsEnabled = true;
@@ -535,13 +535,13 @@ export default class MainGUI {
         this.redraw = true;
     }
 
-    setModalHighlightedBuildingIndex(index?: number): void {
-        const nextModal = index === undefined || index === null ? null : index;
-        if (this.modalHighlightedBuildingIndex === nextModal) {
+    setDialogHighlightedBuildingIndex(index?: number): void {
+        const nextDialog = index === undefined || index === null ? null : index;
+        if (this.dialogHighlightedBuildingIndex === nextDialog) {
             return;
         }
 
-        this.modalHighlightedBuildingIndex = nextModal;
+        this.dialogHighlightedBuildingIndex = nextDialog;
         this.redraw = true;
     }
 
@@ -663,13 +663,13 @@ export default class MainGUI {
         this.verifiedBuildingIndexSet.clear();
         this.selectedBuildingIndex = null;
         this.hoveredBuildingIndex = null;
-        this.modalHighlightedBuildingIndex = null;
+        this.dialogHighlightedBuildingIndex = null;
         this.redraw = true;
     }
 
     private getBuildingRenderStates(size: number): BuildingRenderState[] {
         return Array.from({ length: size }, (_, index) => {
-            if (this.modalHighlightedBuildingIndex === index) {
+            if (this.dialogHighlightedBuildingIndex === index) {
                 return 'hovered';
             }
 

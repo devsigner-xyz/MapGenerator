@@ -9,6 +9,7 @@ import * as writeGatewayModule from '../nostr/write-gateway';
 import { App } from './App';
 import type { MapBridge } from './map-bridge';
 import type { NostrClient } from '../nostr/types';
+import type { SocialNotificationEvent, SocialNotificationsService } from '../nostr/social-notifications-service';
 
 interface RenderResult {
     container: HTMLDivElement;
@@ -108,7 +109,7 @@ function createMapBridgeStub(buildingsCount = 0): MapBridgeStub {
         setVerifiedBuildingIndexes: vi.fn(),
         setViewportInsetLeft: vi.fn(),
         setZoom: vi.fn(),
-        setModalBuildingHighlight: vi.fn(),
+        setDialogBuildingHighlight: vi.fn(),
         setStreetLabelsEnabled: vi.fn(),
         setStreetLabelsZoomLevel: vi.fn(),
         setStreetLabelUsernames: vi.fn(),
@@ -208,6 +209,26 @@ function createWrappedDmEvent(input: {
         tags: [['p', input.ownerPubkey]],
         content: JSON.stringify(seal),
         sig: '3'.repeat(128),
+    };
+}
+
+function createSocialNotificationsServiceMock() {
+    let listener: ((event: SocialNotificationEvent) => void) | null = null;
+    const service: SocialNotificationsService = {
+        subscribeSocial: vi.fn((_input, onEvent) => {
+            listener = onEvent;
+            return () => {
+                listener = null;
+            };
+        }),
+        loadInitialSocial: vi.fn(async () => []),
+    };
+
+    return {
+        service,
+        emit(event: SocialNotificationEvent) {
+            listener?.(event);
+        },
     };
 }
 
@@ -404,7 +425,7 @@ describe('Nostr overlay App', () => {
         expect(fallback.textContent || '').toContain('OW');
     });
 
-    test('renders city stats icon button before regenerate and opens stats modal', async () => {
+    test('renders city stats icon button before regenerate and opens stats dialog', async () => {
         const { bridge } = createMapBridgeStub();
         const rendered = await renderApp(<App mapBridge={bridge} />);
         mounted.push(rendered);
@@ -437,8 +458,9 @@ describe('Nostr overlay App', () => {
         expect(bridge.regenerateMap).toHaveBeenCalledTimes(1);
     });
 
-    test('renders chat button in panel and compact toolbar and opens chat modal in list view', async () => {
+    test('renders chat button in panel and compact toolbar and opens chat dialog in list view', async () => {
         const ownerPubkey = 'f'.repeat(64);
+        const socialFeed = createSocialNotificationsServiceMock();
         const { bridge } = createMapBridgeStub();
         const rendered = await renderApp(
             <App
@@ -462,6 +484,7 @@ describe('Nostr overlay App', () => {
                         scannedBatches: 1,
                         complete: true,
                     }),
+                    socialNotificationsService: socialFeed.service,
                 }}
             />
         );
@@ -473,6 +496,8 @@ describe('Nostr overlay App', () => {
 
         const panelChatButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir chats"]') as HTMLButtonElement;
         expect(panelChatButton).toBeDefined();
+        const panelNotificationsButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir notificaciones"]');
+        expect(panelNotificationsButton).not.toBeNull();
 
         await act(async () => {
             panelChatButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -488,6 +513,8 @@ describe('Nostr overlay App', () => {
 
         const compactChatButton = rendered.container.querySelector('.nostr-compact-toolbar button[aria-label="Abrir chats"]') as HTMLButtonElement;
         expect(compactChatButton).toBeDefined();
+        const compactNotificationsButton = rendered.container.querySelector('.nostr-compact-toolbar button[aria-label="Abrir notificaciones"]');
+        expect(compactNotificationsButton).not.toBeNull();
     });
 
     test('hides chat entry points when session is not dm-capable', async () => {
@@ -505,7 +532,65 @@ describe('Nostr overlay App', () => {
         expect(rendered.container.querySelector('.nostr-compact-toolbar button[aria-label="Abrir chats"]')).toBeNull();
     });
 
-    test('loads DM modal data without explicit directMessagesService injection', async () => {
+    test('shows unread dot and opens notifications dialog with pending snapshot', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const socialFeed = createSocialNotificationsServiceMock();
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                    socialNotificationsService: socialFeed.service,
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        await loginWithNsec(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        socialFeed.emit({
+            id: 'notif-1',
+            pubkey: 'a'.repeat(64),
+            kind: 7,
+            created_at: 1_700_000_001,
+            tags: [['p', ownerPubkey], ['e', 'b'.repeat(64)]],
+            content: '+',
+        });
+
+        await waitFor(() => rendered.container.querySelector('.nostr-panel-toolbar .nostr-notifications-unread-dot') !== null);
+
+        const button = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir notificaciones"]') as HTMLButtonElement;
+        expect(button).toBeDefined();
+
+        await act(async () => {
+            button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(rendered.container.textContent || '').toContain('Notificaciones');
+        expect(rendered.container.textContent || '').toContain('Reaccion');
+        expect(rendered.container.querySelector('.nostr-panel-toolbar .nostr-notifications-unread-dot')).toBeNull();
+    });
+
+    test('loads DM dialog data without explicit directMessagesService injection', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const peerPubkey = 'a'.repeat(64);
         const dmEvent = createWrappedDmEvent({
@@ -674,7 +759,7 @@ describe('Nostr overlay App', () => {
         }
     });
 
-    test('opens chat modal and shows existing conversations without waiting for new incoming events', async () => {
+    test('opens chat dialog and shows existing conversations without waiting for new incoming events', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const peerPubkey = 'a'.repeat(64);
         const historicalEvent = createWrappedDmEvent({
@@ -828,7 +913,7 @@ describe('Nostr overlay App', () => {
         });
     });
 
-    test('updates chat list when historical bootstrap resolves after modal is already open', async () => {
+    test('updates chat list when historical bootstrap resolves after dialog is already open', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const peerPubkey = 'a'.repeat(64);
         const historicalEvent = createWrappedDmEvent({
@@ -1549,7 +1634,7 @@ describe('Nostr overlay App', () => {
         expect(rendered.container.textContent || '').not.toContain('Read Only');
     });
 
-    test('opens occupant modal and focuses building after occupied building click event', async () => {
+    test('opens occupant dialog and focuses building after occupied building click event', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const followedPubkey = 'a'.repeat(64);
         const { bridge, triggerOccupiedBuildingClick } = createMapBridgeStub();
@@ -1611,7 +1696,7 @@ describe('Nostr overlay App', () => {
         await waitFor(() => (rendered.container.textContent || '').includes('Alice'));
         expect((bridge.focusBuilding as any).mock.calls[0][0]).toBe(4);
         await waitFor(() => {
-            const highlightCalls = (bridge.setModalBuildingHighlight as any).mock.calls;
+            const highlightCalls = (bridge.setDialogBuildingHighlight as any).mock.calls;
             return highlightCalls.length > 0 && highlightCalls[highlightCalls.length - 1][0] === 4;
         });
 
@@ -1623,7 +1708,7 @@ describe('Nostr overlay App', () => {
         });
 
         await waitFor(() => {
-            const latestCalls = (bridge.setModalBuildingHighlight as any).mock.calls;
+            const latestCalls = (bridge.setDialogBuildingHighlight as any).mock.calls;
             return latestCalls.length > 0 && latestCalls[latestCalls.length - 1][0] === undefined;
         });
     });
@@ -1945,7 +2030,7 @@ describe('Nostr overlay App', () => {
         expect(document.body.textContent || '').not.toContain('Enviar mensaje');
     });
 
-    test('closes chat modal after logout from a dm-capable session', async () => {
+    test('closes chat dialog after logout from a dm-capable session', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const followedPubkey = 'a'.repeat(64);
         const { bridge, triggerOccupiedBuildingContextMenu } = createMapBridgeStub();
@@ -2007,10 +2092,10 @@ describe('Nostr overlay App', () => {
 
         await selectSettingsContextAction(rendered.container, 'Cerrar sesión');
         await waitFor(() => !(rendered.container.textContent || '').includes('Chats'));
-        expect(rendered.container.querySelector('.nostr-chat-modal')).toBeNull();
+        expect(rendered.container.querySelector('.nostr-chat-dialog')).toBeNull();
     });
 
-    test('opens easter egg modal with embedded pdf actions', async () => {
+    test('opens easter egg dialog with embedded pdf actions', async () => {
         const { bridge, triggerEasterEggBuildingClick } = createMapBridgeStub();
         const rendered = await renderApp(<App mapBridge={bridge} />);
         mounted.push(rendered);
@@ -2035,7 +2120,7 @@ describe('Nostr overlay App', () => {
         expect(links.some((link) => (link.textContent || '').includes('Abrir / Ampliar'))).toBe(true);
     });
 
-    test('opens easter egg modal for text content', async () => {
+    test('opens easter egg dialog for text content', async () => {
         const { bridge, triggerEasterEggBuildingClick } = createMapBridgeStub();
         const rendered = await renderApp(<App mapBridge={bridge} />);
         mounted.push(rendered);
@@ -2051,7 +2136,7 @@ describe('Nostr overlay App', () => {
         expect(rendered.container.textContent || '').toContain('Governments of the Industrial World');
     });
 
-    test('opens settings modal, mounts map settings from advanced section and shows shortcuts screen', async () => {
+    test('opens settings dialog, mounts map settings from advanced section and shows shortcuts screen', async () => {
         const { bridge } = createMapBridgeStub();
         const rendered = await renderApp(<App mapBridge={bridge} />);
         mounted.push(rendered);
@@ -2443,15 +2528,15 @@ describe('Nostr overlay App', () => {
             });
 
             await waitFor(() => (rendered.container.textContent || '').includes('alice@alice.test'));
-            const modalBadge = rendered.container.querySelector('[aria-label="NIP-05 verificado por DNS: alice@alice.test"]') as HTMLElement;
-            expect(modalBadge).toBeDefined();
-            expect(modalBadge.getAttribute('title')).toBe('NIP-05 verificado por DNS: alice@alice.test');
+            const dialogBadge = rendered.container.querySelector('[aria-label="NIP-05 verificado por DNS: alice@alice.test"]') as HTMLElement;
+            expect(dialogBadge).toBeDefined();
+            expect(dialogBadge.getAttribute('title')).toBe('NIP-05 verificado por DNS: alice@alice.test');
         } finally {
             (globalThis as any).fetch = originalFetch;
         }
     });
 
-    test('loads active profile stats and latest posts when occupant modal opens', async () => {
+    test('loads active profile stats and latest posts when occupant dialog opens', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const followedPubkey = 'a'.repeat(64);
         const { bridge, triggerOccupiedBuildingClick } = createMapBridgeStub();

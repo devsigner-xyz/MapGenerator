@@ -263,8 +263,8 @@ class Main {
         }
     }
 
-    setModalHighlightedBuildingIndex(index?: number): void {
-        this.mainGui.setModalHighlightedBuildingIndex(index);
+    setDialogHighlightedBuildingIndex(index?: number): void {
+        this.mainGui.setDialogHighlightedBuildingIndex(index);
     }
 
     mountSettingsPanel(container: HTMLElement | null): void {

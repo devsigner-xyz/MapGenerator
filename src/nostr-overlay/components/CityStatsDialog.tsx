@@ -13,7 +13,7 @@ import { buildCityStats } from '../domain/city-stats';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 
-interface CityStatsModalProps {
+interface CityStatsDialogProps {
     buildingsCount: number;
     occupiedBuildingsCount: number;
     assignedResidentsCount: number;
@@ -28,7 +28,7 @@ function formatPercent(value: number): string {
     return `${value.toFixed(1)}%`;
 }
 
-export function CityStatsModal({
+export function CityStatsDialog({
     buildingsCount,
     occupiedBuildingsCount,
     assignedResidentsCount,
@@ -37,7 +37,7 @@ export function CityStatsModal({
     parkCount,
     unhousedResidentsCount,
     onClose,
-}: CityStatsModalProps) {
+}: CityStatsDialogProps) {
     const stats = buildCityStats({
         buildingsCount,
         occupiedBuildingsCount,
@@ -69,10 +69,10 @@ export function CityStatsModal({
                 onClose();
             }
         }}>
-            <DialogContent className="nostr-modal nostr-city-stats-modal" showCloseButton={false} aria-label="Estadisticas de la ciudad">
+            <DialogContent className="nostr-dialog nostr-city-stats-dialog" showCloseButton={false} aria-label="Estadisticas de la ciudad">
                 <DialogTitle className="sr-only">Estadisticas de la ciudad</DialogTitle>
                 <DialogDescription className="sr-only">Indicadores de vivienda, poblacion y red del mapa actual.</DialogDescription>
-                <Button type="button" variant="ghost" className="nostr-modal-close" onClick={onClose} aria-label="Cerrar estadisticas de la ciudad">
+                <Button type="button" variant="ghost" className="nostr-dialog-close" onClick={onClose} aria-label="Cerrar estadisticas de la ciudad">
                     ×
                 </Button>
 

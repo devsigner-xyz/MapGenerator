@@ -3,20 +3,24 @@ import { loadUiSettings, type UiSettingsState } from '../nostr/ui-settings';
 import { loadZapSettings, type ZapSettingsState } from '../nostr/zap-settings';
 import { encodeHexToNpub } from '../nostr/npub';
 import { MapPresenceLayer } from './components/MapPresenceLayer';
-import { MapSettingsModal, type SettingsView } from './components/MapSettingsModal';
-import { OccupantProfileModal } from './components/OccupantProfileModal';
-import { EasterEggModal } from './components/EasterEggModal';
+import { MapSettingsDialog, type SettingsView } from './components/MapSettingsDialog';
+import { OccupantProfileDialog } from './components/OccupantProfileDialog';
+import { EasterEggDialog } from './components/EasterEggDialog';
 import { SocialSidebar } from './components/SocialSidebar';
 import { MapZoomControls } from './components/MapZoomControls';
-import { CityStatsModal } from './components/CityStatsModal';
+import { CityStatsDialog } from './components/CityStatsDialog';
 import { ChatIconButton } from './components/ChatIconButton';
-import { ChatModal, type ChatConversationSummary, type ChatDetailMessage } from './components/ChatModal';
+import { ChatDialog, type ChatConversationSummary, type ChatDetailMessage } from './components/ChatDialog';
+import { NotificationsIconButton } from './components/NotificationsIconButton';
+import { NotificationsDialog } from './components/NotificationsDialog';
 import { PersonContextMenuItems } from './components/PersonContextMenuItems';
 import { useNostrOverlay, type MapLoaderStage, type NostrOverlayServices } from './hooks/useNostrOverlay';
 import { useNip05Verification } from './hooks/useNip05Verification';
+import { useSocialNotifications } from './hooks/useSocialNotifications';
 import type { EasterEggBuildingClickPayload, MapBridge, OccupiedBuildingContextPayload } from './map-bridge';
 import { extractStreetLabelUsernames } from './domain/street-label-users';
 import { getEasterEggEntry } from './easter-eggs/catalog';
+import { createRuntimeSocialNotificationsService } from '../nostr/social-notifications-runtime-service';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
@@ -41,7 +45,7 @@ interface OccupiedBuildingContextMenuState extends OccupiedBuildingContextPayloa
     nonce: number;
 }
 
-interface EasterEggModalState extends EasterEggBuildingClickPayload {
+interface EasterEggDialogState extends EasterEggBuildingClickPayload {
     nonce: number;
 }
 
@@ -63,14 +67,14 @@ function mapLoaderStageLabel(stage: MapLoaderStage | null): string | null {
 
 export function App({ mapBridge, services }: AppProps) {
     const overlay = useNostrOverlay({ mapBridge, services });
-    const [settingsOpen, setSettingsOpen] = useState(false);
+    const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
     const [settingsInitialView, setSettingsInitialView] = useState<SettingsView>('ui');
-    const [cityStatsOpen, setCityStatsOpen] = useState(false);
+    const [cityStatsDialogOpen, setCityStatsDialogOpen] = useState(false);
     const [panelCollapsed, setPanelCollapsed] = useState(false);
     const [uiSettings, setUiSettings] = useState<UiSettingsState>(() => loadUiSettings());
     const [zapSettings, setZapSettings] = useState<ZapSettingsState>(() => loadZapSettings());
     const [buildingContextMenu, setBuildingContextMenu] = useState<OccupiedBuildingContextMenuState | null>(null);
-    const [activeEasterEgg, setActiveEasterEgg] = useState<EasterEggModalState | null>(null);
+    const [activeEasterEgg, setActiveEasterEgg] = useState<EasterEggDialogState | null>(null);
     const [chatOpen, setChatOpen] = useState(false);
     const [chatComposerFocusKey, setChatComposerFocusKey] = useState('');
     const [chatStateVersion, setChatStateVersion] = useState(0);
@@ -262,6 +266,15 @@ export function App({ mapBridge, services }: AppProps) {
     };
 
     const chatState = overlay.directMessages?.getState();
+    const socialNotificationsService = useMemo(
+        () => services?.socialNotificationsService ?? createRuntimeSocialNotificationsService(),
+        [services?.socialNotificationsService]
+    );
+    const socialNotifications = useSocialNotifications({
+        ownerPubkey: overlay.ownerPubkey,
+        service: socialNotificationsService,
+    });
+    const socialState = socialNotifications.getState();
 
     useEffect(() => {
         if (!overlay.directMessages) {
@@ -349,6 +362,7 @@ export function App({ mapBridge, services }: AppProps) {
     }, [chatStateVersion, chatState, chatActiveConversationId]);
 
     const canAccessDirectMessages = Boolean(overlay.ownerPubkey && overlay.canDirectMessages && overlay.directMessages);
+    const canAccessSocialNotifications = Boolean(overlay.ownerPubkey);
     const canSendChatMessages = canAccessDirectMessages;
 
     useEffect(() => {
@@ -444,9 +458,21 @@ export function App({ mapBridge, services }: AppProps) {
         setChatOpen(false);
     };
 
-    const openSettingsModal = (view: SettingsView = 'ui'): void => {
+    const openNotifications = (): void => {
+        if (!canAccessSocialNotifications) {
+            return;
+        }
+
+        socialNotifications.openDialog();
+    };
+
+    const closeNotifications = (): void => {
+        socialNotifications.closeDialog();
+    };
+
+    const openSettingsDialog = (view: SettingsView = 'ui'): void => {
         setSettingsInitialView(view);
-        setSettingsOpen(true);
+        setSettingsDialogOpen(true);
     };
 
     const openSettingsContextMenu = (event: ReactMouseEvent<HTMLButtonElement>): void => {
@@ -462,12 +488,12 @@ export function App({ mapBridge, services }: AppProps) {
 
     const renderSettingsContextMenu = () => (
         <ContextMenuContent className="w-52">
-            <ContextMenuItem onSelect={() => openSettingsModal('ui')}>UI</ContextMenuItem>
-            <ContextMenuItem onSelect={() => openSettingsModal('shortcuts')}>Shortcuts</ContextMenuItem>
-            <ContextMenuItem onSelect={() => openSettingsModal('relays')}>Relays</ContextMenuItem>
-            <ContextMenuItem onSelect={() => openSettingsModal('zaps')}>Zaps</ContextMenuItem>
-            <ContextMenuItem onSelect={() => openSettingsModal('about')}>About</ContextMenuItem>
-            <ContextMenuItem onSelect={() => openSettingsModal('advanced')}>Advanced settings</ContextMenuItem>
+            <ContextMenuItem onSelect={() => openSettingsDialog('ui')}>UI</ContextMenuItem>
+            <ContextMenuItem onSelect={() => openSettingsDialog('shortcuts')}>Shortcuts</ContextMenuItem>
+            <ContextMenuItem onSelect={() => openSettingsDialog('relays')}>Relays</ContextMenuItem>
+            <ContextMenuItem onSelect={() => openSettingsDialog('zaps')}>Zaps</ContextMenuItem>
+            <ContextMenuItem onSelect={() => openSettingsDialog('about')}>About</ContextMenuItem>
+            <ContextMenuItem onSelect={() => openSettingsDialog('advanced')}>Advanced settings</ContextMenuItem>
             {overlay.authSession ? (
                 <>
                     <ContextMenuSeparator />
@@ -475,7 +501,7 @@ export function App({ mapBridge, services }: AppProps) {
                         variant="destructive"
                         onSelect={() => {
                             void overlay.logoutSession?.();
-                            setSettingsOpen(false);
+                            setSettingsDialogOpen(false);
                             setSettingsInitialView('ui');
                         }}
                     >
@@ -535,6 +561,10 @@ export function App({ mapBridge, services }: AppProps) {
                         <ChatIconButton hasUnread={chatState?.hasUnreadGlobal ?? false} onClick={openChatList} />
                     ) : null}
 
+                    {canAccessSocialNotifications ? (
+                        <NotificationsIconButton hasUnread={socialState.hasUnread} onClick={openNotifications} />
+                    ) : null}
+
                     <Button
                         type="button"
                         variant="outline"
@@ -560,7 +590,7 @@ export function App({ mapBridge, services }: AppProps) {
                         className="nostr-settings-button"
                         aria-label="Abrir estadisticas de la ciudad"
                         title="City stats"
-                        onClick={() => setCityStatsOpen(true)}
+                        onClick={() => setCityStatsDialogOpen(true)}
                     >
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                             <path d="M5 20h14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -585,7 +615,7 @@ export function App({ mapBridge, services }: AppProps) {
                                 className="nostr-settings-button"
                                 aria-label="Abrir estadisticas de la ciudad"
                                 title="City stats"
-                                onClick={() => setCityStatsOpen(true)}
+                                onClick={() => setCityStatsDialogOpen(true)}
                             >
                                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                                     <path d="M5 20h14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -597,6 +627,10 @@ export function App({ mapBridge, services }: AppProps) {
 
                             {canAccessDirectMessages ? (
                                 <ChatIconButton hasUnread={chatState?.hasUnreadGlobal ?? false} onClick={openChatList} />
+                            ) : null}
+
+                            {canAccessSocialNotifications ? (
+                                <NotificationsIconButton hasUnread={socialState.hasUnread} onClick={openNotifications} />
                             ) : null}
 
                             <Button
@@ -666,7 +700,7 @@ export function App({ mapBridge, services }: AppProps) {
                         onMessagePerson={canAccessDirectMessages ? openDmFromContextMenu : undefined}
                         onViewPersonDetails={(pubkey) => overlay.openActiveProfile(pubkey)}
                         zapAmounts={zapSettings.amounts}
-                        onConfigureZapAmounts={() => openSettingsModal('zaps')}
+                        onConfigureZapAmounts={() => openSettingsDialog('zaps')}
                         onLocateOwner={locateOwnerOnMap}
                         onCopyOwnerNpub={copyOwnerIdentifier}
                         loginDisabled={loginDisabled}
@@ -723,7 +757,7 @@ export function App({ mapBridge, services }: AppProps) {
                                         data-testid="context-zap-configure"
                                         onSelect={() => {
                                             closeOccupiedContextMenu();
-                                            openSettingsModal('zaps');
+                                            openSettingsDialog('zaps');
                                         }}
                                     >
                                         Configurar cantidades
@@ -746,7 +780,7 @@ export function App({ mapBridge, services }: AppProps) {
 
             <Toaster richColors position="bottom-center" closeButton={false} />
 
-            <ChatModal
+            <ChatDialog
                 open={chatOpen}
                 hasUnreadGlobal={chatState?.hasUnreadGlobal ?? false}
                 isLoadingConversations={chatState?.isBootstrapping ?? false}
@@ -775,8 +809,15 @@ export function App({ mapBridge, services }: AppProps) {
                 }}
             />
 
-            {settingsOpen ? (
-                <MapSettingsModal
+            <NotificationsDialog
+                open={socialState.isDialogOpen}
+                hasUnread={socialState.hasUnread}
+                notifications={socialState.pendingSnapshot}
+                onClose={closeNotifications}
+            />
+
+            {settingsDialogOpen ? (
+                <MapSettingsDialog
                     mapBridge={mapBridge}
                     suggestedRelays={overlay.suggestedRelays}
                     suggestedRelaysByType={overlay.suggestedRelaysByType}
@@ -785,14 +826,14 @@ export function App({ mapBridge, services }: AppProps) {
                     onZapSettingsChange={setZapSettings}
                     initialView={settingsInitialView}
                     onClose={() => {
-                        setSettingsOpen(false);
+                        setSettingsDialogOpen(false);
                         setSettingsInitialView('ui');
                     }}
                 />
             ) : null}
 
-            {cityStatsOpen ? (
-                <CityStatsModal
+            {cityStatsDialogOpen ? (
+                <CityStatsDialog
                     buildingsCount={overlay.buildingsCount}
                     occupiedBuildingsCount={overlay.assignedCount}
                     assignedResidentsCount={overlay.assignedCount}
@@ -800,7 +841,7 @@ export function App({ mapBridge, services }: AppProps) {
                     followersCount={overlay.followersCount}
                     parkCount={overlay.parkCount}
                     unhousedResidentsCount={overlay.unassignedCount}
-                    onClose={() => setCityStatsOpen(false)}
+                    onClose={() => setCityStatsDialogOpen(false)}
                 />
             ) : null}
 
@@ -816,7 +857,7 @@ export function App({ mapBridge, services }: AppProps) {
             />
 
             {overlay.activeProfilePubkey ? (
-                <OccupantProfileModal
+                <OccupantProfileDialog
                     pubkey={overlay.activeProfilePubkey}
                     profile={overlay.activeProfile}
                     followsCount={overlay.activeProfileFollowsCount}
@@ -834,12 +875,12 @@ export function App({ mapBridge, services }: AppProps) {
                     networkError={overlay.activeProfileNetworkError}
                     verification={verificationByPubkey[overlay.activeProfilePubkey]}
                     onLoadMorePosts={overlay.loadMoreActiveProfilePosts}
-                    onClose={overlay.closeActiveProfileModal}
+                    onClose={overlay.closeActiveProfileDialog}
                 />
             ) : null}
 
             {activeEasterEgg ? (
-                <EasterEggModal
+                <EasterEggDialog
                     key={activeEasterEgg.nonce}
                     buildingIndex={activeEasterEgg.buildingIndex}
                     entry={getEasterEggEntry(activeEasterEgg.easterEggId)}

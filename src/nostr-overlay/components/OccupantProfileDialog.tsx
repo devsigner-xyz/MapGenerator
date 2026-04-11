@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
 
-interface OccupantProfileModalProps {
+interface OccupantProfileDialogProps {
     pubkey: string;
     profile?: NostrProfile;
     followsCount: number;
@@ -37,7 +37,7 @@ function resolveName(pubkey: string, profile?: NostrProfile): string {
 const NETWORK_PAGE_SIZE = 20;
 const NETWORK_LOAD_DELAY_MS = 120;
 
-export function OccupantProfileModal({
+export function OccupantProfileDialog({
     pubkey,
     profile,
     followsCount,
@@ -56,7 +56,7 @@ export function OccupantProfileModal({
     verification,
     onLoadMorePosts,
     onClose,
-}: OccupantProfileModalProps) {
+}: OccupantProfileDialogProps) {
     const followsTimerRef = useRef<number | null>(null);
     const followersTimerRef = useRef<number | null>(null);
     const [visibleFollowsCount, setVisibleFollowsCount] = useState(() => Math.min(NETWORK_PAGE_SIZE, follows.length));
@@ -158,29 +158,29 @@ export function OccupantProfileModal({
                 onClose();
             }
         }}>
-            <DialogContent className="nostr-modal nostr-profile-modal" showCloseButton={false} aria-label="Perfil del ocupante">
+            <DialogContent className="nostr-dialog nostr-profile-dialog" showCloseButton={false} aria-label="Perfil del ocupante">
                 <DialogTitle className="sr-only">Perfil del ocupante</DialogTitle>
                 <DialogDescription className="sr-only">Datos de red social y publicaciones del ocupante.</DialogDescription>
-                <Button type="button" variant="ghost" className="nostr-modal-close" onClick={onClose} aria-label="Cerrar perfil">
+                <Button type="button" variant="ghost" className="nostr-dialog-close" onClick={onClose} aria-label="Cerrar perfil">
                     ×
                 </Button>
 
-                <div className="nostr-profile-modal-body" onScroll={handleScroll}>
-                    <div className="nostr-modal-header">
+                <div className="nostr-profile-dialog-body" onScroll={handleScroll}>
+                    <div className="nostr-dialog-header">
                         {profile?.picture ? (
-                            <img className="nostr-modal-avatar" src={profile.picture} alt="Avatar del ocupante" />
+                            <img className="nostr-dialog-avatar" src={profile.picture} alt="Avatar del ocupante" />
                         ) : (
-                            <div className="nostr-modal-avatar nostr-modal-avatar-fallback" aria-hidden="true">
+                            <div className="nostr-dialog-avatar nostr-dialog-avatar-fallback" aria-hidden="true">
                                 {resolveName(pubkey, profile).slice(0, 2).toUpperCase()}
                             </div>
                         )}
 
                         <div>
-                            <p className="nostr-modal-name nostr-identity-row">
+                            <p className="nostr-dialog-name nostr-identity-row">
                                 <span className="truncate">{resolveName(pubkey, profile)}</span>
                                 <Nip05Identifier profile={profile} verification={verification} />
                             </p>
-                            <p className="nostr-modal-pubkey">{npubLabel}</p>
+                            <p className="nostr-dialog-pubkey">{npubLabel}</p>
                         </div>
                     </div>
 

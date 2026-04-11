@@ -2,13 +2,13 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import type { EasterEggEntry } from '../easter-eggs/catalog';
 
-interface EasterEggModalProps {
+interface EasterEggDialogProps {
     entry: EasterEggEntry;
     buildingIndex: number;
     onClose: () => void;
 }
 
-export function EasterEggModal({ entry, buildingIndex, onClose }: EasterEggModalProps) {
+export function EasterEggDialog({ entry, buildingIndex, onClose }: EasterEggDialogProps) {
     return (
         <Dialog open onOpenChange={(open) => {
             if (!open) {
@@ -16,7 +16,7 @@ export function EasterEggModal({ entry, buildingIndex, onClose }: EasterEggModal
             }
         }}>
             <DialogContent
-                className="nostr-modal nostr-easter-egg-modal"
+                className="nostr-dialog nostr-easter-egg-dialog"
                 showCloseButton={false}
                 aria-label={`Easter egg ${entry.title}`}
             >
@@ -28,7 +28,7 @@ export function EasterEggModal({ entry, buildingIndex, onClose }: EasterEggModal
                 <Button
                     type="button"
                     variant="ghost"
-                    className="nostr-modal-close"
+                    className="nostr-dialog-close"
                     onClick={onClose}
                     aria-label="Cerrar easter egg"
                 >

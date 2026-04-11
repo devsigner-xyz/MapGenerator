@@ -10,7 +10,7 @@ function createMainApiStub(overrides: Partial<MapMainApi> = {}): MapMainApi {
         setVerifiedBuildingIndexes: vi.fn(),
         setViewportInsetLeft: vi.fn(),
         setSelectedBuildingIndex: vi.fn(),
-        setModalHighlightedBuildingIndex: vi.fn(),
+        setDialogHighlightedBuildingIndex: vi.fn(),
         setStreetLabelsEnabled: vi.fn(),
         setStreetLabelsZoomLevel: vi.fn(),
         setStreetLabelUsernames: vi.fn(),
@@ -91,15 +91,15 @@ describe('createMapBridge', () => {
         expect(api.focusBuilding).toHaveBeenCalledWith(3);
     });
 
-    test('setModalBuildingHighlight delegates building index to map api', () => {
+    test('setDialogBuildingHighlight delegates building index to map api', () => {
         const api = createMainApiStub();
         const bridge = createMapBridge(api);
 
-        bridge.setModalBuildingHighlight(6);
-        bridge.setModalBuildingHighlight(undefined);
+        bridge.setDialogBuildingHighlight(6);
+        bridge.setDialogBuildingHighlight(undefined);
 
-        expect(api.setModalHighlightedBuildingIndex).toHaveBeenNthCalledWith(1, 6);
-        expect(api.setModalHighlightedBuildingIndex).toHaveBeenNthCalledWith(2, undefined);
+        expect(api.setDialogHighlightedBuildingIndex).toHaveBeenNthCalledWith(1, 6);
+        expect(api.setDialogHighlightedBuildingIndex).toHaveBeenNthCalledWith(2, undefined);
     });
 
     test('setViewportInsetLeft delegates inset value to map api', () => {
