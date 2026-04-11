@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { relayListFromKind10002Event } from './relay-policy';
+import { relayListFromKind10002Event, relaySuggestionsByTypeFromKind10002Event } from './relay-policy';
 import type { NostrEvent } from './types';
 
 describe('relayListFromKind10002Event', () => {
@@ -33,5 +33,26 @@ describe('relayListFromKind10002Event', () => {
 
         expect(relayListFromKind10002Event(event)).toEqual([]);
         expect(relayListFromKind10002Event(null)).toEqual([]);
+    });
+
+    test('classifies suggested relays by read/write marker', () => {
+        const event: NostrEvent = {
+            id: 'evt3',
+            pubkey: 'f'.repeat(64),
+            kind: 10002,
+            created_at: 100,
+            tags: [
+                ['r', 'wss://relay.read.example', 'read'],
+                ['r', 'wss://relay.write.example', 'write'],
+                ['r', 'wss://relay.both.example'],
+            ],
+            content: '',
+        };
+
+        expect(relaySuggestionsByTypeFromKind10002Event(event)).toEqual({
+            general: ['wss://relay.read.example', 'wss://relay.write.example', 'wss://relay.both.example'],
+            dmInbox: ['wss://relay.read.example', 'wss://relay.both.example'],
+            dmOutbox: ['wss://relay.write.example', 'wss://relay.both.example'],
+        });
     });
 });

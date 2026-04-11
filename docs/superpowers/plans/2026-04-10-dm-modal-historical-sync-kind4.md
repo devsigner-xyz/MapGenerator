@@ -32,7 +32,7 @@
 - Modify: `src/nostr-overlay/App.test.tsx`
 - Test: `src/nostr-overlay/App.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 test('loads DM modal data without explicit directMessagesService injection', async () => {
@@ -41,12 +41,12 @@ test('loads DM modal data without explicit directMessagesService injection', asy
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm vitest run src/nostr-overlay/App.test.tsx -t "loads DM modal data without explicit directMessagesService injection"`
 Expected: FAIL because runtime path still resolves to NOOP DM service.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 ```ts
 // In useNostrOverlay.ts
@@ -54,12 +54,12 @@ const directMessagesService =
   services?.directMessagesService ?? createRuntimeDirectMessagesService(...)
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pnpm vitest run src/nostr-overlay/App.test.tsx -t "loads DM modal data without explicit directMessagesService injection"`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Deferred by repo/session rule: single final commit only.
 
@@ -71,7 +71,7 @@ Deferred by repo/session rule: single final commit only.
 - Optional Modify: `src/nostr-overlay/bootstrap.tsx`
 - Test: `src/nostr-overlay/App.test.tsx`
 
-- [ ] **Step 1: Write the failing test for factory behavior**
+- [x] **Step 1: Write the failing test for factory behavior**
 
 ```ts
 test('runtime DM factory wires subscribe/send against dm-service', async () => {
@@ -79,12 +79,12 @@ test('runtime DM factory wires subscribe/send against dm-service', async () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm vitest run src/nostr-overlay/App.test.tsx -t "runtime DM factory wires subscribe/send against dm-service"`
 Expected: FAIL because factory module does not exist.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 ```ts
 // dm-runtime-service.ts
@@ -93,12 +93,12 @@ export function createRuntimeDirectMessagesService(deps): DirectMessagesService 
 }
 ```
 
-- [ ] **Step 4: Run tests to verify pass**
+- [x] **Step 4: Run tests to verify pass**
 
 Run: `pnpm vitest run src/nostr-overlay/App.test.tsx`
 Expected: PASS on updated runtime wiring tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Deferred by repo/session rule: single final commit only.
 
@@ -112,7 +112,7 @@ Deferred by repo/session rule: single final commit only.
 - Modify: `src/nostr-overlay/hooks/useDirectMessages.test.ts`
 - Test: `src/nostr-overlay/hooks/useDirectMessages.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 test('start hydrates conversations from initial backfill before live inbox events', async () => {
@@ -121,12 +121,12 @@ test('start hydrates conversations from initial backfill before live inbox event
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm vitest run src/nostr-overlay/hooks/useDirectMessages.test.ts -t "start hydrates conversations from initial backfill before live inbox events"`
 Expected: FAIL because DirectMessagesService has no bootstrap method in store flow.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 ```ts
 export interface DirectMessagesService {
@@ -138,12 +138,12 @@ export interface DirectMessagesService {
 // store.start(): await loadInitialConversations -> ingest -> then subscribe
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pnpm vitest run src/nostr-overlay/hooks/useDirectMessages.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Deferred by repo/session rule: single final commit only.
 
@@ -154,31 +154,31 @@ Deferred by repo/session rule: single final commit only.
 - Modify: `src/nostr-overlay/hooks/useDirectMessages.test.ts`
 - Test: `src/nostr-overlay/hooks/useDirectMessages.test.ts`
 
-- [ ] **Step 1: Write failing regression tests**
+- [x] **Step 1: Write failing regression tests**
 
 ```ts
 test('does not duplicate messages when bootstrap and live stream contain same id', ...)
 test('computes unread correctly after bootstrap ingest', ...)
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pnpm vitest run src/nostr-overlay/hooks/useDirectMessages.test.ts -t "bootstrap"`
 Expected: FAIL on dedupe/unread assertions.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 ```ts
 // reuse existing ingestMessage path for both bootstrap/live
 // ensure compare + message id dedupe remains single source of truth
 ```
 
-- [ ] **Step 4: Run tests to verify pass**
+- [x] **Step 4: Run tests to verify pass**
 
 Run: `pnpm vitest run src/nostr-overlay/hooks/useDirectMessages.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Deferred by repo/session rule: single final commit only.
 
@@ -192,19 +192,19 @@ Deferred by repo/session rule: single final commit only.
 - Modify: `src/nostr/dm-service.test.ts`
 - Test: `src/nostr/dm-service.test.ts`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 test('fetches historical messages across all peers from kind 1059 inbox + outgoing', ...)
 test('derives conversationId from event payload for each peer', ...)
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pnpm vitest run src/nostr/dm-service.test.ts -t "across all peers"`
 Expected: FAIL because only peer-targeted backfill exists.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 ```ts
 // dm-service.ts
@@ -213,12 +213,12 @@ async function fetchGlobalBackfill(input): Promise<DmMessage[]> {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify pass**
+- [x] **Step 4: Run tests to verify pass**
 
 Run: `pnpm vitest run src/nostr/dm-service.test.ts`
 Expected: PASS including new global backfill tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Deferred by repo/session rule: single final commit only.
 
@@ -233,7 +233,7 @@ Deferred by repo/session rule: single final commit only.
 - Optional Modify: `src/nostr/write-gateway.test.ts`
 - Test: `src/nostr/dm-service.test.ts`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 test('parses incoming/outgoing legacy kind4 messages into DmMessage shape', ...)
@@ -241,12 +241,12 @@ test('uses nip04 decrypt path for kind4 events', ...)
 test('keeps undecryptable legacy messages as placeholder entries', ...)
 ```
 
-- [ ] **Step 2: Run tests to verify fail**
+- [x] **Step 2: Run tests to verify fail**
 
 Run: `pnpm vitest run src/nostr/dm-service.test.ts -t "kind4"`
 Expected: FAIL because current parse path is 1059-only.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 ```ts
 // dm-service.ts
@@ -257,12 +257,12 @@ if (event.kind === 4) {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify pass**
+- [x] **Step 4: Run tests to verify pass**
 
 Run: `pnpm vitest run src/nostr/dm-service.test.ts src/nostr/write-gateway.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Deferred by repo/session rule: single final commit only.
 
@@ -277,29 +277,29 @@ Deferred by repo/session rule: single final commit only.
 - Optional Modify: `src/nostr-overlay/components/ChatModal.test.tsx`
 - Test: `src/nostr-overlay/App.test.tsx`
 
-- [ ] **Step 1: Write the failing integration test**
+- [x] **Step 1: Write the failing integration test**
 
 ```ts
 test('opens chat modal and shows existing conversations without waiting for new incoming events', ...)
 ```
 
-- [ ] **Step 2: Run test to verify fail**
+- [x] **Step 2: Run test to verify fail**
 
 Run: `pnpm vitest run src/nostr-overlay/App.test.tsx -t "shows existing conversations"`
 Expected: FAIL before full integration.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 ```ts
 // wire UI to hydrated directMessages state from bootstrap + live stream
 ```
 
-- [ ] **Step 4: Run test to verify pass**
+- [x] **Step 4: Run test to verify pass**
 
 Run: `pnpm vitest run src/nostr-overlay/App.test.tsx`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Deferred by repo/session rule: single final commit only.
 
@@ -308,22 +308,22 @@ Deferred by repo/session rule: single final commit only.
 **Files:**
 - Modify: `docs/superpowers/plans/2026-04-10-dm-modal-historical-sync-kind4.md` (checkbox updates)
 
-- [ ] **Step 1: Run focused DM suite**
+- [x] **Step 1: Run focused DM suite**
 
 Run: `pnpm vitest run src/nostr/dm-service.test.ts src/nostr/write-gateway.test.ts src/nostr-overlay/hooks/useDirectMessages.test.ts src/nostr-overlay/App.test.tsx`
 Expected: PASS.
 
-- [ ] **Step 2: Run domain suite**
+- [x] **Step 2: Run domain suite**
 
 Run: `pnpm vitest run src/nostr src/nostr-overlay`
 Expected: PASS.
 
-- [ ] **Step 3: Run static checks**
+- [x] **Step 3: Run static checks**
 
 Run: `pnpm typecheck`
 Expected: no TypeScript errors.
 
-- [ ] **Step 4: Run build**
+- [x] **Step 4: Run build**
 
 Run: `pnpm build`
 Expected: successful build.

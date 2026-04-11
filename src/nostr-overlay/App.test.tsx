@@ -4,6 +4,8 @@ import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vi
 import { RELAY_SETTINGS_STORAGE_KEY } from '../nostr/relay-settings';
 import { UI_SETTINGS_STORAGE_KEY } from '../nostr/ui-settings';
 import { encodeHexToNpub } from '../nostr/npub';
+import * as ndkClientModule from '../nostr/ndk-client';
+import * as writeGatewayModule from '../nostr/write-gateway';
 import { App } from './App';
 import type { MapBridge } from './map-bridge';
 import type { NostrClient } from '../nostr/types';
@@ -122,6 +124,52 @@ function createMapBridgeStub(buildingsCount = 0): MapBridgeStub {
     };
 }
 
+function createWrappedDmEvent(input: {
+    ownerPubkey: string;
+    rumorPubkey: string;
+    rumorRecipient: string;
+    rumorContent: string;
+    rumorCreatedAt: number;
+}): {
+    id: string;
+    pubkey: string;
+    kind: number;
+    created_at: number;
+    tags: string[][];
+    content: string;
+    sig: string;
+} {
+    const rumor = {
+        id: 'r'.repeat(64),
+        pubkey: input.rumorPubkey,
+        kind: 14,
+        created_at: input.rumorCreatedAt,
+        tags: [['p', input.rumorRecipient]],
+        content: input.rumorContent,
+        sig: '1'.repeat(128),
+    };
+
+    const seal = {
+        id: 's'.repeat(64),
+        pubkey: input.rumorPubkey,
+        kind: 13,
+        created_at: input.rumorCreatedAt,
+        tags: [] as string[][],
+        content: JSON.stringify(rumor),
+        sig: '2'.repeat(128),
+    };
+
+    return {
+        id: 'g'.repeat(64),
+        pubkey: 'c'.repeat(64),
+        kind: 1059,
+        created_at: input.rumorCreatedAt,
+        tags: [['p', input.ownerPubkey]],
+        content: JSON.stringify(seal),
+        sig: '3'.repeat(128),
+    };
+}
+
 async function renderApp(element: ReactElement): Promise<RenderResult> {
     const container = document.createElement('div');
     document.body.appendChild(container);
@@ -171,6 +219,7 @@ async function selectSettingsContextAction(container: HTMLDivElement, label: str
 }
 
 let mounted: RenderResult[] = [];
+let createNdkDmTransportClientSpy: ReturnType<typeof vi.spyOn> | null = null;
 
 beforeAll(() => {
     (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
@@ -200,6 +249,19 @@ beforeAll(() => {
 
 beforeEach(() => {
     window.localStorage.clear();
+    createNdkDmTransportClientSpy = vi.spyOn(ndkClientModule, 'createNdkDmTransportClient').mockReturnValue({
+        publishToRelays: vi.fn(async () => ({
+            ackedRelays: [],
+            failedRelays: [],
+            timeoutRelays: [],
+        })),
+        subscribe: vi.fn(() => ({
+            unsubscribe() {
+                return;
+            },
+        })),
+        fetchBackfill: vi.fn(async () => []),
+    } as any);
 });
 
 afterEach(async () => {
@@ -210,6 +272,8 @@ afterEach(async () => {
         entry.container.remove();
     }
     mounted = [];
+    vi.restoreAllMocks();
+    createNdkDmTransportClientSpy = null;
 });
 
 describe('Nostr overlay App', () => {
@@ -354,6 +418,478 @@ describe('Nostr overlay App', () => {
 
         const compactChatButton = rendered.container.querySelector('.nostr-compact-toolbar button[aria-label="Abrir chats"]') as HTMLButtonElement;
         expect(compactChatButton).toBeDefined();
+    });
+
+    test('loads DM modal data without explicit directMessagesService injection', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const peerPubkey = 'a'.repeat(64);
+        const dmEvent = createWrappedDmEvent({
+            ownerPubkey,
+            rumorPubkey: peerPubkey,
+            rumorRecipient: ownerPubkey,
+            rumorContent: 'hola runtime dm',
+            rumorCreatedAt: 1700000100,
+        });
+        const createTransportSpy = createNdkDmTransportClientSpy!.mockReturnValue({
+            publishToRelays: vi.fn(async () => ({
+                ackedRelays: ['wss://relay.one'],
+                failedRelays: [],
+                timeoutRelays: [],
+            })),
+            subscribe: vi.fn(() => ({
+                unsubscribe() {
+                    return;
+                },
+            })),
+            fetchBackfill: vi.fn()
+                .mockResolvedValueOnce([dmEvent as any])
+                .mockResolvedValueOnce([]),
+        } as any);
+        const createWriteGatewaySpy = vi.spyOn(writeGatewayModule, 'createWriteGateway').mockReturnValue({
+            publishEvent: vi.fn(async () => {
+                throw new Error('not-used');
+            }),
+            encryptDm: vi.fn(async (_pubkey: string, plaintext: string) => plaintext),
+            decryptDm: vi.fn(async (_pubkey: string, ciphertext: string) => ciphertext),
+        } as any);
+
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByNpubFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                        [peerPubkey]: { pubkey: peerPubkey, displayName: 'Alice' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+        const form = rendered.container.querySelector('form');
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
+            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const chatButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir chats"]') as HTMLButtonElement;
+        await act(async () => {
+            chatButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Chats'));
+        await waitFor(() => !(rendered.container.textContent || '').includes('No hay conversaciones todavía'));
+
+        expect(rendered.container.textContent || '').toContain('hola runtime dm');
+
+    });
+
+    test('runtime DM factory wires subscribe/send against dm-service', async () => {
+        const ownerPubkey = 'a'.repeat(64);
+        const peerPubkey = 'b'.repeat(64);
+        const subscribeInbox = vi.fn((_input, onMessage) => {
+            onMessage({
+                id: 'incoming-1',
+                clientMessageId: '',
+                conversationId: ownerPubkey,
+                peerPubkey: ownerPubkey,
+                direction: 'incoming' as const,
+                createdAt: 100,
+                plaintext: 'runtime incoming',
+                deliveryState: 'sent' as const,
+            });
+            return () => {};
+        });
+        const sendDm = vi.fn(async () => ({
+            id: 'outgoing-1',
+            clientMessageId: 'client-1',
+            conversationId: peerPubkey,
+            peerPubkey,
+            direction: 'outgoing' as const,
+            createdAt: 120,
+            plaintext: 'hola runtime',
+            deliveryState: 'sent' as const,
+            publishResult: {
+                ackedRelays: ['wss://relay.one'],
+                failedRelays: [],
+                timeoutRelays: [],
+            },
+            attempts: 1,
+        }));
+        const createDmService = vi.fn(() => ({
+            subscribeInbox,
+            sendDm,
+        }));
+        const createTransport = vi.fn(() => ({
+            publishToRelays: vi.fn(async () => ({ ackedRelays: [], failedRelays: [], timeoutRelays: [] })),
+            subscribe: vi.fn(() => ({ unsubscribe: () => {} })),
+            fetchBackfill: vi.fn(async () => []),
+        }));
+
+        const { createRuntimeDirectMessagesService } = await import('../nostr/dm-runtime-service');
+        const service = createRuntimeDirectMessagesService({
+            writeGateway: {
+                publishEvent: vi.fn(),
+                encryptDm: vi.fn(async (_pubkey: string, plaintext: string) => plaintext),
+                decryptDm: vi.fn(async (_pubkey: string, ciphertext: string) => ciphertext),
+            },
+            createDmService,
+            createTransport,
+            resolveRelays: () => ['wss://relay.one'],
+        });
+
+        const onMessage = vi.fn();
+        const stop = service.subscribeInbox({ ownerPubkey }, onMessage);
+        const sent = await service.sendDm?.({
+            ownerPubkey,
+            peerPubkey,
+            plaintext: 'hola runtime',
+            clientMessageId: 'client-1',
+        });
+
+        expect(createDmService).toHaveBeenCalled();
+        expect(createTransport).toHaveBeenCalled();
+        expect(subscribeInbox).toHaveBeenCalledWith(
+            {
+                ownerPubkey,
+                peerPubkey: ownerPubkey,
+            },
+            expect.any(Function)
+        );
+        expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({
+            id: 'incoming-1',
+            conversationId: ownerPubkey,
+        }));
+        expect(sendDm).toHaveBeenCalledWith(expect.objectContaining({
+            ownerPubkey,
+            peerPubkey,
+            plaintext: 'hola runtime',
+            clientMessageId: 'client-1',
+            targetRelays: ['wss://relay.one'],
+        }));
+        expect(sent).toMatchObject({
+            id: 'outgoing-1',
+            conversationId: peerPubkey,
+            plaintext: 'hola runtime',
+        });
+
+        if (typeof stop === 'function') {
+            stop();
+        }
+    });
+
+    test('opens chat modal and shows existing conversations without waiting for new incoming events', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const peerPubkey = 'a'.repeat(64);
+        const historicalEvent = createWrappedDmEvent({
+            ownerPubkey,
+            rumorPubkey: peerPubkey,
+            rumorRecipient: ownerPubkey,
+            rumorContent: 'historial visible',
+            rumorCreatedAt: 1700000300,
+        });
+        const createTransportSpy = createNdkDmTransportClientSpy!.mockReturnValue({
+            publishToRelays: vi.fn(async () => ({
+                ackedRelays: ['wss://relay.one'],
+                failedRelays: [],
+                timeoutRelays: [],
+            })),
+            subscribe: vi.fn(() => ({
+                unsubscribe() {
+                    return;
+                },
+            })),
+            fetchBackfill: vi.fn()
+                .mockResolvedValueOnce([historicalEvent as any])
+                .mockResolvedValueOnce([]),
+        } as any);
+        const createWriteGatewaySpy = vi.spyOn(writeGatewayModule, 'createWriteGateway').mockReturnValue({
+            publishEvent: vi.fn(async () => {
+                throw new Error('not-used');
+            }),
+            encryptDm: vi.fn(async (_pubkey: string, plaintext: string) => plaintext),
+            decryptDm: vi.fn(async (_pubkey: string, ciphertext: string) => ciphertext),
+        } as any);
+
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByNpubFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [peerPubkey],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                        [peerPubkey]: { pubkey: peerPubkey, displayName: 'Alice' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+        const form = rendered.container.querySelector('form');
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
+            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const panelChatButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir chats"]') as HTMLButtonElement;
+        await act(async () => {
+            panelChatButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Chats'));
+        await waitFor(() => (rendered.container.textContent || '').includes('Alice'));
+        expect(rendered.container.textContent || '').toContain('historial visible');
+
+    });
+
+    test('includes owner relay-list hints in runtime DM transport relays', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const hintedRelay = 'wss://relay.hinted.example';
+
+        createNdkDmTransportClientSpy!.mockReturnValue({
+            publishToRelays: vi.fn(async () => ({
+                ackedRelays: [],
+                failedRelays: [],
+                timeoutRelays: [],
+            })),
+            subscribe: vi.fn(() => ({
+                unsubscribe() {
+                    return;
+                },
+            })),
+            fetchBackfill: vi.fn(async () => []),
+        } as any);
+
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async (_pubkey: string, kind: number) => {
+                            if (kind === 10002) {
+                                return {
+                                    id: '1'.repeat(64),
+                                    pubkey: ownerPubkey,
+                                    kind: 10002,
+                                    created_at: 1700000400,
+                                    tags: [['r', hintedRelay]],
+                                    content: '',
+                                    sig: '2'.repeat(128),
+                                } as any;
+                            }
+
+                            return null;
+                        },
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByNpubFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+        const form = rendered.container.querySelector('form');
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
+            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const panelChatButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir chats"]') as HTMLButtonElement;
+        await act(async () => {
+            panelChatButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => {
+            return createNdkDmTransportClientSpy!.mock.calls.some((call: unknown[]) => {
+                const relays = call[0] as string[];
+                return Array.isArray(relays) && relays.includes(hintedRelay);
+            });
+        });
+    });
+
+    test('updates chat list when historical bootstrap resolves after modal is already open', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const peerPubkey = 'a'.repeat(64);
+        const historicalEvent = createWrappedDmEvent({
+            ownerPubkey,
+            rumorPubkey: peerPubkey,
+            rumorRecipient: ownerPubkey,
+            rumorContent: 'historial tardio',
+            rumorCreatedAt: 1700000600,
+        });
+
+        let resolveInboxBackfill: ((events: any[]) => void) | null = null;
+        const inboxBackfillPromise = new Promise<any[]>((resolve) => {
+            resolveInboxBackfill = resolve;
+        });
+
+        const fetchBackfill = vi.fn(async (filters: any[]) => {
+            const firstFilter = filters[0] || {};
+            if (Array.isArray(firstFilter['#p']) && firstFilter['#p'][0] === ownerPubkey) {
+                return inboxBackfillPromise;
+            }
+
+            return [];
+        });
+
+        createNdkDmTransportClientSpy!.mockReturnValue({
+            publishToRelays: vi.fn(async () => ({
+                ackedRelays: [],
+                failedRelays: [],
+                timeoutRelays: [],
+            })),
+            subscribe: vi.fn(() => ({
+                unsubscribe() {
+                    return;
+                },
+            })),
+            fetchBackfill,
+        } as any);
+
+        const createWriteGatewaySpy = vi.spyOn(writeGatewayModule, 'createWriteGateway').mockReturnValue({
+            publishEvent: vi.fn(async () => {
+                throw new Error('not-used');
+            }),
+            encryptDm: vi.fn(async (_pubkey: string, plaintext: string) => plaintext),
+            decryptDm: vi.fn(async (_pubkey: string, ciphertext: string) => ciphertext),
+        } as any);
+
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByNpubFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [peerPubkey],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                        [peerPubkey]: { pubkey: peerPubkey, displayName: 'Alice' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+        const form = rendered.container.querySelector('form');
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
+            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const panelChatButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir chats"]') as HTMLButtonElement;
+        await act(async () => {
+            panelChatButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => fetchBackfill.mock.calls.length > 0);
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Cargando conversaciones...'));
+
+        await act(async () => {
+            resolveInboxBackfill?.([historicalEvent as any]);
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('historial tardio'));
+
+        createWriteGatewaySpy.mockRestore();
     });
 
     test('renders map zoom controls with current zoom level', async () => {
@@ -2293,7 +2829,14 @@ describe('Nostr overlay App', () => {
         const followedPubkey = 'a'.repeat(64);
         window.localStorage.setItem(
             RELAY_SETTINGS_STORAGE_KEY,
-            JSON.stringify({ relays: ['wss://relay.suggested.example'] })
+            JSON.stringify({
+                relays: ['wss://relay.suggested.example'],
+                byType: {
+                    general: ['wss://relay.suggested.example'],
+                    dmInbox: ['wss://relay.suggested.example'],
+                    dmOutbox: ['wss://relay.suggested.example'],
+                },
+            })
         );
 
         const { bridge } = createMapBridgeStub();
@@ -2355,7 +2898,7 @@ describe('Nostr overlay App', () => {
         await selectSettingsContextAction(rendered.container, 'Relays');
 
         await waitFor(() =>
-            (rendered.container.textContent || '').includes('Todos los relays sugeridos ya estan agregados.')
+            !rendered.container.querySelector('button[aria-label="Abrir acciones sugeridas para wss://relay.suggested.example (General)"]')
         );
 
         const addAllButton = Array.from(rendered.container.querySelectorAll('button')).find(button =>

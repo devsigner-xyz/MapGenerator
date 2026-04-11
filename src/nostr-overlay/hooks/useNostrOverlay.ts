@@ -10,10 +10,16 @@ import { createLazyNdkClient } from '../../nostr/lazy-ndk-client';
 import { fetchLatestPostsByPubkey, type NostrPostPreview } from '../../nostr/posts';
 import { fetchProfileStats } from '../../nostr/profile-stats';
 import { fetchProfiles } from '../../nostr/profiles';
-import { loadRelaySettings } from '../../nostr/relay-settings';
-import { getBootstrapRelays, mergeRelaySets, relayListFromKind10002Event } from '../../nostr/relay-policy';
+import { getRelaySetByType, loadRelaySettings, type RelaySettingsByType } from '../../nostr/relay-settings';
+import {
+    getBootstrapRelays,
+    mergeRelaySets,
+    relayListFromKind10002Event,
+    relaySuggestionsByTypeFromKind10002Event,
+} from '../../nostr/relay-policy';
 import type { NostrClient, NostrProfile } from '../../nostr/types';
 import { createWriteGateway } from '../../nostr/write-gateway';
+import { createRuntimeDirectMessagesService } from '../../nostr/dm-runtime-service';
 import type { MapBridge } from '../map-bridge';
 import { FEATURED_OCCUPANT_PUBKEYS } from '../domain/featured-occupants';
 import { createFollowerBatcher } from './follower-batcher';
@@ -50,6 +56,7 @@ interface OverlayData {
     selectedPubkey?: string;
     relayHints: string[];
     suggestedRelays: string[];
+    suggestedRelaysByType: RelaySettingsByType;
     activeProfilePubkey?: string;
     activeProfileBuildingIndex?: number;
     activeProfilePosts: NostrPostPreview[];
@@ -89,12 +96,6 @@ interface UseNostrOverlayOptions {
     mapBridge: MapBridge | null;
     services?: NostrOverlayServices;
 }
-
-const NOOP_DIRECT_MESSAGES_SERVICE: DirectMessagesService = {
-    subscribeInbox: () => {
-        return () => {};
-    },
-};
 
 function createEmptyActiveProfileState(): Pick<
     OverlayData,
@@ -155,6 +156,11 @@ function createInitialData(): OverlayData {
         parkCount: 0,
         relayHints: [],
         suggestedRelays: [],
+        suggestedRelaysByType: {
+            general: [],
+            dmInbox: [],
+            dmOutbox: [],
+        },
         ...createEmptyActiveProfileState(),
     };
 }
@@ -187,7 +193,6 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
     const fetchFollowersBestEffortFn = services?.fetchFollowersBestEffortFn || fetchFollowersBestEffort;
     const fetchLatestPostsByPubkeyFn = services?.fetchLatestPostsByPubkeyFn || fetchLatestPostsByPubkey;
     const fetchProfileStatsFn = services?.fetchProfileStatsFn || fetchProfileStats;
-    const directMessagesService = services?.directMessagesService ?? NOOP_DIRECT_MESSAGES_SERVICE;
     const authService = useMemo(() => createAuthService(), []);
     const writeGateway = useMemo(
         () =>
@@ -209,6 +214,47 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
     const occupancyAnimationTokenRef = useRef(0);
     const skipNextMapGeneratedRef = useRef(false);
     const didRestoreSessionRef = useRef(false);
+    const runtimeDmRelays = useMemo(() => {
+        const loadedSettings = loadRelaySettings();
+        const configuredDmInboxRelays = getRelaySetByType(loadedSettings, 'dmInbox');
+        const configuredRelays = configuredDmInboxRelays.length > 0
+            ? configuredDmInboxRelays
+            : loadedSettings.relays.length > 0
+                ? loadedSettings.relays
+                : getBootstrapRelays();
+
+        return mergeRelaySets(
+            configuredRelays,
+            state.data.relayHints,
+            state.data.suggestedRelays,
+            state.data.suggestedRelaysByType.dmInbox
+        );
+    }, [state.data.relayHints, state.data.suggestedRelays, state.data.suggestedRelaysByType.dmInbox]);
+    const runtimeDmOutboxRelays = useMemo(() => {
+        const loadedSettings = loadRelaySettings();
+        const configuredDmOutboxRelays = getRelaySetByType(loadedSettings, 'dmOutbox');
+        const configuredRelays = configuredDmOutboxRelays.length > 0
+            ? configuredDmOutboxRelays
+            : loadedSettings.relays.length > 0
+                ? loadedSettings.relays
+                : getBootstrapRelays();
+
+        return mergeRelaySets(configuredRelays, state.data.suggestedRelaysByType.dmOutbox);
+    }, [state.data.suggestedRelaysByType.dmOutbox]);
+    const runtimeDmRelayKey = useMemo(
+        () => `${runtimeDmRelays.join('|')}::${runtimeDmOutboxRelays.join('|')}`,
+        [runtimeDmRelays, runtimeDmOutboxRelays]
+    );
+    const directMessagesService = useMemo(
+        () => services?.directMessagesService ?? createRuntimeDirectMessagesService({
+            writeGateway,
+            resolveRelays: () => ({
+                inbox: runtimeDmRelays,
+                outbox: runtimeDmOutboxRelays,
+            }),
+        }),
+        [services?.directMessagesService, writeGateway, runtimeDmRelayKey]
+    );
     const dmReadStateStorage = useMemo(
         () =>
             createDmReadStateStorage({
@@ -291,8 +337,10 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
 
     const resolveOverlayRelays = (relayHints: string[]): string[] => {
         const configuredRelays = (() => {
-            const loaded = loadRelaySettings().relays;
-            return loaded.length > 0 ? loaded : getBootstrapRelays();
+            const loaded = loadRelaySettings();
+            const general = getRelaySetByType(loaded, 'general');
+            const candidates = general.length > 0 ? general : loaded.relays;
+            return candidates.length > 0 ? candidates : getBootstrapRelays();
         })();
 
         return mergeRelaySets(configuredRelays, relayHints);
@@ -670,8 +718,10 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
 
         try {
             const configuredRelays = (() => {
-                const loaded = loadRelaySettings().relays;
-                return loaded.length > 0 ? loaded : getBootstrapRelays();
+                const loaded = loadRelaySettings();
+                const general = getRelaySetByType(loaded, 'general');
+                const candidates = general.length > 0 ? general : loaded.relays;
+                return candidates.length > 0 ? candidates : getBootstrapRelays();
             })();
             const client = createClient(configuredRelays);
             const graph =
@@ -682,11 +732,22 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             const featuredPubkeys = FEATURED_OCCUPANT_PUBKEYS;
             const assignmentPubkeys = dedupe([...follows, ...featuredPubkeys]);
             let suggestedRelays: string[] = [];
+            let suggestedRelaysByType: RelaySettingsByType = {
+                general: [],
+                dmInbox: [],
+                dmOutbox: [],
+            };
             try {
                 const relayListEvent = await client.fetchLatestReplaceableEvent(graph.ownerPubkey, 10002);
+                suggestedRelaysByType = relaySuggestionsByTypeFromKind10002Event(relayListEvent);
                 suggestedRelays = relayListFromKind10002Event(relayListEvent);
             } catch {
                 suggestedRelays = [];
+                suggestedRelaysByType = {
+                    general: [],
+                    dmInbox: [],
+                    dmOutbox: [],
+                };
             }
 
             if (requestIdRef.current !== requestId) {
@@ -761,6 +822,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                     parkCount: mapBridge.getParkCount(),
                     relayHints: graph.relayHints,
                     suggestedRelays,
+                    suggestedRelaysByType,
                     ...createEmptyActiveProfileState(),
                 },
             });
@@ -1213,6 +1275,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         followersLoading: state.data.followersLoading,
         selectedPubkey: state.data.selectedPubkey,
         suggestedRelays: state.data.suggestedRelays,
+        suggestedRelaysByType: state.data.suggestedRelaysByType,
         activeProfilePubkey: state.data.activeProfilePubkey,
         activeProfile: state.data.activeProfilePubkey ? state.data.profiles[state.data.activeProfilePubkey] : undefined,
         activeProfilePosts: state.data.activeProfilePosts,

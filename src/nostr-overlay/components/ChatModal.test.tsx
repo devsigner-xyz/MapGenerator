@@ -80,6 +80,26 @@ describe('ChatModal', () => {
         expect(rendered.container.textContent || '').toContain('No hay conversaciones todavía');
     });
 
+    test('shows loader while bootstrapping conversations', async () => {
+        const rendered = await renderElement(
+            <ChatModal
+                open
+                hasUnreadGlobal={false}
+                isLoadingConversations
+                conversations={[]}
+                messages={[]}
+                activeConversationId={null}
+                onClose={() => {}}
+                onOpenConversation={() => {}}
+                onBackToList={() => {}}
+                onSendMessage={async () => {}}
+            />
+        );
+        mounted.push(rendered);
+
+        expect(rendered.container.textContent || '').toContain('Cargando conversaciones...');
+    });
+
     test('supports list/detail navigation', async () => {
         const onOpenConversation = vi.fn();
 

@@ -88,6 +88,23 @@ function buildWrappedDmEvent(input: {
     });
 }
 
+function buildLegacyKind4Event(input: {
+    eventId: string;
+    authorPubkey: string;
+    recipientPubkey: string;
+    ciphertext: string;
+    createdAt: number;
+}): NostrEvent {
+    return event({
+        id: input.eventId,
+        kind: 4,
+        pubkey: input.authorPubkey,
+        created_at: input.createdAt,
+        tags: [['p', input.recipientPubkey]],
+        content: input.ciphertext,
+    });
+}
+
 describe('dm-service parsing and validation', () => {
     test('unwraps layers in order 1059 -> 13 -> 14', async () => {
         const rumor = event({
@@ -652,5 +669,259 @@ describe('dm-service backfill strategy A/B/C', () => {
         expect(secondFilter.since).toBe(1_000_000 - 900);
         expect(firstFilter['#p']).toEqual([OWNER]);
         expect(secondFilter['#p']).toEqual([PEER]);
+    });
+
+    test('fetches historical messages across all peers from kind 1059 inbox + outgoing', async () => {
+        const PEER_TWO = 'c'.repeat(64);
+        const transport = createTransportMock();
+
+        const inboxIncoming = buildWrappedDmEvent({
+            giftWrapId: 'e'.repeat(64),
+            sealId: 'a'.repeat(64),
+            rumorId: 'b'.repeat(64),
+            giftWrapPubkey: 'd'.repeat(64),
+            sealPubkey: PEER,
+            rumorPubkey: PEER,
+            rumorRecipient: OWNER,
+            rumorContent: 'inbox peer one',
+            rumorCreatedAt: 100,
+            giftWrapRecipient: OWNER,
+        });
+
+        const outgoingToSecondPeer = buildWrappedDmEvent({
+            giftWrapId: 'f'.repeat(64),
+            sealId: 'c'.repeat(64),
+            rumorId: 'd'.repeat(64),
+            giftWrapPubkey: 'e'.repeat(64),
+            sealPubkey: OWNER,
+            rumorPubkey: OWNER,
+            rumorRecipient: PEER_TWO,
+            rumorContent: 'outgoing peer two',
+            rumorCreatedAt: 200,
+            giftWrapRecipient: PEER_TWO,
+        });
+
+        transport.fetchBackfill
+            .mockResolvedValueOnce([inboxIncoming])
+            .mockResolvedValueOnce([outgoingToSecondPeer]);
+
+        const service = createDmService({
+            transport,
+            writeGateway: createWriteGatewayMock(),
+            now: () => 1_000,
+            wait: async () => {},
+            verifyEvent: () => true,
+        });
+
+        const merged = await service.fetchGlobalBackfill({
+            ownerPubkey: OWNER,
+            mode: 'session_start',
+            sentIndex: [
+                {
+                    clientMessageId: 'local-1',
+                    conversationId: PEER,
+                    rumorEventId: '9'.repeat(64),
+                    createdAtSec: 150,
+                    deliveryState: 'sent',
+                    targetRelays: ['wss://relay.session'],
+                    plaintext: 'local peer one',
+                },
+            ],
+        });
+
+        expect(transport.fetchBackfill).toHaveBeenCalledTimes(2);
+        expect(merged.map((message) => message.plaintext)).toEqual([
+            'inbox peer one',
+            'local peer one',
+            'outgoing peer two',
+        ]);
+    });
+
+    test('derives conversationId from event payload for each peer', async () => {
+        const PEER_TWO = 'd'.repeat(64);
+        const transport = createTransportMock();
+
+        const incoming = buildWrappedDmEvent({
+            giftWrapId: '1'.repeat(64),
+            sealId: '2'.repeat(64),
+            rumorId: '3'.repeat(64),
+            giftWrapPubkey: '4'.repeat(64),
+            sealPubkey: PEER,
+            rumorPubkey: PEER,
+            rumorRecipient: OWNER,
+            rumorContent: 'incoming one',
+            rumorCreatedAt: 100,
+            giftWrapRecipient: OWNER,
+        });
+
+        const outgoing = buildWrappedDmEvent({
+            giftWrapId: '5'.repeat(64),
+            sealId: '6'.repeat(64),
+            rumorId: '7'.repeat(64),
+            giftWrapPubkey: '8'.repeat(64),
+            sealPubkey: OWNER,
+            rumorPubkey: OWNER,
+            rumorRecipient: PEER_TWO,
+            rumorContent: 'outgoing two',
+            rumorCreatedAt: 120,
+            giftWrapRecipient: PEER_TWO,
+        });
+
+        transport.fetchBackfill
+            .mockResolvedValueOnce([incoming])
+            .mockResolvedValueOnce([outgoing]);
+
+        const service = createDmService({
+            transport,
+            writeGateway: createWriteGatewayMock(),
+            now: () => 1_000,
+            wait: async () => {},
+            verifyEvent: () => true,
+        });
+
+        const merged = await service.fetchGlobalBackfill({
+            ownerPubkey: OWNER,
+            mode: 'session_start',
+            sentIndex: [],
+        });
+
+        const byPlaintext = new Map(merged.map((message) => [message.plaintext, message.conversationId]));
+        expect(byPlaintext.get('incoming one')).toBe(PEER);
+        expect(byPlaintext.get('outgoing two')).toBe(PEER_TWO);
+    });
+
+    test('parses incoming/outgoing legacy kind4 messages into DmMessage shape', async () => {
+        const PEER_TWO = 'e'.repeat(64);
+        const transport = createTransportMock();
+
+        const incoming = buildLegacyKind4Event({
+            eventId: 'a'.repeat(64),
+            authorPubkey: PEER,
+            recipientPubkey: OWNER,
+            ciphertext: 'nip04:incoming',
+            createdAt: 100,
+        });
+        const outgoing = buildLegacyKind4Event({
+            eventId: 'b'.repeat(64),
+            authorPubkey: OWNER,
+            recipientPubkey: PEER_TWO,
+            ciphertext: 'nip04:outgoing',
+            createdAt: 120,
+        });
+
+        transport.fetchBackfill
+            .mockResolvedValueOnce([incoming])
+            .mockResolvedValueOnce([outgoing]);
+
+        const writeGateway = createWriteGatewayMock();
+        writeGateway.decryptDm = vi.fn(async (_pubkey: string, ciphertext: string) => ciphertext.replace('nip04:', ''));
+        const service = createDmService({
+            transport,
+            writeGateway,
+            now: () => 1_000,
+            wait: async () => {},
+            verifyEvent: () => true,
+        });
+
+        const merged = await service.fetchGlobalBackfill({
+            ownerPubkey: OWNER,
+            mode: 'session_start',
+            sentIndex: [],
+        });
+
+        expect(merged.map((message) => ({
+            conversationId: message.conversationId,
+            direction: message.direction,
+            plaintext: message.plaintext,
+            eventId: message.eventId,
+        }))).toEqual([
+            {
+                conversationId: PEER,
+                direction: 'incoming',
+                plaintext: 'incoming',
+                eventId: 'a'.repeat(64),
+            },
+            {
+                conversationId: PEER_TWO,
+                direction: 'outgoing',
+                plaintext: 'outgoing',
+                eventId: 'b'.repeat(64),
+            },
+        ]);
+    });
+
+    test('uses nip04 decrypt path for kind4 events', async () => {
+        const transport = createTransportMock();
+        transport.fetchBackfill
+            .mockResolvedValueOnce([
+                buildLegacyKind4Event({
+                    eventId: 'c'.repeat(64),
+                    authorPubkey: PEER,
+                    recipientPubkey: OWNER,
+                    ciphertext: 'cipher-a',
+                    createdAt: 100,
+                }),
+            ])
+            .mockResolvedValueOnce([]);
+
+        const writeGateway = createWriteGatewayMock();
+        const service = createDmService({
+            transport,
+            writeGateway,
+            now: () => 1_000,
+            wait: async () => {},
+            verifyEvent: () => true,
+        });
+
+        await service.fetchGlobalBackfill({
+            ownerPubkey: OWNER,
+            mode: 'session_start',
+            sentIndex: [],
+        });
+
+        expect(writeGateway.decryptDm).toHaveBeenCalledWith(PEER, 'cipher-a', 'nip04');
+    });
+
+    test('keeps undecryptable legacy kind4 messages as placeholder entries', async () => {
+        const transport = createTransportMock();
+        transport.fetchBackfill
+            .mockResolvedValueOnce([
+                buildLegacyKind4Event({
+                    eventId: 'd'.repeat(64),
+                    authorPubkey: PEER,
+                    recipientPubkey: OWNER,
+                    ciphertext: 'bad-cipher',
+                    createdAt: 100,
+                }),
+            ])
+            .mockResolvedValueOnce([]);
+
+        const writeGateway = createWriteGatewayMock();
+        writeGateway.decryptDm = vi.fn(async () => {
+            throw new Error('decrypt failed');
+        });
+        const service = createDmService({
+            transport,
+            writeGateway,
+            now: () => 1_000,
+            wait: async () => {},
+            verifyEvent: () => true,
+        });
+
+        const merged = await service.fetchGlobalBackfill({
+            ownerPubkey: OWNER,
+            mode: 'session_start',
+            sentIndex: [],
+        });
+
+        expect(merged).toEqual([
+            expect.objectContaining({
+                conversationId: PEER,
+                direction: 'incoming',
+                plaintext: '[No se pudo desencriptar este mensaje]',
+                isUndecryptable: true,
+                eventId: 'd'.repeat(64),
+            }),
+        ]);
     });
 });

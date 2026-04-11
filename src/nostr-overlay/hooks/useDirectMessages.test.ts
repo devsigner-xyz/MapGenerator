@@ -104,6 +104,125 @@ describe('useDirectMessages storage and keys', () => {
 });
 
 describe('useDirectMessages store behavior', () => {
+    test('start hydrates conversations from initial backfill before live inbox events', async () => {
+        const dmService = {
+            subscribeInbox: vi.fn((_input, _onMessage) => () => {}),
+            loadInitialConversations: vi.fn(async () => [
+                {
+                    id: 'bootstrap-1',
+                    clientMessageId: '',
+                    conversationId: PEER,
+                    peerPubkey: PEER,
+                    direction: 'incoming' as const,
+                    createdAt: 1700000200,
+                    plaintext: 'mensaje historico',
+                    deliveryState: 'sent' as const,
+                },
+            ]),
+        };
+        const storage = createDmReadStateStorage({ storage: window.localStorage, now: () => 1_000, version: 'v1' });
+        const store = createDirectMessagesStore({ ownerPubkey: OWNER_A, dmService: dmService as any, storage });
+
+        await store.start();
+
+        expect(dmService.loadInitialConversations).toHaveBeenCalledWith({ ownerPubkey: OWNER_A });
+        expect(dmService.subscribeInbox).toHaveBeenCalledTimes(1);
+        expect(store.getState().conversations[PEER]?.messages).toEqual([
+            expect.objectContaining({
+                id: 'bootstrap-1',
+                plaintext: 'mensaje historico',
+            }),
+        ]);
+
+        store.dispose();
+    });
+
+    test('does not duplicate messages when bootstrap and live stream contain same id', async () => {
+        let liveListener: ((message: any) => void) | null = null;
+        const dmService = {
+            subscribeInbox: vi.fn((_input, onMessage) => {
+                liveListener = onMessage;
+                return () => {};
+            }),
+            loadInitialConversations: vi.fn(async () => [
+                {
+                    id: 'same-id',
+                    clientMessageId: '',
+                    conversationId: PEER,
+                    peerPubkey: PEER,
+                    direction: 'incoming' as const,
+                    createdAt: 1700000300,
+                    plaintext: 'bootstrap',
+                    deliveryState: 'sent' as const,
+                },
+            ]),
+        };
+        const storage = createDmReadStateStorage({ storage: window.localStorage, now: () => 1_000, version: 'v1' });
+        const store = createDirectMessagesStore({ ownerPubkey: OWNER_A, dmService: dmService as any, storage });
+
+        await store.start();
+        liveListener?.({
+            id: 'same-id',
+            clientMessageId: '',
+            conversationId: PEER,
+            peerPubkey: PEER,
+            direction: 'incoming' as const,
+            createdAt: 1700000300999,
+            plaintext: 'live duplicate',
+            deliveryState: 'sent' as const,
+        });
+
+        expect(store.getState().conversations[PEER]?.messages).toHaveLength(1);
+
+        store.dispose();
+    });
+
+    test('computes unread correctly after bootstrap ingest', async () => {
+        let liveListener: ((message: any) => void) | null = null;
+        const dmService = {
+            subscribeInbox: vi.fn((_input, onMessage) => {
+                liveListener = onMessage;
+                return () => {};
+            }),
+            loadInitialConversations: vi.fn(async () => [
+                {
+                    id: 'bootstrap-read',
+                    clientMessageId: '',
+                    conversationId: PEER,
+                    peerPubkey: PEER,
+                    direction: 'incoming' as const,
+                    createdAt: 1700000000,
+                    plaintext: 'old bootstrap',
+                    deliveryState: 'sent' as const,
+                },
+            ]),
+        };
+        const storage = createDmReadStateStorage({ storage: window.localStorage, now: () => 1_000, version: 'v1' });
+        storage.setLastReadAt(OWNER_A, PEER, 1700000000);
+        const store = createDirectMessagesStore({ ownerPubkey: OWNER_A, dmService: dmService as any, storage });
+
+        await store.start();
+        liveListener?.({
+            id: 'live-new',
+            clientMessageId: '',
+            conversationId: PEER,
+            peerPubkey: PEER,
+            direction: 'incoming' as const,
+            createdAt: 1700000500123,
+            plaintext: 'new live',
+            deliveryState: 'sent' as const,
+        });
+
+        expect(store.getState().conversations[PEER]?.hasUnread).toBe(true);
+        expect(store.getState().hasUnreadGlobal).toBe(true);
+        expect(store.getState().conversations[PEER]?.messages.map((message) => message.createdAt)).toEqual([
+            1700000000,
+            1700000500,
+        ]);
+
+        store.dispose();
+    });
+
     test('keeps singleton inbox subscription per ownerPubkey', () => {
         const dmService = createDmServiceMock();
         const storage = createDmReadStateStorage({ storage: window.localStorage, now: () => 1_000, version: 'v1' });

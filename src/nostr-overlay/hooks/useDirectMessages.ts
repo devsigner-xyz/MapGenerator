@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import type { DmMessage, SentIndexItem } from '../../nostr/dm-service';
 
 type StorageVersion = 'v1' | 'v2';
@@ -29,6 +29,8 @@ export interface DirectMessagesState {
     activeConversationId: string | null;
     conversations: Record<string, DirectMessageConversationState>;
     hasUnreadGlobal: boolean;
+    isBootstrapping: boolean;
+    bootstrapError: string | null;
 }
 
 type DmSendInput = {
@@ -41,6 +43,7 @@ type DmSendInput = {
 export interface DirectMessagesService {
     subscribeInbox: (input: { ownerPubkey: string }, onMessage: (message: DirectMessageItem) => void) => (() => void) | void;
     sendDm?: (input: DmSendInput) => Promise<DirectMessageItem>;
+    loadInitialConversations?: (input: { ownerPubkey: string }) => Promise<DirectMessageItem[]>;
 }
 
 interface CreateDmReadStateStorageOptions {
@@ -60,7 +63,9 @@ interface UseDirectMessagesOptions extends CreateDirectMessagesStoreOptions {}
 
 interface DirectMessagesStore {
     getState: () => DirectMessagesState;
-    start: () => void;
+    getVersion: () => number;
+    subscribe: (listener: () => void) => () => void;
+    start: () => Promise<void>;
     dispose: () => void;
     openList: () => void;
     openConversation: (conversationId: string) => void;
@@ -271,10 +276,23 @@ export function createDirectMessagesStore(options: CreateDirectMessagesStoreOpti
         activeConversationId: null,
         conversations: {},
         hasUnreadGlobal: false,
+        isBootstrapping: false,
+        bootstrapError: null,
+    };
+    const listeners = new Set<() => void>();
+    let version = 0;
+
+    const emitChange = (): void => {
+        version += 1;
+        for (const listener of listeners) {
+            listener();
+        }
     };
 
     const ownerPubkey = options.ownerPubkey;
     let releaseSubscription: (() => void) | null = null;
+    let startPromise: Promise<void> | null = null;
+    let isDisposed = false;
 
     const ingestMessage = (message: DirectMessageItem): void => {
         if (!ownerPubkey) {
@@ -289,6 +307,14 @@ export function createDirectMessagesStore(options: CreateDirectMessagesStoreOpti
 
         conversation.hasUnread = computeConversationUnread(conversation);
         state.hasUnreadGlobal = computeHasUnreadGlobal(state.conversations);
+        emitChange();
+    };
+
+    const ingestNormalizedMessage = (message: DirectMessageItem): void => {
+        ingestMessage({
+            ...message,
+            createdAt: toEpochSeconds(message.createdAt),
+        });
     };
 
     const markRead = (conversationId: string, timestampSec?: number): void => {
@@ -303,6 +329,7 @@ export function createDirectMessagesStore(options: CreateDirectMessagesStoreOpti
         options.storage.setLastReadAt(ownerPubkey, conversationId, conversation.lastReadAt);
         conversation.hasUnread = computeConversationUnread(conversation);
         state.hasUnreadGlobal = computeHasUnreadGlobal(state.conversations);
+        emitChange();
     };
 
     return {
@@ -310,17 +337,77 @@ export function createDirectMessagesStore(options: CreateDirectMessagesStoreOpti
             return state;
         },
 
-        start() {
+        getVersion() {
+            return version;
+        },
+
+        subscribe(listener) {
+            listeners.add(listener);
+            return () => {
+                listeners.delete(listener);
+            };
+        },
+
+        async start() {
             if (!ownerPubkey || releaseSubscription) {
                 return;
             }
 
-            releaseSubscription = registerOwnerSubscription(ownerPubkey, options.dmService, (message) => {
-                ingestMessage(message);
-            });
+            if (!options.dmService.loadInitialConversations) {
+                releaseSubscription = registerOwnerSubscription(ownerPubkey, options.dmService, (message) => {
+                    ingestNormalizedMessage(message);
+                });
+                state.isBootstrapping = false;
+                state.bootstrapError = null;
+                emitChange();
+                return;
+            }
+
+            if (startPromise) {
+                await startPromise;
+                return;
+            }
+
+            isDisposed = false;
+            startPromise = (async () => {
+                state.isBootstrapping = true;
+                state.bootstrapError = null;
+                emitChange();
+
+                if (options.dmService.loadInitialConversations) {
+                    try {
+                        const initialMessages = await options.dmService.loadInitialConversations({ ownerPubkey });
+                        for (const message of initialMessages) {
+                            ingestNormalizedMessage(message);
+                        }
+                    } catch (error) {
+                        state.bootstrapError = error instanceof Error ? error.message : 'No se pudo cargar el historial de chats';
+                    }
+                }
+
+                if (isDisposed || releaseSubscription) {
+                    return;
+                }
+
+                releaseSubscription = registerOwnerSubscription(ownerPubkey, options.dmService, (message) => {
+                    ingestNormalizedMessage(message);
+                });
+
+                state.isBootstrapping = false;
+                emitChange();
+            })();
+
+            try {
+                await startPromise;
+            } finally {
+                state.isBootstrapping = false;
+                emitChange();
+                startPromise = null;
+            }
         },
 
         dispose() {
+            isDisposed = true;
             if (!releaseSubscription) {
                 return;
             }
@@ -332,12 +419,14 @@ export function createDirectMessagesStore(options: CreateDirectMessagesStoreOpti
         openList() {
             state.isListOpen = true;
             state.activeConversationId = null;
+            emitChange();
         },
 
         openConversation(conversationId) {
             state.isListOpen = true;
             state.activeConversationId = conversationId;
             markRead(conversationId);
+            emitChange();
         },
 
         markConversationRead(conversationId, timestampSec) {
@@ -345,10 +434,7 @@ export function createDirectMessagesStore(options: CreateDirectMessagesStoreOpti
         },
 
         ingestIncoming(message) {
-            ingestMessage({
-                ...message,
-                createdAt: toEpochSeconds(message.createdAt),
-            });
+            ingestNormalizedMessage(message);
         },
 
         async sendMessage(peerPubkey, plaintext) {
@@ -399,6 +485,7 @@ export function createDirectMessagesStore(options: CreateDirectMessagesStoreOpti
 
                 conversation.hasUnread = computeConversationUnread(conversation);
                 state.hasUnreadGlobal = computeHasUnreadGlobal(state.conversations);
+                emitChange();
                 return sent;
             } catch {
                 const conversation = ensureConversation(state.conversations, ownerPubkey, peerPubkey, options.storage);
@@ -410,6 +497,7 @@ export function createDirectMessagesStore(options: CreateDirectMessagesStoreOpti
                           }
                         : message
                 );
+                emitChange();
                 return null;
             }
         },
@@ -429,11 +517,13 @@ export function useDirectMessages(options: UseDirectMessagesOptions): DirectMess
     );
 
     useEffect(() => {
-        store.start();
+        void store.start();
         return () => {
             store.dispose();
         };
     }, [store]);
+
+    useSyncExternalStore(store.subscribe, store.getVersion, store.getVersion);
 
     return store;
 }

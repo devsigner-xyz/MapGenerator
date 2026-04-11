@@ -85,9 +85,9 @@ export function createWriteGateway(options: WriteGatewayOptions) {
             return provider.encrypt(pubkey, plaintext, 'nip44');
         },
 
-        async decryptDm(pubkey: string, ciphertext: string): Promise<string> {
-            const { provider } = requireEncryption(options, 'nip44');
-            return provider.decrypt(pubkey, ciphertext, 'nip44');
+        async decryptDm(pubkey: string, ciphertext: string, scheme: EncryptionScheme = 'nip44'): Promise<string> {
+            const { provider } = requireEncryption(options, scheme);
+            return provider.decrypt(pubkey, ciphertext, scheme);
         },
     };
 }

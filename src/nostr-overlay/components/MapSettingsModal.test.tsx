@@ -260,7 +260,7 @@ describe('MapSettingsModal UI settings', () => {
         const relayTable = rendered.container.querySelector('[data-slot="table"]');
         expect(relayTable).toBeDefined();
 
-        const actionsButton = rendered.container.querySelector('button[aria-label="Abrir acciones para wss://relay.one"]') as HTMLButtonElement;
+        const actionsButton = rendered.container.querySelector('button[aria-label="Abrir acciones para wss://relay.one (General)"]') as HTMLButtonElement;
         expect(actionsButton).toBeDefined();
 
         await act(async () => {
@@ -324,6 +324,63 @@ describe('MapSettingsModal UI settings', () => {
         expect(backButton).toBeUndefined();
     });
 
+    test('separates relay categories in UI and stores relay additions by type', async () => {
+        const bridge = createBridgeStub();
+        const rendered = await renderElement(
+            <MapSettingsModal
+                mapBridge={bridge}
+                initialView="relays"
+                onClose={() => {}}
+            />
+        );
+        mounted.push(rendered);
+
+        const relayCategorySelect = rendered.container.querySelector('select[aria-label="Relay category"]') as HTMLSelectElement;
+        const relayEditor = rendered.container.querySelector('textarea.nostr-relay-editor') as HTMLTextAreaElement;
+        const addButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').trim() === 'Add relays'
+        ) as HTMLButtonElement;
+
+        expect(relayCategorySelect).toBeDefined();
+        expect(relayEditor).toBeDefined();
+        expect(addButton).toBeDefined();
+        expect(rendered.container.textContent || '').toContain('DM inbox');
+        expect(rendered.container.textContent || '').toContain('DM outbox');
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+            valueSetter?.call(relayCategorySelect, 'dmInbox');
+            relayCategorySelect.dispatchEvent(new Event('input', { bubbles: true }));
+            relayCategorySelect.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+            valueSetter?.call(relayEditor, 'wss://relay.dm-inbox-only.example');
+            relayEditor.dispatchEvent(new Event('input', { bubbles: true }));
+            relayEditor.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            addButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const raw = window.localStorage.getItem(RELAY_SETTINGS_STORAGE_KEY);
+        expect(raw).not.toBeNull();
+
+        const parsed = JSON.parse(raw || '{}') as {
+            byType?: {
+                general?: string[];
+                dmInbox?: string[];
+                dmOutbox?: string[];
+            };
+        };
+
+        expect(parsed.byType?.dmInbox).toContain('wss://relay.dm-inbox-only.example');
+        expect(parsed.byType?.general || []).not.toContain('wss://relay.dm-inbox-only.example');
+        expect(parsed.byType?.dmOutbox || []).not.toContain('wss://relay.dm-inbox-only.example');
+    });
+
     test('opens relay details modal from context menu for configured and suggested rows', async () => {
         window.localStorage.setItem(
             RELAY_SETTINGS_STORAGE_KEY,
@@ -341,7 +398,7 @@ describe('MapSettingsModal UI settings', () => {
         );
         mounted.push(rendered);
 
-        const configuredActions = rendered.container.querySelector('button[aria-label="Abrir acciones para wss://relay.one"]') as HTMLButtonElement;
+        const configuredActions = rendered.container.querySelector('button[aria-label="Abrir acciones para wss://relay.one (General)"]') as HTMLButtonElement;
         expect(configuredActions).toBeDefined();
 
         await act(async () => {
@@ -377,7 +434,7 @@ describe('MapSettingsModal UI settings', () => {
             backDetails.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
-        const suggestedActions = rendered.container.querySelector('button[aria-label="Abrir acciones sugeridas para wss://relay.suggested.example"]') as HTMLButtonElement;
+        const suggestedActions = rendered.container.querySelector('button[aria-label="Abrir acciones sugeridas para wss://relay.suggested.example (General)"]') as HTMLButtonElement;
         expect(suggestedActions).toBeDefined();
 
         await act(async () => {

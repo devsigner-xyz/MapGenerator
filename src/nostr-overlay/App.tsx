@@ -264,7 +264,15 @@ export function App({ mapBridge, services }: AppProps) {
     const chatState = overlay.directMessages?.getState();
 
     useEffect(() => {
-        refreshChatState();
+        if (!overlay.directMessages) {
+            refreshChatState();
+            return;
+        }
+
+        setChatStateVersion(overlay.directMessages.getVersion());
+        return overlay.directMessages.subscribe(() => {
+            setChatStateVersion(overlay.directMessages?.getVersion() ?? 0);
+        });
     }, [overlay.directMessages, overlay.ownerPubkey]);
 
     const chatConversations = useMemo<ChatConversationSummary[]>(() => {
@@ -742,6 +750,7 @@ export function App({ mapBridge, services }: AppProps) {
             <ChatModal
                 open={chatOpen}
                 hasUnreadGlobal={chatState?.hasUnreadGlobal ?? false}
+                isLoadingConversations={chatState?.isBootstrapping ?? false}
                 conversations={chatConversations}
                 messages={chatMessages}
                 activeConversationId={chatActiveConversationId}
@@ -771,6 +780,7 @@ export function App({ mapBridge, services }: AppProps) {
                 <MapSettingsModal
                     mapBridge={mapBridge}
                     suggestedRelays={overlay.suggestedRelays}
+                    suggestedRelaysByType={overlay.suggestedRelaysByType}
                     onUiSettingsChange={setUiSettings}
                     zapSettings={zapSettings}
                     onZapSettingsChange={setZapSettings}

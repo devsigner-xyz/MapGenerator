@@ -1,7 +1,17 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { EllipsisVerticalIcon } from 'lucide-react';
-import { addRelay, loadRelaySettings, removeRelay, saveRelaySettings, type RelaySettingsState } from '../../nostr/relay-settings';
-import { normalizeRelayUrl } from '../../nostr/relay-policy';
+import {
+    addRelay,
+    getRelaySetByType,
+    loadRelaySettings,
+    removeRelay,
+    RELAY_TYPES,
+    saveRelaySettings,
+    type RelaySettingsByType,
+    type RelaySettingsState,
+    type RelayType,
+} from '../../nostr/relay-settings';
+import { mergeRelaySets, normalizeRelayUrl } from '../../nostr/relay-policy';
 import { loadUiSettings, saveUiSettings, type UiSettingsState } from '../../nostr/ui-settings';
 import {
     addZapAmount,
@@ -28,6 +38,7 @@ import { Textarea } from '@/components/ui/textarea';
 interface MapSettingsModalProps {
     mapBridge: MapBridge | null;
     suggestedRelays?: string[];
+    suggestedRelaysByType?: Partial<RelaySettingsByType>;
     onUiSettingsChange?: (nextState: UiSettingsState) => void;
     zapSettings?: ZapSettingsState;
     onZapSettingsChange?: (nextState: ZapSettingsState) => void;
@@ -36,6 +47,17 @@ interface MapSettingsModalProps {
 }
 
 const EMPTY_RELAYS: string[] = [];
+const EMPTY_RELAYS_BY_TYPE: RelaySettingsByType = {
+    general: [],
+    dmInbox: [],
+    dmOutbox: [],
+};
+
+const RELAY_TYPE_LABELS: Record<RelayType, string> = {
+    general: 'General',
+    dmInbox: 'DM inbox',
+    dmOutbox: 'DM outbox',
+};
 
 export type SettingsView = 'advanced' | 'ui' | 'shortcuts' | 'relays' | 'relay-detail' | 'about' | 'zaps';
 
@@ -92,6 +114,7 @@ interface RelayInfoState {
 interface RelaySelection {
     relayUrl: string;
     source: RelaySource;
+    relayType: RelayType;
 }
 
 function describeRelay(relayUrl: string, source: RelaySource): RelayDetails {
@@ -223,6 +246,7 @@ function normalizeRelayInput(value: string): string | null {
 export function MapSettingsModal({
     mapBridge,
     suggestedRelays = EMPTY_RELAYS,
+    suggestedRelaysByType,
     onUiSettingsChange,
     zapSettings,
     onZapSettingsChange,
@@ -234,6 +258,7 @@ export function MapSettingsModal({
     const [uiSettings, setUiSettings] = useState<UiSettingsState>(() => loadUiSettings());
     const [zapSettingsState, setZapSettingsState] = useState<ZapSettingsState>(() => zapSettings ?? loadZapSettings());
     const [newRelayInput, setNewRelayInput] = useState('');
+    const [newRelayType, setNewRelayType] = useState<RelayType>('general');
     const [newZapAmountInput, setNewZapAmountInput] = useState('');
     const [invalidRelayInputs, setInvalidRelayInputs] = useState<string[]>([]);
     const [selectedRelay, setSelectedRelay] = useState<RelaySelection | null>(null);
@@ -257,6 +282,40 @@ export function MapSettingsModal({
         onZapSettingsChange?.(savedState);
     };
 
+    const normalizedSuggestedByType = useMemo<RelaySettingsByType>(() => {
+        const byTypeFromProps: RelaySettingsByType = {
+            general: mergeRelaySets(suggestedRelaysByType?.general ?? [], suggestedRelays),
+            dmInbox: mergeRelaySets(suggestedRelaysByType?.dmInbox ?? []),
+            dmOutbox: mergeRelaySets(suggestedRelaysByType?.dmOutbox ?? []),
+        };
+
+        return byTypeFromProps;
+    }, [suggestedRelaysByType, suggestedRelays]);
+
+    const configuredRows = useMemo(() => {
+        return RELAY_TYPES.flatMap((relayType) =>
+            getRelaySetByType(relaySettings, relayType).map((relayUrl) => ({
+                relayType,
+                relayUrl,
+            }))
+        );
+    }, [relaySettings]);
+
+    const suggestedRows = useMemo(() => {
+        return RELAY_TYPES.flatMap((relayType) =>
+            normalizedSuggestedByType[relayType]
+                .filter((relayUrl) => !getRelaySetByType(relaySettings, relayType).includes(relayUrl))
+                .map((relayUrl) => ({
+                    relayType,
+                    relayUrl,
+                }))
+        );
+    }, [normalizedSuggestedByType, relaySettings]);
+
+    const hasSuggestedRelays = useMemo(() => {
+        return RELAY_TYPES.some((relayType) => normalizedSuggestedByType[relayType].length > 0);
+    }, [normalizedSuggestedByType]);
+
     const handleAddRelays = (): void => {
         const lines = newRelayInput
             .split('\n')
@@ -278,7 +337,7 @@ export function MapSettingsModal({
                 continue;
             }
 
-            nextState = addRelay(nextState, normalized);
+            nextState = addRelay(nextState, normalized, newRelayType);
         }
 
         persistRelaySettings(nextState);
@@ -286,32 +345,35 @@ export function MapSettingsModal({
         setNewRelayInput('');
     };
 
-    const handleRemoveRelay = (relayUrl: string): void => {
-        const nextState = removeRelay(relaySettings, relayUrl);
+    const handleRemoveRelay = (relayUrl: string, relayType: RelayType): void => {
+        const nextState = removeRelay(relaySettings, relayUrl, relayType);
         persistRelaySettings(nextState);
     };
 
-    const handleAddSuggestedRelay = (relayUrl: string): void => {
-        const nextState = addRelay(relaySettings, relayUrl);
+    const handleAddSuggestedRelay = (relayUrl: string, relayType: RelayType): void => {
+        const nextState = addRelay(relaySettings, relayUrl, relayType);
         persistRelaySettings(nextState);
     };
 
     const handleAddAllSuggestedRelays = (): void => {
         let nextState = relaySettings;
-        for (const relayUrl of suggestedRelays) {
-            nextState = addRelay(nextState, relayUrl);
+        for (const row of suggestedRows) {
+            nextState = addRelay(nextState, row.relayUrl, row.relayType);
         }
         persistRelaySettings(nextState);
     };
 
-    const suggestedNotAdded = suggestedRelays.filter((relayUrl) => !relaySettings.relays.includes(relayUrl));
-
     const relayInfoTargets = useMemo(() => {
-        return [...new Set([...relaySettings.relays, ...suggestedRelays])];
-    }, [relaySettings.relays, suggestedRelays]);
+        return [...new Set([
+            ...relaySettings.relays,
+            ...normalizedSuggestedByType.general,
+            ...normalizedSuggestedByType.dmInbox,
+            ...normalizedSuggestedByType.dmOutbox,
+        ])];
+    }, [relaySettings.relays, normalizedSuggestedByType]);
 
-    const openRelayDetails = (relayUrl: string, source: RelaySource): void => {
-        setSelectedRelay({ relayUrl, source });
+    const openRelayDetails = (relayUrl: string, source: RelaySource, relayType: RelayType): void => {
+        setSelectedRelay({ relayUrl, source, relayType });
         setView('relay-detail');
     };
 
@@ -596,17 +658,18 @@ export function MapSettingsModal({
                                 <TableHeader>
                                     <TableRow>
                                         <TableHead>Relay</TableHead>
+                                        <TableHead>Type</TableHead>
                                         <TableHead className="nostr-relay-actions-head">Actions</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {relaySettings.relays.map((relayUrl) => {
+                                    {configuredRows.map(({ relayUrl, relayType }) => {
                                         const details = describeRelay(relayUrl, 'configured');
                                         const info = relayInfoByUrl[relayUrl];
                                         const document = info?.data;
 
                                         return (
-                                            <TableRow key={relayUrl}>
+                                            <TableRow key={`configured-${relayType}-${relayUrl}`}>
                                                 <TableCell className="nostr-relay-url-cell">
                                                     <div className="nostr-relay-main-cell">
                                                         <Avatar className="size-8">
@@ -619,6 +682,9 @@ export function MapSettingsModal({
                                                         </div>
                                                     </div>
                                                 </TableCell>
+                                                <TableCell>
+                                                    <Badge variant="outline">{RELAY_TYPE_LABELS[relayType]}</Badge>
+                                                </TableCell>
                                                 <TableCell className="nostr-relay-actions-cell">
                                                     <ContextMenu>
                                                         <ContextMenuTrigger asChild>
@@ -626,7 +692,7 @@ export function MapSettingsModal({
                                                                 type="button"
                                                                 variant="outline"
                                                                 size="icon-sm"
-                                                                aria-label={`Abrir acciones para ${relayUrl}`}
+                                                                aria-label={`Abrir acciones para ${relayUrl} (${RELAY_TYPE_LABELS[relayType]})`}
                                                                 onClick={openRelayActionsMenu}
                                                             >
                                                                 <EllipsisVerticalIcon data-icon="inline-start" />
@@ -634,10 +700,10 @@ export function MapSettingsModal({
                                                         </ContextMenuTrigger>
                                                         <ContextMenuContent>
                                                             <ContextMenuGroup>
-                                                                <ContextMenuItem onSelect={() => openRelayDetails(relayUrl, 'configured')}>
+                                                                <ContextMenuItem onSelect={() => openRelayDetails(relayUrl, 'configured', relayType)}>
                                                                     Details
                                                                 </ContextMenuItem>
-                                                                <ContextMenuItem variant="destructive" onSelect={() => handleRemoveRelay(relayUrl)}>
+                                                                <ContextMenuItem variant="destructive" onSelect={() => handleRemoveRelay(relayUrl, relayType)}>
                                                                     Remove
                                                                 </ContextMenuItem>
                                                             </ContextMenuGroup>
@@ -659,6 +725,21 @@ export function MapSettingsModal({
                             onChange={(event) => setNewRelayInput(event.target.value)}
                         />
 
+                        <div className="nostr-ui-slider-row">
+                            <Label className="nostr-label" htmlFor="nostr-relay-type-select">Category</Label>
+                            <select
+                                id="nostr-relay-type-select"
+                                className="nostr-input"
+                                aria-label="Relay category"
+                                value={newRelayType}
+                                onChange={(event) => setNewRelayType(event.target.value as RelayType)}
+                            >
+                                {RELAY_TYPES.map((relayType) => (
+                                    <option key={`relay-type-${relayType}`} value={relayType}>{RELAY_TYPE_LABELS[relayType]}</option>
+                                ))}
+                            </select>
+                        </div>
+
                         <Button type="button" className="nostr-submit nostr-relay-add" onClick={handleAddRelays}>
                             Add relays
                         </Button>
@@ -669,83 +750,83 @@ export function MapSettingsModal({
                             </p>
                         ) : null}
 
-                        {suggestedRelays.length > 0 ? (
+                        {suggestedRows.length > 0 ? (
                             <section className="nostr-relay-suggested">
                                 <div className="nostr-relay-suggested-header">
-                                    <p>Relays sugeridos (NIP-65)</p>
-                                    {suggestedNotAdded.length > 0 ? (
-                                        <Button type="button" variant="outline" className="nostr-relay-add-suggested" onClick={handleAddAllSuggestedRelays}>
-                                            Agregar todos
-                                        </Button>
-                                    ) : null}
+                                    <p>Relays sugeridos por tipo (NIP-65)</p>
+                                    <Button type="button" variant="outline" className="nostr-relay-add-suggested" onClick={handleAddAllSuggestedRelays}>
+                                        Agregar todos
+                                    </Button>
                                 </div>
 
-                                {suggestedNotAdded.length > 0 ? (
-                                    <div className="nostr-relay-table-wrap">
-                                        <Table className="nostr-relay-table">
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead>Relay</TableHead>
-                                                    <TableHead className="nostr-relay-actions-head">Actions</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {suggestedNotAdded.map((relayUrl) => {
-                                                    const details = describeRelay(relayUrl, 'suggested');
-                                                    const info = relayInfoByUrl[relayUrl];
-                                                    const document = info?.data;
+                                <div className="nostr-relay-table-wrap">
+                                    <Table className="nostr-relay-table">
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Relay</TableHead>
+                                                <TableHead>Type</TableHead>
+                                                <TableHead className="nostr-relay-actions-head">Actions</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {suggestedRows.map(({ relayUrl, relayType }) => {
+                                                const details = describeRelay(relayUrl, 'suggested');
+                                                const info = relayInfoByUrl[relayUrl];
+                                                const document = info?.data;
 
-                                                    return (
-                                                        <TableRow key={`suggested-${relayUrl}`}>
-                                                            <TableCell className="nostr-relay-url-cell">
-                                                                <div className="nostr-relay-main-cell">
-                                                                    <Avatar className="size-8">
-                                                                        {document?.icon ? <AvatarImage src={document.icon} alt={document.name || details.host} /> : null}
-                                                                        <AvatarFallback>{relayAvatarFallback(details, document)}</AvatarFallback>
-                                                                    </Avatar>
-                                                                    <div className="min-w-0">
-                                                                        <p className="nostr-relay-summary-primary">{document?.name || relayUrl}</p>
-                                                                        <p className="nostr-relay-summary-sub">Suggested by NIP-65</p>
-                                                                    </div>
+                                                return (
+                                                    <TableRow key={`suggested-${relayType}-${relayUrl}`}>
+                                                        <TableCell className="nostr-relay-url-cell">
+                                                            <div className="nostr-relay-main-cell">
+                                                                <Avatar className="size-8">
+                                                                    {document?.icon ? <AvatarImage src={document.icon} alt={document.name || details.host} /> : null}
+                                                                    <AvatarFallback>{relayAvatarFallback(details, document)}</AvatarFallback>
+                                                                </Avatar>
+                                                                <div className="min-w-0">
+                                                                    <p className="nostr-relay-summary-primary">{document?.name || relayUrl}</p>
+                                                                    <p className="nostr-relay-summary-sub">Suggested by NIP-65</p>
                                                                 </div>
-                                                            </TableCell>
-                                                            <TableCell className="nostr-relay-actions-cell">
-                                                                <ContextMenu>
-                                                                    <ContextMenuTrigger asChild>
-                                                                        <Button
-                                                                            type="button"
-                                                                            variant="outline"
-                                                                            size="icon-sm"
-                                                                            aria-label={`Abrir acciones sugeridas para ${relayUrl}`}
-                                                                            onClick={openRelayActionsMenu}
-                                                                        >
-                                                                            <EllipsisVerticalIcon data-icon="inline-start" />
-                                                                        </Button>
-                                                                    </ContextMenuTrigger>
-                                                                    <ContextMenuContent>
-                                                                        <ContextMenuGroup>
-                                                                            <ContextMenuItem onSelect={() => openRelayDetails(relayUrl, 'suggested')}>
-                                                                                Details
-                                                                            </ContextMenuItem>
-                                                                            <ContextMenuItem onSelect={() => handleAddSuggestedRelay(relayUrl)}>
-                                                                                Add
-                                                                            </ContextMenuItem>
-                                                                        </ContextMenuGroup>
-                                                                    </ContextMenuContent>
-                                                                </ContextMenu>
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    );
-                                                })}
-                                            </TableBody>
-                                        </Table>
-                                    </div>
-                                ) : (
-                                    <p className="nostr-relays-help">Todos los relays sugeridos ya estan agregados.</p>
-                                )}
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Badge variant="outline">{RELAY_TYPE_LABELS[relayType]}</Badge>
+                                                        </TableCell>
+                                                        <TableCell className="nostr-relay-actions-cell">
+                                                            <ContextMenu>
+                                                                <ContextMenuTrigger asChild>
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="outline"
+                                                                        size="icon-sm"
+                                                                        aria-label={`Abrir acciones sugeridas para ${relayUrl} (${RELAY_TYPE_LABELS[relayType]})`}
+                                                                        onClick={openRelayActionsMenu}
+                                                                    >
+                                                                        <EllipsisVerticalIcon data-icon="inline-start" />
+                                                                    </Button>
+                                                                </ContextMenuTrigger>
+                                                                <ContextMenuContent>
+                                                                    <ContextMenuGroup>
+                                                                        <ContextMenuItem onSelect={() => openRelayDetails(relayUrl, 'suggested', relayType)}>
+                                                                            Details
+                                                                        </ContextMenuItem>
+                                                                        <ContextMenuItem onSelect={() => handleAddSuggestedRelay(relayUrl, relayType)}>
+                                                                            Add
+                                                                        </ContextMenuItem>
+                                                                    </ContextMenuGroup>
+                                                                </ContextMenuContent>
+                                                            </ContextMenu>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            })}
+                                        </TableBody>
+                                    </Table>
+                                </div>
                             </section>
+                        ) : hasSuggestedRelays ? (
+                            <p className="nostr-relays-help">Todos los relays sugeridos ya estan agregados.</p>
                         ) : (
-                            <p className="nostr-relays-help">No hay relays sugeridos todavia. Carga una npub para intentar descubrirlos via NIP-65.</p>
+                            <p className="nostr-relays-help">No hay relays sugeridos todavia. Carga una npub para intentar descubrirlos y separarlos por tipo via NIP-65.</p>
                         )}
                     </div>
                 ) : view === 'relay-detail' && selectedRelayDetails ? (
@@ -766,7 +847,9 @@ export function MapSettingsModal({
 
                             <div className="min-w-0">
                                 <p className="nostr-relay-summary-primary">{selectedRelayInfo?.data?.name || selectedRelayDetails.relayUrl}</p>
-                                <p className="nostr-relay-summary-sub">{selectedRelayDetails.source === 'configured' ? 'Configured relay' : 'Suggested by NIP-65'}</p>
+                                <p className="nostr-relay-summary-sub">
+                                    {selectedRelayDetails.source === 'configured' ? 'Configured relay' : 'Suggested by NIP-65'} · {RELAY_TYPE_LABELS[selectedRelay.relayType]}
+                                </p>
                             </div>
                         </div>
 
@@ -784,6 +867,10 @@ export function MapSettingsModal({
                                     <TableRow>
                                         <TableHead className="nostr-relay-detail-key">Source</TableHead>
                                         <TableCell className="nostr-relay-detail-value">{selectedRelayDetails.source === 'configured' ? 'Configured' : 'Suggested (NIP-65)'}</TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                        <TableHead className="nostr-relay-detail-key">Category</TableHead>
+                                        <TableCell className="nostr-relay-detail-value">{RELAY_TYPE_LABELS[selectedRelay.relayType]}</TableCell>
                                     </TableRow>
                                     <TableRow>
                                         <TableHead className="nostr-relay-detail-key">Host</TableHead>

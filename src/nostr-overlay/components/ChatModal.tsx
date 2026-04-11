@@ -23,6 +23,7 @@ export interface ChatDetailMessage {
 interface ChatModalProps {
     open: boolean;
     hasUnreadGlobal: boolean;
+    isLoadingConversations?: boolean;
     conversations: ChatConversationSummary[];
     messages: ChatDetailMessage[];
     activeConversationId: string | null;
@@ -38,6 +39,7 @@ interface ChatModalProps {
 export function ChatModal({
     open,
     hasUnreadGlobal,
+    isLoadingConversations = false,
     conversations,
     messages,
     activeConversationId,
@@ -80,6 +82,7 @@ export function ChatModal({
                     <div className="nostr-chat-list-panel">
                         <ChatConversationList
                             conversations={conversations}
+                            loading={isLoadingConversations}
                             activeConversationId={activeConversationId}
                             onOpenConversation={onOpenConversation}
                         />
