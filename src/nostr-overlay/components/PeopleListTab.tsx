@@ -8,6 +8,7 @@ import { ListLoadingFooter } from './ListLoadingFooter';
 import { Nip05Identifier } from './Nip05Identifier';
 import { PersonContextMenuItems } from './PersonContextMenuItems';
 import { Button } from '@/components/ui/button';
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import {
     ContextMenu,
     ContextMenuContent,
@@ -314,7 +315,14 @@ export function PeopleListTab({
     };
 
     const listContent = people.length === 0
-        ? <p className="nostr-empty nostr-people-empty">{loading && loadingText ? loadingText : emptyText}</p>
+        ? (
+            <Empty className="nostr-people-empty">
+                <EmptyHeader>
+                    <EmptyTitle>{loading && loadingText ? loadingText : 'Sin resultados'}</EmptyTitle>
+                    <EmptyDescription>{loading && loadingText ? 'Estamos cargando mas personas.' : emptyText}</EmptyDescription>
+                </EmptyHeader>
+            </Empty>
+        )
         : shouldVirtualize ? (
             <div
                 ref={scrollContainerRef}

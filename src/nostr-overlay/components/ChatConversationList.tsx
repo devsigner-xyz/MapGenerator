@@ -1,4 +1,5 @@
 import type { ChatConversationSummary } from './ChatDialog';
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
 
 interface ChatConversationListProps {
@@ -19,7 +20,14 @@ export function ChatConversationList({ conversations, loading, activeConversatio
     }
 
     if (conversations.length === 0) {
-        return <p className="nostr-chat-empty">No hay conversaciones todavía</p>;
+        return (
+            <Empty className="nostr-chat-empty">
+                <EmptyHeader>
+                    <EmptyTitle>Sin conversaciones</EmptyTitle>
+                    <EmptyDescription>No hay conversaciones todavía.</EmptyDescription>
+                </EmptyHeader>
+            </Empty>
+        );
     }
 
     return (

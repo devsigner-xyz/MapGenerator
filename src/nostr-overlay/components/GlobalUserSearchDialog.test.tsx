@@ -60,7 +60,6 @@ describe('GlobalUserSearchDialog', () => {
                 const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
                 setter?.call(input, 'alice');
                 input.dispatchEvent(new Event('input', { bubbles: true }));
-                input.dispatchEvent(new Event('change', { bubbles: true }));
             });
 
             expect(onSearch).not.toHaveBeenCalled();
@@ -113,13 +112,11 @@ describe('GlobalUserSearchDialog', () => {
                 const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
                 setter?.call(input, 'alice');
                 input.dispatchEvent(new Event('input', { bubbles: true }));
-                input.dispatchEvent(new Event('change', { bubbles: true }));
                 await vi.advanceTimersByTimeAsync(300);
                 await Promise.resolve();
             });
 
             expect(rendered.container.textContent || '').toContain('Alice');
-            expect(rendered.container.textContent || '').toContain('Ver detalles');
         } finally {
             vi.useRealTimers();
         }
@@ -153,18 +150,17 @@ describe('GlobalUserSearchDialog', () => {
                 const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
                 setter?.call(input, 'bob');
                 input.dispatchEvent(new Event('input', { bubbles: true }));
-                input.dispatchEvent(new Event('change', { bubbles: true }));
                 await vi.advanceTimersByTimeAsync(300);
                 await Promise.resolve();
             });
 
-            const detailsButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
-                (button.textContent || '').trim() === 'Ver detalles'
-            ) as HTMLButtonElement;
-            expect(detailsButton).toBeDefined();
+            const userRow = Array.from(rendered.container.querySelectorAll('[data-slot="command-item"]')).find((row) =>
+                (row.textContent || '').includes('Bob')
+            ) as HTMLElement;
+            expect(userRow).toBeDefined();
 
             await act(async () => {
-                detailsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+                userRow.dispatchEvent(new MouseEvent('click', { bubbles: true }));
             });
 
             expect(onSelectUser).toHaveBeenCalledTimes(1);
@@ -174,7 +170,7 @@ describe('GlobalUserSearchDialog', () => {
         }
     });
 
-    test('shows spinner while searching and supports clear action', async () => {
+    test('shows loading and empty states while searching', async () => {
         vi.useFakeTimers();
         let resolveSearch: ((value: { pubkeys: string[]; profiles: Record<string, NostrProfile> }) => void) | null = null;
         const onSearch = vi.fn(
@@ -196,32 +192,23 @@ describe('GlobalUserSearchDialog', () => {
             mounted.push(rendered);
 
             const input = rendered.container.querySelector('input[aria-label="Buscar usuarios globalmente"]') as HTMLInputElement;
-            const clearButton = rendered.container.querySelector('button[aria-label="Limpiar busqueda global"]') as HTMLButtonElement;
-            expect(clearButton.disabled).toBe(true);
 
             await act(async () => {
                 const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
                 setter?.call(input, 'alice');
                 input.dispatchEvent(new Event('input', { bubbles: true }));
-                input.dispatchEvent(new Event('change', { bubbles: true }));
                 await vi.advanceTimersByTimeAsync(300);
                 await Promise.resolve();
             });
 
-            expect(clearButton.disabled).toBe(false);
-            expect(rendered.container.querySelector('[aria-label="Buscando usuarios"]')).not.toBeNull();
-
-            await act(async () => {
-                clearButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-            });
-
-            const inputAfterClear = rendered.container.querySelector('input[aria-label="Buscar usuarios globalmente"]') as HTMLInputElement;
-            expect(inputAfterClear.value).toBe('');
+            expect(rendered.container.textContent || '').toContain('Buscando usuarios');
 
             await act(async () => {
                 resolveSearch?.({ pubkeys: [], profiles: {} });
                 await Promise.resolve();
             });
+
+            expect(rendered.container.textContent || '').toContain('Sin resultados');
         } finally {
             vi.useRealTimers();
         }

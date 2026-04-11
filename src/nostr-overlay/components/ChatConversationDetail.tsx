@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChatConversationSummary, ChatDetailMessage } from './ChatDialog';
+import { Button } from '@/components/ui/button';
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
+import { Textarea } from '@/components/ui/textarea';
 
 interface ChatConversationDetailProps {
     conversation?: ChatConversationSummary;
@@ -44,20 +47,36 @@ export function ChatConversationDetail({
     }, [conversation?.id, composerAutoFocusKey]);
 
     if (!conversation) {
-        return <p className="nostr-chat-empty">Selecciona una conversación para empezar</p>;
+        return (
+            <Empty className="nostr-chat-empty">
+                <EmptyHeader>
+                    <EmptyTitle>Sin conversacion activa</EmptyTitle>
+                    <EmptyDescription>Selecciona una conversación para empezar.</EmptyDescription>
+                </EmptyHeader>
+            </Empty>
+        );
     }
 
     return (
         <div className="nostr-chat-detail">
             <div className="nostr-chat-detail-header">
-                <button type="button" className="nostr-chat-back" onClick={onBackToList}>
+                <Button type="button" variant="ghost" className="nostr-chat-back" onClick={onBackToList}>
                     Volver
-                </button>
+                </Button>
                 <p className="nostr-chat-detail-title">{conversation.title}</p>
             </div>
 
             <ul className="nostr-chat-messages">
-                {messages.length === 0 ? <li className="nostr-chat-empty">Sin mensajes todavía</li> : null}
+                {messages.length === 0 ? (
+                    <li>
+                        <Empty className="nostr-chat-empty">
+                            <EmptyHeader>
+                                <EmptyTitle>Sin mensajes</EmptyTitle>
+                                <EmptyDescription>Esta conversación aún no tiene mensajes.</EmptyDescription>
+                            </EmptyHeader>
+                        </Empty>
+                    </li>
+                ) : null}
                 {messages.map((message) => (
                     <li key={message.id} className={`nostr-chat-message ${message.direction === 'outgoing' ? 'is-outgoing' : 'is-incoming'}`}>
                         <p>
@@ -89,7 +108,7 @@ export function ChatConversationDetail({
                     setDraft('');
                 }}
             >
-                <textarea
+                <Textarea
                     ref={composerRef}
                     className="nostr-chat-composer-input"
                     value={draft}
@@ -97,9 +116,9 @@ export function ChatConversationDetail({
                     placeholder="Escribe un mensaje..."
                     readOnly={!canSend}
                 />
-                <button type="submit" className="nostr-chat-send" disabled={!canSend || draft.trim().length === 0}>
+                <Button type="submit" className="nostr-chat-send" disabled={!canSend || draft.trim().length === 0}>
                     Enviar
-                </button>
+                </Button>
             </form>
             {!canSend ? <p className="nostr-chat-empty">{disabledReason || 'El envío de mensajes está deshabilitado para esta sesión.'}</p> : null}
         </div>

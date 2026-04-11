@@ -616,6 +616,7 @@
     gap: 0.45rem;
     min-height: 0;
     height: 100%;
+    overflow-x: hidden;
 }
 
 .nostr-search-row {
@@ -630,7 +631,10 @@
 
 
 .nostr-people-empty {
-    margin-top: 1rem;
+    margin-top: 0.8rem;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
     text-align: center;
 }
 

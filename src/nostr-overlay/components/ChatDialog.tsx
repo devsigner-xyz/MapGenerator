@@ -64,7 +64,7 @@ export function ChatDialog({
                 }
             }}
         >
-            <DialogContent className="nostr-dialog nostr-chat-dialog sm:max-w-none" showCloseButton={false} aria-label="Chats">
+            <DialogContent className="nostr-dialog nostr-chat-dialog sm:max-w-none" aria-label="Chats">
                 <DialogTitle className="sr-only">Chats</DialogTitle>
                 <DialogDescription className="sr-only">Mensajería directa 1 a 1.</DialogDescription>
 
@@ -73,9 +73,6 @@ export function ChatDialog({
                         Chats
                         {hasUnreadGlobal ? <span className="nostr-chat-unread-dot" aria-hidden="true" /> : null}
                     </p>
-                    <button type="button" className="nostr-dialog-close" onClick={onClose} aria-label="Cerrar chats">
-                        ×
-                    </button>
                 </div>
 
                 <div className="nostr-chat-layout">

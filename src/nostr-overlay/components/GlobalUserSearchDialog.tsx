@@ -1,11 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, SearchIcon, XIcon } from 'lucide-react';
+import { XIcon } from 'lucide-react';
 import { encodeHexToNpub } from '../../nostr/npub';
 import type { NostrProfile } from '../../nostr/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
-import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, InputGroupText } from '@/components/ui/input-group';
+import {
+    Command,
+    CommandDialog,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from '@/components/ui/command';
+import { DialogClose } from '@/components/ui/dialog';
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
+import { Spinner } from '@/components/ui/spinner';
 
 interface SearchUsersResult {
     pubkeys: string[];
@@ -112,71 +120,80 @@ export function GlobalUserSearchDialog({
     );
 
     return (
-        <Dialog
+        <CommandDialog
             open={open}
             onOpenChange={(nextOpen) => {
                 if (!nextOpen) {
                     onClose();
                 }
             }}
+            title="Buscar usuarios globalmente"
+            description="Busqueda global de perfiles Nostr por nombre, npub o pubkey."
+            className="sm:max-w-2xl"
+            showCloseButton={false}
         >
-            <DialogContent className="nostr-dialog nostr-global-search-dialog" showCloseButton={false} aria-label="Buscar usuarios globalmente">
-                <DialogTitle className="sr-only">Buscar usuarios globalmente</DialogTitle>
-                <DialogDescription className="sr-only">Busqueda global de perfiles Nostr por nombre, npub o pubkey.</DialogDescription>
-
-                <div className="nostr-global-search-header">
-                    <p className="nostr-global-search-title">Buscar usuarios globalmente</p>
-                    <button type="button" className="nostr-dialog-close" onClick={onClose} aria-label="Cerrar buscador global">
-                        ×
-                    </button>
+            <Command shouldFilter={false}>
+                <div className="flex items-center justify-between px-3 pt-3">
+                    <p className="text-sm font-medium">Buscar usuarios globalmente</p>
+                    <DialogClose asChild>
+                        <Button type="button" variant="ghost" size="icon-sm" aria-label="Cerrar buscador global">
+                            <XIcon data-icon="inline-start" />
+                        </Button>
+                    </DialogClose>
                 </div>
 
-                <div className="nostr-search-row">
-                    <InputGroup>
-                        <InputGroupAddon align="inline-start" aria-hidden="true">
-                            <SearchIcon />
-                        </InputGroupAddon>
+                <CommandInput
+                    value={query}
+                    aria-label="Buscar usuarios globalmente"
+                    placeholder="Buscar por nombre, npub o pubkey"
+                    onValueChange={setQuery}
+                />
 
-                        <InputGroupInput
-                            value={query}
-                            aria-label="Buscar usuarios globalmente"
-                            placeholder="Buscar por nombre, npub o pubkey"
-                            onChange={(event) => setQuery(event.target.value)}
-                        />
-
-                        <InputGroupAddon align="inline-end">
-                            {isSearching ? (
-                                <InputGroupText aria-label="Buscando usuarios" role="status">
-                                    <Loader2 className="animate-spin" />
-                                </InputGroupText>
-                            ) : null}
-
-                            <InputGroupButton
-                                size="icon-xs"
-                                aria-label="Limpiar busqueda global"
-                                disabled={query.trim().length === 0}
-                                onClick={() => setQuery('')}
-                            >
-                                <XIcon />
-                            </InputGroupButton>
-                        </InputGroupAddon>
-                    </InputGroup>
-                </div>
-
-                {!query.trim() ? (
-                    <p className="nostr-global-search-empty">Escribe para buscar por nombre, npub o pubkey.</p>
-                ) : isSearching ? (
-                    <p className="nostr-global-search-empty">Buscando usuarios...</p>
-                ) : error ? (
-                    <p className="nostr-global-search-empty">{error}</p>
-                ) : rows.length === 0 ? (
-                    <p className="nostr-global-search-empty">No se encontraron usuarios.</p>
-                ) : (
-                    <ul className="nostr-global-search-results">
-                        {rows.map(({ pubkey, profile }) => {
+                <CommandList className="nostr-global-search-results">
+                    {!query.trim() ? (
+                        <Empty className="nostr-global-search-empty">
+                            <EmptyHeader>
+                                <EmptyTitle>Buscar usuarios globalmente</EmptyTitle>
+                                <EmptyDescription>Escribe para buscar por nombre, npub o pubkey.</EmptyDescription>
+                            </EmptyHeader>
+                        </Empty>
+                    ) : isSearching ? (
+                        <Empty className="nostr-global-search-empty">
+                            <EmptyHeader>
+                                <EmptyMedia variant="icon">
+                                    <Spinner />
+                                </EmptyMedia>
+                                <EmptyTitle>Buscando usuarios</EmptyTitle>
+                                <EmptyDescription>Estamos consultando perfiles en los relays.</EmptyDescription>
+                            </EmptyHeader>
+                        </Empty>
+                    ) : error ? (
+                        <Empty className="nostr-global-search-empty">
+                            <EmptyHeader>
+                                <EmptyTitle>Error de busqueda</EmptyTitle>
+                                <EmptyDescription>{error}</EmptyDescription>
+                            </EmptyHeader>
+                        </Empty>
+                    ) : rows.length === 0 ? (
+                        <Empty className="nostr-global-search-empty">
+                            <EmptyHeader>
+                                <EmptyTitle>Sin resultados</EmptyTitle>
+                                <EmptyDescription>No se encontraron usuarios.</EmptyDescription>
+                            </EmptyHeader>
+                        </Empty>
+                    ) : (
+                        rows.map(({ pubkey, profile }) => {
                             const display = profileDisplayName(pubkey, profile);
                             return (
-                                <li key={pubkey} className="nostr-global-search-result-row">
+                                <CommandItem
+                                    key={pubkey}
+                                    value={`${display} ${profileShortNpub(pubkey)} ${pubkey}`}
+                                    className="nostr-global-search-result-row"
+                                    onSelect={() => {
+                                        onSelectUser(pubkey);
+                                        onClose();
+                                    }}
+                                >
                                     <div className="nostr-global-search-result-main">
                                         <Avatar className="size-8">
                                             {profile?.picture ? <AvatarImage src={profile.picture} alt={display} /> : null}
@@ -188,38 +205,29 @@ export function GlobalUserSearchDialog({
                                         </div>
                                     </div>
 
-                                    <div className="nostr-global-search-result-actions">
-                                        {onMessageUser ? (
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => {
-                                                    void onMessageUser(pubkey);
-                                                    onClose();
-                                                }}
-                                            >
-                                                Mensaje
-                                            </Button>
-                                        ) : null}
+                                    {onMessageUser ? (
                                         <Button
                                             type="button"
                                             variant="outline"
                                             size="sm"
-                                            onClick={() => {
-                                                onSelectUser(pubkey);
+                                            onPointerDown={(event: { stopPropagation: () => void }) => {
+                                                event.stopPropagation();
+                                            }}
+                                            onClick={(event: { stopPropagation: () => void }) => {
+                                                event.stopPropagation();
+                                                void onMessageUser(pubkey);
                                                 onClose();
                                             }}
                                         >
-                                            Ver detalles
+                                            Mensaje
                                         </Button>
-                                    </div>
-                                </li>
+                                    ) : null}
+                                </CommandItem>
                             );
-                        })}
-                    </ul>
-                )}
-            </DialogContent>
-        </Dialog>
+                        })
+                    )}
+                </CommandList>
+            </Command>
+        </CommandDialog>
     );
 }

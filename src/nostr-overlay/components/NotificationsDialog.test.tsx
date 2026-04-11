@@ -70,7 +70,8 @@ describe('NotificationsDialog', () => {
         );
         mounted.push(rendered);
 
-        expect(rendered.container.textContent || '').toContain('No tienes notificaciones pendientes');
+        expect(rendered.container.textContent || '').toContain('Sin notificaciones');
+        expect(rendered.container.textContent || '').toContain('No tienes notificaciones pendientes.');
     });
 
     test('renders notifications list items', async () => {
@@ -103,7 +104,9 @@ describe('NotificationsDialog', () => {
         );
         mounted.push(rendered);
 
-        const closeButton = rendered.container.querySelector('button[aria-label="Cerrar notificaciones"]') as HTMLButtonElement;
+        const closeButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Close')
+        ) as HTMLButtonElement;
         expect(closeButton).toBeDefined();
 
         await act(async () => {

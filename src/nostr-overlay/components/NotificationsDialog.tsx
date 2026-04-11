@@ -1,5 +1,6 @@
 import type { SocialNotificationItem } from '../../nostr/social-notifications-service';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 
 interface NotificationsDialogProps {
     open: boolean;
@@ -42,7 +43,7 @@ export function NotificationsDialog({ open, hasUnread, notifications, onClose }:
                 }
             }}
         >
-            <DialogContent className="nostr-dialog nostr-notifications-dialog" showCloseButton={false} aria-label="Notificaciones">
+            <DialogContent className="nostr-dialog nostr-notifications-dialog" aria-label="Notificaciones">
                 <DialogTitle className="sr-only">Notificaciones</DialogTitle>
                 <DialogDescription className="sr-only">Listado de notificaciones sociales pendientes.</DialogDescription>
 
@@ -51,13 +52,15 @@ export function NotificationsDialog({ open, hasUnread, notifications, onClose }:
                         Notificaciones
                         {hasUnread ? <span className="nostr-notifications-unread-dot" aria-hidden="true" /> : null}
                     </p>
-                    <button type="button" className="nostr-dialog-close" onClick={onClose} aria-label="Cerrar notificaciones">
-                        ×
-                    </button>
                 </div>
 
                 {notifications.length === 0 ? (
-                    <p className="nostr-notifications-empty">No tienes notificaciones pendientes</p>
+                    <Empty className="nostr-notifications-empty">
+                        <EmptyHeader>
+                            <EmptyTitle>Sin notificaciones</EmptyTitle>
+                            <EmptyDescription>No tienes notificaciones pendientes.</EmptyDescription>
+                        </EmptyHeader>
+                    </Empty>
                 ) : (
                     <ul className="nostr-notifications-list">
                         {notifications.map((item) => (

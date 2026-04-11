@@ -43,6 +43,7 @@ import { Input } from '@/components/ui/input';
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { Slider } from '@/components/ui/slider';
 import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -380,32 +381,51 @@ export function MapSettingsDialog({
         return RELAY_TYPES.some((relayType) => normalizedSuggestedByType[relayType].length > 0);
     }, [normalizedSuggestedByType]);
 
-    const relayStatusTargets = useMemo(() => {
-        return [...new Set([
-            ...configuredRows.map(({ relayUrl }) => relayUrl),
-            ...suggestedRows.map(({ relayUrl }) => relayUrl),
-        ])];
-    }, [configuredRows, suggestedRows]);
+    const configuredRelayStatusTargets = useMemo(() => {
+        return [...new Set(configuredRows.map(({ relayUrl }) => relayUrl))];
+    }, [configuredRows]);
 
-    const { statusByRelay: relayConnectionStatusByRelay } = useRelayConnectionSummary(relayStatusTargets, {
+    const suggestedRelayStatusTargets = useMemo(() => {
+        const configured = new Set(configuredRelayStatusTargets);
+        return [...new Set(
+            suggestedRows
+                .map(({ relayUrl }) => relayUrl)
+                .filter((relayUrl) => !configured.has(relayUrl))
+        )];
+    }, [configuredRelayStatusTargets, suggestedRows]);
+
+    const { statusByRelay: configuredRelayConnectionStatusByRelay } = useRelayConnectionSummary(configuredRelayStatusTargets, {
         enabled: view === 'relays',
         probe: relayConnectionProbe,
         refreshIntervalMs: relayConnectionRefreshIntervalMs,
     });
 
+    const checkingConfiguredRelays = useMemo(() => {
+        return configuredRows.reduce((count, row) => {
+            const status = configuredRelayConnectionStatusByRelay[row.relayUrl];
+            return count + (status === 'connected' || status === 'disconnected' ? 0 : 1);
+        }, 0);
+    }, [configuredRows, configuredRelayConnectionStatusByRelay]);
+
+    const { statusByRelay: suggestedRelayConnectionStatusByRelay } = useRelayConnectionSummary(suggestedRelayStatusTargets, {
+        enabled: view === 'relays' && checkingConfiguredRelays === 0,
+        probe: relayConnectionProbe,
+        refreshIntervalMs: 0,
+    });
+
+    const relayConnectionStatusByRelay = useMemo(() => {
+        return {
+            ...suggestedRelayConnectionStatusByRelay,
+            ...configuredRelayConnectionStatusByRelay,
+        };
+    }, [suggestedRelayConnectionStatusByRelay, configuredRelayConnectionStatusByRelay]);
+
     const connectedConfiguredRelays = useMemo(() => {
         return configuredRows.reduce(
-            (count, row) => count + (relayConnectionStatusByRelay[row.relayUrl] === 'connected' ? 1 : 0),
+            (count, row) => count + (configuredRelayConnectionStatusByRelay[row.relayUrl] === 'connected' ? 1 : 0),
             0
         );
-    }, [configuredRows, relayConnectionStatusByRelay]);
-
-    const checkingConfiguredRelays = useMemo(() => {
-        return configuredRows.reduce(
-            (count, row) => count + (relayConnectionStatusByRelay[row.relayUrl] === 'checking' ? 1 : 0),
-            0
-        );
-    }, [configuredRows, relayConnectionStatusByRelay]);
+    }, [configuredRows, configuredRelayConnectionStatusByRelay]);
 
     const disconnectedConfiguredRelays = Math.max(
         0,
@@ -606,17 +626,15 @@ export function MapSettingsDialog({
                             <Label className="nostr-label" htmlFor="nostr-occupied-zoom-level">Occupied labels zoom level</Label>
                             <span className="nostr-ui-slider-value">{uiSettings.occupiedLabelsZoomLevel}</span>
                         </div>
-                        <input
+                        <Slider
                             id="nostr-occupied-zoom-level"
-                            className="nostr-input"
-                            type="range"
                             aria-label="Occupied labels zoom level"
                             min={1}
                             max={20}
                             step={1}
-                            value={uiSettings.occupiedLabelsZoomLevel}
-                            onChange={(event) => {
-                                const nextValue = Number(event.target.value);
+                            value={[uiSettings.occupiedLabelsZoomLevel]}
+                            onValueChange={(values) => {
+                                const nextValue = values[0];
                                 if (!Number.isFinite(nextValue)) {
                                     return;
                                 }
@@ -670,18 +688,16 @@ export function MapSettingsDialog({
                             <Label className="nostr-label" htmlFor="nostr-street-zoom-level">Street labels zoom level</Label>
                             <span className="nostr-ui-slider-value">{uiSettings.streetLabelsZoomLevel}</span>
                         </div>
-                        <input
+                        <Slider
                             id="nostr-street-zoom-level"
-                            className="nostr-input"
-                            type="range"
                             aria-label="Street labels zoom level"
                             min={1}
                             max={20}
                             step={1}
                             disabled={!uiSettings.streetLabelsEnabled}
-                            value={uiSettings.streetLabelsZoomLevel}
-                            onChange={(event) => {
-                                const nextValue = Number(event.target.value);
+                            value={[uiSettings.streetLabelsZoomLevel]}
+                            onValueChange={(values) => {
+                                const nextValue = values[0];
                                 if (!Number.isFinite(nextValue)) {
                                     return;
                                 }
@@ -692,23 +708,21 @@ export function MapSettingsDialog({
                             }}
                         />
 
-                        <hr className="nostr-divider" />
+                        <Separator className="nostr-divider" />
 
                         <div className="nostr-ui-slider-row">
-                            <label className="nostr-label" htmlFor="nostr-traffic-count">Cars in city</label>
+                            <Label className="nostr-label" htmlFor="nostr-traffic-count">Cars in city</Label>
                             <span className="nostr-ui-slider-value">{uiSettings.trafficParticlesCount}</span>
                         </div>
-                        <input
+                        <Slider
                             id="nostr-traffic-count"
-                            className="nostr-input"
-                            type="range"
                             min={0}
                             max={50}
                             step={1}
                             aria-label="Cars in city"
-                            value={uiSettings.trafficParticlesCount}
-                            onChange={(event) => {
-                                const nextValue = Number(event.target.value);
+                            value={[uiSettings.trafficParticlesCount]}
+                            onValueChange={(values) => {
+                                const nextValue = values[0];
                                 if (!Number.isFinite(nextValue)) {
                                     return;
                                 }
@@ -721,20 +735,18 @@ export function MapSettingsDialog({
                         />
 
                         <div className="nostr-ui-slider-row">
-                            <label className="nostr-label" htmlFor="nostr-traffic-speed">Cars speed</label>
+                            <Label className="nostr-label" htmlFor="nostr-traffic-speed">Cars speed</Label>
                             <span className="nostr-ui-slider-value">{uiSettings.trafficParticlesSpeed.toFixed(1)}x</span>
                         </div>
-                        <input
+                        <Slider
                             id="nostr-traffic-speed"
-                            className="nostr-input"
-                            type="range"
                             min={0.2}
                             max={3}
                             step={0.1}
                             aria-label="Cars speed"
-                            value={uiSettings.trafficParticlesSpeed}
-                            onChange={(event) => {
-                                const nextValue = Number(event.target.value);
+                            value={[uiSettings.trafficParticlesSpeed]}
+                            onValueChange={(values) => {
+                                const nextValue = values[0];
                                 if (!Number.isFinite(nextValue)) {
                                     return;
                                 }
@@ -771,7 +783,7 @@ export function MapSettingsDialog({
                                         const details = describeRelay(relayUrl, 'configured');
                                         const info = relayInfoByUrl[relayUrl];
                                         const document = info?.data;
-                                        const relayConnectionStatus = relayConnectionStatusByRelay[relayUrl];
+                                        const relayConnectionStatus = configuredRelayConnectionStatusByRelay[relayUrl];
 
                                         return (
                                             <TableRow key={`configured-${relayType}-${relayUrl}`}>
@@ -857,7 +869,6 @@ export function MapSettingsDialog({
                                 <InputGroupButton
                                     variant="secondary"
                                     onClick={handleAddRelays}
-                                    disabled={newRelayInput.trim().length === 0}
                                 >
                                     Añadir
                                 </InputGroupButton>

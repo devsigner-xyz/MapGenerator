@@ -77,7 +77,7 @@ describe('ChatDialog', () => {
         mounted.push(rendered);
 
         expect(rendered.container.querySelector('.nostr-chat-unread-dot')).not.toBeNull();
-        expect(rendered.container.textContent || '').toContain('No hay conversaciones todavía');
+        expect(rendered.container.textContent || '').toContain('Sin conversaciones');
     });
 
     test('shows loader while bootstrapping conversations', async () => {

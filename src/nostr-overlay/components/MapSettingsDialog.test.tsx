@@ -39,6 +39,20 @@ async function waitForCondition(check: () => boolean, timeoutMs: number = 2000):
     throw new Error('Condition was not met in time');
 }
 
+function getSliderThumb(container: HTMLDivElement, ariaLabel: string): HTMLElement {
+    const slider = container.querySelector(`[aria-label="${ariaLabel}"]`);
+    if (!slider) {
+        throw new Error(`Slider not found for label: ${ariaLabel}`);
+    }
+
+    const thumb = slider.querySelector('[role="slider"]') as HTMLElement | null;
+    if (!thumb) {
+        throw new Error(`Slider thumb not found for label: ${ariaLabel}`);
+    }
+
+    return thumb;
+}
+
 function createBridgeStub(): MapBridge {
     return {
         ensureGenerated: vi.fn().mockResolvedValue(undefined),
@@ -100,10 +114,8 @@ describe('MapSettingsDialog UI settings', () => {
         );
         mounted.push(rendered);
 
-        const zoomInput = rendered.container.querySelector('input[aria-label="Occupied labels zoom level"]') as HTMLInputElement;
-        expect(zoomInput).toBeDefined();
-        expect(zoomInput.type).toBe('range');
-        expect(zoomInput.value).toBe('8');
+        const zoomThumb = getSliderThumb(rendered.container, 'Occupied labels zoom level');
+        expect(zoomThumb.getAttribute('aria-valuenow')).toBe('8');
 
         const sliderMarks = Array.from(rendered.container.querySelectorAll('.nostr-ui-slider-marks span')).map((node) => node.textContent || '');
         expect(sliderMarks).toEqual(['1', '8', '20']);
@@ -116,23 +128,21 @@ describe('MapSettingsDialog UI settings', () => {
         expect(verifiedOverlayToggle).toBeDefined();
         expect(verifiedOverlayToggle.getAttribute('aria-checked')).toBe('false');
 
-        const streetZoomInput = rendered.container.querySelector('input[aria-label="Street labels zoom level"]') as HTMLInputElement;
-        expect(streetZoomInput).toBeDefined();
-        expect(streetZoomInput.value).toBe('10');
+        const streetZoomThumb = getSliderThumb(rendered.container, 'Street labels zoom level');
+        expect(streetZoomThumb.getAttribute('aria-valuenow')).toBe('10');
 
-        const trafficCountInput = rendered.container.querySelector('input[aria-label="Cars in city"]') as HTMLInputElement;
-        expect(trafficCountInput).toBeDefined();
-        expect(trafficCountInput.value).toBe('12');
+        const trafficCountThumb = getSliderThumb(rendered.container, 'Cars in city');
+        expect(trafficCountThumb.getAttribute('aria-valuenow')).toBe('12');
 
-        const trafficSpeedInput = rendered.container.querySelector('input[aria-label="Cars speed"]') as HTMLInputElement;
-        expect(trafficSpeedInput).toBeDefined();
-        expect(trafficSpeedInput.value).toBe('1');
+        const trafficSpeedThumb = getSliderThumb(rendered.container, 'Cars speed');
+        expect(trafficSpeedThumb.getAttribute('aria-valuenow')).toBe('1');
 
         await act(async () => {
-            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-            valueSetter?.call(zoomInput, '12');
-            zoomInput.dispatchEvent(new Event('input', { bubbles: true }));
-            zoomInput.dispatchEvent(new Event('change', { bubbles: true }));
+            for (let index = 0; index < 4; index += 1) {
+                getSliderThumb(rendered.container, 'Occupied labels zoom level').dispatchEvent(
+                    new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })
+                );
+            }
         });
 
         await act(async () => {
@@ -148,35 +158,46 @@ describe('MapSettingsDialog UI settings', () => {
         });
 
         await act(async () => {
-            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-            valueSetter?.call(streetZoomInput, '14');
-            streetZoomInput.dispatchEvent(new Event('input', { bubbles: true }));
-            streetZoomInput.dispatchEvent(new Event('change', { bubbles: true }));
+            for (let index = 0; index < 4; index += 1) {
+                getSliderThumb(rendered.container, 'Street labels zoom level').dispatchEvent(
+                    new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })
+                );
+            }
         });
 
         await act(async () => {
-            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-            valueSetter?.call(trafficCountInput, '22');
-            trafficCountInput.dispatchEvent(new Event('input', { bubbles: true }));
-            trafficCountInput.dispatchEvent(new Event('change', { bubbles: true }));
+            for (let index = 0; index < 10; index += 1) {
+                getSliderThumb(rendered.container, 'Cars in city').dispatchEvent(
+                    new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })
+                );
+            }
         });
 
         await act(async () => {
-            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-            valueSetter?.call(trafficSpeedInput, '1.7');
-            trafficSpeedInput.dispatchEvent(new Event('input', { bubbles: true }));
-            trafficSpeedInput.dispatchEvent(new Event('change', { bubbles: true }));
+            for (let index = 0; index < 7; index += 1) {
+                getSliderThumb(rendered.container, 'Cars speed').dispatchEvent(
+                    new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })
+                );
+            }
         });
 
         expect(onUiSettingsChange).toHaveBeenCalled();
         const raw = window.localStorage.getItem(UI_SETTINGS_STORAGE_KEY);
         expect(raw).not.toBeNull();
-        expect(raw || '').toContain('12');
-        expect(raw || '').toContain('streetLabelsEnabled');
-        expect(raw || '').toContain('verifiedBuildingsOverlayEnabled');
-        expect(raw || '').toContain('14');
-        expect(raw || '').toContain('"trafficParticlesCount":22');
-        expect(raw || '').toContain('"trafficParticlesSpeed":1.7');
+        const parsed = JSON.parse(raw || '{}') as {
+            occupiedLabelsZoomLevel?: number;
+            streetLabelsEnabled?: boolean;
+            verifiedBuildingsOverlayEnabled?: boolean;
+            streetLabelsZoomLevel?: number;
+            trafficParticlesCount?: number;
+            trafficParticlesSpeed?: number;
+        };
+        expect(parsed.occupiedLabelsZoomLevel).toBe(9);
+        expect(parsed.streetLabelsEnabled).toBe(true);
+        expect(parsed.verifiedBuildingsOverlayEnabled).toBe(true);
+        expect(parsed.streetLabelsZoomLevel).toBe(11);
+        expect(parsed.trafficParticlesCount).toBe(13);
+        expect(parsed.trafficParticlesSpeed).toBe(1.1);
     });
 
     test('shows about panel with supported nips and app features', async () => {
@@ -521,6 +542,33 @@ describe('MapSettingsDialog UI settings', () => {
         expect(raw || '').not.toContain('wss://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
     });
 
+    test('keeps relay input enabled styling when add field is empty', async () => {
+        const bridge = createBridgeStub();
+        const rendered = await renderElement(
+            <MapSettingsDialog
+                mapBridge={bridge}
+                initialView="relays"
+                onClose={() => {}}
+            />
+        );
+        mounted.push(rendered);
+
+        const relayEditor = rendered.container.querySelector('input[aria-label="Relay URLs"]') as HTMLInputElement;
+        const addButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').trim() === 'Añadir'
+        ) as HTMLButtonElement;
+
+        expect(relayEditor).toBeDefined();
+        expect(addButton).toBeDefined();
+        expect(addButton.disabled).toBe(false);
+
+        await act(async () => {
+            addButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(rendered.container.textContent || '').not.toContain('Entradas invalidas');
+    });
+
     test('shows relay connection summary and per-row connection status in relays table', async () => {
         window.localStorage.setItem(
             RELAY_SETTINGS_STORAGE_KEY,
@@ -566,6 +614,68 @@ describe('MapSettingsDialog UI settings', () => {
         expect(probeRelayStatus).toHaveBeenCalledWith('wss://relay.inbox.one', expect.any(Number));
         expect(probeRelayStatus).toHaveBeenCalledWith('wss://relay.shared.one', expect.any(Number));
         expect(probeRelayStatus).toHaveBeenCalledWith('wss://relay.outbox.one', expect.any(Number));
+    });
+
+    test('keeps configured relay status stable even with many suggested relay probes', async () => {
+        window.localStorage.setItem(
+            RELAY_SETTINGS_STORAGE_KEY,
+            JSON.stringify({
+                relays: ['wss://relay.configured.one'],
+                byType: {
+                    nip65Both: ['wss://relay.configured.one'],
+                    nip65Read: [],
+                    nip65Write: [],
+                    dmInbox: [],
+                },
+            })
+        );
+
+        let activeProbes = 0;
+        const probeRelayStatus = vi.fn(async (relayUrl: string) => {
+            activeProbes += 1;
+
+            try {
+                await new Promise((resolve) => setTimeout(resolve, 30));
+
+                if (relayUrl === 'wss://relay.configured.one') {
+                    return activeProbes === 1;
+                }
+
+                return false;
+            } finally {
+                activeProbes -= 1;
+            }
+        });
+
+        const bridge = createBridgeStub();
+        const rendered = await renderElement(
+            <MapSettingsDialog
+                mapBridge={bridge}
+                initialView="relays"
+                onClose={() => {}}
+                relayConnectionProbe={probeRelayStatus}
+                relayConnectionRefreshIntervalMs={0}
+                suggestedRelays={[
+                    'wss://relay.suggested.one',
+                    'wss://relay.suggested.two',
+                    'wss://relay.suggested.three',
+                    'wss://relay.suggested.four',
+                    'wss://relay.suggested.five',
+                    'wss://relay.suggested.six',
+                ]}
+            />
+        );
+        mounted.push(rendered);
+
+        await waitForCondition(() => {
+            const content = rendered.container.textContent || '';
+            return content.includes('Relays configurados: 1') && content.includes('Conectados: 1') && content.includes('Sin conexión: 0');
+        });
+
+        const configuredActions = rendered.container.querySelector('button[aria-label="Abrir acciones para wss://relay.configured.one (NIP-65 read+write)"]') as HTMLButtonElement | null;
+        expect(configuredActions).not.toBeNull();
+        const configuredRow = configuredActions?.closest('tr');
+        expect(configuredRow?.textContent || '').toContain('Conectado');
     });
 
     test('renders checking status with shadcn spinner badge', async () => {
