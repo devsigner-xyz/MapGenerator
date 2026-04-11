@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactElement } from 'react';
-import { ChevronDownIcon, EllipsisVerticalIcon } from 'lucide-react';
+import { AlertTriangleIcon, ChevronDownIcon, EllipsisVerticalIcon } from 'lucide-react';
 import {
     addRelay,
     getRelaySetByType,
@@ -26,6 +26,7 @@ import {
     type RelayConnectionProbe,
     type RelayConnectionStatus,
 } from '../hooks/useRelayConnectionSummary';
+import { encodeHexToNpub, isHexKey } from '../../nostr/npub';
 import type { MapBridge } from '../map-bridge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -41,6 +42,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
+import { Item, ItemContent, ItemDescription, ItemMedia } from '@/components/ui/item';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Slider } from '@/components/ui/slider';
@@ -84,10 +86,6 @@ interface RelayDetails {
     relayUrl: string;
     source: RelaySource;
     host: string;
-    protocol: string;
-    path: string;
-    port: string;
-    secure: boolean;
 }
 
 interface RelayFee {
@@ -100,13 +98,16 @@ interface RelayFee {
 interface RelayInformationDocument {
     name?: string;
     description?: string;
+    banner?: string;
     icon?: string;
     pubkey?: string;
+    self?: string;
     contact?: string;
     supported_nips?: number[];
     software?: string;
     version?: string;
     terms_of_service?: string;
+    privacy_policy?: string;
     payments_url?: string;
     limitation?: {
         payment_required?: boolean;
@@ -141,20 +142,12 @@ function describeRelay(relayUrl: string, source: RelaySource): RelayDetails {
             relayUrl,
             source,
             host: parsed.hostname || 'unknown',
-            protocol: parsed.protocol.replace(':', ''),
-            path: parsed.pathname || '/',
-            port: parsed.port || (parsed.protocol === 'wss:' ? '443' : parsed.protocol === 'ws:' ? '80' : 'unknown'),
-            secure: parsed.protocol === 'wss:',
         };
     } catch {
         return {
             relayUrl,
             source,
             host: 'unknown',
-            protocol: relayUrl.startsWith('wss://') ? 'wss' : relayUrl.startsWith('ws://') ? 'ws' : 'unknown',
-            path: '/',
-            port: 'unknown',
-            secure: relayUrl.startsWith('wss://'),
         };
     }
 }
@@ -181,13 +174,18 @@ async function fetchRelayInformation(relayUrl: string): Promise<RelayInformation
         throw new Error('invalid relay endpoint');
     }
 
+    const fetchFn = typeof window !== 'undefined' ? window.fetch?.bind(window) : globalThis.fetch;
+    if (typeof fetchFn !== 'function') {
+        throw new Error('fetch unavailable');
+    }
+
     const controller = new AbortController();
     const timeout = window.setTimeout(() => {
         controller.abort();
     }, 3500);
 
     try {
-        const response = await fetch(endpoint, {
+        const response = await fetchFn(endpoint, {
             method: 'GET',
             headers: {
                 Accept: 'application/nostr+json, application/json;q=0.9',
@@ -210,23 +208,6 @@ async function fetchRelayInformation(relayUrl: string): Promise<RelayInformation
     }
 }
 
-function relayRequiresPayment(document?: RelayInformationDocument): boolean | null {
-    if (!document) {
-        return null;
-    }
-
-    if (typeof document.limitation?.payment_required === 'boolean') {
-        return document.limitation.payment_required;
-    }
-
-    const hasFees = Boolean(
-        (document.fees?.admission && document.fees.admission.length > 0)
-        || (document.fees?.subscription && document.fees.subscription.length > 0)
-        || (document.fees?.publication && document.fees.publication.length > 0)
-    );
-    return hasFees ? true : null;
-}
-
 function relayAvatarFallback(details: RelayDetails, document?: RelayInformationDocument): string {
     const source = document?.name || details.host || details.relayUrl;
     const parts = source.split(/[^a-zA-Z0-9]+/).filter((part) => part.length > 0);
@@ -245,6 +226,31 @@ function formatRelayFee(fee: RelayFee): string {
         return `${amount} (kinds ${fee.kinds.join(', ')})`;
     }
     return amount;
+}
+
+function toAdminIdentity(pubkey?: string): string | null {
+    if (typeof pubkey !== 'string') {
+        return null;
+    }
+
+    const normalized = pubkey.trim().toLowerCase();
+    if (!isHexKey(normalized)) {
+        return null;
+    }
+
+    try {
+        return encodeHexToNpub(normalized);
+    } catch {
+        return null;
+    }
+}
+
+function hasNip11Metadata(document?: RelayInformationDocument): boolean {
+    if (!document) {
+        return false;
+    }
+
+    return Object.keys(document).length > 0;
 }
 
 function relayConnectionBadge(status: RelayConnectionStatus | undefined): ReactElement {
@@ -327,7 +333,9 @@ export function MapSettingsDialog({
     const [invalidRelayInputs, setInvalidRelayInputs] = useState<string[]>([]);
     const [selectedRelay, setSelectedRelay] = useState<RelaySelection | null>(null);
     const [relayInfoByUrl, setRelayInfoByUrl] = useState<Record<string, RelayInfoState>>({});
+    const [copiedRelayIdentityKey, setCopiedRelayIdentityKey] = useState<string | null>(null);
     const settingsHostRef = useRef<HTMLDivElement | null>(null);
+    const relayCopyResetTimeoutRef = useRef<number | null>(null);
 
     const persistRelaySettings = (nextState: RelaySettingsState): void => {
         const savedState = saveRelaySettings(nextState);
@@ -525,36 +533,35 @@ export function MapSettingsDialog({
     }, [mapBridge, view]);
 
     useEffect(() => {
-        if (view !== 'relays' || relayInfoTargets.length === 0 || typeof fetch !== 'function') {
+        const fetchAvailable = typeof window !== 'undefined' && typeof window.fetch === 'function';
+        if ((view !== 'relays' && view !== 'relay-detail') || relayInfoTargets.length === 0 || !fetchAvailable) {
             return;
         }
 
-        const pending: string[] = [];
-        setRelayInfoByUrl((current) => {
-            let changed = false;
-            const next = { ...current };
-            for (const relayUrl of relayInfoTargets) {
-                if (!next[relayUrl]) {
-                    next[relayUrl] = { status: 'loading' };
-                    pending.push(relayUrl);
-                    changed = true;
-                }
-            }
-            return changed ? next : current;
+        const pending = relayInfoTargets.filter((relayUrl) => {
+            const current = relayInfoByUrl[relayUrl];
+            return !current;
         });
 
         if (pending.length === 0) {
             return;
         }
 
-        let cancelled = false;
+        setRelayInfoByUrl((current) => {
+            let changed = false;
+            const next = { ...current };
+            for (const relayUrl of pending) {
+                if (next[relayUrl]?.status !== 'loading') {
+                    next[relayUrl] = { status: 'loading' };
+                    changed = true;
+                }
+            }
+            return changed ? next : current;
+        });
+
         void Promise.all(pending.map(async (relayUrl) => {
             try {
                 const data = await fetchRelayInformation(relayUrl);
-                if (cancelled) {
-                    return;
-                }
-
                 setRelayInfoByUrl((current) => ({
                     ...current,
                     [relayUrl]: {
@@ -563,10 +570,6 @@ export function MapSettingsDialog({
                     },
                 }));
             } catch {
-                if (cancelled) {
-                    return;
-                }
-
                 setRelayInfoByUrl((current) => ({
                     ...current,
                     [relayUrl]: {
@@ -575,15 +578,48 @@ export function MapSettingsDialog({
                 }));
             }
         }));
+    }, [view, relayInfoTargets, relayInfoByUrl]);
 
+    useEffect(() => {
         return () => {
-            cancelled = true;
+            if (relayCopyResetTimeoutRef.current !== null) {
+                window.clearTimeout(relayCopyResetTimeoutRef.current);
+            }
         };
-    }, [view, relayInfoTargets]);
+    }, []);
 
     const selectedRelayDetails = selectedRelay ? describeRelay(selectedRelay.relayUrl, selectedRelay.source) : null;
     const selectedRelayInfo = selectedRelay ? relayInfoByUrl[selectedRelay.relayUrl] : undefined;
+    const selectedRelayDocument = selectedRelayInfo?.status === 'ready' ? selectedRelayInfo.data : undefined;
+    const selectedRelayAdminIdentity = toAdminIdentity(selectedRelayDocument?.pubkey);
     const canGoBack = view === 'relay-detail';
+    const relayHasNip11Metadata = hasNip11Metadata(selectedRelayDocument);
+    const relayEventLimit = selectedRelayDocument?.limitation?.max_limit
+        ?? selectedRelayDocument?.limitation?.default_limit;
+    const relayHasFees = Boolean(
+        (selectedRelayDocument?.fees?.admission && selectedRelayDocument.fees.admission.length > 0)
+        || (selectedRelayDocument?.fees?.subscription && selectedRelayDocument.fees.subscription.length > 0)
+        || (selectedRelayDocument?.fees?.publication && selectedRelayDocument.fees.publication.length > 0)
+    );
+
+    const copyRelayIdentity = async (value: string, key: string): Promise<void> => {
+        if (!value || typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+            return;
+        }
+
+        try {
+            await navigator.clipboard.writeText(value);
+            setCopiedRelayIdentityKey(key);
+            if (relayCopyResetTimeoutRef.current !== null) {
+                window.clearTimeout(relayCopyResetTimeoutRef.current);
+            }
+            relayCopyResetTimeoutRef.current = window.setTimeout(() => {
+                setCopiedRelayIdentityKey((current) => (current === key ? null : current));
+            }, 1800);
+        } catch {
+            setCopiedRelayIdentityKey(null);
+        }
+    };
 
     return (
         <Dialog open onOpenChange={(open) => {
@@ -795,7 +831,6 @@ export function MapSettingsDialog({
                                                         </Avatar>
                                                         <div className="min-w-0">
                                                             <p className="nostr-relay-summary-primary">{document?.name || relayUrl}</p>
-                                                            <p className="nostr-relay-summary-sub">Configured relay</p>
                                                         </div>
                                                     </div>
                                                 </TableCell>
@@ -917,7 +952,6 @@ export function MapSettingsDialog({
                                                                 </Avatar>
                                                                 <div className="min-w-0">
                                                                     <p className="nostr-relay-summary-primary">{document?.name || relayUrl}</p>
-                                                                    <p className="nostr-relay-summary-sub">Suggested by protocol metadata</p>
                                                                 </div>
                                                             </div>
                                                         </TableCell>
@@ -961,9 +995,7 @@ export function MapSettingsDialog({
                             </section>
                         ) : hasSuggestedRelays ? (
                             <p className="nostr-relays-help">Todos los relays sugeridos ya estan agregados.</p>
-                        ) : (
-                            <p className="nostr-relays-help">No hay relays sugeridos todavia. Carga una npub para intentar descubrirlos via NIP-65 y NIP-17.</p>
-                        )}
+                        ) : null}
                     </div>
                 ) : view === 'relay-detail' && selectedRelayDetails ? (
                     <div className="nostr-relays-content">
@@ -972,26 +1004,40 @@ export function MapSettingsDialog({
                         ) : null}
 
                         {selectedRelayInfo?.status === 'error' ? (
-                            <p className="nostr-relay-meta-loading">No se pudo obtener metadata remota del relay.</p>
+                            <Item variant="outline" size="sm" className="nostr-relay-meta-item">
+                                <ItemMedia variant="icon">
+                                    <AlertTriangleIcon />
+                                </ItemMedia>
+                                <ItemContent>
+                                    <ItemDescription>No se pudo obtener metadata remota del relay.</ItemDescription>
+                                </ItemContent>
+                            </Item>
+                        ) : null}
+
+                        {selectedRelayInfo?.status === 'ready' && !relayHasNip11Metadata ? (
+                            <Item variant="outline" size="sm" className="nostr-relay-meta-item">
+                                <ItemMedia variant="icon">
+                                    <AlertTriangleIcon />
+                                </ItemMedia>
+                                <ItemContent>
+                                    <ItemDescription>Este relay no publica metadata NIP-11 util.</ItemDescription>
+                                </ItemContent>
+                            </Item>
                         ) : null}
 
                         <div className="nostr-relay-detail-header">
                             <Avatar className="size-10">
-                                {selectedRelayInfo?.data?.icon ? <AvatarImage src={selectedRelayInfo.data.icon} alt={selectedRelayInfo.data.name || selectedRelayDetails.host} /> : null}
-                                <AvatarFallback>{relayAvatarFallback(selectedRelayDetails, selectedRelayInfo?.data)}</AvatarFallback>
+                                {selectedRelayDocument?.icon ? <AvatarImage src={selectedRelayDocument.icon} alt={selectedRelayDocument.name || selectedRelayDetails.host} /> : null}
+                                <AvatarFallback>{relayAvatarFallback(selectedRelayDetails, selectedRelayDocument)}</AvatarFallback>
                             </Avatar>
 
                             <div className="min-w-0">
-                                <p className="nostr-relay-summary-primary">{selectedRelayInfo?.data?.name || selectedRelayDetails.relayUrl}</p>
+                                <p className="nostr-relay-summary-primary">{selectedRelayDocument?.name || selectedRelayDetails.relayUrl}</p>
                                 <p className="nostr-relay-summary-sub">
-                                    {selectedRelayDetails.source === 'configured' ? 'Configured relay' : 'Suggested by protocol metadata'} · {RELAY_TYPE_LABELS[selectedRelay.relayType]}
+                                    {RELAY_TYPE_LABELS[selectedRelay.relayType]}
                                 </p>
                             </div>
                         </div>
-
-                        {selectedRelayInfo?.data?.description ? (
-                            <p className="nostr-relay-detail-description">{selectedRelayInfo.data.description}</p>
-                        ) : null}
 
                         <div className="nostr-relay-detail-table-wrap">
                             <Table className="nostr-relay-detail-table">
@@ -1001,112 +1047,130 @@ export function MapSettingsDialog({
                                         <TableCell className="nostr-relay-detail-value">{selectedRelayDetails.relayUrl}</TableCell>
                                     </TableRow>
                                     <TableRow>
-                                        <TableHead className="nostr-relay-detail-key">Source</TableHead>
-                                        <TableCell className="nostr-relay-detail-value">{selectedRelayDetails.source === 'configured' ? 'Configured' : 'Suggested (NIP-65/NIP-17)'}</TableCell>
-                                    </TableRow>
-                                    <TableRow>
                                         <TableHead className="nostr-relay-detail-key">Category</TableHead>
                                         <TableCell className="nostr-relay-detail-value">{RELAY_TYPE_LABELS[selectedRelay.relayType]}</TableCell>
                                     </TableRow>
-                                    <TableRow>
-                                        <TableHead className="nostr-relay-detail-key">Host</TableHead>
-                                        <TableCell className="nostr-relay-detail-value">{selectedRelayDetails.host}</TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                        <TableHead className="nostr-relay-detail-key">Protocol</TableHead>
-                                        <TableCell className="nostr-relay-detail-value">{selectedRelayDetails.protocol.toUpperCase()}</TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                        <TableHead className="nostr-relay-detail-key">Port</TableHead>
-                                        <TableCell className="nostr-relay-detail-value">{selectedRelayDetails.port}</TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                        <TableHead className="nostr-relay-detail-key">Path</TableHead>
-                                        <TableCell className="nostr-relay-detail-value">{selectedRelayDetails.path}</TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                        <TableHead className="nostr-relay-detail-key">Transport</TableHead>
-                                        <TableCell className="nostr-relay-detail-value">{selectedRelayDetails.secure ? 'Secure WebSocket (WSS)' : 'WebSocket (WS)'}</TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                        <TableHead className="nostr-relay-detail-key">Billing</TableHead>
-                                        <TableCell className="nostr-relay-detail-value">
-                                            {relayRequiresPayment(selectedRelayInfo?.data) === true
-                                                ? 'Paid relay'
-                                                : relayRequiresPayment(selectedRelayInfo?.data) === false
-                                                    ? 'No payment required'
-                                                    : 'Unknown'}
-                                        </TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                        <TableHead className="nostr-relay-detail-key">NIP support</TableHead>
-                                        <TableCell className="nostr-relay-detail-value">
-                                            {typeof selectedRelayInfo?.data?.supported_nips?.length === 'number'
-                                                ? `${selectedRelayInfo.data.supported_nips.length} NIPs`
-                                                : 'Unknown'}
-                                        </TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                        <TableHead className="nostr-relay-detail-key">Event limit</TableHead>
-                                        <TableCell className="nostr-relay-detail-value">
-                                            {selectedRelayInfo?.data?.limitation?.max_limit
-                                                ?? selectedRelayInfo?.data?.limitation?.default_limit
-                                                ?? 'Unknown'}
-                                        </TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                        <TableHead className="nostr-relay-detail-key">Writes</TableHead>
-                                        <TableCell className="nostr-relay-detail-value">{selectedRelayInfo?.data?.limitation?.restricted_writes ? 'Restricted' : 'Open/Unknown'}</TableCell>
-                                    </TableRow>
-                                    {selectedRelayInfo?.data?.payments_url ? (
+                                    {selectedRelayDocument?.description ? (
                                         <TableRow>
-                                            <TableHead className="nostr-relay-detail-key">Payments URL</TableHead>
-                                            <TableCell className="nostr-relay-detail-value">{selectedRelayInfo.data.payments_url}</TableCell>
+                                            <TableHead className="nostr-relay-detail-key">Description</TableHead>
+                                            <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.description}</TableCell>
                                         </TableRow>
                                     ) : null}
-                                    {selectedRelayInfo?.data?.software ? (
+                                    {selectedRelayAdminIdentity ? (
                                         <TableRow>
-                                            <TableHead className="nostr-relay-detail-key">Software</TableHead>
-                                            <TableCell className="nostr-relay-detail-value">{selectedRelayInfo.data.version ? `${selectedRelayInfo.data.software} (${selectedRelayInfo.data.version})` : selectedRelayInfo.data.software}</TableCell>
+                                            <TableHead className="nostr-relay-detail-key">Admin pubkey</TableHead>
+                                            <TableCell className="nostr-relay-detail-value">
+                                                <div className="nostr-relay-detail-value-group">
+                                                    <span className="nostr-relay-detail-mono">{selectedRelayAdminIdentity}</span>
+                                                    <div className="nostr-relay-detail-actions-inline">
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            className="nostr-relay-copy-button"
+                                                            onClick={() => {
+                                                                void copyRelayIdentity(selectedRelayAdminIdentity, 'relay-admin-npub');
+                                                            }}
+                                                        >
+                                                            {copiedRelayIdentityKey === 'relay-admin-npub' ? 'Copiado npub' : 'Copiar npub'}
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            </TableCell>
                                         </TableRow>
                                     ) : null}
-                                    {selectedRelayInfo?.data?.contact ? (
+                                    {selectedRelayDocument?.self ? (
+                                        <TableRow>
+                                            <TableHead className="nostr-relay-detail-key">Relay pubkey</TableHead>
+                                            <TableCell className="nostr-relay-detail-value">
+                                                <span className="nostr-relay-detail-mono">{selectedRelayDocument.self}</span>
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : null}
+                                    {selectedRelayDocument?.contact ? (
                                         <TableRow>
                                             <TableHead className="nostr-relay-detail-key">Contact</TableHead>
-                                            <TableCell className="nostr-relay-detail-value">{selectedRelayInfo.data.contact}</TableCell>
+                                            <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.contact}</TableCell>
                                         </TableRow>
                                     ) : null}
-                                    {selectedRelayInfo?.data?.fees ? (
+                                    {selectedRelayDocument?.software ? (
+                                        <TableRow>
+                                            <TableHead className="nostr-relay-detail-key">Software</TableHead>
+                                            <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.version ? `${selectedRelayDocument.software} (${selectedRelayDocument.version})` : selectedRelayDocument.software}</TableCell>
+                                        </TableRow>
+                                    ) : null}
+                                    {selectedRelayDocument?.supported_nips && selectedRelayDocument.supported_nips.length > 0 ? (
+                                        <TableRow>
+                                            <TableHead className="nostr-relay-detail-key">Supported NIPs</TableHead>
+                                            <TableCell className="nostr-relay-detail-value">
+                                                <div className="nostr-relay-nip-badges">
+                                                    {selectedRelayDocument.supported_nips.slice(0, 24).map((nip) => (
+                                                        <Badge key={`nip-${nip}`} variant="outline">NIP-{nip}</Badge>
+                                                    ))}
+                                                    {selectedRelayDocument.supported_nips.length > 24 ? (
+                                                        <Badge variant="secondary">+{selectedRelayDocument.supported_nips.length - 24}</Badge>
+                                                    ) : null}
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : null}
+                                    {typeof selectedRelayDocument?.limitation?.auth_required === 'boolean' ? (
+                                        <TableRow>
+                                            <TableHead className="nostr-relay-detail-key">Auth required</TableHead>
+                                            <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.limitation.auth_required ? 'Required' : 'Not required'}</TableCell>
+                                        </TableRow>
+                                    ) : null}
+                                    {typeof selectedRelayDocument?.limitation?.payment_required === 'boolean' ? (
+                                        <TableRow>
+                                            <TableHead className="nostr-relay-detail-key">Payment required</TableHead>
+                                            <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.limitation.payment_required ? 'Required' : 'Not required'}</TableCell>
+                                        </TableRow>
+                                    ) : null}
+                                    {typeof selectedRelayDocument?.limitation?.restricted_writes === 'boolean' ? (
+                                        <TableRow>
+                                            <TableHead className="nostr-relay-detail-key">Write policy</TableHead>
+                                            <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.limitation.restricted_writes ? 'Restricted' : 'Open'}</TableCell>
+                                        </TableRow>
+                                    ) : null}
+                                    {typeof relayEventLimit === 'number' ? (
+                                        <TableRow>
+                                            <TableHead className="nostr-relay-detail-key">Event limit</TableHead>
+                                            <TableCell className="nostr-relay-detail-value">{relayEventLimit}</TableCell>
+                                        </TableRow>
+                                    ) : null}
+                                    {selectedRelayDocument?.payments_url ? (
+                                        <TableRow>
+                                            <TableHead className="nostr-relay-detail-key">Payments URL</TableHead>
+                                            <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.payments_url}</TableCell>
+                                        </TableRow>
+                                    ) : null}
+                                    {relayHasFees && selectedRelayDocument?.fees ? (
                                         <TableRow>
                                             <TableHead className="nostr-relay-detail-key">Fees</TableHead>
                                             <TableCell className="nostr-relay-detail-value">
                                                 <div className="nostr-relay-detail-inline-list">
-                                                    {selectedRelayInfo.data.fees.admission?.map((fee, index) => (
+                                                    {selectedRelayDocument.fees.admission?.map((fee, index) => (
                                                         <span key={`admission-${index}`}>Admission: {formatRelayFee(fee)}</span>
                                                     ))}
-                                                    {selectedRelayInfo.data.fees.subscription?.map((fee, index) => (
+                                                    {selectedRelayDocument.fees.subscription?.map((fee, index) => (
                                                         <span key={`subscription-${index}`}>Subscription: {formatRelayFee(fee)}</span>
                                                     ))}
-                                                    {selectedRelayInfo.data.fees.publication?.map((fee, index) => (
+                                                    {selectedRelayDocument.fees.publication?.map((fee, index) => (
                                                         <span key={`publication-${index}`}>Publication: {formatRelayFee(fee)}</span>
                                                     ))}
                                                 </div>
                                             </TableCell>
                                         </TableRow>
                                     ) : null}
-                                    {selectedRelayInfo?.data?.supported_nips && selectedRelayInfo.data.supported_nips.length > 0 ? (
+                                    {selectedRelayDocument?.terms_of_service ? (
                                         <TableRow>
-                                            <TableHead className="nostr-relay-detail-key">Supported NIPs</TableHead>
-                                            <TableCell className="nostr-relay-detail-value">
-                                                <div className="nostr-relay-nip-badges">
-                                                    {selectedRelayInfo.data.supported_nips.slice(0, 24).map((nip) => (
-                                                        <Badge key={`nip-${nip}`} variant="outline">NIP-{nip}</Badge>
-                                                    ))}
-                                                    {selectedRelayInfo.data.supported_nips.length > 24 ? (
-                                                        <Badge variant="secondary">+{selectedRelayInfo.data.supported_nips.length - 24}</Badge>
-                                                    ) : null}
-                                                </div>
-                                            </TableCell>
+                                            <TableHead className="nostr-relay-detail-key">Terms of Service</TableHead>
+                                            <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.terms_of_service}</TableCell>
+                                        </TableRow>
+                                    ) : null}
+                                    {selectedRelayDocument?.privacy_policy ? (
+                                        <TableRow>
+                                            <TableHead className="nostr-relay-detail-key">Privacy Policy</TableHead>
+                                            <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.privacy_policy}</TableCell>
                                         </TableRow>
                                     ) : null}
                                 </TableBody>

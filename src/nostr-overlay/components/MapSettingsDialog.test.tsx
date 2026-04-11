@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { MapBridge } from '../map-bridge';
 import { MapSettingsDialog } from './MapSettingsDialog';
+import { encodeHexToNpub } from '../../nostr/npub';
 import { RELAY_SETTINGS_STORAGE_KEY } from '../../nostr/relay-settings';
 import { UI_SETTINGS_STORAGE_KEY } from '../../nostr/ui-settings';
 import { ZAP_SETTINGS_STORAGE_KEY } from '../../nostr/zap-settings';
@@ -91,6 +92,8 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+    vi.unstubAllGlobals();
+
     for (const entry of mounted) {
         await act(async () => {
             entry.root.unmount();
@@ -113,6 +116,8 @@ describe('MapSettingsDialog UI settings', () => {
             />
         );
         mounted.push(rendered);
+
+        expect(rendered.container.textContent || '').not.toContain('Configured relay');
 
         const zoomThumb = getSliderThumb(rendered.container, 'Occupied labels zoom level');
         expect(zoomThumb.getAttribute('aria-valuenow')).toBe('8');
@@ -431,7 +436,15 @@ describe('MapSettingsDialog UI settings', () => {
     test('opens relay details dialog from context menu for configured and suggested rows', async () => {
         window.localStorage.setItem(
             RELAY_SETTINGS_STORAGE_KEY,
-            JSON.stringify({ relays: ['wss://relay.one'] })
+            JSON.stringify({
+                relays: ['wss://relay.one'],
+                byType: {
+                    nip65Both: ['wss://relay.one'],
+                    nip65Read: [],
+                    nip65Write: [],
+                    dmInbox: [],
+                },
+            })
         );
 
         const bridge = createBridgeStub();
@@ -468,6 +481,8 @@ describe('MapSettingsDialog UI settings', () => {
 
         expect(rendered.container.textContent || '').toContain('Relay details');
         expect(rendered.container.textContent || '').toContain('wss://relay.one');
+        expect(rendered.container.textContent || '').not.toContain('Configured relay');
+        expect(rendered.container.textContent || '').not.toContain('Source');
 
         const detailTable = rendered.container.querySelector('.nostr-relay-detail-table');
         expect(detailTable).toBeDefined();
@@ -503,6 +518,241 @@ describe('MapSettingsDialog UI settings', () => {
         });
 
         expect(rendered.container.textContent || '').toContain('wss://relay.suggested.example');
+    });
+
+    test('shows NIP-11 relay detail fields and hides URL-derived transport rows', async () => {
+        const adminHex = '32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245';
+        const adminNpub = encodeHexToNpub(adminHex);
+
+        const fetchMock = vi.fn(async (_input: RequestInfo | URL) => new Response(JSON.stringify({
+            name: 'damus.io',
+            description: 'Damus strfry relay',
+            pubkey: adminHex,
+            contact: 'mailto:admin@damus.io',
+            software: 'git+https://github.com/hoytech/strfry.git',
+            version: '1.0.4',
+            supported_nips: [1, 2, 11, 40],
+            limitation: {
+                auth_required: false,
+                payment_required: false,
+                restricted_writes: true,
+                max_limit: 500,
+            },
+            terms_of_service: 'https://damus.io/terms',
+        }), {
+            status: 200,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        }));
+        vi.stubGlobal('fetch', fetchMock);
+        (window as any).fetch = fetchMock;
+
+        window.localStorage.setItem(
+            RELAY_SETTINGS_STORAGE_KEY,
+            JSON.stringify({
+                relays: ['wss://relay.one'],
+                byType: {
+                    nip65Both: ['wss://relay.one'],
+                    nip65Read: [],
+                    nip65Write: [],
+                    dmInbox: [],
+                },
+            })
+        );
+
+        const bridge = createBridgeStub();
+        const rendered = await renderElement(
+            <MapSettingsDialog
+                mapBridge={bridge}
+                initialView="relays"
+                onClose={() => {}}
+            />
+        );
+        mounted.push(rendered);
+
+        await waitForCondition(() => fetchMock.mock.calls.length > 0);
+        await waitForCondition(() => (rendered.container.textContent || '').includes('damus.io'));
+
+        const configuredActions = rendered.container.querySelector('button[aria-label="Abrir acciones para wss://relay.one (NIP-65 read+write)"]') as HTMLButtonElement;
+        expect(configuredActions).toBeDefined();
+
+        await act(async () => {
+            configuredActions.dispatchEvent(new MouseEvent('contextmenu', {
+                bubbles: true,
+                cancelable: true,
+                clientX: 24,
+                clientY: 24,
+            }));
+        });
+
+        const detailsConfigured = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Details'
+        ) as HTMLElement;
+        expect(detailsConfigured).toBeDefined();
+
+        await act(async () => {
+            detailsConfigured.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitForCondition(() => {
+            const text = rendered.container.textContent || '';
+            return text.includes('Admin pubkey') && text.includes('Software') && text.includes('Supported NIPs');
+        });
+
+        const content = rendered.container.textContent || '';
+        expect(content).toContain('Admin pubkey');
+        expect(content).toContain(adminNpub.slice(0, 24));
+        expect(content).not.toContain(adminHex);
+        expect(content).toContain('mailto:admin@damus.io');
+        expect(content).toContain('git+https://github.com/hoytech/strfry.git');
+        expect(content).toContain('NIP-1');
+        expect(content).toContain('NIP-11');
+
+        const detailDescription = rendered.container.querySelector('.nostr-relay-detail-description');
+        expect(detailDescription).toBeNull();
+        const detailTable = rendered.container.querySelector('.nostr-relay-detail-table');
+        expect(detailTable?.textContent || '').toContain('Damus strfry relay');
+
+        expect(content).not.toContain('Host');
+        expect(content).not.toContain('Protocol');
+        expect(content).not.toContain('Port');
+        expect(content).not.toContain('Path');
+        expect(content).not.toContain('Transport');
+    });
+
+    test('keeps loading NIP-11 metadata after opening relay detail quickly', async () => {
+        const fetchMock = vi.fn(async (_input: RequestInfo | URL) => {
+            await new Promise((resolve) => setTimeout(resolve, 40));
+            return new Response(JSON.stringify({
+                contact: 'mailto:ops@relay.one',
+            }), {
+                status: 200,
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+        });
+        vi.stubGlobal('fetch', fetchMock);
+        (window as any).fetch = fetchMock;
+
+        window.localStorage.setItem(
+            RELAY_SETTINGS_STORAGE_KEY,
+            JSON.stringify({ relays: ['wss://relay.one'] })
+        );
+
+        const bridge = createBridgeStub();
+        const rendered = await renderElement(
+            <MapSettingsDialog
+                mapBridge={bridge}
+                initialView="relays"
+                onClose={() => {}}
+            />
+        );
+        mounted.push(rendered);
+
+        const configuredActions = rendered.container.querySelector('button[aria-label="Abrir acciones para wss://relay.one (NIP-65 read+write)"]') as HTMLButtonElement;
+        expect(configuredActions).toBeDefined();
+
+        await act(async () => {
+            configuredActions.dispatchEvent(new MouseEvent('contextmenu', {
+                bubbles: true,
+                cancelable: true,
+                clientX: 24,
+                clientY: 24,
+            }));
+        });
+
+        const detailsConfigured = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Details'
+        ) as HTMLElement;
+        expect(detailsConfigured).toBeDefined();
+
+        await act(async () => {
+            detailsConfigured.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitForCondition(() => fetchMock.mock.calls.length >= 1);
+        await waitForCondition(() => (rendered.container.textContent || '').includes('mailto:ops@relay.one'));
+        const relayOneCalls = fetchMock.mock.calls.filter((call) => String(call[0]).includes('https://relay.one'));
+        expect(relayOneCalls.length).toBe(1);
+        expect(rendered.container.textContent || '').toContain('mailto:ops@relay.one');
+    });
+
+    test('renders relay metadata error with shadcn item and icon', async () => {
+        const fetchMock = vi.fn(async (_input: RequestInfo | URL) => new Response('error', { status: 503 }));
+        vi.stubGlobal('fetch', fetchMock);
+        (window as any).fetch = fetchMock;
+
+        window.localStorage.setItem(
+            RELAY_SETTINGS_STORAGE_KEY,
+            JSON.stringify({
+                relays: ['wss://relay.one'],
+                byType: {
+                    nip65Both: ['wss://relay.one'],
+                    nip65Read: [],
+                    nip65Write: [],
+                    dmInbox: [],
+                },
+            })
+        );
+
+        const bridge = createBridgeStub();
+        const rendered = await renderElement(
+            <MapSettingsDialog
+                mapBridge={bridge}
+                initialView="relays"
+                onClose={() => {}}
+            />
+        );
+        mounted.push(rendered);
+
+        const configuredActions = rendered.container.querySelector('button[aria-label="Abrir acciones para wss://relay.one (NIP-65 read+write)"]') as HTMLButtonElement;
+        expect(configuredActions).toBeDefined();
+
+        await act(async () => {
+            configuredActions.dispatchEvent(new MouseEvent('contextmenu', {
+                bubbles: true,
+                cancelable: true,
+                clientX: 24,
+                clientY: 24,
+            }));
+        });
+
+        const detailsConfigured = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Details'
+        ) as HTMLElement;
+        expect(detailsConfigured).toBeDefined();
+
+        await act(async () => {
+            detailsConfigured.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitForCondition(() => (rendered.container.textContent || '').includes('No se pudo obtener metadata remota del relay.'));
+
+        const item = Array.from(rendered.container.querySelectorAll('[data-slot="item"]')).find((node) =>
+            (node.textContent || '').includes('No se pudo obtener metadata remota del relay.')
+        );
+        expect(item).toBeDefined();
+
+        const description = item?.querySelector('[data-slot="item-description"]');
+        expect(description).not.toBeNull();
+        expect((description?.textContent || '').trim()).toBe('No se pudo obtener metadata remota del relay.');
+        expect(item?.querySelector('[data-slot="item-media"] svg')).not.toBeNull();
+    });
+
+    test('does not show suggested relays empty-state hint text', async () => {
+        const bridge = createBridgeStub();
+        const rendered = await renderElement(
+            <MapSettingsDialog
+                mapBridge={bridge}
+                initialView="relays"
+                onClose={() => {}}
+            />
+        );
+        mounted.push(rendered);
+
+        expect(rendered.container.textContent || '').not.toContain('No hay relays sugeridos todavia. Carga una npub para intentar descubrirlos via NIP-65 y NIP-17.');
     });
 
     test('rejects invalid relay hostnames when adding relays', async () => {
