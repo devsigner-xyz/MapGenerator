@@ -167,4 +167,29 @@ describe('ChatModal', () => {
         expect(dialogContent).not.toBeNull();
         expect(dialogContent?.className).toContain('sm:max-w-none');
     });
+
+    test('renders outgoing delivery states in conversation detail', async () => {
+        const rendered = await renderElement(
+            <ChatModal
+                open
+                hasUnreadGlobal={false}
+                conversations={[buildConversation()]}
+                messages={[
+                    buildMessage({ id: 'm-pending', direction: 'outgoing', deliveryState: 'pending', plaintext: 'uno' }),
+                    buildMessage({ id: 'm-sent', direction: 'outgoing', deliveryState: 'sent', plaintext: 'dos' }),
+                    buildMessage({ id: 'm-failed', direction: 'outgoing', deliveryState: 'failed', plaintext: 'tres' }),
+                ]}
+                activeConversationId="peer-1"
+                onClose={() => {}}
+                onOpenConversation={() => {}}
+                onBackToList={() => {}}
+                onSendMessage={async () => {}}
+            />
+        );
+        mounted.push(rendered);
+
+        expect(rendered.container.textContent || '').toContain('Enviando...');
+        expect(rendered.container.textContent || '').toContain('Enviado');
+        expect(rendered.container.textContent || '').toContain('Error de entrega');
+    });
 });

@@ -29,6 +29,10 @@ interface ParseGiftWrapContext {
     peerPubkey: string;
 }
 
+interface SubscribeInboxInput {
+    ownerPubkey: string;
+}
+
 interface FetchConversationBackfillInput extends ParseGiftWrapContext {
     mode?: 'session_start' | 'reconnect';
     since?: number;
@@ -447,16 +451,25 @@ export function createDmService(dependencies: DmServiceDependencies) {
         };
     }
 
-    function subscribeInbox(context: ParseGiftWrapContext, onMessage: (message: DmMessage) => void): () => void {
+    function subscribeInbox(input: SubscribeInboxInput, onMessage: (message: DmMessage) => void): () => void {
         const subscription = dependencies.transport.subscribe(
             [
                 {
-                    kinds: [1059],
-                    '#p': [context.ownerPubkey],
+                    kinds: [1059, 4],
+                    '#p': [input.ownerPubkey],
                 },
             ],
             (event) => {
-                void consumeGiftWrapEvent(event, context, onMessage);
+                void (async () => {
+                    const message = await parseHistoricalEventForOwner(event, {
+                        ownerPubkey: input.ownerPubkey,
+                        requireGiftWrapRecipientOwner: true,
+                    });
+
+                    if (message) {
+                        onMessage(message);
+                    }
+                })();
             }
         );
 

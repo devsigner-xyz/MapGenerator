@@ -148,16 +148,47 @@ export function createAuthService(options: AuthServiceOptions = {}): AuthService
                 });
             }
 
+            if (stored.method === 'nsec' && !stored.ncryptsec) {
+                clearStoredAuthSession(storage);
+                currentSession = undefined;
+                activeProvider = undefined;
+                notify();
+                return undefined;
+            }
+
+            if (stored.method === 'nip07') {
+                try {
+                    return await this.startSession('nip07', {});
+                } catch {
+                    clearStoredAuthSession(storage);
+                    currentSession = undefined;
+                    activeProvider = undefined;
+                    notify();
+                    return undefined;
+                }
+            }
+
+            if (stored.method === 'nip46') {
+                clearStoredAuthSession(storage);
+                currentSession = undefined;
+                activeProvider = undefined;
+                notify();
+                return undefined;
+            }
+
+            const requiresRecoveredProvider = stored.method !== 'npub';
+            const restoredLocked = stored.locked || requiresRecoveredProvider;
+
             currentSession = {
                 ...createAuthSession({
                     method: stored.method,
                     pubkey: stored.pubkey,
-                    locked: stored.locked,
+                    locked: restoredLocked,
                     createdAt: stored.createdAt,
                     capabilities: defaultCapabilitiesForMethod(stored.method),
                 }),
                 readonly: stored.readonly,
-                locked: stored.locked,
+                locked: restoredLocked,
             };
             activeProvider = undefined;
             notify();

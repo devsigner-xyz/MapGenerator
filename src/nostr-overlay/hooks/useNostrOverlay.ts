@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createAuthService } from '../../nostr/auth/auth-service';
 import type { ProviderResolveInput } from '../../nostr/auth/providers/types';
-import { isEncryptionEnabled, isWriteEnabled, type AuthSessionState, type LoginMethod } from '../../nostr/auth/session';
+import {
+    isDirectMessagesEnabled,
+    isEncryptionEnabled,
+    isWriteEnabled,
+    type AuthSessionState,
+    type LoginMethod,
+} from '../../nostr/auth/session';
 import { assignPubkeysToBuildings, hashPubkeyToIndex, type AssignmentResult } from '../../nostr/domain/assignment';
 import { buildOccupancyState } from '../../nostr/domain/occupancy';
 import { fetchFollowersBestEffort } from '../../nostr/followers';
@@ -1264,6 +1270,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         authSession: state.data.authSession,
         canWrite: isWriteEnabled(state.data.authSession),
         canEncrypt: isEncryptionEnabled(state.data.authSession),
+        canDirectMessages: isDirectMessagesEnabled(state.data.authSession),
         ownerPubkey: state.data.ownerPubkey,
         ownerProfile: state.data.ownerProfile,
         ownerBuildingIndex: state.data.ownerBuildingIndex,

@@ -39,6 +39,17 @@ function createDmServiceMock() {
     };
 }
 
+function createDeferred<T>() {
+    let resolve!: (value: T) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+        resolve = resolvePromise;
+        reject = rejectPromise;
+    });
+
+    return { promise, resolve, reject };
+}
+
 describe('useDirectMessages storage and keys', () => {
     test('uses key format nostr-overlay:dm:v1:seen:<ownerPubkey>:<conversationId>', () => {
         expect(buildSeenStorageKey(OWNER_A, PEER, 'v1')).toBe(`nostr-overlay:dm:v1:seen:${OWNER_A}:${PEER}`);
@@ -125,7 +136,7 @@ describe('useDirectMessages store behavior', () => {
 
         await store.start();
 
-        expect(dmService.loadInitialConversations).toHaveBeenCalledWith({ ownerPubkey: OWNER_A });
+        expect(dmService.loadInitialConversations).toHaveBeenCalledWith({ ownerPubkey: OWNER_A, sentIndex: [] });
         expect(dmService.subscribeInbox).toHaveBeenCalledTimes(1);
         expect(store.getState().conversations[PEER]?.messages).toEqual([
             expect.objectContaining({
@@ -223,15 +234,15 @@ describe('useDirectMessages store behavior', () => {
         store.dispose();
     });
 
-    test('keeps singleton inbox subscription per ownerPubkey', () => {
+    test('keeps singleton inbox subscription per ownerPubkey', async () => {
         const dmService = createDmServiceMock();
         const storage = createDmReadStateStorage({ storage: window.localStorage, now: () => 1_000, version: 'v1' });
 
         const first = createDirectMessagesStore({ ownerPubkey: OWNER_A, dmService, storage });
         const second = createDirectMessagesStore({ ownerPubkey: OWNER_A, dmService, storage });
 
-        first.start();
-        second.start();
+        await first.start();
+        await second.start();
 
         expect(dmService.subscribeInbox).toHaveBeenCalledTimes(1);
 
@@ -239,14 +250,14 @@ describe('useDirectMessages store behavior', () => {
         first.dispose();
     });
 
-    test('reconnect cycle cleans previous subscription before resubscribing same owner', () => {
+    test('reconnect cycle cleans previous subscription before resubscribing same owner', async () => {
         const dmService = createDmServiceMock();
         const storage = createDmReadStateStorage({ storage: window.localStorage, now: () => 1_000, version: 'v1' });
 
         const store = createDirectMessagesStore({ ownerPubkey: OWNER_A, dmService, storage });
-        store.start();
+        await store.start();
         store.dispose();
-        store.start();
+        await store.start();
 
         expect(dmService.subscribeInbox).toHaveBeenCalledTimes(2);
 
@@ -299,5 +310,122 @@ describe('useDirectMessages store behavior', () => {
 
         const state = store.getState();
         expect(state.conversations[PEER]?.lastReadAt).toBe(1_700_000_123);
+    });
+
+    test('openConversation triggers conversation backfill and ingests returned messages', async () => {
+        const dmService = {
+            subscribeInbox: vi.fn((_input, _onMessage) => () => {}),
+            loadConversationMessages: vi.fn(async () => [
+                {
+                    id: 'conv-backfill-1',
+                    clientMessageId: '',
+                    conversationId: PEER,
+                    peerPubkey: PEER,
+                    direction: 'incoming' as const,
+                    createdAt: 1700000700,
+                    plaintext: 'backfill abierto',
+                    deliveryState: 'sent' as const,
+                },
+            ]),
+        };
+        const storage = createDmReadStateStorage({ storage: window.localStorage, now: () => 1_000, version: 'v1' });
+        const store = createDirectMessagesStore({ ownerPubkey: OWNER_A, dmService: dmService as any, storage });
+
+        await store.start();
+        store.openConversation(PEER);
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(dmService.loadConversationMessages).toHaveBeenCalledWith({
+            ownerPubkey: OWNER_A,
+            peerPubkey: PEER,
+            since: 0,
+            sentIndex: [],
+        });
+        expect(store.getState().conversations[PEER]?.messages).toEqual([
+            expect.objectContaining({
+                id: 'conv-backfill-1',
+                plaintext: 'backfill abierto',
+            }),
+        ]);
+
+        store.dispose();
+    });
+
+    test('openConversation uses oldest message cursor for incremental backfill', async () => {
+        const dmService = {
+            subscribeInbox: vi.fn((_input, _onMessage) => () => {}),
+            loadConversationMessages: vi.fn(async () => []),
+        };
+        const storage = createDmReadStateStorage({ storage: window.localStorage, now: () => 1_000, version: 'v1' });
+        const store = createDirectMessagesStore({ ownerPubkey: OWNER_A, dmService: dmService as any, storage });
+
+        store.ingestIncoming({
+            id: 'existing-msg',
+            clientMessageId: '',
+            conversationId: PEER,
+            peerPubkey: PEER,
+            direction: 'incoming',
+            createdAt: 1700000900,
+            plaintext: 'existente',
+            deliveryState: 'sent',
+        });
+
+        store.openConversation(PEER);
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(dmService.loadConversationMessages).toHaveBeenCalledWith(
+            expect.objectContaining({
+                ownerPubkey: OWNER_A,
+                peerPubkey: PEER,
+                since: 1700000899,
+            })
+        );
+    });
+
+    test('start does not block forever when initial backfill is slow and still hydrates when it completes later', async () => {
+        const deferred = createDeferred<any[]>();
+        const dmService = {
+            subscribeInbox: vi.fn((_input, _onMessage) => () => {}),
+            loadInitialConversations: vi.fn(async () => deferred.promise),
+        };
+        const storage = createDmReadStateStorage({ storage: window.localStorage, now: () => 1_000, version: 'v1' });
+        const store = createDirectMessagesStore({
+            ownerPubkey: OWNER_A,
+            dmService: dmService as any,
+            storage,
+            bootstrapWaitTimeoutMs: 1,
+        });
+
+        await store.start();
+
+        expect(dmService.subscribeInbox).toHaveBeenCalledTimes(1);
+        expect(store.getState().isBootstrapping).toBe(false);
+
+        deferred.resolve([
+            {
+                id: 'late-bootstrap',
+                clientMessageId: '',
+                conversationId: PEER,
+                peerPubkey: PEER,
+                direction: 'incoming' as const,
+                createdAt: 1700001200,
+                plaintext: 'llega tarde',
+                deliveryState: 'sent' as const,
+            },
+        ]);
+
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(store.getState().conversations[PEER]?.messages).toEqual([
+            expect.objectContaining({
+                id: 'late-bootstrap',
+                plaintext: 'llega tarde',
+            }),
+        ]);
+
+        store.dispose();
     });
 });

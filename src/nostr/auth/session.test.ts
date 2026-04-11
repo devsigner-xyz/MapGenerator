@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import {
     createAuthSession,
     defaultCapabilitiesForMethod,
+    isDirectMessagesEnabled,
     isEncryptionEnabled,
     isSessionReady,
     isWriteEnabled,
@@ -96,5 +97,27 @@ describe('session helpers', () => {
 
     test('isEncryptionEnabled returns false in readonly sessions', () => {
         expect(isEncryptionEnabled(buildSession({ readonly: true }), 'nip44')).toBe(false);
+    });
+
+    test('isDirectMessagesEnabled returns true only for writable sessions with nip44', () => {
+        expect(isDirectMessagesEnabled(buildSession())).toBe(true);
+    });
+
+    test('isDirectMessagesEnabled returns false for readonly sessions', () => {
+        expect(isDirectMessagesEnabled(buildSession({ readonly: true }))).toBe(false);
+    });
+
+    test('isDirectMessagesEnabled returns false for locked sessions', () => {
+        expect(isDirectMessagesEnabled(buildSession({ locked: true }))).toBe(false);
+    });
+
+    test('isDirectMessagesEnabled returns false when session has only nip04', () => {
+        expect(isDirectMessagesEnabled(buildSession({
+            capabilities: {
+                canSign: true,
+                canEncrypt: true,
+                encryptionSchemes: ['nip04'],
+            },
+        }))).toBe(false);
     });
 });

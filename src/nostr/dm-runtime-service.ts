@@ -4,6 +4,7 @@ import { resolveRelayTargetsByTier } from './dm-transport-ndk';
 import { createLazyNdkDmTransport } from './lazy-ndk-client';
 import { getBootstrapRelays } from './relay-policy';
 import { getRelaySetByType, loadRelaySettings } from './relay-settings';
+import type { SentIndexItem } from './dm-service';
 
 type WriteGatewayLike = {
     publishEvent: (event: {
@@ -24,7 +25,7 @@ type WriteGatewayLike = {
 };
 
 type RuntimeDmCore = Pick<ReturnType<typeof createDmService>, 'subscribeInbox' | 'sendDm'>
-    & Partial<Pick<ReturnType<typeof createDmService>, 'fetchGlobalBackfill'>>;
+    & Partial<Pick<ReturnType<typeof createDmService>, 'fetchGlobalBackfill' | 'fetchConversationBackfill'>>;
 type DmFactory = (dependencies: Parameters<typeof createDmService>[0]) => RuntimeDmCore;
 
 interface CreateRuntimeDirectMessagesServiceOptions {
@@ -74,7 +75,6 @@ export function createRuntimeDirectMessagesService(options: CreateRuntimeDirectM
         subscribeInbox(input: { ownerPubkey: string }, onMessage: (message: Parameters<typeof dmService.subscribeInbox>[1] extends (message: infer T) => void ? T : never) => void) {
             return dmService.subscribeInbox({
                 ownerPubkey: input.ownerPubkey,
-                peerPubkey: input.ownerPubkey,
             }, onMessage);
         },
         async sendDm(input: {
@@ -98,7 +98,7 @@ export function createRuntimeDirectMessagesService(options: CreateRuntimeDirectM
                 targetRelays: relaySelection.relays,
             });
         },
-        async loadInitialConversations(input: { ownerPubkey: string }) {
+        async loadInitialConversations(input: { ownerPubkey: string; sentIndex?: SentIndexItem[] }) {
             if (!dmService.fetchGlobalBackfill) {
                 return [];
             }
@@ -106,7 +106,25 @@ export function createRuntimeDirectMessagesService(options: CreateRuntimeDirectM
             return dmService.fetchGlobalBackfill({
                 ownerPubkey: input.ownerPubkey,
                 mode: 'session_start',
-                sentIndex: [],
+                sentIndex: input.sentIndex ?? [],
+            });
+        },
+        async loadConversationMessages(input: {
+            ownerPubkey: string;
+            peerPubkey: string;
+            since?: number;
+            sentIndex?: SentIndexItem[];
+        }) {
+            if (!dmService.fetchConversationBackfill) {
+                return [];
+            }
+
+            return dmService.fetchConversationBackfill({
+                ownerPubkey: input.ownerPubkey,
+                peerPubkey: input.peerPubkey,
+                mode: 'session_start',
+                since: input.since,
+                sentIndex: input.sentIndex ?? [],
             });
         },
     };

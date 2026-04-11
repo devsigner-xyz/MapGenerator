@@ -555,6 +555,33 @@
     font-size: 0.92rem;
 }
 
+.nostr-profile-relay-stats {
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.45rem;
+}
+
+.nostr-profile-relay-stats div {
+    background: rgba(245, 249, 252, 0.9);
+    border: 1px solid rgba(196, 210, 219, 0.95);
+    border-radius: 8px;
+    padding: 0.42rem 0.48rem;
+}
+
+.nostr-profile-relay-stats dt {
+    margin: 0;
+    font-size: 0.7rem;
+    color: #476170;
+}
+
+.nostr-profile-relay-stats dd {
+    margin: 0.16rem 0 0;
+    font-weight: 600;
+    font-size: 0.88rem;
+    color: #213b47;
+}
+
 .nostr-people-list {
     list-style: none;
     margin: 0;
@@ -1024,6 +1051,23 @@
     color: #425764;
 }
 
+.nostr-relay-connection-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.nostr-relay-connection-summary p {
+    margin: 0;
+    font-size: 0.76rem;
+    line-height: 1;
+    color: #2d4e5f;
+    border: 1px solid rgba(188, 203, 212, 0.95);
+    border-radius: 999px;
+    background: rgba(246, 250, 253, 0.95);
+    padding: 0.26rem 0.5rem;
+}
+
 .nostr-relay-table-wrap {
     max-height: 32vh;
     overflow-y: auto;
@@ -1084,6 +1128,37 @@
 
 .nostr-relay-actions-cell {
     text-align: right;
+}
+
+.nostr-relay-connection-pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    border: 1px solid rgba(180, 194, 203, 0.95);
+    background: rgba(243, 247, 250, 0.95);
+    color: #3e5968;
+    padding: 0.18rem 0.42rem;
+    font-size: 0.7rem;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.nostr-relay-connection-pill.is-connected {
+    border-color: rgba(92, 154, 106, 0.8);
+    background: rgba(226, 246, 232, 0.95);
+    color: #1f5f30;
+}
+
+.nostr-relay-connection-pill.is-disconnected {
+    border-color: rgba(185, 128, 102, 0.78);
+    background: rgba(251, 239, 232, 0.96);
+    color: #7d3a22;
+}
+
+.nostr-relay-connection-pill.is-checking {
+    border-color: rgba(170, 184, 194, 0.95);
+    background: rgba(241, 246, 250, 0.95);
+    color: #425f6e;
 }
 
 .nostr-relay-detail-table-wrap {

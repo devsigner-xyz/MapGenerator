@@ -101,3 +101,11 @@ export function isEncryptionEnabled(
 export function hasEncryptionScheme(session: AuthSessionState, scheme: EncryptionScheme | string): boolean {
     return session.capabilities.encryptionSchemes.includes(scheme as EncryptionScheme);
 }
+
+export function isDirectMessagesEnabled(session: AuthSessionState | undefined): boolean {
+    if (!session) {
+        return false;
+    }
+
+    return isWriteEnabled(session) && hasEncryptionScheme(session, 'nip44');
+}

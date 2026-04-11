@@ -11,6 +11,18 @@ interface ChatConversationDetailProps {
     disabledReason?: string;
 }
 
+function deliveryStatusLabel(state: 'pending' | 'sent' | 'failed'): string {
+    if (state === 'pending') {
+        return 'Enviando...';
+    }
+
+    if (state === 'failed') {
+        return 'Error de entrega';
+    }
+
+    return 'Enviado';
+}
+
 export function ChatConversationDetail({
     conversation,
     messages,
@@ -51,6 +63,11 @@ export function ChatConversationDetail({
                         <p>
                             {message.isUndecryptable ? 'No se pudo desencriptar este mensaje' : message.plaintext}
                         </p>
+                        {message.direction === 'outgoing' ? (
+                            <p className={`nostr-chat-message-status is-${message.deliveryState}`}>
+                                {deliveryStatusLabel(message.deliveryState)}
+                            </p>
+                        ) : null}
                     </li>
                 ))}
             </ul>

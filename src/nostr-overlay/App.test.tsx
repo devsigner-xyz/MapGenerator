@@ -43,6 +43,47 @@ function createDeferred<T>(): Deferred<T> {
     };
 }
 
+const SAMPLE_NSEC = 'nsec1vl029mgpspedva04g90vltkh6fvh240zqtv9k0t9af8935ke9laqsnlfe5';
+
+async function loginWithNsec(container: HTMLDivElement): Promise<void> {
+    const methodSelectTrigger = container.querySelector('[data-slot="select-trigger"]') as HTMLButtonElement;
+    expect(methodSelectTrigger).toBeDefined();
+
+    await act(async () => {
+        methodSelectTrigger.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+        methodSelectTrigger.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+    });
+
+    const nsecOption = Array.from(document.body.querySelectorAll('[data-slot="select-item"]')).find((item) =>
+        (item.textContent || '').trim() === 'nsec'
+    ) as HTMLElement;
+    expect(nsecOption).toBeDefined();
+
+    await act(async () => {
+        nsecOption.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+        nsecOption.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+    });
+
+    const nsecInput = container.querySelector('input[name="nsec"]') as HTMLInputElement;
+    expect(nsecInput).toBeDefined();
+
+    await act(async () => {
+        const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+        valueSetter?.call(nsecInput, SAMPLE_NSEC);
+        nsecInput.dispatchEvent(new Event('input', { bubbles: true }));
+        nsecInput.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    const continueButton = Array.from(container.querySelectorAll('button')).find((button) =>
+        (button.textContent || '').includes('Continuar')
+    ) as HTMLButtonElement;
+    expect(continueButton).toBeDefined();
+
+    await act(async () => {
+        continueButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+}
+
 function createMapBridgeStub(buildingsCount = 0): MapBridgeStub {
     const occupiedBuildingClickListeners: Array<(payload: { buildingIndex: number; pubkey: string }) => void> = [];
     const occupiedBuildingContextMenuListeners: Array<
@@ -369,10 +410,10 @@ describe('Nostr overlay App', () => {
         mounted.push(rendered);
 
         const toolbarButtons = Array.from(rendered.container.querySelectorAll('.nostr-panel-toolbar button')) as HTMLButtonElement[];
-        expect(toolbarButtons.length).toBeGreaterThanOrEqual(4);
+        expect(toolbarButtons.length).toBeGreaterThanOrEqual(3);
         expect(toolbarButtons[0].getAttribute('aria-label')).toBe('Abrir estadisticas de la ciudad');
-        expect(toolbarButtons[1].getAttribute('aria-label')).toBe('Abrir chats');
-        expect(toolbarButtons[2].getAttribute('aria-label')).toBe('Regenerar mapa');
+        expect(toolbarButtons[1].getAttribute('aria-label')).toBe('Regenerar mapa');
+        expect(rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir chats"]')).toBeNull();
 
         const statsButton = rendered.container.querySelector('button[aria-label="Abrir estadisticas de la ciudad"]') as HTMLButtonElement;
         const regenerateButton = rendered.container.querySelector('button[aria-label="Regenerar mapa"]') as HTMLButtonElement;
@@ -397,9 +438,38 @@ describe('Nostr overlay App', () => {
     });
 
     test('renders chat button in panel and compact toolbar and opens chat modal in list view', async () => {
+        const ownerPubkey = 'f'.repeat(64);
         const { bridge } = createMapBridgeStub();
-        const rendered = await renderApp(<App mapBridge={bridge} />);
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />
+        );
         mounted.push(rendered);
+
+        await loginWithNsec(rendered.container);
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
         const panelChatButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir chats"]') as HTMLButtonElement;
         expect(panelChatButton).toBeDefined();
@@ -418,6 +488,21 @@ describe('Nostr overlay App', () => {
 
         const compactChatButton = rendered.container.querySelector('.nostr-compact-toolbar button[aria-label="Abrir chats"]') as HTMLButtonElement;
         expect(compactChatButton).toBeDefined();
+    });
+
+    test('hides chat entry points when session is not dm-capable', async () => {
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(<App mapBridge={bridge} />);
+        mounted.push(rendered);
+
+        expect(rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir chats"]')).toBeNull();
+
+        const hidePanelButton = rendered.container.querySelector('button[aria-label="Ocultar panel"]') as HTMLButtonElement;
+        await act(async () => {
+            hidePanelButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(rendered.container.querySelector('.nostr-compact-toolbar button[aria-label="Abrir chats"]')).toBeNull();
     });
 
     test('loads DM modal data without explicit directMessagesService injection', async () => {
@@ -463,7 +548,7 @@ describe('Nostr overlay App', () => {
                         fetchLatestReplaceableEvent: async () => null,
                         fetchEvents: async () => [],
                     }),
-                    fetchFollowsByNpubFn: vi.fn().mockResolvedValue({
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
                         ownerPubkey,
                         follows: [],
                         relayHints: [],
@@ -482,19 +567,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
-        const form = rendered.container.querySelector('form');
-
-        await act(async () => {
-            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
-            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
-            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
-        });
-
-        await act(async () => {
-            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-        });
+        await loginWithNsec(rendered.container);
 
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
@@ -576,10 +649,7 @@ describe('Nostr overlay App', () => {
         expect(createDmService).toHaveBeenCalled();
         expect(createTransport).toHaveBeenCalled();
         expect(subscribeInbox).toHaveBeenCalledWith(
-            {
-                ownerPubkey,
-                peerPubkey: ownerPubkey,
-            },
+            { ownerPubkey },
             expect.any(Function)
         );
         expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({
@@ -647,7 +717,7 @@ describe('Nostr overlay App', () => {
                         fetchLatestReplaceableEvent: async () => null,
                         fetchEvents: async () => [],
                     }),
-                    fetchFollowsByNpubFn: vi.fn().mockResolvedValue({
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
                         ownerPubkey,
                         follows: [peerPubkey],
                         relayHints: [],
@@ -666,19 +736,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
-        const form = rendered.container.querySelector('form');
-
-        await act(async () => {
-            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
-            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
-            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
-        });
-
-        await act(async () => {
-            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-        });
+        await loginWithNsec(rendered.container);
 
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
@@ -735,7 +793,7 @@ describe('Nostr overlay App', () => {
                         },
                         fetchEvents: async () => [],
                     }),
-                    fetchFollowsByNpubFn: vi.fn().mockResolvedValue({
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
                         ownerPubkey,
                         follows: [],
                         relayHints: [],
@@ -753,19 +811,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
-        const form = rendered.container.querySelector('form');
-
-        await act(async () => {
-            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
-            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
-            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
-        });
-
-        await act(async () => {
-            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-        });
+        await loginWithNsec(rendered.container);
 
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
@@ -839,7 +885,7 @@ describe('Nostr overlay App', () => {
                         fetchLatestReplaceableEvent: async () => null,
                         fetchEvents: async () => [],
                     }),
-                    fetchFollowsByNpubFn: vi.fn().mockResolvedValue({
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
                         ownerPubkey,
                         follows: [peerPubkey],
                         relayHints: [],
@@ -858,19 +904,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
-        const form = rendered.container.querySelector('form');
-
-        await act(async () => {
-            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
-            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
-            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
-        });
-
-        await act(async () => {
-            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-        });
+        await loginWithNsec(rendered.container);
 
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
@@ -1669,7 +1703,7 @@ describe('Nostr overlay App', () => {
         });
 
         await waitFor(() => (document.body.textContent || '').includes('Copiar npub'));
-        expect(document.body.textContent || '').toContain('Enviar mensaje');
+        expect(document.body.textContent || '').not.toContain('Enviar mensaje');
         expect(document.body.textContent || '').toContain('Ver detalles');
         expect(document.body.textContent || '').toContain('Zap');
         expect(document.body.textContent || '').not.toContain('21 sats');
@@ -1729,7 +1763,7 @@ describe('Nostr overlay App', () => {
                         fetchLatestReplaceableEvent: async () => null,
                         fetchEvents: async () => [],
                     }),
-                    fetchFollowsByNpubFn: vi.fn().mockResolvedValue({
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
                         ownerPubkey,
                         follows: [followedPubkey],
                         relayHints: [],
@@ -1761,19 +1795,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
-        const form = rendered.container.querySelector('form');
-
-        await act(async () => {
-            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
-            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
-            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
-        });
-
-        await act(async () => {
-            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-        });
+        await loginWithNsec(rendered.container);
 
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
@@ -1804,8 +1826,108 @@ describe('Nostr overlay App', () => {
         expect(document.activeElement).toBe(composer);
     });
 
-    test('falls back to nostr:npub when dm module is not initialized', async () => {
-        const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+    test('shows pending message immediately while send is still in-flight', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+        const { bridge, triggerOccupiedBuildingContextMenu } = createMapBridgeStub();
+        const sendDeferred = createDeferred<any>();
+        let sendInput: {
+            ownerPubkey: string;
+            peerPubkey: string;
+            plaintext: string;
+            clientMessageId: string;
+        } | null = null;
+
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [followedPubkey],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                        [followedPubkey]: { pubkey: followedPubkey, displayName: 'Alice' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                    directMessagesService: {
+                        subscribeInbox: () => () => {},
+                        sendDm: vi.fn(async (input) => {
+                            sendInput = input;
+                            return sendDeferred.promise;
+                        }),
+                    },
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        await loginWithNsec(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        await act(async () => {
+            triggerOccupiedBuildingContextMenu({
+                buildingIndex: 2,
+                pubkey: followedPubkey,
+                clientX: 320,
+                clientY: 240,
+            });
+        });
+
+        await waitFor(() => (document.body.textContent || '').includes('Enviar mensaje'));
+        const dmItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((node) =>
+            (node.textContent || '').includes('Enviar mensaje')
+        ) as HTMLElement;
+
+        await act(async () => {
+            dmItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Chats'));
+
+        const composer = rendered.container.querySelector('.nostr-chat-composer-input') as HTMLTextAreaElement;
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+            valueSetter?.call(composer, 'primer mensaje');
+            composer.dispatchEvent(new Event('input', { bubbles: true }));
+            composer.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        const sendButton = rendered.container.querySelector('.nostr-chat-send') as HTMLButtonElement;
+        await act(async () => {
+            sendButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('primer mensaje'));
+        expect(rendered.container.textContent || '').toContain('Enviando...');
+
+        expect(sendInput).not.toBeNull();
+        sendDeferred.resolve({
+            id: 'sent-1',
+            clientMessageId: sendInput!.clientMessageId,
+            conversationId: followedPubkey,
+            peerPubkey: followedPubkey,
+            direction: 'outgoing' as const,
+            createdAt: 1700001300,
+            plaintext: sendInput!.plaintext,
+            deliveryState: 'sent' as const,
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Enviado'));
+    });
+
+    test('hides enviar mensaje action in context menu when session is not dm-capable', async () => {
         const { bridge, triggerOccupiedBuildingContextMenu } = createMapBridgeStub();
         const rendered = await renderApp(<App mapBridge={bridge} />);
         mounted.push(rendered);
@@ -1819,22 +1941,11 @@ describe('Nostr overlay App', () => {
             });
         });
 
-        await waitFor(() => (document.body.textContent || '').includes('Enviar mensaje'));
-
-        const dmItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((node) =>
-            (node.textContent || '').includes('Enviar mensaje')
-        ) as HTMLElement;
-
-        await act(async () => {
-            dmItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
-
-        expect(openSpy).toHaveBeenCalledTimes(1);
-        expect((openSpy.mock.calls[0]?.[0] as string).startsWith('nostr:npub')).toBe(true);
-        openSpy.mockRestore();
+        await waitFor(() => (document.body.textContent || '').includes('Copiar npub'));
+        expect(document.body.textContent || '').not.toContain('Enviar mensaje');
     });
 
-    test('keeps chat open but disables composer after logout', async () => {
+    test('closes chat modal after logout from a dm-capable session', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const followedPubkey = 'a'.repeat(64);
         const { bridge, triggerOccupiedBuildingContextMenu } = createMapBridgeStub();
@@ -1848,7 +1959,7 @@ describe('Nostr overlay App', () => {
                         fetchLatestReplaceableEvent: async () => null,
                         fetchEvents: async () => [],
                     }),
-                    fetchFollowsByNpubFn: vi.fn().mockResolvedValue({
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
                         ownerPubkey,
                         follows: [followedPubkey],
                         relayHints: [],
@@ -1870,19 +1981,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
-        const form = rendered.container.querySelector('form');
-
-        await act(async () => {
-            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
-            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
-            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
-        });
-
-        await act(async () => {
-            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-        });
+        await loginWithNsec(rendered.container);
 
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
@@ -1907,12 +2006,8 @@ describe('Nostr overlay App', () => {
         await waitFor(() => (rendered.container.textContent || '').includes('Chats'));
 
         await selectSettingsContextAction(rendered.container, 'Cerrar sesión');
-
-        const composer = rendered.container.querySelector('.nostr-chat-composer-input') as HTMLTextAreaElement;
-        expect(composer).toBeDefined();
-
-        const sendButton = rendered.container.querySelector('.nostr-chat-send') as HTMLButtonElement;
-        expect(sendButton.disabled).toBe(true);
+        await waitFor(() => !(rendered.container.textContent || '').includes('Chats'));
+        expect(rendered.container.querySelector('.nostr-chat-modal')).toBeNull();
     });
 
     test('opens easter egg modal with embedded pdf actions', async () => {
@@ -2057,12 +2152,11 @@ describe('Nostr overlay App', () => {
         expect(showPanelButton.getAttribute('title')).toBe('Show panel');
         expect(rendered.container.querySelector('button[aria-label="Abrir ajustes"]')).not.toBeNull();
         const compactButtons = Array.from(rendered.container.querySelectorAll('.nostr-compact-toolbar button')) as HTMLButtonElement[];
-        expect(compactButtons.length).toBe(5);
+        expect(compactButtons.length).toBe(4);
         expect(compactButtons[0].getAttribute('aria-label')).toBe('Mostrar panel');
         expect(compactButtons[1].getAttribute('aria-label')).toBe('Abrir ajustes');
-        expect(compactButtons[2].getAttribute('aria-label')).toBe('Abrir chats');
-        expect(compactButtons[3].getAttribute('aria-label')).toBe('Regenerar mapa');
-        expect(compactButtons[4].getAttribute('aria-label')).toBe('Abrir estadisticas de la ciudad');
+        expect(compactButtons[2].getAttribute('aria-label')).toBe('Regenerar mapa');
+        expect(compactButtons[3].getAttribute('aria-label')).toBe('Abrir estadisticas de la ciudad');
         expect((bridge.setViewportInsetLeft as any).mock.calls[(bridge.setViewportInsetLeft as any).mock.calls.length - 1][0]).toBe(0);
 
         await act(async () => {

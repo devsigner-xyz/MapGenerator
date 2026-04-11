@@ -40,10 +40,23 @@ type DmSendInput = {
     clientMessageId: string;
 };
 
+type DmLoadInitialInput = {
+    ownerPubkey: string;
+    sentIndex?: SentIndexItem[];
+};
+
+type DmLoadConversationInput = {
+    ownerPubkey: string;
+    peerPubkey: string;
+    since?: number;
+    sentIndex?: SentIndexItem[];
+};
+
 export interface DirectMessagesService {
     subscribeInbox: (input: { ownerPubkey: string }, onMessage: (message: DirectMessageItem) => void) => (() => void) | void;
     sendDm?: (input: DmSendInput) => Promise<DirectMessageItem>;
-    loadInitialConversations?: (input: { ownerPubkey: string }) => Promise<DirectMessageItem[]>;
+    loadInitialConversations?: (input: DmLoadInitialInput) => Promise<DirectMessageItem[]>;
+    loadConversationMessages?: (input: DmLoadConversationInput) => Promise<DirectMessageItem[]>;
 }
 
 interface CreateDmReadStateStorageOptions {
@@ -57,6 +70,7 @@ interface CreateDirectMessagesStoreOptions {
     dmService: DirectMessagesService;
     storage: DmReadStateStorage;
     now?: () => number;
+    bootstrapWaitTimeoutMs?: number;
 }
 
 interface UseDirectMessagesOptions extends CreateDirectMessagesStoreOptions {}
@@ -271,6 +285,7 @@ function registerOwnerSubscription(
 
 export function createDirectMessagesStore(options: CreateDirectMessagesStoreOptions): DirectMessagesStore {
     const now = options.now ?? (() => Math.floor(Date.now() / 1000));
+    const bootstrapWaitTimeoutMs = options.bootstrapWaitTimeoutMs ?? 5_000;
     const state: DirectMessagesState = {
         isListOpen: false,
         activeConversationId: null,
@@ -293,6 +308,46 @@ export function createDirectMessagesStore(options: CreateDirectMessagesStoreOpti
     let releaseSubscription: (() => void) | null = null;
     let startPromise: Promise<void> | null = null;
     let isDisposed = false;
+    const conversationBackfillById = new Map<string, Promise<void>>();
+
+    const loadConversationMessagesIfNeeded = (conversationId: string): Promise<void> => {
+        if (!ownerPubkey || !options.dmService.loadConversationMessages) {
+            return Promise.resolve();
+        }
+
+        const existing = conversationBackfillById.get(conversationId);
+        if (existing) {
+            return existing;
+        }
+
+        const conversation = ensureConversation(state.conversations, ownerPubkey, conversationId, options.storage);
+        const oldestCreatedAt = conversation.messages.length > 0 ? toEpochSeconds(conversation.messages[0].createdAt) : 0;
+        const sentIndex = options.storage.getSentIndex(ownerPubkey);
+
+        const pending = (async () => {
+            try {
+                const backfill = await options.dmService.loadConversationMessages?.({
+                    ownerPubkey,
+                    peerPubkey: conversationId,
+                    since: oldestCreatedAt > 0 ? Math.max(0, oldestCreatedAt - 1) : 0,
+                    sentIndex,
+                }) ?? [];
+
+                for (const message of backfill) {
+                    ingestNormalizedMessage(message);
+                }
+
+                if (state.activeConversationId === conversationId) {
+                    markRead(conversationId);
+                }
+            } finally {
+                conversationBackfillById.delete(conversationId);
+            }
+        })();
+
+        conversationBackfillById.set(conversationId, pending);
+        return pending;
+    };
 
     const ingestMessage = (message: DirectMessageItem): void => {
         if (!ownerPubkey) {
@@ -353,45 +408,69 @@ export function createDirectMessagesStore(options: CreateDirectMessagesStoreOpti
                 return;
             }
 
-            if (!options.dmService.loadInitialConversations) {
-                releaseSubscription = registerOwnerSubscription(ownerPubkey, options.dmService, (message) => {
-                    ingestNormalizedMessage(message);
-                });
-                state.isBootstrapping = false;
-                state.bootstrapError = null;
-                emitChange();
-                return;
-            }
-
             if (startPromise) {
                 await startPromise;
-                return;
+                if (releaseSubscription) {
+                    return;
+                }
             }
 
             isDisposed = false;
             startPromise = (async () => {
-                state.isBootstrapping = true;
                 state.bootstrapError = null;
+                releaseSubscription = registerOwnerSubscription(ownerPubkey, options.dmService, (message) => {
+                    ingestNormalizedMessage(message);
+                });
+
+                if (!options.dmService.loadInitialConversations) {
+                    state.isBootstrapping = false;
+                    emitChange();
+                    return;
+                }
+
+                state.isBootstrapping = true;
                 emitChange();
 
-                if (options.dmService.loadInitialConversations) {
+                const bootstrapPromise = (async () => {
                     try {
-                        const initialMessages = await options.dmService.loadInitialConversations({ ownerPubkey });
+                        const sentIndex = options.storage.getSentIndex(ownerPubkey);
+                        const initialMessages = await options.dmService.loadInitialConversations({
+                            ownerPubkey,
+                            sentIndex,
+                        });
+                        if (isDisposed) {
+                            return;
+                        }
+
                         for (const message of initialMessages) {
                             ingestNormalizedMessage(message);
                         }
                     } catch (error) {
+                        if (isDisposed) {
+                            return;
+                        }
+
                         state.bootstrapError = error instanceof Error ? error.message : 'No se pudo cargar el historial de chats';
+                        emitChange();
                     }
-                }
+                })();
 
-                if (isDisposed || releaseSubscription) {
-                    return;
+                let timeoutId: ReturnType<typeof setTimeout> | null = null;
+                if (bootstrapWaitTimeoutMs > 0) {
+                    await Promise.race([
+                        bootstrapPromise,
+                        new Promise<void>((resolve) => {
+                            timeoutId = setTimeout(() => {
+                                resolve();
+                            }, bootstrapWaitTimeoutMs);
+                        }),
+                    ]);
+                } else {
+                    await bootstrapPromise;
                 }
-
-                releaseSubscription = registerOwnerSubscription(ownerPubkey, options.dmService, (message) => {
-                    ingestNormalizedMessage(message);
-                });
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                }
 
                 state.isBootstrapping = false;
                 emitChange();
@@ -400,14 +479,13 @@ export function createDirectMessagesStore(options: CreateDirectMessagesStoreOpti
             try {
                 await startPromise;
             } finally {
-                state.isBootstrapping = false;
-                emitChange();
                 startPromise = null;
             }
         },
 
         dispose() {
             isDisposed = true;
+            conversationBackfillById.clear();
             if (!releaseSubscription) {
                 return;
             }
@@ -426,6 +504,7 @@ export function createDirectMessagesStore(options: CreateDirectMessagesStoreOpti
             state.isListOpen = true;
             state.activeConversationId = conversationId;
             markRead(conversationId);
+            void loadConversationMessagesIfNeeded(conversationId);
             emitChange();
         },
 

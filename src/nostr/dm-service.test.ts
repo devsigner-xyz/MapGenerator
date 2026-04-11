@@ -106,6 +106,73 @@ function buildLegacyKind4Event(input: {
 }
 
 describe('dm-service parsing and validation', () => {
+    test('subscribeInbox listens to kinds 1059 and 4 for owner inbox', () => {
+        const transport = createTransportMock();
+        const service = createDmService({
+            transport,
+            writeGateway: createWriteGatewayMock(),
+        });
+
+        service.subscribeInbox({ ownerPubkey: OWNER }, () => {});
+
+        expect(transport.subscribe).toHaveBeenCalledWith(
+            [
+                expect.objectContaining({
+                    kinds: [1059, 4],
+                    '#p': [OWNER],
+                }),
+            ],
+            expect.any(Function)
+        );
+    });
+
+    test('subscribeInbox emits legacy kind4 inbox messages from any peer', async () => {
+        const transport = createTransportMock();
+        let onEvent: ((event: NostrEvent) => void) | null = null;
+        transport.subscribe.mockImplementation((_filters, handler) => {
+            onEvent = handler;
+            return {
+                unsubscribe() {
+                    return;
+                },
+            };
+        });
+
+        const writeGateway = createWriteGatewayMock();
+        writeGateway.decryptDm.mockImplementation(async (_pubkey: string, ciphertext: string) => `plain:${ciphertext}`);
+        const service = createDmService({
+            transport,
+            writeGateway,
+            verifyEvent: () => true,
+        });
+
+        const received: DmMessage[] = [];
+        service.subscribeInbox({ ownerPubkey: OWNER }, (message) => {
+            received.push(message);
+        });
+
+        onEvent?.(buildLegacyKind4Event({
+            eventId: '1'.repeat(64),
+            authorPubkey: PEER,
+            recipientPubkey: OWNER,
+            ciphertext: 'one',
+            createdAt: 100,
+        }));
+        onEvent?.(buildLegacyKind4Event({
+            eventId: '2'.repeat(64),
+            authorPubkey: 'c'.repeat(64),
+            recipientPubkey: OWNER,
+            ciphertext: 'two',
+            createdAt: 101,
+        }));
+
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(received).toHaveLength(2);
+        expect(received.map((message) => message.peerPubkey)).toEqual([PEER, 'c'.repeat(64)]);
+        expect(received.map((message) => message.plaintext)).toEqual(['plain:one', 'plain:two']);
+    });
+
     test('unwraps layers in order 1059 -> 13 -> 14', async () => {
         const rumor = event({
             id: 'r'.repeat(64),

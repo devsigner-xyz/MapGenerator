@@ -348,7 +348,16 @@ export function App({ mapBridge, services }: AppProps) {
         }));
     }, [chatStateVersion, chatState, chatActiveConversationId]);
 
-    const canSendChatMessages = Boolean(overlay.ownerPubkey && overlay.canWrite && overlay.canEncrypt);
+    const canAccessDirectMessages = Boolean(overlay.ownerPubkey && overlay.canDirectMessages && overlay.directMessages);
+    const canSendChatMessages = canAccessDirectMessages;
+
+    useEffect(() => {
+        if (canAccessDirectMessages || !chatOpen) {
+            return;
+        }
+
+        setChatOpen(false);
+    }, [canAccessDirectMessages, chatOpen]);
 
     const copyOwnerIdentifier = async (value: string): Promise<void> => {
         if (!value) {
@@ -407,7 +416,7 @@ export function App({ mapBridge, services }: AppProps) {
     };
 
     const openChatList = (): void => {
-        if (!overlay.directMessages) {
+        if (!canAccessDirectMessages || !overlay.directMessages) {
             return;
         }
 
@@ -418,7 +427,7 @@ export function App({ mapBridge, services }: AppProps) {
     };
 
     const openChatConversation = (conversationId: string, focusComposer: boolean = false): void => {
-        if (!overlay.directMessages) {
+        if (!canAccessDirectMessages || !overlay.directMessages) {
             return;
         }
 
@@ -477,22 +486,8 @@ export function App({ mapBridge, services }: AppProps) {
         </ContextMenuContent>
     );
 
-    const writeDmToPubkey = async (pubkey: string): Promise<void> => {
-        const npub = encodePubkeyAsNpub(pubkey);
-        const dmUrl = `nostr:${npub}`;
-        const opened = typeof window.open === 'function' ? window.open(dmUrl, '_blank', 'noopener,noreferrer') : null;
-        if (opened) {
-            toast.success('Abriendo DM...', { duration: 1600 });
-            return;
-        }
-
-        await copyOwnerIdentifier(npub);
-        toast.message('No se pudo abrir el cliente DM; npub copiada', { duration: 2200 });
-    };
-
     const openDmFromContextMenu = async (pubkey: string): Promise<void> => {
-        if (!overlay.ownerPubkey || !overlay.directMessages) {
-            await writeDmToPubkey(pubkey);
+        if (!canAccessDirectMessages || !overlay.directMessages) {
             return;
         }
 
@@ -536,7 +531,9 @@ export function App({ mapBridge, services }: AppProps) {
                         {renderSettingsContextMenu()}
                     </ContextMenu>
 
-                    <ChatIconButton hasUnread={chatState?.hasUnreadGlobal ?? false} onClick={openChatList} />
+                    {canAccessDirectMessages ? (
+                        <ChatIconButton hasUnread={chatState?.hasUnreadGlobal ?? false} onClick={openChatList} />
+                    ) : null}
 
                     <Button
                         type="button"
@@ -598,7 +595,9 @@ export function App({ mapBridge, services }: AppProps) {
                                 </svg>
                             </Button>
 
-                            <ChatIconButton hasUnread={chatState?.hasUnreadGlobal ?? false} onClick={openChatList} />
+                            {canAccessDirectMessages ? (
+                                <ChatIconButton hasUnread={chatState?.hasUnreadGlobal ?? false} onClick={openChatList} />
+                            ) : null}
 
                             <Button
                                 type="button"
@@ -664,7 +663,7 @@ export function App({ mapBridge, services }: AppProps) {
                         selectedFollowingPubkey={overlay.selectedPubkey}
                         onSelectFollowing={overlay.selectFollowing}
                         onLocateFollowing={locateFollowingOnMap}
-                        onMessagePerson={openDmFromContextMenu}
+                        onMessagePerson={canAccessDirectMessages ? openDmFromContextMenu : undefined}
                         onViewPersonDetails={(pubkey) => overlay.openActiveProfile(pubkey)}
                         zapAmounts={zapSettings.amounts}
                         onConfigureZapAmounts={() => openSettingsModal('zaps')}
@@ -700,7 +699,7 @@ export function App({ mapBridge, services }: AppProps) {
                             <PersonContextMenuItems
                                 testIdPrefix="context"
                                 onCopyNpub={() => copyOwnerIdentifier(encodePubkeyAsNpub(buildingContextMenu.pubkey))}
-                                onSendMessage={() => openDmFromContextMenu(buildingContextMenu.pubkey)}
+                                onSendMessage={canAccessDirectMessages ? () => openDmFromContextMenu(buildingContextMenu.pubkey) : undefined}
                                 onViewDetails={() => overlay.openActiveProfile(buildingContextMenu.pubkey, buildingContextMenu.buildingIndex)}
                                 closeMenu={closeOccupiedContextMenu}
                             />
@@ -758,10 +757,8 @@ export function App({ mapBridge, services }: AppProps) {
                 canSend={canSendChatMessages}
                 disabledReason={!overlay.ownerPubkey
                     ? 'Inicia sesión para enviar mensajes privados.'
-                    : !overlay.canWrite
-                        ? 'Tu sesión está en modo de solo lectura o bloqueada.'
-                        : !overlay.canEncrypt
-                            ? 'Tu método de acceso no soporta cifrado para DM.'
+                    : !overlay.canDirectMessages
+                        ? 'Tu sesión no permite mensajería privada (requiere firma y NIP-44).'
                             : undefined}
                 onClose={closeChat}
                 onOpenConversation={(conversationId) => openChatConversation(conversationId)}
@@ -771,7 +768,9 @@ export function App({ mapBridge, services }: AppProps) {
                         return;
                     }
 
-                    await overlay.directMessages.sendMessage(chatActiveConversationId, plaintext);
+                    const sendPromise = overlay.directMessages.sendMessage(chatActiveConversationId, plaintext);
+                    refreshChatState();
+                    await sendPromise;
                     refreshChatState();
                 }}
             />

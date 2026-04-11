@@ -1,9 +1,11 @@
-import { useEffect, useState, type MouseEvent as ReactMouseEvent } from 'react';
+import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { EllipsisVerticalIcon } from 'lucide-react';
 import type { Nip05ValidationResult } from '../../nostr/nip05';
 import type { AuthSessionState } from '../../nostr/auth/session';
 import type { NostrProfile } from '../../nostr/types';
 import { encodeHexToNpub } from '../../nostr/npub';
+import { loadRelaySettings } from '../../nostr/relay-settings';
+import { useRelayConnectionSummary, type RelayConnectionProbe } from '../hooks/useRelayConnectionSummary';
 import { Nip05Identifier } from './Nip05Identifier';
 import { PersonContextMenuItems } from './PersonContextMenuItems';
 import { Button } from '@/components/ui/button';
@@ -22,6 +24,7 @@ interface ProfileTabProps {
     onLocateOwner?: () => void;
     onCopyOwnerNpub?: (value: string) => void | Promise<void>;
     ownerVerification?: Nip05ValidationResult;
+    relayConnectionProbe?: RelayConnectionProbe;
 }
 
 function displayName(profile: NostrProfile | undefined, fallback: string): string {
@@ -40,8 +43,36 @@ export function ProfileTab({
     onLocateOwner,
     onCopyOwnerNpub,
     ownerVerification,
+    relayConnectionProbe,
 }: ProfileTabProps) {
     const [avatarLoadError, setAvatarLoadError] = useState(false);
+    const relaySettings = loadRelaySettings();
+    const configuredRelayRows = [
+        ...relaySettings.byType.general.map((relayUrl) => ({ relayUrl })),
+        ...relaySettings.byType.dmInbox.map((relayUrl) => ({ relayUrl })),
+        ...relaySettings.byType.dmOutbox.map((relayUrl) => ({ relayUrl })),
+    ];
+    const configuredRelayRowsKey = configuredRelayRows
+        .map(({ relayUrl }, index) => `${index}:${relayUrl}`)
+        .join('|');
+    const relayProbeTargets = useMemo(
+        () => [...new Set(configuredRelayRows.map(({ relayUrl }) => relayUrl))],
+        [configuredRelayRowsKey]
+    );
+
+    const { statusByRelay } = useRelayConnectionSummary(relayProbeTargets, {
+        probe: relayConnectionProbe,
+    });
+    const connectedRelays = configuredRelayRows.reduce(
+        (count, { relayUrl }) => count + (statusByRelay[relayUrl] === 'connected' ? 1 : 0),
+        0
+    );
+    const checkingRelays = configuredRelayRows.reduce(
+        (count, { relayUrl }) => count + (statusByRelay[relayUrl] === 'checking' ? 1 : 0),
+        0
+    );
+    const totalRelays = configuredRelayRows.length;
+    const disconnectedRelays = Math.max(0, totalRelays - connectedRelays - checkingRelays);
 
     const openActionsMenu = (event: ReactMouseEvent<HTMLButtonElement>): void => {
         event.preventDefault();
@@ -154,6 +185,21 @@ export function ProfileTab({
                 <div>
                     <dt>Seguidores</dt>
                     <dd>{followersCount}</dd>
+                </div>
+            </dl>
+
+            <dl className="nostr-profile-relay-stats">
+                <div>
+                    <dt>Relays</dt>
+                    <dd>{totalRelays}</dd>
+                </div>
+                <div>
+                    <dt>Conectados</dt>
+                    <dd>{connectedRelays}</dd>
+                </div>
+                <div>
+                    <dt>Sin conexión</dt>
+                    <dd>{disconnectedRelays}</dd>
                 </div>
             </dl>
 

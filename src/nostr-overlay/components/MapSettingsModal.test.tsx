@@ -24,6 +24,21 @@ async function renderElement(element: ReactElement): Promise<RenderResult> {
     return { container, root };
 }
 
+async function waitForCondition(check: () => boolean, timeoutMs: number = 2000): Promise<void> {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMs) {
+        if (check()) {
+            return;
+        }
+
+        await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 20));
+        });
+    }
+
+    throw new Error('Condition was not met in time');
+}
+
 function createBridgeStub(): MapBridge {
     return {
         ensureGenerated: vi.fn().mockResolvedValue(undefined),
@@ -456,5 +471,44 @@ describe('MapSettingsModal UI settings', () => {
         });
 
         expect(rendered.container.textContent || '').toContain('wss://relay.suggested.example');
+    });
+
+    test('shows relay connection summary and per-row connection status in relays table', async () => {
+        window.localStorage.setItem(
+            RELAY_SETTINGS_STORAGE_KEY,
+            JSON.stringify({
+                relays: ['wss://relay.general.one', 'wss://relay.inbox.one', 'wss://relay.shared.one', 'wss://relay.outbox.one'],
+                byType: {
+                    general: ['wss://relay.general.one'],
+                    dmInbox: ['wss://relay.inbox.one', 'wss://relay.shared.one'],
+                    dmOutbox: ['wss://relay.outbox.one', 'wss://relay.shared.one'],
+                },
+            })
+        );
+
+        const bridge = createBridgeStub();
+        const probeRelayStatus = vi.fn(async (relayUrl: string) => relayUrl === 'wss://relay.general.one');
+        const rendered = await renderElement(
+            <MapSettingsModal
+                mapBridge={bridge}
+                initialView="relays"
+                onClose={() => {}}
+                relayConnectionProbe={probeRelayStatus}
+                relayConnectionRefreshIntervalMs={0}
+            />
+        );
+        mounted.push(rendered);
+
+        await waitForCondition(() => {
+            const content = rendered.container.textContent || '';
+            return content.includes('Relays configurados: 5') && content.includes('Conectados: 1') && content.includes('Sin conexión: 4');
+        });
+
+        expect(rendered.container.textContent || '').toContain('Conectado');
+        expect(rendered.container.textContent || '').toContain('Sin conexión');
+        expect(probeRelayStatus).toHaveBeenCalledWith('wss://relay.general.one', expect.any(Number));
+        expect(probeRelayStatus).toHaveBeenCalledWith('wss://relay.inbox.one', expect.any(Number));
+        expect(probeRelayStatus).toHaveBeenCalledWith('wss://relay.shared.one', expect.any(Number));
+        expect(probeRelayStatus).toHaveBeenCalledWith('wss://relay.outbox.one', expect.any(Number));
     });
 });

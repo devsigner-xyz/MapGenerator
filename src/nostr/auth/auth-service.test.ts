@@ -81,6 +81,38 @@ describe('createAuthService', () => {
         expect(authB.getSession()?.method).toBe('npub');
     });
 
+    test('does not restore nsec session without persisted ncryptsec payload', async () => {
+        const storage = createMemoryStorage();
+        const authA = createAuthService({ storage });
+        const started = await authA.startSession('nsec', {
+            credential: SAMPLE_NSEC,
+        });
+
+        expect(started.locked).toBe(false);
+
+        const authB = createAuthService({ storage });
+        const restored = await authB.restoreSession();
+
+        expect(restored).toBeUndefined();
+        expect(authB.getSession()).toBeUndefined();
+        expect(storage.getItem(AUTH_SESSION_STORAGE_KEY)).toBeNull();
+    });
+
+    test('restores nsec session as locked when ncryptsec exists but no passphrase is provided', async () => {
+        const storage = createMemoryStorage();
+        const authA = createAuthService({ storage });
+        await authA.startSession('nsec', {
+            credential: SAMPLE_NSEC,
+            passphrase: 'password1234',
+        });
+
+        const authB = createAuthService({ storage });
+        const restored = await authB.restoreSession();
+
+        expect(restored?.method).toBe('nsec');
+        expect(restored?.locked).toBe(true);
+    });
+
     test('switchMethod updates active session', async () => {
         const storage = createMemoryStorage();
         const auth = createAuthService({ storage });
@@ -112,6 +144,69 @@ describe('createAuthService', () => {
         expect(session.method).toBe('nip07');
         expect(session.readonly).toBe(false);
         expect(session.capabilities.canEncrypt).toBe(true);
+    });
+
+    test('restores nip07 session by re-resolving extension provider', async () => {
+        const getPublicKey = vi.fn().mockResolvedValue('a'.repeat(64));
+        (window as any).nostr = {
+            getPublicKey,
+            signEvent: vi.fn().mockResolvedValue({ sig: 'b'.repeat(128) }),
+            nip44: {
+                encrypt: vi.fn(),
+                decrypt: vi.fn(),
+            },
+        };
+
+        const storage = createMemoryStorage();
+        const authA = createAuthService({ storage });
+        await authA.startSession('nip07', {});
+
+        const authB = createAuthService({ storage });
+        const restored = await authB.restoreSession();
+
+        expect(restored?.method).toBe('nip07');
+        expect(restored?.locked).toBe(false);
+        expect(getPublicKey).toHaveBeenCalledTimes(2);
+    });
+
+    test('clears persisted nip07 session when extension is unavailable on restore', async () => {
+        (window as any).nostr = {
+            getPublicKey: vi.fn().mockResolvedValue('a'.repeat(64)),
+            signEvent: vi.fn().mockResolvedValue({ sig: 'b'.repeat(128) }),
+        };
+
+        const storage = createMemoryStorage();
+        const authA = createAuthService({ storage });
+        await authA.startSession('nip07', {});
+
+        delete (window as any).nostr;
+
+        const authB = createAuthService({ storage });
+        const restored = await authB.restoreSession();
+
+        expect(restored).toBeUndefined();
+        expect(storage.getItem(AUTH_SESSION_STORAGE_KEY)).toBeNull();
+    });
+
+    test('clears persisted nip46 session on restore because it requires explicit reconnect', async () => {
+        const storage = createMemoryStorage();
+        storage.setItem(
+            AUTH_SESSION_STORAGE_KEY,
+            JSON.stringify({
+                method: 'nip46',
+                pubkey: 'a'.repeat(64),
+                readonly: false,
+                locked: false,
+                createdAt: 123,
+            })
+        );
+
+        const auth = createAuthService({ storage });
+        const restored = await auth.restoreSession();
+
+        expect(restored).toBeUndefined();
+        expect(auth.getSession()).toBeUndefined();
+        expect(storage.getItem(AUTH_SESSION_STORAGE_KEY)).toBeNull();
     });
 
     test('returns provider unavailable for nip46 when runtime adapter is not configured', async () => {

@@ -21,6 +21,11 @@ import {
     updateZapAmount,
     type ZapSettingsState,
 } from '../../nostr/zap-settings';
+import {
+    useRelayConnectionSummary,
+    type RelayConnectionProbe,
+    type RelayConnectionStatus,
+} from '../hooks/useRelayConnectionSummary';
 import type { MapBridge } from '../map-bridge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -39,6 +44,8 @@ interface MapSettingsModalProps {
     mapBridge: MapBridge | null;
     suggestedRelays?: string[];
     suggestedRelaysByType?: Partial<RelaySettingsByType>;
+    relayConnectionProbe?: RelayConnectionProbe;
+    relayConnectionRefreshIntervalMs?: number;
     onUiSettingsChange?: (nextState: UiSettingsState) => void;
     zapSettings?: ZapSettingsState;
     onZapSettingsChange?: (nextState: ZapSettingsState) => void;
@@ -230,6 +237,18 @@ function formatRelayFee(fee: RelayFee): string {
     return amount;
 }
 
+function relayConnectionLabel(status: RelayConnectionStatus | undefined): string {
+    if (status === 'connected') {
+        return 'Conectado';
+    }
+
+    if (status === 'disconnected') {
+        return 'Sin conexión';
+    }
+
+    return 'Comprobando...';
+}
+
 function normalizeRelayInput(value: string): string | null {
     const trimmed = value.trim();
     if (!trimmed) {
@@ -247,6 +266,8 @@ export function MapSettingsModal({
     mapBridge,
     suggestedRelays = EMPTY_RELAYS,
     suggestedRelaysByType,
+    relayConnectionProbe,
+    relayConnectionRefreshIntervalMs,
     onUiSettingsChange,
     zapSettings,
     onZapSettingsChange,
@@ -315,6 +336,38 @@ export function MapSettingsModal({
     const hasSuggestedRelays = useMemo(() => {
         return RELAY_TYPES.some((relayType) => normalizedSuggestedByType[relayType].length > 0);
     }, [normalizedSuggestedByType]);
+
+    const relayStatusTargets = useMemo(() => {
+        return [...new Set([
+            ...configuredRows.map(({ relayUrl }) => relayUrl),
+            ...suggestedRows.map(({ relayUrl }) => relayUrl),
+        ])];
+    }, [configuredRows, suggestedRows]);
+
+    const { statusByRelay: relayConnectionStatusByRelay } = useRelayConnectionSummary(relayStatusTargets, {
+        enabled: view === 'relays',
+        probe: relayConnectionProbe,
+        refreshIntervalMs: relayConnectionRefreshIntervalMs,
+    });
+
+    const connectedConfiguredRelays = useMemo(() => {
+        return configuredRows.reduce(
+            (count, row) => count + (relayConnectionStatusByRelay[row.relayUrl] === 'connected' ? 1 : 0),
+            0
+        );
+    }, [configuredRows, relayConnectionStatusByRelay]);
+
+    const checkingConfiguredRelays = useMemo(() => {
+        return configuredRows.reduce(
+            (count, row) => count + (relayConnectionStatusByRelay[row.relayUrl] === 'checking' ? 1 : 0),
+            0
+        );
+    }, [configuredRows, relayConnectionStatusByRelay]);
+
+    const disconnectedConfiguredRelays = Math.max(
+        0,
+        configuredRows.length - connectedConfiguredRelays - checkingConfiguredRelays
+    );
 
     const handleAddRelays = (): void => {
         const lines = newRelayInput
@@ -653,12 +706,19 @@ export function MapSettingsModal({
                     <div className="nostr-relays-content">
                         <p className="nostr-relays-help">Conecta varios relays. Puedes agregar uno por linea.</p>
 
+                        <div className="nostr-relay-connection-summary" role="status" aria-live="polite">
+                            <p>Relays configurados: {configuredRows.length}</p>
+                            <p>Conectados: {connectedConfiguredRelays}</p>
+                            <p>Sin conexión: {disconnectedConfiguredRelays}</p>
+                        </div>
+
                         <div className="nostr-relay-table-wrap">
                             <Table className="nostr-relay-table">
                                 <TableHeader>
                                     <TableRow>
                                         <TableHead>Relay</TableHead>
                                         <TableHead>Type</TableHead>
+                                        <TableHead>Estado</TableHead>
                                         <TableHead className="nostr-relay-actions-head">Actions</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -667,6 +727,7 @@ export function MapSettingsModal({
                                         const details = describeRelay(relayUrl, 'configured');
                                         const info = relayInfoByUrl[relayUrl];
                                         const document = info?.data;
+                                        const relayConnectionStatus = relayConnectionStatusByRelay[relayUrl];
 
                                         return (
                                             <TableRow key={`configured-${relayType}-${relayUrl}`}>
@@ -684,6 +745,11 @@ export function MapSettingsModal({
                                                 </TableCell>
                                                 <TableCell>
                                                     <Badge variant="outline">{RELAY_TYPE_LABELS[relayType]}</Badge>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <span className={`nostr-relay-connection-pill is-${relayConnectionStatus || 'checking'}`}>
+                                                        {relayConnectionLabel(relayConnectionStatus)}
+                                                    </span>
                                                 </TableCell>
                                                 <TableCell className="nostr-relay-actions-cell">
                                                     <ContextMenu>
@@ -765,6 +831,7 @@ export function MapSettingsModal({
                                             <TableRow>
                                                 <TableHead>Relay</TableHead>
                                                 <TableHead>Type</TableHead>
+                                                <TableHead>Estado</TableHead>
                                                 <TableHead className="nostr-relay-actions-head">Actions</TableHead>
                                             </TableRow>
                                         </TableHeader>
@@ -773,6 +840,7 @@ export function MapSettingsModal({
                                                 const details = describeRelay(relayUrl, 'suggested');
                                                 const info = relayInfoByUrl[relayUrl];
                                                 const document = info?.data;
+                                                const relayConnectionStatus = relayConnectionStatusByRelay[relayUrl];
 
                                                 return (
                                                     <TableRow key={`suggested-${relayType}-${relayUrl}`}>
@@ -790,6 +858,11 @@ export function MapSettingsModal({
                                                         </TableCell>
                                                         <TableCell>
                                                             <Badge variant="outline">{RELAY_TYPE_LABELS[relayType]}</Badge>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <span className={`nostr-relay-connection-pill is-${relayConnectionStatus || 'checking'}`}>
+                                                                {relayConnectionLabel(relayConnectionStatus)}
+                                                            </span>
                                                         </TableCell>
                                                         <TableCell className="nostr-relay-actions-cell">
                                                             <ContextMenu>
