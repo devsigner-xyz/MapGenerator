@@ -47,6 +47,8 @@ export interface FollowingFeedViewProps {
 interface FollowingFeedContentProps extends FollowingFeedViewProps {
     className?: string;
     headerActions?: ReactNode;
+    headerKicker?: string;
+    headerSubtitle?: string;
 }
 
 function shortPubkey(pubkey: string): string {
@@ -90,6 +92,8 @@ function shouldLoadMore(container: HTMLDivElement): boolean {
 export function FollowingFeedContent({
     className,
     headerActions,
+    headerKicker,
+    headerSubtitle,
     items,
     isLoadingFeed,
     feedError,
@@ -176,9 +180,13 @@ export function FollowingFeedContent({
                         Volver al feed
                     </Button>
                 ) : null}
-                <p className="nostr-following-feed-title">
-                    {activeThread ? 'Hilo' : 'Feed siguiendo'}
-                </p>
+                <div className="nostr-following-feed-header-copy">
+                    {headerKicker ? <p className="nostr-following-feed-kicker">{headerKicker}</p> : null}
+                    <p className="nostr-following-feed-title">
+                        {activeThread ? 'Hilo' : 'Feed siguiendo'}
+                    </p>
+                    {headerSubtitle ? <p className="nostr-following-feed-subtitle">{headerSubtitle}</p> : null}
+                </div>
                 {headerActions ? (
                     <div className="nostr-following-feed-header-actions">{headerActions}</div>
                 ) : null}

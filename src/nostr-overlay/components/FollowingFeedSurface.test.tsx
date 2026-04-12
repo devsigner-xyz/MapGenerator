@@ -71,6 +71,11 @@ describe('FollowingFeedSurface', () => {
 
         expect(rendered.container.textContent || '').toContain('Sin publicaciones');
         expect(rendered.container.textContent || '').toContain('Volver al mapa');
+        expect(rendered.container.textContent || '').toContain('Timeline en tiempo real de personas que sigues');
+
+        const surfaceContent = rendered.container.querySelector('.nostr-following-feed-surface-content') as HTMLElement;
+        expect(surfaceContent).toBeDefined();
+        expect(surfaceContent.classList.contains('nostr-following-feed-dialog')).toBe(false);
     });
 
     test('invokes onClose when clicking close action', async () => {

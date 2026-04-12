@@ -10,7 +10,9 @@ export function FollowingFeedSurface({ onClose, ...feedProps }: FollowingFeedSur
         <section className="nostr-following-feed-surface" aria-label="Feed siguiendo">
             <FollowingFeedContent
                 {...feedProps}
-                className="nostr-following-feed-dialog nostr-following-feed-surface-content"
+                className="nostr-following-feed-surface-content"
+                headerKicker="Nostr social"
+                headerSubtitle="Timeline en tiempo real de personas que sigues"
                 headerActions={(
                     <Button type="button" variant="outline" size="sm" onClick={onClose}>
                         Volver al mapa
