@@ -139,14 +139,14 @@ describe('MainGUI traffic zoom independence', () => {
 
     test('does not clamp traffic simulation to viewport bounds during update', () => {
         const guiFolder = createMockGuiFolder();
-        const tensorField = {
-            parks: [],
-            sea: [],
-            river: [],
+        const tensorField: any = {
+            parks: [] as unknown[],
+            sea: [] as unknown[],
+            river: [] as unknown[],
             ignoreRiver: false,
         };
 
-        const mainGui = new MainGUI(guiFolder, tensorField as any, () => undefined);
+        const mainGui = new MainGUI(guiFolder, tensorField, () => undefined);
         (mainGui as any).trafficNetworkDirty = false;
 
         const setWorldBoundsSpy = vi.spyOn((mainGui as any).trafficSimulation, 'setWorldBounds');
