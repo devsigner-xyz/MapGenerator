@@ -1,6 +1,7 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
+import { MemoryRouter } from 'react-router';
 import { RELAY_SETTINGS_STORAGE_KEY } from '../nostr/relay-settings';
 import { UI_SETTINGS_STORAGE_KEY } from '../nostr/ui-settings';
 import { getBootstrapRelays } from '../nostr/relay-policy';
@@ -251,7 +252,7 @@ async function renderApp(element: ReactElement): Promise<RenderResult> {
     const root = createRoot(container);
 
     await act(async () => {
-        root.render(element);
+        root.render(<MemoryRouter>{element}</MemoryRouter>);
     });
 
     return { container, root };
@@ -616,6 +617,21 @@ describe('Nostr overlay App', () => {
         await waitFor(() => (rendered.container.textContent || '').includes('Feed siguiendo'));
         expect(rendered.container.textContent || '').toContain('hola feed');
         expect(socialFeed.service.loadFollowingFeed).toHaveBeenCalled();
+    });
+
+    test('feed route hash entry keeps overlay renderable', async () => {
+        const previousHash = window.location.hash;
+        window.location.hash = '#/feed';
+
+        try {
+            const { bridge } = createMapBridgeStub();
+            const rendered = await renderApp(<App mapBridge={bridge} />);
+            mounted.push(rendered);
+
+            expect(rendered.container.textContent || '').toContain('Buscar usuarios globalmente');
+        } finally {
+            window.location.hash = previousHash;
+        }
     });
 
     test('renders chat button in panel and compact toolbar and opens chat dialog in list view', async () => {

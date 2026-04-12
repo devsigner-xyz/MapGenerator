@@ -1,5 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { HashRouter } from 'react-router';
 import { App } from './App';
 import { createWindowMapBridge } from './map-bridge';
 import './styles.css';
@@ -19,7 +20,9 @@ export function mountNostrOverlay(win: Window = window): void {
 
     overlayRoot.render(
         <StrictMode>
-            <App mapBridge={bridge} />
+            <HashRouter>
+                <App mapBridge={bridge} />
+            </HashRouter>
         </StrictMode>
     );
 }

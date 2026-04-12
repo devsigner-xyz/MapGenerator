@@ -1,6 +1,7 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
+import { MemoryRouter } from 'react-router';
 import { App } from './App';
 import type { MapBridge } from './map-bridge';
 import { assignPubkeysToBuildings } from '../nostr/domain/assignment';
@@ -84,7 +85,7 @@ async function renderApp(element: ReactElement): Promise<RenderResult> {
     const root = createRoot(container);
 
     await act(async () => {
-        root.render(element);
+        root.render(<MemoryRouter>{element}</MemoryRouter>);
     });
 
     return { container, root };
