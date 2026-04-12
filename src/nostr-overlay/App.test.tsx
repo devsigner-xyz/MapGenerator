@@ -1985,7 +1985,7 @@ describe('Nostr overlay App', () => {
         await waitFor(() => !(rendered.container.textContent || '').includes('Buscando seguidores en relays'));
     });
 
-    test('shows Read Only badge in expanded sidebar and hides it in compact mode', async () => {
+    test('shows Read Only badge inside user menu item in expanded sidebar', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const followedPubkey = 'a'.repeat(64);
         const { bridge } = createMapBridgeStub(1);
@@ -2033,18 +2033,13 @@ describe('Nostr overlay App', () => {
         });
 
         await waitFor(() => (rendered.container.textContent || '').includes('Read Only'));
-        const readOnlyBadge = rendered.container.querySelector('[data-slot="badge"]') as HTMLElement;
-        expect(readOnlyBadge).toBeDefined();
-        expect(readOnlyBadge.getAttribute('data-variant')).toBe('outline');
+        const userMenuButton = rendered.container.querySelector('button[aria-label="Abrir menu de usuario"]') as HTMLButtonElement;
+        expect(userMenuButton).toBeDefined();
+        expect(userMenuButton.textContent || '').toContain('Read Only');
 
-        const hidePanelButton = rendered.container.querySelector('button[aria-label="Ocultar panel"]') as HTMLButtonElement;
-        expect(hidePanelButton).toBeDefined();
+        const topStatusBadge = rendered.container.querySelector('.nostr-panel-toolbar-status [data-slot="badge"]');
+        expect(topStatusBadge).toBeNull();
 
-        await act(async () => {
-            hidePanelButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
-
-        expect(rendered.container.textContent || '').not.toContain('Read Only');
     });
 
     test('opens occupant dialog and focuses building after occupied building click event', async () => {
@@ -2685,6 +2680,9 @@ describe('Nostr overlay App', () => {
         expect(compactButtons[2].getAttribute('aria-label')).toBe('Abrir buscador global de usuarios');
         expect(compactButtons[3].getAttribute('aria-label')).toBe('Regenerar mapa');
         expect(compactButtons[4].getAttribute('aria-label')).toBe('Abrir estadisticas de la ciudad');
+        expect(rendered.container.textContent || '').not.toContain('Información');
+        expect(rendered.container.textContent || '').not.toContain('Sigues (');
+        expect(rendered.container.textContent || '').not.toContain('Seguidores (');
         expect((bridge.setViewportInsetLeft as any).mock.calls[(bridge.setViewportInsetLeft as any).mock.calls.length - 1][0]).toBe(56);
 
         await act(async () => {
@@ -2702,6 +2700,100 @@ describe('Nostr overlay App', () => {
 
         expect(rendered.container.querySelector('[data-slot="sidebar"]')).not.toBeNull();
         expect(rendered.container.querySelector('[data-slot="sidebar-rail"]')).not.toBeNull();
+    });
+
+    test('renders social tabs before action menu in expanded sidebar', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        await loginWithNsec(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const infoTab = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').trim() === 'Información'
+        ) as HTMLButtonElement;
+        const cityStatsButton = rendered.container.querySelector('button[aria-label="Abrir estadisticas de la ciudad"]') as HTMLButtonElement | null;
+
+        expect(infoTab).toBeDefined();
+        expect(cityStatsButton).not.toBeNull();
+        expect(infoTab.compareDocumentPosition(cityStatsButton as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    });
+
+    test('hides social tabs when sidebar is collapsed', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        await loginWithNsec(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const infoTabBeforeCollapse = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').trim() === 'Información'
+        );
+        expect(infoTabBeforeCollapse).toBeDefined();
+
+        const hidePanelButton = rendered.container.querySelector('button[aria-label="Ocultar panel"]') as HTMLButtonElement;
+        expect(hidePanelButton).toBeDefined();
+
+        await act(async () => {
+            hidePanelButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const infoTabCollapsed = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').trim() === 'Información'
+        );
+        expect(infoTabCollapsed).toBeUndefined();
     });
 
     test('filters following tab by name or npub and can clear search', async () => {

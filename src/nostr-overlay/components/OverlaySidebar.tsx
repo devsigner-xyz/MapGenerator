@@ -33,7 +33,6 @@ import {
     SidebarContent,
     SidebarFooter,
     SidebarGroup,
-    SidebarHeader,
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
@@ -140,11 +139,6 @@ function SidebarActionsMenu({
 
     return (
         <SidebarGroup className="pt-1 pb-0">
-            {!collapsed ? (
-                <div className="nostr-panel-toolbar-status">
-                    {authSession?.readonly ? <Badge variant="outline">Read Only</Badge> : null}
-                </div>
-            ) : null}
             <SidebarMenu className={cn('nostr-panel-toolbar flex flex-col gap-1', collapsed && 'nostr-compact-toolbar')}>
                 {collapsed ? (
                     <>
@@ -333,17 +327,35 @@ function SidebarUserMenu({
         : shortPubkey;
 
     return (
-        <SidebarFooter className="pt-0">
-            <SidebarMenu>
-                <SidebarMenuItem>
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <SidebarMenuButton
-                                size="lg"
-                                className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-                                aria-label="Abrir menu de usuario"
-                                title="Profile actions"
-                            >
+        <SidebarMenu>
+            <SidebarMenuItem>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <SidebarMenuButton
+                            size="lg"
+                            className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                            aria-label="Abrir menu de usuario"
+                            title="Profile actions"
+                        >
+                            <Avatar className="h-8 w-8 rounded-lg">
+                                <AvatarImage src={ownerProfile?.picture} alt="Avatar de perfil" />
+                                <AvatarFallback className="rounded-lg">{ownerFallback}</AvatarFallback>
+                            </Avatar>
+                            <div className="grid flex-1 text-left text-sm leading-tight">
+                                <span className="truncate font-medium">{ownerName}</span>
+                                <span className="truncate text-xs">{ownerLabel}</span>
+                                {authSession?.readonly ? <Badge variant="outline" className="mt-1 w-fit text-[10px]">Read Only</Badge> : null}
+                            </div>
+                            <ChevronsUpDownIcon className="ml-auto" />
+                        </SidebarMenuButton>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                        className="min-w-56 rounded-lg"
+                        side={isMobile ? 'bottom' : 'right'}
+                        align="end"
+                    >
+                        <DropdownMenuLabel className="p-0 font-normal">
+                            <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                                 <Avatar className="h-8 w-8 rounded-lg">
                                     <AvatarImage src={ownerProfile?.picture} alt="Avatar de perfil" />
                                     <AvatarFallback className="rounded-lg">{ownerFallback}</AvatarFallback>
@@ -351,66 +363,58 @@ function SidebarUserMenu({
                                 <div className="grid flex-1 text-left text-sm leading-tight">
                                     <span className="truncate font-medium">{ownerName}</span>
                                     <span className="truncate text-xs">{ownerLabel}</span>
+                                    {authSession?.readonly ? <Badge variant="outline" className="mt-1 w-fit text-[10px]">Read Only</Badge> : null}
                                 </div>
-                                <ChevronsUpDownIcon className="ml-auto" />
-                            </SidebarMenuButton>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                            className="min-w-56 rounded-lg"
-                            side={isMobile ? 'bottom' : 'right'}
-                            align="end"
-                        >
-                            <DropdownMenuLabel className="p-0 font-normal">
-                                <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                                    <Avatar className="h-8 w-8 rounded-lg">
-                                        <AvatarImage src={ownerProfile?.picture} alt="Avatar de perfil" />
-                                        <AvatarFallback className="rounded-lg">{ownerFallback}</AvatarFallback>
-                                    </Avatar>
-                                    <div className="grid flex-1 text-left text-sm leading-tight">
-                                        <span className="truncate font-medium">{ownerName}</span>
-                                        <span className="truncate text-xs">{ownerLabel}</span>
-                                    </div>
-                                </div>
-                            </DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onSelect={() => {
-                                void onCopyOwnerNpub?.(ownerNpub || ownerPubkey);
-                            }}>
-                                <UserRoundIcon />
-                                Copiar npub
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => {
-                                onLocateOwner?.();
-                            }}>
-                                <MapPinIcon />
-                                Ubicar en el mapa
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => {
-                                onViewOwnerDetails?.();
-                            }}>
-                                <SearchIcon />
-                                Ver detalles
-                            </DropdownMenuItem>
-                            {authSession ? (
-                                <>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem
-                                        variant="destructive"
-                                        onSelect={() => {
-                                            void onLogout?.();
-                                        }}
-                                    >
-                                        <LogOutIcon />
-                                        Cerrar sesión
-                                    </DropdownMenuItem>
-                                </>
-                            ) : null}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                </SidebarMenuItem>
-            </SidebarMenu>
-        </SidebarFooter>
+                            </div>
+                        </DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onSelect={() => {
+                            void onCopyOwnerNpub?.(ownerNpub || ownerPubkey);
+                        }}>
+                            <UserRoundIcon />
+                            Copiar npub
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => {
+                            onLocateOwner?.();
+                        }}>
+                            <MapPinIcon />
+                            Ubicar en el mapa
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => {
+                            onViewOwnerDetails?.();
+                        }}>
+                            <SearchIcon />
+                            Ver detalles
+                        </DropdownMenuItem>
+                        {authSession ? (
+                            <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                    variant="destructive"
+                                    onSelect={() => {
+                                        void onLogout?.();
+                                    }}
+                                >
+                                    <LogOutIcon />
+                                    Cerrar sesión
+                                </DropdownMenuItem>
+                            </>
+                        ) : null}
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </SidebarMenuItem>
+        </SidebarMenu>
     );
+}
+
+function SidebarSocialContent({ children }: { children: ReactNode }) {
+    const { state } = useSidebar();
+
+    if (state === 'collapsed') {
+        return null;
+    }
+
+    return <>{children}</>;
 }
 
 export function OverlaySidebar({
@@ -447,7 +451,12 @@ export function OverlaySidebar({
     return (
         <SidebarProvider open={open} onOpenChange={onOpenChange} style={providerStyle}>
             <Sidebar collapsible="icon">
-                <SidebarHeader>
+                <SidebarContent>
+                    <SidebarGroup className="min-h-0 flex-1 pt-1">
+                        <SidebarSocialContent>{children}</SidebarSocialContent>
+                    </SidebarGroup>
+                </SidebarContent>
+                <SidebarFooter className="pt-0">
                     <SidebarActionsMenu
                         authSession={authSession}
                         canAccessDirectMessages={canAccessDirectMessages}
@@ -466,21 +475,16 @@ export function OverlaySidebar({
                         onOpenSettings={onOpenSettings}
                         onLogout={onLogout}
                     />
-                </SidebarHeader>
-                <SidebarContent>
-                    <SidebarGroup className="min-h-0 flex-1 pt-1">
-                        {children}
-                    </SidebarGroup>
-                </SidebarContent>
-                <SidebarUserMenu
-                    authSession={authSession}
-                    ownerPubkey={ownerPubkey}
-                    ownerProfile={ownerProfile}
-                    onCopyOwnerNpub={onCopyOwnerNpub}
-                    onLocateOwner={onLocateOwner}
-                    onViewOwnerDetails={onViewOwnerDetails}
-                    onLogout={onLogout}
-                />
+                    <SidebarUserMenu
+                        authSession={authSession}
+                        ownerPubkey={ownerPubkey}
+                        ownerProfile={ownerProfile}
+                        onCopyOwnerNpub={onCopyOwnerNpub}
+                        onLocateOwner={onLocateOwner}
+                        onViewOwnerDetails={onViewOwnerDetails}
+                        onLogout={onLogout}
+                    />
+                </SidebarFooter>
                 <SidebarRail />
             </Sidebar>
         </SidebarProvider>

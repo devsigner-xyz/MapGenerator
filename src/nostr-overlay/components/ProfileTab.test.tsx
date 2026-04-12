@@ -71,6 +71,26 @@ afterEach(async () => {
 });
 
 describe('ProfileTab relay stats', () => {
+    test('does not render auth hint copy when owner pubkey is missing', async () => {
+        const rendered = await renderElement(
+            <ProfileTab
+                followsCount={0}
+                followersCount={0}
+                authSession={{
+                    ...buildSession(),
+                    readonly: true,
+                } as any}
+            />
+        );
+        mounted.push(rendered);
+
+        expect(rendered.container.querySelector('.nostr-auth-hint')).toBeNull();
+        expect(rendered.container.textContent || '').not.toContain('Modo solo lectura. Inicia sesion con nsec o extension para interactuar con Nostr.');
+        expect(rendered.container.textContent || '').not.toContain('Sesion bloqueada. Desbloquea para seguir, publicar y enviar mensajes privados.');
+        expect(rendered.container.textContent || '').not.toContain('Sesion lista para seguir, publicar y enviar mensajes privados.');
+        expect(rendered.container.textContent || '').not.toContain('Elige un metodo de login para continuar.');
+    });
+
     test('shows relay totals and connection counts in profile information tab', async () => {
         window.localStorage.setItem(
             'nostr.overlay.relays.v1',

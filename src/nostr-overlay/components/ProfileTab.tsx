@@ -84,19 +84,7 @@ export function ProfileTab({
     }, [ownerProfile?.picture]);
 
     if (!ownerPubkey) {
-        return (
-            <div className="nostr-profile-tab">
-                <p className="nostr-auth-hint">
-                    {authSession
-                        ? authSession.readonly
-                            ? 'Modo solo lectura. Inicia sesion con nsec o extension para interactuar con Nostr.'
-                            : authSession.locked
-                                ? 'Sesion bloqueada. Desbloquea para seguir, publicar y enviar mensajes privados.'
-                                : 'Sesion lista para seguir, publicar y enviar mensajes privados.'
-                        : 'Elige un metodo de login para continuar.'}
-                </p>
-            </div>
-        );
+        return <div className="nostr-profile-tab" />;
     }
 
     const shortPubkey = `${ownerPubkey.slice(0, 10)}...${ownerPubkey.slice(-6)}`;
