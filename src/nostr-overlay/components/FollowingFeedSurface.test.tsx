@@ -1,0 +1,153 @@
+import { act, type ReactElement } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
+import { FollowingFeedSurface } from './FollowingFeedSurface';
+
+interface RenderResult {
+    container: HTMLDivElement;
+    root: Root;
+}
+
+async function renderElement(element: ReactElement): Promise<RenderResult> {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+        root.render(element);
+    });
+
+    return { container, root };
+}
+
+let mounted: RenderResult[] = [];
+
+beforeAll(() => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+});
+
+afterEach(async () => {
+    for (const entry of mounted) {
+        await act(async () => {
+            entry.root.unmount();
+        });
+        entry.container.remove();
+    }
+    mounted = [];
+});
+
+function buildProps(overrides: Partial<Parameters<typeof FollowingFeedSurface>[0]> = {}): Parameters<typeof FollowingFeedSurface>[0] {
+    return {
+        onClose: () => {},
+        items: [],
+        isLoadingFeed: false,
+        feedError: null,
+        hasMoreFeed: false,
+        activeThread: null,
+        canWrite: true,
+        isPublishingPost: false,
+        isPublishingReply: false,
+        publishError: null,
+        reactionByEventId: {},
+        repostByEventId: {},
+        pendingReactionByEventId: {},
+        pendingRepostByEventId: {},
+        onLoadMoreFeed: async () => {},
+        onOpenThread: async () => {},
+        onCloseThread: () => {},
+        onLoadMoreThread: async () => {},
+        onPublishPost: async () => true,
+        onPublishReply: async () => true,
+        onToggleReaction: async () => true,
+        onToggleRepost: async () => true,
+        ...overrides,
+    };
+}
+
+describe('FollowingFeedSurface', () => {
+    test('renders empty state and close action', async () => {
+        const rendered = await renderElement(<FollowingFeedSurface {...buildProps()} />);
+        mounted.push(rendered);
+
+        expect(rendered.container.textContent || '').toContain('Sin publicaciones');
+        expect(rendered.container.textContent || '').toContain('Volver al mapa');
+    });
+
+    test('invokes onClose when clicking close action', async () => {
+        const onClose = vi.fn();
+        const rendered = await renderElement(<FollowingFeedSurface {...buildProps({ onClose })} />);
+        mounted.push(rendered);
+
+        const closeButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Volver al mapa')
+        ) as HTMLButtonElement;
+        expect(closeButton).toBeDefined();
+
+        await act(async () => {
+            closeButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    test('keeps thread actions working inside routed surface', async () => {
+        const onPublishReply = vi.fn(async () => true);
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    activeThread: {
+                        rootEventId: 'root-1',
+                        root: {
+                            id: 'root-1',
+                            pubkey: 'b'.repeat(64),
+                            createdAt: 500,
+                            eventKind: 1,
+                            content: 'root',
+                            rawEvent: {
+                                id: 'root-1',
+                                pubkey: 'b'.repeat(64),
+                                kind: 1,
+                                created_at: 500,
+                                tags: [],
+                                content: 'root',
+                            },
+                        },
+                        replies: [],
+                        isLoading: false,
+                        isLoadingMore: false,
+                        error: null,
+                        hasMore: false,
+                    },
+                    onPublishReply,
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const textarea = rendered.container.querySelector('.nostr-following-feed-reply-box textarea') as HTMLTextAreaElement;
+        expect(textarea).toBeDefined();
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+            valueSetter?.call(textarea, 'respuesta surface');
+            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            textarea.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        const sendButton = Array.from(rendered.container.querySelectorAll('.nostr-following-feed-reply-box button')).find((button) =>
+            (button.textContent || '').includes('Responder')
+        ) as HTMLButtonElement;
+        expect(sendButton).toBeDefined();
+
+        await act(async () => {
+            sendButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onPublishReply).toHaveBeenCalledWith({
+            targetEventId: 'root-1',
+            targetPubkey: 'b'.repeat(64),
+            rootEventId: 'root-1',
+            content: 'respuesta surface',
+        });
+    });
+});
