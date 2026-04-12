@@ -3,22 +3,143 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Nostr City - Visualize nostr</title>
-    <script type="module" crossorigin src="/assets/index-ATcAMlIT.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-Bhmf7a9N.js">
-    <link rel="modulepreload" crossorigin href="/assets/nostr-CmJotiUA.js">
-    <link rel="modulepreload" crossorigin href="/assets/overlay-Dq2-2HE1.js">
-    <link rel="modulepreload" crossorigin href="/assets/three-stl-C4NiZtmZ.js">
-    <link rel="modulepreload" crossorigin href="/assets/loglevel-CSxXcE2h.js">
-    <link rel="stylesheet" crossorigin href="/assets/overlay-DgBSFFcf.css">
-    <link rel="stylesheet" crossorigin href="/assets/index-C-4ChgzX.css">
+    <meta name="description" content="Nostr City: una visualizacion alternativa de Nostr como ciudad generativa." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&family=Manrope:wght@400;500;700&display=swap" rel="stylesheet" />
+    <title>Nostr City - Landing</title>
+    <script type="module" crossorigin src="/assets/landing-ByjWgcb6.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/modulepreload-polyfill-Cf3xff8G.js">
+    <link rel="stylesheet" crossorigin href="/assets/landing-DWPID9p_.css">
   </head>
-  <body style="background-color:grey;">
-    <svg id="map-svg"></svg>
-    <div>
-      <canvas id="map-canvas"></canvas>
-      <canvas id="img-canvas"></canvas>
+  <body>
+    <div class="landing-shell">
+      <header class="topbar">
+        <p class="brand">Nostr City</p>
+
+        <nav class="topbar-links" aria-label="Enlaces principales">
+          <a href="https://github.com/ProbableTrain/MapGenerator" target="_blank" rel="noreferrer">GitHub</a>
+          <button type="button" data-scroll-to="features">Features</button>
+          <a data-app-link href="/app/">Entrar a la aplicacion</a>
+        </nav>
+      </header>
+
+      <main>
+        <section class="hero" id="hero">
+          <p class="kicker">Proyecto personal + open source</p>
+          <h1>Nostr City, una nueva forma de visualizar Nostr</h1>
+          <p>
+            No es un producto comercial: es un experimento abierto para mirar la red como geografia social.
+            Conecta identidad, relaciones y actividad en una ciudad generativa que puedes explorar en tiempo real.
+          </p>
+
+          <div class="hero-actions">
+            <a data-app-link href="/app/">Entrar a la aplicacion</a>
+            <button type="button" data-scroll-to="como-funciona">Ver como funciona</button>
+          </div>
+
+          <div class="hero-grid">
+            <article>
+              <h3>Visualizacion espacial</h3>
+              <p>La red deja de ser una lista y pasa a ser territorio navegable.</p>
+            </article>
+            <article>
+              <h3>Contexto social</h3>
+              <p>Perfiles, conexiones y actividad se entienden de un vistazo.</p>
+            </article>
+            <article>
+              <h3>Laboratorio abierto</h3>
+              <p>Proyecto en evolucion continua, sin animo de lucro y con codigo publico.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="content" id="que-es">
+          <h2>Que es Nostr City</h2>
+          <p>
+            Nostr City traduce senales del protocolo a una experiencia cartografica. En lugar de leer solo timelines,
+            exploras un mapa donde la presencia, la cercania social y el movimiento generan otra lectura de Nostr.
+          </p>
+        </section>
+
+        <section class="content" id="como-funciona">
+          <h2>Como funciona</h2>
+          <div class="steps">
+            <article class="card">
+              <h3>1. Conecta tu identidad</h3>
+              <p>Inicias con npub o metodos de sesion compatibles y defines tu punto de partida.</p>
+            </article>
+            <article class="card">
+              <h3>2. Se construye la ciudad</h3>
+              <p>El generador proyecta estructuras urbanas y distribuye presencia social sobre el mapa.</p>
+            </article>
+            <article class="card">
+              <h3>3. Exploras otra geometria</h3>
+              <p>Recorres perfiles, feed social, estadisticas y capas visuales desde una vista diferente.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="content" id="features">
+          <h2>Features clave</h2>
+          <div class="features">
+            <article class="card">
+              <h3>Ciudad generativa y estilos</h3>
+              <p>Mapas procedurales, zoom, camara, capas de lectura y ajustes visuales.</p>
+            </article>
+            <article class="card">
+              <h3>Overlay social Nostr</h3>
+              <p>Perfiles, seguidos, seguidores, feed y navegacion contextual sobre edificios.</p>
+            </article>
+            <article class="card">
+              <h3>Control de relays</h3>
+              <p>Gestion de relays, metadata y parametros para adaptar la experiencia.</p>
+            </article>
+            <article class="card">
+              <h3>Exportacion y experimentacion</h3>
+              <p>Descargas de salida grafica o 3D para seguir iterando fuera de la app.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="content nostr-native" id="nostr-native">
+          <h2>Para quienes ya usan Nostr</h2>
+          <p>
+            Esta interfaz no compite con tus clientes timeline-first. Propone otra capa: leer Nostr como una topologia social,
+            no solo como stream temporal. Si ya entiendes relays, identidad y follows, aqui ves la red desde otra geometria.
+          </p>
+
+          <div class="features">
+            <article class="card">
+              <h3>No reemplaza tu stack actual</h3>
+              <p>Funciona como vista complementaria para descubrir patrones que un timeline no muestra facil.</p>
+            </article>
+            <article class="card">
+              <h3>Enfoque protocol-first</h3>
+              <p>La narrativa prioriza interoperabilidad y lectura del ecosistema, no lock-in de producto.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="content" id="filosofia">
+          <h2>Filosofia del proyecto</h2>
+          <p>
+            Nostr City es un proyecto personal, sin animo de lucro. Es una exploracion abierta para probar interfaces nuevas
+            sobre Nostr y compartir hallazgos con la comunidad.
+          </p>
+
+          <p class="manifest">
+            Si buscas una forma diferente de observar Nostr, este mapa esta hecho para explorar, no para vender.
+          </p>
+
+          <div class="footer-cta">
+            <a data-app-link href="/app/">Entrar a la aplicacion</a>
+            <a href="https://github.com/ProbableTrain/MapGenerator" target="_blank" rel="noreferrer">Ver repositorio</a>
+            <a href="https://maps.probabletrain.com" target="_blank" rel="noreferrer">Leer documentacion</a>
+          </div>
+        </section>
+      </main>
     </div>
-    <div id="nostr-overlay-root"></div>
+
   </body>
 </html>

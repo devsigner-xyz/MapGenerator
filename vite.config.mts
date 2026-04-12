@@ -4,6 +4,9 @@ import tailwindcss from '@tailwindcss/vite';
 import { fileURLToPath, URL } from 'node:url';
 import { resolveManualChunk } from './src/build/chunking';
 
+const landingEntry = fileURLToPath(new URL('./index.html', import.meta.url));
+const appEntry = fileURLToPath(new URL('./app/index.html', import.meta.url));
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
@@ -13,12 +16,15 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    entries: ['index.html'],
+    entries: ['index.html', 'app/index.html'],
   },
   build: {
     outDir: 'dist',
     rollupOptions: {
-      input: 'index.html',
+      input: {
+        landing: landingEntry,
+        app: appEntry,
+      },
       output: {
         manualChunks: resolveManualChunk,
       },

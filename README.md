@@ -105,6 +105,22 @@ pnpm preview
 
 See the [documentation](https://maps.probabletrain.com).
 
+### Routes
+
+- `/` -> landing page (project overview + feature highlights)
+- `/app/` -> map application
+
+### Landing app URL override
+
+The landing CTA points to `/app/` by default. For deployments that use a separate app host
+(for example `https://app.example.com`), set:
+
+```sh
+VITE_LANDING_APP_URL=https://app.example.com
+```
+
+When not set, the fallback remains `/app/`.
+
 ### Nostr cache policy (time-to-value)
 
 The Nostr overlay uses in-memory TTL cache to improve perceived loading speed when submitting an `npub`.
