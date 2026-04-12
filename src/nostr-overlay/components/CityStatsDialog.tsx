@@ -69,7 +69,7 @@ export function CityStatsDialog({
                 onClose();
             }
         }}>
-            <DialogContent className="nostr-dialog nostr-city-stats-dialog" showCloseButton={false} aria-label="Estadisticas de la ciudad">
+            <DialogContent className="nostr-dialog nostr-city-stats-dialog sm:max-w-none" showCloseButton={false} aria-label="Estadisticas de la ciudad">
                 <DialogTitle className="sr-only">Estadisticas de la ciudad</DialogTitle>
                 <DialogDescription className="sr-only">Indicadores de vivienda, poblacion y red del mapa actual.</DialogDescription>
                 <Button type="button" variant="ghost" className="nostr-dialog-close" onClick={onClose} aria-label="Cerrar estadisticas de la ciudad">

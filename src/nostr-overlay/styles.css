@@ -777,7 +777,7 @@
 }
 
 .nostr-city-stats-dialog {
-    width: min(720px, calc(100vw - 32px));
+    width: min(860px, calc(100vw - 32px));
     max-height: min(86vh, 920px);
     padding: 0.9rem;
 }
@@ -1972,6 +1972,12 @@
         padding: 0.68rem;
     }
 
+
+    .nostr-city-stats-dialog {
+        width: calc(100vw - 20px);
+        max-height: calc(100vh - 20px);
+        padding: 0.68rem;
+    }
     .nostr-chat-layout {
         grid-template-columns: minmax(0, 1fr);
         min-height: min(72vh, 620px);
