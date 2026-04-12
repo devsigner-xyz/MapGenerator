@@ -251,6 +251,39 @@ describe('MapPresenceLayer', () => {
         }
     });
 
+    test('does not hit maximum update depth when listEasterEggBuildings returns fresh arrays', async () => {
+        const bridge = createMapBridgeStub(10);
+        (bridge.listEasterEggBuildings as any).mockImplementation(() => []);
+        const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        try {
+            const rendered = await renderElement(
+                <MapPresenceLayer
+                    mapBridge={bridge}
+                    occupancyByBuildingIndex={{ 0: occupantPubkey }}
+                    discoveredEasterEggIds={[]}
+                    profiles={profiles}
+                    ownerPubkey={ownerPubkey}
+                    ownerProfile={{ pubkey: ownerPubkey, displayName: 'Owner' }}
+                    ownerBuildingIndex={0}
+                    occupiedLabelsZoomLevel={8}
+                />
+            );
+            mounted.push(rendered);
+
+            await act(async () => {
+                await Promise.resolve();
+            });
+
+            const hasMaximumDepthError = consoleErrorSpy.mock.calls.some((callArgs) =>
+                callArgs.some((value) => typeof value === 'string' && value.includes('Maximum update depth exceeded'))
+            );
+            expect(hasMaximumDepthError).toBe(false);
+        } finally {
+            consoleErrorSpy.mockRestore();
+        }
+    });
+
     test('renders persistent discovered easter egg marker', async () => {
         const bridge = createMapBridgeStub(4);
         (bridge.listBuildings as any).mockReturnValue([

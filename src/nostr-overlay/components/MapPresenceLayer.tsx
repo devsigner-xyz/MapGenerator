@@ -17,6 +17,8 @@ interface MapPresenceLayerProps {
     alwaysVisiblePubkeys?: string[];
 }
 
+const EMPTY_ALWAYS_VISIBLE_PUBKEYS: string[] = [];
+
 function sanitizeLabel(value: string | undefined): string | undefined {
     if (!value) {
         return undefined;
@@ -58,6 +60,22 @@ function areBuildingSlotsEqual(left: MapBuildingSlot[], right: MapBuildingSlot[]
     return true;
 }
 
+function areEasterEggBuildingSlotsEqual(left: EasterEggBuildingSlot[], right: EasterEggBuildingSlot[]): boolean {
+    if (left.length !== right.length) {
+        return false;
+    }
+
+    for (let index = 0; index < left.length; index += 1) {
+        const leftSlot = left[index];
+        const rightSlot = right[index];
+        if (leftSlot.index !== rightSlot.index || leftSlot.easterEggId !== rightSlot.easterEggId) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 export function MapPresenceLayer({
     mapBridge,
     occupancyByBuildingIndex,
@@ -67,7 +85,7 @@ export function MapPresenceLayer({
     ownerProfile,
     ownerBuildingIndex,
     occupiedLabelsZoomLevel,
-    alwaysVisiblePubkeys = [],
+    alwaysVisiblePubkeys = EMPTY_ALWAYS_VISIBLE_PUBKEYS,
 }: MapPresenceLayerProps) {
     const VIEWPORT_MARGIN_PX = 42;
     const [buildings, setBuildings] = useState<MapBuildingSlot[]>([]);
@@ -190,7 +208,10 @@ export function MapPresenceLayer({
                 const next = mapBridge.listBuildings();
                 return areBuildingSlotsEqual(current, next) ? current : next;
             });
-            setEasterEggBuildings(mapBridge.listEasterEggBuildings?.() ?? []);
+            setEasterEggBuildings((current) => {
+                const next = mapBridge.listEasterEggBuildings?.() ?? [];
+                return areEasterEggBuildingSlotsEqual(current, next) ? current : next;
+            });
         };
 
         const refreshView = (): void => {
