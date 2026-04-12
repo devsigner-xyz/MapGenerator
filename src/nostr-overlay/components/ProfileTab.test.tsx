@@ -111,7 +111,6 @@ describe('ProfileTab relay stats', () => {
                 ownerPubkey={'a'.repeat(64)}
                 followsCount={4}
                 followersCount={1}
-                easterEggDiscoveredIds={[]}
                 followersLoading={false}
                 authSession={buildSession() as any}
                 canWrite
@@ -137,35 +136,18 @@ describe('ProfileTab relay stats', () => {
         expect(probeRelayStatus).toHaveBeenCalledWith('wss://relay.outbox.one', expect.any(Number));
     });
 
-    test('shows missions progress and triggers missions dialog action', async () => {
-        const onOpenMissions = vi.fn();
+    test('does not render missions block in profile tab', async () => {
         const rendered = await renderElement(
             <ProfileTab
                 ownerPubkey={'f'.repeat(64)}
                 followsCount={1}
                 followersCount={2}
-                easterEggDiscoveredIds={['crypto_anarchist_manifesto']}
                 authSession={buildSession() as any}
-                onOpenMissions={onOpenMissions}
             />
         );
         mounted.push(rendered);
 
-        expect(rendered.container.textContent || '').toContain('Misiones');
-        expect(rendered.container.textContent || '').toContain('1 / 3 descubiertos');
-        expect(rendered.container.textContent || '').toContain('Encuentra manifiesto cripto anarquista');
-        expect(rendered.container.textContent || '').toContain('Encontrado');
-
-        const missionsButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
-            (button.textContent || '').trim() === 'Misiones'
-        ) as HTMLButtonElement;
-
-        expect(missionsButton).toBeDefined();
-
-        await act(async () => {
-            missionsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
-
-        expect(onOpenMissions).toHaveBeenCalledTimes(1);
+        expect(rendered.container.querySelector('.nostr-profile-missions')).toBeNull();
+        expect(rendered.container.textContent || '').not.toContain('Misiones');
     });
 });

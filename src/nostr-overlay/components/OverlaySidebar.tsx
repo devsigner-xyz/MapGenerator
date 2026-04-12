@@ -3,6 +3,7 @@ import {
     BellIcon,
     ChartColumnIcon,
     ChevronsUpDownIcon,
+    CompassIcon,
     LogOutIcon,
     MapPinIcon,
     MessageCircleIcon,
@@ -34,6 +35,7 @@ import {
     SidebarFooter,
     SidebarGroup,
     SidebarMenu,
+    SidebarMenuBadge,
     SidebarMenuButton,
     SidebarMenuItem,
     SidebarProvider,
@@ -68,6 +70,9 @@ interface OverlaySidebarProps {
     onCopyOwnerNpub?: (value: string) => void | Promise<void>;
     onLocateOwner?: () => void;
     onViewOwnerDetails?: () => void;
+    missionsDiscoveredCount: number;
+    missionsTotal: number;
+    onOpenMissions: () => void;
     children: ReactNode;
 }
 
@@ -96,6 +101,9 @@ function SidebarActionsMenu({
     onRegenerateMap,
     onOpenSettings,
     onLogout,
+    missionsDiscoveredCount,
+    missionsTotal,
+    onOpenMissions,
 }: Omit<OverlaySidebarProps, 'open' | 'onOpenChange' | 'ownerPubkey' | 'ownerProfile' | 'onCopyOwnerNpub' | 'onLocateOwner' | 'onViewOwnerDetails' | 'children'>) {
     const { state, isMobile, toggleSidebar } = useSidebar();
     const collapsed = state === 'collapsed';
@@ -239,6 +247,23 @@ function SidebarActionsMenu({
                     <SidebarMenuButton asChild>
                         <button
                             type="button"
+                            aria-label="Abrir descubre"
+                            title="Descubre"
+                            onClick={onOpenMissions}
+                        >
+                            <CompassIcon />
+                            <span>Descubre</span>
+                        </button>
+                    </SidebarMenuButton>
+                    {!collapsed ? (
+                        <SidebarMenuBadge>{`${missionsDiscoveredCount}/${missionsTotal}`}</SidebarMenuBadge>
+                    ) : null}
+                </SidebarMenuItem>
+
+                <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                        <button
+                            type="button"
                             aria-label="Regenerar mapa"
                             title="New map"
                             onClick={() => {
@@ -343,8 +368,10 @@ function SidebarUserMenu({
                             </Avatar>
                             <div className="grid flex-1 text-left text-sm leading-tight">
                                 <span className="truncate font-medium">{ownerName}</span>
-                                <span className="truncate text-xs">{ownerLabel}</span>
-                                {authSession?.readonly ? <Badge variant="outline" className="mt-1 w-fit text-[10px]">Read Only</Badge> : null}
+                                <div className="flex items-center gap-1">
+                                    <span className="truncate text-xs">{ownerLabel}</span>
+                                    {authSession?.readonly ? <Badge variant="outline" className="ml-auto shrink-0 text-[10px]">Read Only</Badge> : null}
+                                </div>
                             </div>
                             <ChevronsUpDownIcon className="ml-auto" />
                         </SidebarMenuButton>
@@ -362,8 +389,10 @@ function SidebarUserMenu({
                                 </Avatar>
                                 <div className="grid flex-1 text-left text-sm leading-tight">
                                     <span className="truncate font-medium">{ownerName}</span>
-                                    <span className="truncate text-xs">{ownerLabel}</span>
-                                    {authSession?.readonly ? <Badge variant="outline" className="mt-1 w-fit text-[10px]">Read Only</Badge> : null}
+                                    <div className="flex items-center gap-1">
+                                        <span className="truncate text-xs">{ownerLabel}</span>
+                                        {authSession?.readonly ? <Badge variant="outline" className="ml-auto shrink-0 text-[10px]">Read Only</Badge> : null}
+                                    </div>
                                 </div>
                             </div>
                         </DropdownMenuLabel>
@@ -441,6 +470,9 @@ export function OverlaySidebar({
     onCopyOwnerNpub,
     onLocateOwner,
     onViewOwnerDetails,
+    missionsDiscoveredCount,
+    missionsTotal,
+    onOpenMissions,
     children,
 }: OverlaySidebarProps) {
     const providerStyle = useMemo(() => ({
@@ -474,6 +506,9 @@ export function OverlaySidebar({
                         onRegenerateMap={onRegenerateMap}
                         onOpenSettings={onOpenSettings}
                         onLogout={onLogout}
+                        missionsDiscoveredCount={missionsDiscoveredCount}
+                        missionsTotal={missionsTotal}
+                        onOpenMissions={onOpenMissions}
                     />
                     <SidebarUserMenu
                         authSession={authSession}

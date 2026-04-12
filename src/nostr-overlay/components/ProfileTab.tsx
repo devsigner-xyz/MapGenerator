@@ -1,14 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { EasterEggId } from '../../ts/ui/easter_eggs';
 import type { Nip05ValidationResult } from '../../nostr/nip05';
 import type { AuthSessionState } from '../../nostr/auth/session';
 import type { NostrProfile } from '../../nostr/types';
 import { encodeHexToNpub } from '../../nostr/npub';
 import { loadRelaySettings } from '../../nostr/relay-settings';
 import { useRelayConnectionSummary, type RelayConnectionProbe } from '../hooks/useRelayConnectionSummary';
-import { EASTER_EGG_MISSIONS } from '../easter-eggs/missions';
 import { Nip05Identifier } from './Nip05Identifier';
-import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 interface ProfileTabProps {
@@ -22,8 +19,6 @@ interface ProfileTabProps {
     canEncrypt?: boolean;
     ownerVerification?: Nip05ValidationResult;
     relayConnectionProbe?: RelayConnectionProbe;
-    easterEggDiscoveredIds?: EasterEggId[];
-    onOpenMissions?: () => void;
 }
 
 function displayName(profile: NostrProfile | undefined, fallback: string): string {
@@ -38,8 +33,6 @@ export function ProfileTab({
     authSession,
     ownerVerification,
     relayConnectionProbe,
-    easterEggDiscoveredIds = [],
-    onOpenMissions,
 }: ProfileTabProps) {
     const [avatarLoadError, setAvatarLoadError] = useState(false);
     const relaySettings = loadRelaySettings();
@@ -70,14 +63,6 @@ export function ProfileTab({
     );
     const totalRelays = configuredRelayRows.length;
     const disconnectedRelays = Math.max(0, totalRelays - connectedRelays - checkingRelays);
-    const discoveredIds = useMemo(() => new Set(easterEggDiscoveredIds), [easterEggDiscoveredIds]);
-    const discoveredMissionsCount = useMemo(
-        () => EASTER_EGG_MISSIONS.reduce(
-            (count, mission) => count + (discoveredIds.has(mission.id) ? 1 : 0),
-            0
-        ),
-        [discoveredIds]
-    );
 
     useEffect(() => {
         setAvatarLoadError(false);
@@ -158,37 +143,6 @@ export function ProfileTab({
                     <dd>{disconnectedRelays}</dd>
                 </div>
             </dl>
-
-            <section className="nostr-profile-missions" aria-label="Misiones">
-                <header className="nostr-profile-missions-header">
-                    <div>
-                        <h3>Misiones</h3>
-                        <p>{discoveredMissionsCount} / {EASTER_EGG_MISSIONS.length} descubiertos</p>
-                    </div>
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => onOpenMissions?.()}
-                    >
-                        Misiones
-                    </Button>
-                </header>
-
-                <ul className="nostr-profile-missions-list">
-                    {EASTER_EGG_MISSIONS.map((mission) => {
-                        const discovered = discoveredIds.has(mission.id);
-                        return (
-                            <li key={mission.id} className="nostr-profile-missions-item">
-                                <span>{mission.label}</span>
-                                <span className={`nostr-profile-missions-status${discovered ? ' is-discovered' : ''}`}>
-                                    {discovered ? 'Encontrado' : 'Pendiente'}
-                                </span>
-                            </li>
-                        );
-                    })}
-                </ul>
-            </section>
         </div>
     );
 }

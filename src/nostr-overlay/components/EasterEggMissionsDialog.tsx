@@ -25,9 +25,9 @@ export function EasterEggMissionsDialog({ open, discoveredIds, onClose }: Easter
             <DialogContent
                 className="nostr-dialog nostr-easter-egg-missions-dialog"
                 showCloseButton={false}
-                aria-label="Misiones easter eggs"
+                aria-label="Descubre easter eggs"
             >
-                <DialogTitle>Misiones</DialogTitle>
+                <DialogTitle>Descubre</DialogTitle>
                 <DialogDescription>
                     Has descubierto {discoveredCount} de {EASTER_EGG_MISSIONS.length} easter eggs.
                 </DialogDescription>
@@ -37,7 +37,7 @@ export function EasterEggMissionsDialog({ open, discoveredIds, onClose }: Easter
                     variant="ghost"
                     className="nostr-dialog-close"
                     onClick={onClose}
-                    aria-label="Cerrar misiones"
+                    aria-label="Cerrar descubre"
                 >
                     ×
                 </Button>

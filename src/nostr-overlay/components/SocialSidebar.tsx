@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { encodeHexToNpub } from '../../nostr/npub';
-import type { EasterEggId } from '../../ts/ui/easter_eggs';
 import type { Nip05ValidationResult } from '../../nostr/nip05';
 import type { ProviderResolveInput } from '../../nostr/auth/providers/types';
 import type { AuthSessionState, LoginMethod } from '../../nostr/auth/session';
@@ -34,8 +33,6 @@ interface SocialSidebarProps {
     canEncrypt?: boolean;
     onStartSession?: (method: LoginMethod, input: ProviderResolveInput) => Promise<void> | void;
     verificationByPubkey?: Record<string, Nip05ValidationResult | undefined>;
-    easterEggDiscoveredIds?: EasterEggId[];
-    onOpenMissions?: () => void;
 }
 
 export function SocialSidebar({
@@ -60,8 +57,6 @@ export function SocialSidebar({
     canEncrypt = false,
     onStartSession,
     verificationByPubkey = {},
-    easterEggDiscoveredIds = [],
-    onOpenMissions,
 }: SocialSidebarProps) {
     const [activeTab, setActiveTab] = useState<SocialTab>('profile');
     const [followingSearch, setFollowingSearch] = useState('');
@@ -126,8 +121,6 @@ export function SocialSidebar({
                             canWrite={canWrite}
                             canEncrypt={canEncrypt}
                             ownerVerification={ownerPubkey ? verificationByPubkey[ownerPubkey] : undefined}
-                            easterEggDiscoveredIds={easterEggDiscoveredIds}
-                            onOpenMissions={onOpenMissions}
                         />
                     </TabsContent>
 

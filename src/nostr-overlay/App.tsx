@@ -34,6 +34,7 @@ import { useSocialNotifications } from './hooks/useSocialNotifications';
 import type { EasterEggBuildingClickPayload, MapBridge, OccupiedBuildingContextPayload } from './map-bridge';
 import { extractStreetLabelUsernames } from './domain/street-label-users';
 import { getEasterEggEntry } from './easter-eggs/catalog';
+import { EASTER_EGG_MISSIONS } from './easter-eggs/missions';
 import { createRuntimeSocialNotificationsService } from '../nostr/social-notifications-runtime-service';
 import { createRuntimeSocialFeedService } from '../nostr/social-feed-runtime-service';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -173,6 +174,10 @@ export function App({ mapBridge, services }: AppProps) {
             .map(([buildingIndex]) => Number(buildingIndex))
             .filter((value) => Number.isInteger(value) && value >= 0);
     }, [uiSettings.verifiedBuildingsOverlayEnabled, overlay.occupancyByBuildingIndex, verificationByPubkey]);
+    const discoveredMissionsCount = useMemo(
+        () => new Set(easterEggProgress.discoveredIds).size,
+        [easterEggProgress.discoveredIds]
+    );
 
     useEffect(() => {
         if (!mapBridge) {
@@ -647,6 +652,9 @@ export function App({ mapBridge, services }: AppProps) {
                         overlay.openActiveProfile(overlay.ownerPubkey, overlay.ownerBuildingIndex);
                     }
                 }}
+                missionsDiscoveredCount={discoveredMissionsCount}
+                missionsTotal={EASTER_EGG_MISSIONS.length}
+                onOpenMissions={() => setMissionsDialogOpen(true)}
             >
                 <SocialSidebar
                     ownerPubkey={overlay.ownerPubkey}
@@ -670,8 +678,6 @@ export function App({ mapBridge, services }: AppProps) {
                     canEncrypt={overlay.canEncrypt}
                     onStartSession={overlay.startSession}
                     verificationByPubkey={verificationByPubkey}
-                    easterEggDiscoveredIds={easterEggProgress.discoveredIds}
-                    onOpenMissions={() => setMissionsDialogOpen(true)}
                 />
             </OverlaySidebar>
 

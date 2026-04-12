@@ -460,9 +460,10 @@ describe('Nostr overlay App', () => {
         mounted.push(rendered);
 
         const toolbarButtons = Array.from(rendered.container.querySelectorAll('.nostr-panel-toolbar button')) as HTMLButtonElement[];
-        expect(toolbarButtons.length).toBeGreaterThanOrEqual(3);
+        expect(toolbarButtons.length).toBeGreaterThanOrEqual(4);
         expect(toolbarButtons[0].getAttribute('aria-label')).toBe('Abrir estadisticas de la ciudad');
-        expect(toolbarButtons[1].getAttribute('aria-label')).toBe('Regenerar mapa');
+        expect(toolbarButtons.some((button) => button.getAttribute('aria-label') === 'Abrir descubre')).toBe(true);
+        expect(toolbarButtons.some((button) => button.getAttribute('aria-label') === 'Regenerar mapa')).toBe(true);
         expect(rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir chats"]')).toBeNull();
 
         const statsButton = rendered.container.querySelector('button[aria-label="Abrir estadisticas de la ciudad"]') as HTMLButtonElement;
@@ -2674,12 +2675,13 @@ describe('Nostr overlay App', () => {
         expect(showPanelButton.getAttribute('title')).toBe('Show panel');
         expect(rendered.container.querySelector('button[aria-label="Abrir ajustes"]')).not.toBeNull();
         const compactButtons = Array.from(rendered.container.querySelectorAll('.nostr-compact-toolbar button')) as HTMLButtonElement[];
-        expect(compactButtons.length).toBe(5);
+        expect(compactButtons.length).toBe(6);
         expect(compactButtons[0].getAttribute('aria-label')).toBe('Mostrar panel');
         expect(compactButtons[1].getAttribute('aria-label')).toBe('Abrir ajustes');
         expect(compactButtons[2].getAttribute('aria-label')).toBe('Abrir buscador global de usuarios');
-        expect(compactButtons[3].getAttribute('aria-label')).toBe('Regenerar mapa');
-        expect(compactButtons[4].getAttribute('aria-label')).toBe('Abrir estadisticas de la ciudad');
+        expect(compactButtons[3].getAttribute('aria-label')).toBe('Abrir descubre');
+        expect(compactButtons[4].getAttribute('aria-label')).toBe('Regenerar mapa');
+        expect(compactButtons[5].getAttribute('aria-label')).toBe('Abrir estadisticas de la ciudad');
         expect(rendered.container.textContent || '').not.toContain('Información');
         expect(rendered.container.textContent || '').not.toContain('Sigues (');
         expect(rendered.container.textContent || '').not.toContain('Seguidores (');
@@ -2743,6 +2745,50 @@ describe('Nostr overlay App', () => {
         expect(infoTab).toBeDefined();
         expect(cityStatsButton).not.toBeNull();
         expect(infoTab.compareDocumentPosition(cityStatsButton as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    });
+
+    test('shows descubre menu item with counter and opens dialog', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        await loginWithNsec(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const discoverButton = rendered.container.querySelector('button[aria-label="Abrir descubre"]') as HTMLButtonElement;
+        expect(discoverButton).toBeDefined();
+        expect(rendered.container.textContent || '').toContain('0/3');
+
+        await act(async () => {
+            discoverButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => document.body.querySelector('[aria-label="Descubre easter eggs"]') !== null);
     });
 
     test('hides social tabs when sidebar is collapsed', async () => {
