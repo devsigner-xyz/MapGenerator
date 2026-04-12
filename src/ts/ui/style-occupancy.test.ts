@@ -37,12 +37,15 @@ describe('resolveBuildingRenderColours', () => {
         });
     });
 
-    test('returns debug colors for easter egg buildings', () => {
-        const colours = resolveBuildingRenderColours('easter_egg_debug' as any, baseScheme);
-        expect(colours).toEqual({
-            fill: 'rgb(202,169,255)',
-            stroke: 'rgb(124,76,201)',
-        });
+    test('renders easter egg debug buildings with empty fill and animated occupied-like border', () => {
+        const coloursAtStart = resolveBuildingRenderColours('easter_egg_debug' as any, baseScheme, 0);
+        const coloursLater = resolveBuildingRenderColours('easter_egg_debug' as any, baseScheme, 550);
+
+        expect(coloursAtStart.fill).toBe('rgb(240,240,240)');
+        expect(coloursAtStart.stroke).toMatch(/^rgb\(\d+,\d+,\d+\)$/);
+        expect(coloursAtStart.stroke).not.toBe('rgb(200,200,200)');
+        expect(coloursAtStart.stroke).not.toBe('rgb(228,202,120)');
+        expect(coloursLater.stroke).not.toBe(coloursAtStart.stroke);
     });
 
     test('returns selected colors for selected buildings', () => {

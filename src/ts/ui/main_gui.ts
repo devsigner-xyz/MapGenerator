@@ -316,7 +316,8 @@ export default class MainGUI {
         this.trafficParticlesWorld = this.trafficSimulation.step(deltaSeconds);
 
         const hasTrafficAnimation = this.trafficParticlesCount > 0 && this.trafficParticlesWorld.length > 0;
-        this.redraw = this.redraw || continueUpdate || hasTrafficAnimation;
+        const hasEasterEggDebugAnimation = this.easterEggDebugEnabled && Object.keys(this.easterEggByBuildingIndex).length > 0;
+        this.redraw = this.redraw || continueUpdate || hasTrafficAnimation || hasEasterEggDebugAnimation;
     }
 
     draw(style: Style, forceDraw=false, customCanvas?: CanvasWrapper): void {

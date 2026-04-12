@@ -49,7 +49,52 @@ export interface TrafficParticleRenderState {
     alpha: number;
 }
 
-export function resolveBuildingRenderColours(state: BuildingRenderState, colourScheme: ColourScheme): BuildingRenderColours {
+function parseRgbTriplet(colour: string): [number, number, number] | null {
+    const parsed = Util.parseCSSColor(colour);
+    if (!parsed || parsed.length < 3) {
+        return null;
+    }
+
+    return [parsed[0], parsed[1], parsed[2]];
+}
+
+function blendRgb(
+    from: [number, number, number],
+    to: [number, number, number],
+    amount: number,
+): [number, number, number] {
+    const t = Math.max(0, Math.min(1, amount));
+    return [
+        Math.round(from[0] + (to[0] - from[0]) * t),
+        Math.round(from[1] + (to[1] - from[1]) * t),
+        Math.round(from[2] + (to[2] - from[2]) * t),
+    ];
+}
+
+function rgbTripletToString(rgb: [number, number, number]): string {
+    return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+}
+
+function resolveEasterEggDebugStroke(colourScheme: ColourScheme, animationTimeMs: number): string {
+    const emptyStroke = colourScheme.buildingStroke || colourScheme.bgColour;
+    const occupiedStroke = 'rgb(228,202,120)';
+
+    const emptyRgb = parseRgbTriplet(emptyStroke);
+    const occupiedRgb = parseRgbTriplet(occupiedStroke);
+    if (!emptyRgb || !occupiedRgb) {
+        return emptyStroke;
+    }
+
+    const oscillation = (Math.sin(animationTimeMs / 1100) + 1) / 2;
+    const blendAmount = 0.16 + oscillation * 0.28;
+    return rgbTripletToString(blendRgb(emptyRgb, occupiedRgb, blendAmount));
+}
+
+export function resolveBuildingRenderColours(
+    state: BuildingRenderState,
+    colourScheme: ColourScheme,
+    animationTimeMs: number = performance.now(),
+): BuildingRenderColours {
     if (state === 'selected') {
         return {
             fill: 'rgb(255,214,118)',
@@ -79,9 +124,10 @@ export function resolveBuildingRenderColours(state: BuildingRenderState, colourS
     }
 
     if (state === 'easter_egg_debug') {
+        const emptyFill = colourScheme.buildingColour || colourScheme.bgColour;
         return {
-            fill: 'rgb(202,169,255)',
-            stroke: 'rgb(124,76,201)',
+            fill: emptyFill,
+            stroke: resolveEasterEggDebugStroke(colourScheme, animationTimeMs),
         };
     }
 
@@ -290,10 +336,11 @@ export class DefaultStyle extends Style {
             // Buildings
             const hasHighlightedBuildings = this.buildingRenderStates.some((renderState) => renderState !== 'empty');
             if (!this.colourScheme.zoomBuildings || this.domainController.zoom >= 2 || hasHighlightedBuildings) {
+                const animationTimeMs = performance.now();
                 for (let i = 0; i < this.lots.length; i++) {
                     const lot = this.lots[i];
                     const state = this.buildingRenderStates[i] || 'empty';
-                    const colours = resolveBuildingRenderColours(state, this.colourScheme);
+                    const colours = resolveBuildingRenderColours(state, this.colourScheme, animationTimeMs);
                     canvas.setFillStyle(colours.fill);
                     canvas.setStrokeStyle(colours.stroke);
                     canvas.drawPolygon(lot);
@@ -304,11 +351,12 @@ export class DefaultStyle extends Style {
             if (this.colourScheme.buildingModels && (!this.colourScheme.zoomBuildings || this.domainController.zoom >= 2.5)) {
                 // This is a cheap approximation that often creates visual artefacts
                 // Draws building sides, then rooves instead of properly clipping polygons etc.
+                const animationTimeMs = performance.now();
                 for (let i = 0; i < this.buildingModels.length; i++) {
                     const b = this.buildingModels[i];
                     const stateIndex = Number.isInteger(b.lotIndex) ? b.lotIndex : i;
                     const state = this.buildingRenderStates[stateIndex] || 'empty';
-                    const colours = resolveBuildingRenderColours(state, this.colourScheme);
+                    const colours = resolveBuildingRenderColours(state, this.colourScheme, animationTimeMs);
                     const sideColour = state === 'empty' ? this.colourScheme.buildingSideColour : colours.fill;
 
                     canvas.setFillStyle(sideColour);
@@ -436,10 +484,11 @@ export class RoughStyle extends Style {
         if (!this.dragging) {
             // Lots
             if (!this.colourScheme.zoomBuildings || this.domainController.zoom >= 2) {
+                const animationTimeMs = performance.now();
                 for (let i = 0; i < this.lots.length; i++) {
                     const lot = this.lots[i];
                     const state = this.buildingRenderStates[i] || 'empty';
-                    const colours = resolveBuildingRenderColours(state, this.colourScheme);
+                    const colours = resolveBuildingRenderColours(state, this.colourScheme, animationTimeMs);
                     canvas.setOptions({
                         roughness: 1.2,
                         stroke: colours.stroke,
