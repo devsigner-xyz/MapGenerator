@@ -1602,12 +1602,43 @@
     background: rgba(244, 250, 255, 0.95);
 }
 
+.nostr-following-feed-card-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.nostr-following-feed-card-avatar {
+    width: 32px;
+    height: 32px;
+    flex: 0 0 auto;
+}
+
+.nostr-following-feed-card-head-copy {
+    min-width: 0;
+    display: grid;
+    gap: 0.14rem;
+}
+
+.nostr-following-feed-card-author {
+    margin: 0;
+    color: #1d3340;
+    font-size: 0.82rem;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .nostr-following-feed-card-meta {
-    display: inline-flex;
+    margin: 0;
+    display: flex;
     align-items: center;
     gap: 0.35rem;
     color: #4e6470;
     font-size: 0.74rem;
+    min-width: 0;
+    flex-wrap: wrap;
 }
 
 .nostr-following-feed-card-kind {
@@ -1627,9 +1658,46 @@
 }
 
 .nostr-following-feed-card-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.32rem;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, max-content));
+    gap: 0.2rem;
+    align-items: center;
+}
+
+.nostr-following-feed-action-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    min-height: 30px;
+    min-width: 56px;
+    padding: 0 0.52rem;
+}
+
+.nostr-following-feed-action-icon {
+    width: 14px;
+    height: 14px;
+    flex: 0 0 auto;
+}
+
+.nostr-following-feed-action-count {
+    font-size: 0.74rem;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.nostr-following-feed-action-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    min-height: 30px;
+    min-width: 56px;
+    padding: 0 0.52rem;
+    border-radius: 8px;
+    border: 1px solid rgba(196, 209, 219, 0.9);
+    color: #2c4a59;
+    background: rgba(255, 255, 255, 0.76);
 }
 
 .nostr-following-feed-error {
@@ -1650,6 +1718,23 @@
     margin: 0;
     color: #4a6372;
     font-size: 0.76rem;
+}
+
+@media (max-width: 760px) {
+    .nostr-following-feed-card-actions {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .nostr-following-feed-action-button,
+    .nostr-following-feed-action-indicator {
+        min-width: 0;
+        width: 100%;
+        padding: 0 0.34rem;
+    }
+
+    .nostr-following-feed-card-meta {
+        gap: 0.24rem;
+    }
 }
 
 .nostr-global-search-dialog {

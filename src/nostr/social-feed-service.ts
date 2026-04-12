@@ -47,9 +47,25 @@ export interface LoadThreadInput {
     until?: number;
 }
 
+export interface LoadEngagementInput {
+    eventIds: string[];
+    limit?: number;
+    until?: number;
+}
+
+export interface SocialEngagementMetrics {
+    replies: number;
+    reposts: number;
+    reactions: number;
+    zaps: number;
+}
+
+export type SocialEngagementByEventId = Record<string, SocialEngagementMetrics>;
+
 export interface SocialFeedService {
     loadFollowingFeed(input: LoadFollowingFeedInput): Promise<SocialFeedPage>;
     loadThread(input: LoadThreadInput): Promise<SocialThreadPage>;
+    loadEngagement(input: LoadEngagementInput): Promise<SocialEngagementByEventId>;
 }
 
 function tagValue(tag: string[] | undefined): string | undefined {

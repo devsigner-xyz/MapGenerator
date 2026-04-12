@@ -41,6 +41,8 @@ function buildProps(overrides: Partial<Parameters<typeof FollowingFeedDialog>[0]
         open: true,
         onClose: () => {},
         items: [],
+        profilesByPubkey: {},
+        engagementByEventId: {},
         isLoadingFeed: false,
         feedError: null,
         hasMoreFeed: false,
@@ -150,12 +152,12 @@ describe('FollowingFeedDialog', () => {
         mounted.push(rendered);
 
         const buttons = Array.from(rendered.container.querySelectorAll('.nostr-following-feed-card-actions button')) as HTMLButtonElement[];
-        expect(buttons.length).toBeGreaterThanOrEqual(4);
+        expect(buttons.length).toBeGreaterThanOrEqual(3);
 
         await act(async () => {
             buttons[0].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            buttons[1].dispatchEvent(new MouseEvent('click', { bubbles: true }));
             buttons[2].dispatchEvent(new MouseEvent('click', { bubbles: true }));
-            buttons[3].dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
         expect(onOpenThread).toHaveBeenCalledWith('note-1');
@@ -165,6 +167,55 @@ describe('FollowingFeedDialog', () => {
             targetPubkey: 'a'.repeat(64),
             repostContent: 'hola',
         });
+    });
+
+    test('renders author metadata, published time, and engagement counters', async () => {
+        const rendered = await renderElement(
+            <FollowingFeedDialog
+                {...buildProps({
+                    profilesByPubkey: {
+                        ['a'.repeat(64)]: {
+                            pubkey: 'a'.repeat(64),
+                            displayName: 'Alice',
+                            picture: 'https://example.com/alice.png',
+                        },
+                    },
+                    engagementByEventId: {
+                        'note-1': {
+                            replies: 4,
+                            reposts: 3,
+                            reactions: 9,
+                            zaps: 2,
+                        },
+                    },
+                    items: [
+                        {
+                            id: 'note-1',
+                            pubkey: 'a'.repeat(64),
+                            createdAt: 100,
+                            content: 'hola',
+                            kind: 'note',
+                            rawEvent: {
+                                id: 'note-1',
+                                pubkey: 'a'.repeat(64),
+                                kind: 1,
+                                created_at: 100,
+                                tags: [],
+                                content: 'hola',
+                            },
+                        },
+                    ],
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        expect(rendered.container.textContent || '').toContain('Alice');
+        expect(rendered.container.querySelector('.nostr-following-feed-card-head time')).toBeDefined();
+        expect(rendered.container.querySelector('button[aria-label="Responder (4)"]')).toBeDefined();
+        expect(rendered.container.querySelector('button[aria-label="Reaccionar (9)"]')).toBeDefined();
+        expect(rendered.container.querySelector('button[aria-label="Repostear (3)"]')).toBeDefined();
+        expect(rendered.container.querySelector('[aria-label="Zaps recibidos: 2"]')).toBeDefined();
     });
 
     test('publishes reply from thread composer', async () => {

@@ -260,4 +260,78 @@ describe('social-feed-runtime-service', () => {
         expect(page.hasMore).toBe(true);
         expect(typeof page.nextUntil).toBe('number');
     });
+
+    test('loads engagement counters by target event id', async () => {
+        const transport = createTransportMock([
+            noteEvent({ id: 'reaction-1', pubkey: FOLLOW_A, kind: 7, createdAt: 900, tags: [['e', 'note-1']], content: '+' }),
+            noteEvent({ id: 'reaction-2', pubkey: FOLLOW_B, kind: 7, createdAt: 890, tags: [['e', 'note-1']], content: '+' }),
+            noteEvent({ id: 'repost-1', pubkey: FOLLOW_A, kind: 6, createdAt: 880, tags: [['e', 'note-1']] }),
+            noteEvent({ id: 'reply-1', pubkey: FOLLOW_B, createdAt: 870, tags: [['e', 'note-1', '', 'reply']], content: 'reply' }),
+            noteEvent({ id: 'zap-1', pubkey: FOLLOW_A, kind: 9735, createdAt: 860, tags: [['e', 'note-1']] }),
+            noteEvent({ id: 'reaction-3', pubkey: FOLLOW_A, kind: 7, createdAt: 850, tags: [['e', 'note-2']], content: '+' }),
+        ]);
+
+        const service = createRuntimeSocialFeedService({
+            createTransport: () => transport as any,
+            resolveRelays: () => ['wss://relay.one'],
+        });
+
+        const engagement = await service.loadEngagement({
+            eventIds: ['note-1', 'note-2'],
+            until: 999,
+        });
+
+        expect(engagement['note-1']).toEqual({
+            replies: 1,
+            reposts: 1,
+            reactions: 2,
+            zaps: 1,
+        });
+        expect(engagement['note-2']).toEqual({
+            replies: 0,
+            reposts: 0,
+            reactions: 1,
+            zaps: 0,
+        });
+        expect(transport.fetchBackfill).toHaveBeenCalledWith([
+            expect.objectContaining({ '#e': ['note-1', 'note-2'], kinds: [1, 6, 7, 16, 9735], until: 999 }),
+        ]);
+    });
+
+    test('dedupes engagement events and ignores unsupported note kinds', async () => {
+        const invalid = {
+            id: 'invalid',
+            pubkey: FOLLOW_A,
+            kind: 7,
+            created_at: 800,
+            tags: [['e', 'note-1'], [123 as any]],
+            content: '+',
+        } as NostrEvent;
+
+        const transport = createTransportMock([
+            noteEvent({ id: 'dup-reaction', pubkey: FOLLOW_A, kind: 7, createdAt: 810, tags: [['e', 'note-1']], content: '+' }),
+            noteEvent({ id: 'dup-reaction', pubkey: FOLLOW_A, kind: 7, createdAt: 810, tags: [['e', 'note-1']], content: '+' }),
+            noteEvent({ id: 'mention-note', pubkey: FOLLOW_B, createdAt: 805, tags: [['e', 'note-1']], content: 'not a reply' }),
+            invalid,
+        ]);
+
+        const service = createRuntimeSocialFeedService({
+            createTransport: () => transport as any,
+            resolveRelays: () => ['wss://relay.one'],
+        });
+
+        const engagement = await service.loadEngagement({
+            eventIds: ['note-1', 'note-1'],
+            limit: 50,
+        });
+
+        expect(engagement).toEqual({
+            'note-1': {
+                replies: 0,
+                reposts: 0,
+                reactions: 1,
+                zaps: 0,
+            },
+        });
+    });
 });

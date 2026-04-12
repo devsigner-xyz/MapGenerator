@@ -243,6 +243,7 @@ function createSocialFeedServiceMock() {
     const service: SocialFeedService = {
         loadFollowingFeed: vi.fn(async () => ({ items: [], hasMore: false })),
         loadThread: vi.fn(async () => ({ root: null, replies: [], hasMore: false })),
+        loadEngagement: vi.fn(async () => ({})),
     };
 
     return {

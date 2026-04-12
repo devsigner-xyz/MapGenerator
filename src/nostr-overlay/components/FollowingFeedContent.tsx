@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { SocialFeedItem, SocialThreadItem } from '../../nostr/social-feed-service';
+import { HeartIcon, MessageCircleIcon, Repeat2Icon, ZapIcon } from 'lucide-react';
+import type { NostrProfile } from '../../nostr/types';
+import type { SocialEngagementMetrics, SocialFeedItem, SocialThreadItem } from '../../nostr/social-feed-service';
 import { ListLoadingFooter } from './ListLoadingFooter';
 import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Textarea } from '@/components/ui/textarea';
 
@@ -17,6 +20,8 @@ interface FollowingFeedThreadView {
 
 export interface FollowingFeedViewProps {
     items: SocialFeedItem[];
+    profilesByPubkey: Record<string, NostrProfile>;
+    engagementByEventId: Record<string, SocialEngagementMetrics>;
     isLoadingFeed: boolean;
     feedError: string | null;
     hasMoreFeed: boolean;
@@ -51,12 +56,52 @@ interface FollowingFeedContentProps extends FollowingFeedViewProps {
     headerSubtitle?: string;
 }
 
+const EMPTY_ENGAGEMENT_METRICS: SocialEngagementMetrics = {
+    replies: 0,
+    reposts: 0,
+    reactions: 0,
+    zaps: 0,
+};
+
 function shortPubkey(pubkey: string): string {
     if (!pubkey || pubkey.length < 14) {
         return pubkey || 'desconocido';
     }
 
     return `${pubkey.slice(0, 8)}...${pubkey.slice(-6)}`;
+}
+
+function profileDisplayName(pubkey: string, profile: NostrProfile | undefined): string {
+    return profile?.displayName ?? profile?.name ?? shortPubkey(pubkey);
+}
+
+function profileInitials(pubkey: string, profile: NostrProfile | undefined): string {
+    const source = profileDisplayName(pubkey, profile).trim();
+    if (!source) {
+        return pubkey.slice(0, 2).toUpperCase();
+    }
+
+    const words = source.split(/\s+/).filter((part) => part.length > 0);
+    if (words.length === 1) {
+        return words[0].slice(0, 2).toUpperCase();
+    }
+
+    return `${words[0][0] || ''}${words[1][0] || ''}`.toUpperCase();
+}
+
+function formatCreatedAt(createdAt: number): { iso: string; label: string } {
+    if (!Number.isFinite(createdAt) || createdAt <= 0) {
+        return {
+            iso: new Date(0).toISOString(),
+            label: 'Fecha desconocida',
+        };
+    }
+
+    const date = new Date(createdAt * 1000);
+    return {
+        iso: date.toISOString(),
+        label: date.toLocaleString(),
+    };
 }
 
 function previewContent(content: string): string {
@@ -89,12 +134,102 @@ function shouldLoadMore(container: HTMLDivElement): boolean {
     return distanceToBottom < 80;
 }
 
+interface FeedActionBarProps {
+    eventId: string;
+    pubkey: string;
+    repostContent: string;
+    canWrite: boolean;
+    isReactionActive: boolean;
+    isRepostActive: boolean;
+    isReactionPending: boolean;
+    isRepostPending: boolean;
+    metrics: SocialEngagementMetrics;
+    onReply: () => void;
+    onToggleReaction: (input: { eventId: string; targetPubkey?: string; emoji?: string }) => Promise<boolean>;
+    onToggleRepost: (input: { eventId: string; targetPubkey?: string; repostContent?: string }) => Promise<boolean>;
+}
+
+function FeedActionBar({
+    eventId,
+    pubkey,
+    repostContent,
+    canWrite,
+    isReactionActive,
+    isRepostActive,
+    isReactionPending,
+    isRepostPending,
+    metrics,
+    onReply,
+    onToggleReaction,
+    onToggleRepost,
+}: FeedActionBarProps) {
+    return (
+        <div className="nostr-following-feed-card-actions">
+            <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="nostr-following-feed-action-button"
+                aria-label={`Responder (${metrics.replies})`}
+                onClick={onReply}
+            >
+                <MessageCircleIcon className="nostr-following-feed-action-icon" aria-hidden="true" />
+                <span className="nostr-following-feed-action-count">{metrics.replies}</span>
+            </Button>
+
+            <Button
+                type="button"
+                variant={isReactionActive ? 'default' : 'ghost'}
+                size="sm"
+                className="nostr-following-feed-action-button"
+                disabled={isReactionPending || !canWrite}
+                aria-label={`Reaccionar (${metrics.reactions})`}
+                onClick={() => {
+                    void onToggleReaction({
+                        eventId,
+                        targetPubkey: pubkey,
+                    });
+                }}
+            >
+                <HeartIcon className="nostr-following-feed-action-icon" aria-hidden="true" />
+                <span className="nostr-following-feed-action-count">{metrics.reactions}</span>
+            </Button>
+
+            <Button
+                type="button"
+                variant={isRepostActive ? 'default' : 'ghost'}
+                size="sm"
+                className="nostr-following-feed-action-button"
+                disabled={isRepostPending || !canWrite}
+                aria-label={`Repostear (${metrics.reposts})`}
+                onClick={() => {
+                    void onToggleRepost({
+                        eventId,
+                        targetPubkey: pubkey,
+                        repostContent,
+                    });
+                }}
+            >
+                <Repeat2Icon className="nostr-following-feed-action-icon" aria-hidden="true" />
+                <span className="nostr-following-feed-action-count">{metrics.reposts}</span>
+            </Button>
+
+            <span className="nostr-following-feed-action-indicator" aria-label={`Zaps recibidos: ${metrics.zaps}`}>
+                <ZapIcon className="nostr-following-feed-action-icon" aria-hidden="true" />
+                <span className="nostr-following-feed-action-count">{metrics.zaps}</span>
+            </span>
+        </div>
+    );
+}
+
 export function FollowingFeedContent({
     className,
     headerActions,
     headerKicker,
     headerSubtitle,
     items,
+    profilesByPubkey,
+    engagementByEventId,
     isLoadingFeed,
     feedError,
     hasMoreFeed,
@@ -239,65 +374,45 @@ export function FollowingFeedContent({
                                 const isRepostActive = Boolean(repostByEventId[item.id]);
                                 const isReactionPending = Boolean(pendingReactionByEventId[item.id]);
                                 const isRepostPending = Boolean(pendingRepostByEventId[item.id]);
+                                const profile = profilesByPubkey[item.pubkey];
+                                const authorName = profileDisplayName(item.pubkey, profile);
+                                const publishedAt = formatCreatedAt(item.createdAt);
+                                const metrics = engagementByEventId[item.id] || EMPTY_ENGAGEMENT_METRICS;
 
                                 return (
                                     <article key={item.id} className="nostr-following-feed-card">
-                                        <div className="nostr-following-feed-card-meta">
-                                            <span className="nostr-following-feed-card-kind">{cardLabel(item)}</span>
-                                            <span>{shortPubkey(item.pubkey)}</span>
+                                        <div className="nostr-following-feed-card-head">
+                                            <Avatar className="nostr-following-feed-card-avatar">
+                                                {profile?.picture ? <AvatarImage src={profile.picture} alt={authorName} /> : null}
+                                                <AvatarFallback>{profileInitials(item.pubkey, profile)}</AvatarFallback>
+                                            </Avatar>
+                                            <div className="nostr-following-feed-card-head-copy">
+                                                <p className="nostr-following-feed-card-author">{authorName}</p>
+                                                <p className="nostr-following-feed-card-meta">
+                                                    <span className="nostr-following-feed-card-kind">{cardLabel(item)}</span>
+                                                    <span>{shortPubkey(item.pubkey)}</span>
+                                                    <span>·</span>
+                                                    <time dateTime={publishedAt.iso}>{publishedAt.label}</time>
+                                                </p>
+                                            </div>
                                         </div>
                                         <p className="nostr-following-feed-card-content">{previewContent(item.content) || '(sin contenido)'}</p>
-                                        <div className="nostr-following-feed-card-actions">
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => {
-                                                    void onOpenThread(item.targetEventId || item.id);
-                                                }}
-                                            >
-                                                Ver hilo
-                                            </Button>
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => {
-                                                    void onOpenThread(item.targetEventId || item.id);
-                                                }}
-                                            >
-                                                Responder
-                                            </Button>
-                                            <Button
-                                                type="button"
-                                                variant={isReactionActive ? 'default' : 'outline'}
-                                                size="sm"
-                                                disabled={isReactionPending || !canWrite}
-                                                onClick={() => {
-                                                    void onToggleReaction({
-                                                        eventId: item.id,
-                                                        targetPubkey: item.pubkey,
-                                                    });
-                                                }}
-                                            >
-                                                {isReactionPending ? '...' : 'Reaccion'}
-                                            </Button>
-                                            <Button
-                                                type="button"
-                                                variant={isRepostActive ? 'default' : 'outline'}
-                                                size="sm"
-                                                disabled={isRepostPending || !canWrite}
-                                                onClick={() => {
-                                                    void onToggleRepost({
-                                                        eventId: item.id,
-                                                        targetPubkey: item.pubkey,
-                                                        repostContent: item.content,
-                                                    });
-                                                }}
-                                            >
-                                                {isRepostPending ? '...' : 'Repost'}
-                                            </Button>
-                                        </div>
+                                        <FeedActionBar
+                                            eventId={item.id}
+                                            pubkey={item.pubkey}
+                                            repostContent={item.content}
+                                            canWrite={canWrite}
+                                            isReactionActive={isReactionActive}
+                                            isRepostActive={isRepostActive}
+                                            isReactionPending={isReactionPending}
+                                            isRepostPending={isRepostPending}
+                                            metrics={metrics}
+                                            onReply={() => {
+                                                void onOpenThread(item.targetEventId || item.id);
+                                            }}
+                                            onToggleReaction={onToggleReaction}
+                                            onToggleRepost={onToggleRepost}
+                                        />
                                     </article>
                                 );
                             })
@@ -331,24 +446,41 @@ export function FollowingFeedContent({
                     >
                         {activeThread.root ? (
                             <article className="nostr-following-feed-card nostr-following-feed-card-root">
-                                <div className="nostr-following-feed-card-meta">
-                                    <span className="nostr-following-feed-card-kind">Raiz</span>
-                                    <span>{shortPubkey(activeThread.root.pubkey)}</span>
+                                <div className="nostr-following-feed-card-head">
+                                    <Avatar className="nostr-following-feed-card-avatar">
+                                        {profilesByPubkey[activeThread.root.pubkey]?.picture
+                                            ? <AvatarImage src={profilesByPubkey[activeThread.root.pubkey]?.picture} alt={profileDisplayName(activeThread.root.pubkey, profilesByPubkey[activeThread.root.pubkey])} />
+                                            : null}
+                                        <AvatarFallback>{profileInitials(activeThread.root.pubkey, profilesByPubkey[activeThread.root.pubkey])}</AvatarFallback>
+                                    </Avatar>
+                                    <div className="nostr-following-feed-card-head-copy">
+                                        <p className="nostr-following-feed-card-author">{profileDisplayName(activeThread.root.pubkey, profilesByPubkey[activeThread.root.pubkey])}</p>
+                                        <p className="nostr-following-feed-card-meta">
+                                            <span className="nostr-following-feed-card-kind">Raiz</span>
+                                            <span>{shortPubkey(activeThread.root.pubkey)}</span>
+                                            <span>·</span>
+                                            <time dateTime={formatCreatedAt(activeThread.root.createdAt).iso}>{formatCreatedAt(activeThread.root.createdAt).label}</time>
+                                        </p>
+                                    </div>
                                 </div>
                                 <p className="nostr-following-feed-card-content">{previewContent(activeThread.root.content) || '(sin contenido)'}</p>
-                                <div className="nostr-following-feed-card-actions">
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => {
-                                            setReplyTargetEventId(activeThread.root?.id || null);
-                                            setReplyTargetPubkey(activeThread.root?.pubkey);
-                                        }}
-                                    >
-                                        Responder raiz
-                                    </Button>
-                                </div>
+                                <FeedActionBar
+                                    eventId={activeThread.root.id}
+                                    pubkey={activeThread.root.pubkey}
+                                    repostContent={activeThread.root.content}
+                                    canWrite={canWrite}
+                                    isReactionActive={Boolean(reactionByEventId[activeThread.root.id])}
+                                    isRepostActive={Boolean(repostByEventId[activeThread.root.id])}
+                                    isReactionPending={Boolean(pendingReactionByEventId[activeThread.root.id])}
+                                    isRepostPending={Boolean(pendingRepostByEventId[activeThread.root.id])}
+                                    metrics={engagementByEventId[activeThread.root.id] || EMPTY_ENGAGEMENT_METRICS}
+                                    onReply={() => {
+                                        setReplyTargetEventId(activeThread.root?.id || null);
+                                        setReplyTargetPubkey(activeThread.root?.pubkey);
+                                    }}
+                                    onToggleReaction={onToggleReaction}
+                                    onToggleRepost={onToggleRepost}
+                                />
                             </article>
                         ) : null}
 
@@ -360,53 +492,41 @@ export function FollowingFeedContent({
 
                             return (
                                 <article key={reply.id} className="nostr-following-feed-card">
-                                    <div className="nostr-following-feed-card-meta">
-                                        <span className="nostr-following-feed-card-kind">Reply</span>
-                                        <span>{shortPubkey(reply.pubkey)}</span>
+                                    <div className="nostr-following-feed-card-head">
+                                        <Avatar className="nostr-following-feed-card-avatar">
+                                            {profilesByPubkey[reply.pubkey]?.picture
+                                                ? <AvatarImage src={profilesByPubkey[reply.pubkey]?.picture} alt={profileDisplayName(reply.pubkey, profilesByPubkey[reply.pubkey])} />
+                                                : null}
+                                            <AvatarFallback>{profileInitials(reply.pubkey, profilesByPubkey[reply.pubkey])}</AvatarFallback>
+                                        </Avatar>
+                                        <div className="nostr-following-feed-card-head-copy">
+                                            <p className="nostr-following-feed-card-author">{profileDisplayName(reply.pubkey, profilesByPubkey[reply.pubkey])}</p>
+                                            <p className="nostr-following-feed-card-meta">
+                                                <span className="nostr-following-feed-card-kind">Reply</span>
+                                                <span>{shortPubkey(reply.pubkey)}</span>
+                                                <span>·</span>
+                                                <time dateTime={formatCreatedAt(reply.createdAt).iso}>{formatCreatedAt(reply.createdAt).label}</time>
+                                            </p>
+                                        </div>
                                     </div>
                                     <p className="nostr-following-feed-card-content">{previewContent(reply.content) || '(sin contenido)'}</p>
-                                    <div className="nostr-following-feed-card-actions">
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => {
-                                                setReplyTargetEventId(reply.id);
-                                                setReplyTargetPubkey(reply.pubkey);
-                                            }}
-                                        >
-                                            Responder
-                                        </Button>
-                                        <Button
-                                            type="button"
-                                            variant={isReactionActive ? 'default' : 'outline'}
-                                            size="sm"
-                                            disabled={isReactionPending || !canWrite}
-                                            onClick={() => {
-                                                void onToggleReaction({
-                                                    eventId: reply.id,
-                                                    targetPubkey: reply.pubkey,
-                                                });
-                                            }}
-                                        >
-                                            {isReactionPending ? '...' : 'Reaccion'}
-                                        </Button>
-                                        <Button
-                                            type="button"
-                                            variant={isRepostActive ? 'default' : 'outline'}
-                                            size="sm"
-                                            disabled={isRepostPending || !canWrite}
-                                            onClick={() => {
-                                                void onToggleRepost({
-                                                    eventId: reply.id,
-                                                    targetPubkey: reply.pubkey,
-                                                    repostContent: reply.content,
-                                                });
-                                            }}
-                                        >
-                                            {isRepostPending ? '...' : 'Repost'}
-                                        </Button>
-                                    </div>
+                                    <FeedActionBar
+                                        eventId={reply.id}
+                                        pubkey={reply.pubkey}
+                                        repostContent={reply.content}
+                                        canWrite={canWrite}
+                                        isReactionActive={isReactionActive}
+                                        isRepostActive={isRepostActive}
+                                        isReactionPending={isReactionPending}
+                                        isRepostPending={isRepostPending}
+                                        metrics={engagementByEventId[reply.id] || EMPTY_ENGAGEMENT_METRICS}
+                                        onReply={() => {
+                                            setReplyTargetEventId(reply.id);
+                                            setReplyTargetPubkey(reply.pubkey);
+                                        }}
+                                        onToggleReaction={onToggleReaction}
+                                        onToggleRepost={onToggleRepost}
+                                    />
                                 </article>
                             );
                         })}

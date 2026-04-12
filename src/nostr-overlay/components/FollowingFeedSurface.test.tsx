@@ -40,6 +40,8 @@ function buildProps(overrides: Partial<Parameters<typeof FollowingFeedSurface>[0
     return {
         onClose: () => {},
         items: [],
+        profilesByPubkey: {},
+        engagementByEventId: {},
         isLoadingFeed: false,
         feedError: null,
         hasMoreFeed: false,
@@ -93,6 +95,53 @@ describe('FollowingFeedSurface', () => {
         });
 
         expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    test('renders author identity and engagement icon counters on cards', async () => {
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    profilesByPubkey: {
+                        ['a'.repeat(64)]: {
+                            pubkey: 'a'.repeat(64),
+                            displayName: 'Alice Surface',
+                        },
+                    },
+                    engagementByEventId: {
+                        'note-1': {
+                            replies: 1,
+                            reposts: 2,
+                            reactions: 3,
+                            zaps: 4,
+                        },
+                    },
+                    items: [
+                        {
+                            id: 'note-1',
+                            pubkey: 'a'.repeat(64),
+                            createdAt: 100,
+                            content: 'hola surface',
+                            kind: 'note',
+                            rawEvent: {
+                                id: 'note-1',
+                                pubkey: 'a'.repeat(64),
+                                kind: 1,
+                                created_at: 100,
+                                tags: [],
+                                content: 'hola surface',
+                            },
+                        },
+                    ],
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        expect(rendered.container.textContent || '').toContain('Alice Surface');
+        expect(rendered.container.querySelector('button[aria-label="Responder (1)"]')).toBeDefined();
+        expect(rendered.container.querySelector('button[aria-label="Reaccionar (3)"]')).toBeDefined();
+        expect(rendered.container.querySelector('button[aria-label="Repostear (2)"]')).toBeDefined();
+        expect(rendered.container.querySelector('[aria-label="Zaps recibidos: 4"]')).toBeDefined();
     });
 
     test('keeps thread actions working inside routed surface', async () => {

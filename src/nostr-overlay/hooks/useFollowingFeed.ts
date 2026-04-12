@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import type {
+    LoadEngagementInput,
     LoadFollowingFeedInput,
     LoadThreadInput,
+    SocialEngagementByEventId,
+    SocialEngagementMetrics,
     SocialFeedItem,
     SocialFeedPage,
     SocialThreadItem,
@@ -11,6 +14,7 @@ import type {
 interface FollowingFeedService {
     loadFollowingFeed(input: LoadFollowingFeedInput): Promise<SocialFeedPage>;
     loadThread(input: LoadThreadInput): Promise<SocialThreadPage>;
+    loadEngagement?(input: LoadEngagementInput): Promise<SocialEngagementByEventId>;
 }
 
 interface PublishEventInput {
@@ -92,6 +96,7 @@ interface FollowingFeedState {
     repostEventIdByTarget: Record<string, string>;
     pendingReactionByEventId: Record<string, boolean>;
     pendingRepostByEventId: Record<string, boolean>;
+    engagementByEventId: SocialEngagementByEventId;
 }
 
 export interface FollowingFeedStore {
@@ -113,6 +118,19 @@ export interface FollowingFeedStore {
 
 const DEFAULT_PAGE_SIZE = 20;
 const DEFAULT_THREAD_PAGE_SIZE = 25;
+
+function createEmptyEngagementMetrics(): SocialEngagementMetrics {
+    return {
+        replies: 0,
+        reposts: 0,
+        reactions: 0,
+        zaps: 0,
+    };
+}
+
+function normalizeEventIds(eventIds: string[]): string[] {
+    return [...new Set(eventIds.filter((eventId) => typeof eventId === 'string' && eventId.length > 0))];
+}
 
 function sanitizeContent(content: string): string {
     return content.replace(/\s+/g, ' ').trim();
@@ -268,6 +286,7 @@ export function createFollowingFeedStore(options: UseFollowingFeedOptions): Foll
         repostEventIdByTarget: {},
         pendingReactionByEventId: {},
         pendingRepostByEventId: {},
+        engagementByEventId: {},
     };
     const listeners = new Set<() => void>();
     let version = 0;
@@ -277,6 +296,60 @@ export function createFollowingFeedStore(options: UseFollowingFeedOptions): Foll
         version += 1;
         for (const listener of listeners) {
             listener();
+        }
+    };
+
+    const ensureEngagementDefaults = (eventIds: string[]): void => {
+        for (const eventId of normalizeEventIds(eventIds)) {
+            if (!state.engagementByEventId[eventId]) {
+                state.engagementByEventId[eventId] = createEmptyEngagementMetrics();
+            }
+        }
+    };
+
+    const applyEngagementDelta = (eventId: string, key: keyof SocialEngagementMetrics, delta: number): void => {
+        if (!eventId || !Number.isFinite(delta) || delta === 0) {
+            return;
+        }
+
+        ensureEngagementDefaults([eventId]);
+        const currentValue = state.engagementByEventId[eventId][key];
+        state.engagementByEventId[eventId][key] = Math.max(0, currentValue + delta);
+    };
+
+    const hydrateEngagement = async (eventIds: string[]): Promise<void> => {
+        if (!options.service.loadEngagement) {
+            ensureEngagementDefaults(eventIds);
+            return;
+        }
+
+        const normalizedEventIds = normalizeEventIds(eventIds);
+        if (normalizedEventIds.length === 0) {
+            return;
+        }
+
+        ensureEngagementDefaults(normalizedEventIds);
+
+        try {
+            const loaded = await options.service.loadEngagement({
+                eventIds: normalizedEventIds,
+            });
+
+            for (const eventId of normalizedEventIds) {
+                const metrics = loaded[eventId];
+                if (!metrics) {
+                    continue;
+                }
+
+                state.engagementByEventId[eventId] = {
+                    replies: Math.max(0, Math.floor(metrics.replies || 0)),
+                    reposts: Math.max(0, Math.floor(metrics.reposts || 0)),
+                    reactions: Math.max(0, Math.floor(metrics.reactions || 0)),
+                    zaps: Math.max(0, Math.floor(metrics.zaps || 0)),
+                };
+            }
+        } catch {
+            return;
         }
     };
 
@@ -301,6 +374,7 @@ export function createFollowingFeedStore(options: UseFollowingFeedOptions): Foll
             });
 
             state.items = mergeFeedItems(state.items, page.items);
+            await hydrateEngagement(page.items.map((item) => item.id));
             state.hasMoreFeed = page.hasMore;
             state.feedCursor = page.nextUntil;
             state.isLoadingFeed = false;
@@ -376,6 +450,10 @@ export function createFollowingFeedStore(options: UseFollowingFeedOptions): Foll
 
                 state.activeThread.root = page.root;
                 state.activeThread.replies = sortThreadItems(page.replies);
+                await hydrateEngagement([
+                    ...(page.root ? [page.root.id] : []),
+                    ...page.replies.map((reply) => reply.id),
+                ]);
                 state.activeThread.hasMore = page.hasMore;
                 state.activeThread.cursor = page.nextUntil;
                 state.activeThread.isLoading = false;
@@ -422,6 +500,10 @@ export function createFollowingFeedStore(options: UseFollowingFeedOptions): Foll
                     state.activeThread.root = page.root;
                 }
                 state.activeThread.replies = mergeThreadReplies(state.activeThread.replies, page.replies);
+                await hydrateEngagement([
+                    ...(page.root ? [page.root.id] : []),
+                    ...page.replies.map((reply) => reply.id),
+                ]);
                 state.activeThread.hasMore = page.hasMore;
                 state.activeThread.cursor = page.nextUntil;
                 state.activeThread.isLoadingMore = false;
@@ -450,6 +532,7 @@ export function createFollowingFeedStore(options: UseFollowingFeedOptions): Foll
             const tempId = `temp-post:${Date.now()}`;
             const tempNote = buildTemporaryFeedNote(tempId, options.ownerPubkey, now(), normalized);
             state.items = mergeFeedItems([tempNote], state.items);
+            ensureEngagementDefaults([tempId]);
             emitChange();
 
             try {
@@ -458,6 +541,7 @@ export function createFollowingFeedStore(options: UseFollowingFeedOptions): Foll
                 const publishedItem = toFeedItemFromPublished(published);
                 if (publishedItem) {
                     state.items = mergeFeedItems([publishedItem], state.items);
+                    ensureEngagementDefaults([publishedItem.id]);
                 }
                 state.isPublishingPost = false;
                 emitChange();
@@ -482,9 +566,11 @@ export function createFollowingFeedStore(options: UseFollowingFeedOptions): Foll
 
             const tempId = `temp-reply:${Date.now()}`;
             const tempReply = buildTemporaryThreadReply(tempId, options.ownerPubkey, now(), normalized, input.targetEventId);
+            applyEngagementDelta(input.targetEventId, 'replies', 1);
 
             if (state.activeThread) {
                 state.activeThread.replies = mergeThreadReplies([tempReply], state.activeThread.replies);
+                ensureEngagementDefaults([tempReply.id]);
             }
             emitChange();
 
@@ -498,11 +584,13 @@ export function createFollowingFeedStore(options: UseFollowingFeedOptions): Foll
                         [toThreadItemFromPublished(published)],
                         state.activeThread.replies
                     );
+                    ensureEngagementDefaults([published.id]);
                 }
                 state.isPublishingReply = false;
                 emitChange();
                 return true;
             } catch (error) {
+                applyEngagementDelta(input.targetEventId, 'replies', -1);
                 if (state.activeThread) {
                     state.activeThread.replies = state.activeThread.replies.filter((reply) => reply.id !== tempId);
                 }
@@ -521,9 +609,11 @@ export function createFollowingFeedStore(options: UseFollowingFeedOptions): Foll
             const eventId = input.eventId;
             const previous = Boolean(state.reactionByEventId[eventId]);
             const next = !previous;
+            const optimisticDelta = next ? 1 : -1;
 
             state.pendingReactionByEventId[eventId] = true;
             state.reactionByEventId[eventId] = next;
+            applyEngagementDelta(eventId, 'reactions', optimisticDelta);
             state.publishError = null;
             emitChange();
 
@@ -559,6 +649,7 @@ export function createFollowingFeedStore(options: UseFollowingFeedOptions): Foll
                 return true;
             } catch (error) {
                 state.reactionByEventId[eventId] = previous;
+                applyEngagementDelta(eventId, 'reactions', -optimisticDelta);
                 state.pendingReactionByEventId[eventId] = false;
                 state.publishError = error instanceof Error ? error.message : 'No se pudo actualizar la reaccion';
                 emitChange();
@@ -574,9 +665,11 @@ export function createFollowingFeedStore(options: UseFollowingFeedOptions): Foll
             const eventId = input.eventId;
             const previous = Boolean(state.repostByEventId[eventId]);
             const next = !previous;
+            const optimisticDelta = next ? 1 : -1;
 
             state.pendingRepostByEventId[eventId] = true;
             state.repostByEventId[eventId] = next;
+            applyEngagementDelta(eventId, 'reposts', optimisticDelta);
             state.publishError = null;
             emitChange();
 
@@ -612,6 +705,7 @@ export function createFollowingFeedStore(options: UseFollowingFeedOptions): Foll
                 return true;
             } catch (error) {
                 state.repostByEventId[eventId] = previous;
+                applyEngagementDelta(eventId, 'reposts', -optimisticDelta);
                 state.pendingRepostByEventId[eventId] = false;
                 state.publishError = error instanceof Error ? error.message : 'No se pudo actualizar el repost';
                 emitChange();

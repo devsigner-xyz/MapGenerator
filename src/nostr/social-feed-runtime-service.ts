@@ -3,11 +3,16 @@ import { getBootstrapRelays } from './relay-policy';
 import { loadRelaySettings } from './relay-settings';
 import type { DmTransport } from './dm-transport';
 import {
+    extractTargetEventId,
+    isReplyEvent,
     isMainFeedEvent,
     toSocialFeedItem,
     toSocialThreadItem,
+    type LoadEngagementInput,
     type LoadFollowingFeedInput,
     type LoadThreadInput,
+    type SocialEngagementByEventId,
+    type SocialEngagementMetrics,
     type SocialFeedPage,
     type SocialFeedService,
     type SocialThreadItem,
@@ -17,9 +22,11 @@ import type { NostrEvent } from './types';
 
 const MAIN_FEED_KINDS = [1, 6, 16] as const;
 const THREAD_REPLY_KINDS = [1] as const;
+const ENGAGEMENT_KINDS = [1, 6, 7, 16, 9735] as const;
 
 const DEFAULT_FEED_LIMIT = 30;
 const DEFAULT_THREAD_LIMIT = 40;
+const DEFAULT_ENGAGEMENT_LIMIT = 120;
 const QUERY_LIMIT_MULTIPLIER = 3;
 const MIN_QUERY_LIMIT = 24;
 const MAX_QUERY_LIMIT = 180;
@@ -130,6 +137,19 @@ function nextUntilFromItems(items: Array<{ createdAt: number }>): number | undef
     }
 
     return items[items.length - 1].createdAt - 1;
+}
+
+function createEmptyEngagementMetrics(): SocialEngagementMetrics {
+    return {
+        replies: 0,
+        reposts: 0,
+        reactions: 0,
+        zaps: 0,
+    };
+}
+
+function normalizeTargetEventIds(eventIds: string[]): string[] {
+    return [...new Set(eventIds.filter((eventId) => typeof eventId === 'string' && eventId.length > 0))];
 }
 
 export function createRuntimeSocialFeedService(
@@ -316,6 +336,58 @@ export function createRuntimeSocialFeedService(
                 hasMore,
                 nextUntil: hasMore ? nextUntilFromItems(pagedReplies) : undefined,
             };
+        },
+
+        async loadEngagement(input: LoadEngagementInput): Promise<SocialEngagementByEventId> {
+            const targetEventIds = normalizeTargetEventIds(input.eventIds);
+            const engagementByEventId: SocialEngagementByEventId = {};
+
+            for (const eventId of targetEventIds) {
+                engagementByEventId[eventId] = createEmptyEngagementMetrics();
+            }
+
+            if (targetEventIds.length === 0) {
+                return engagementByEventId;
+            }
+
+            const transport = resolveTransport();
+            const limit = clampLimit(input.limit, Math.max(DEFAULT_ENGAGEMENT_LIMIT, targetEventIds.length));
+            const events = await transport.fetchBackfill([
+                {
+                    kinds: [...ENGAGEMENT_KINDS],
+                    '#e': targetEventIds,
+                    limit,
+                    until: input.until,
+                },
+            ]);
+
+            for (const event of sortAndDedupe(events as NostrEvent[])) {
+                const targetEventId = extractTargetEventId(event);
+                if (!targetEventId || !engagementByEventId[targetEventId]) {
+                    continue;
+                }
+
+                if (event.kind === 7) {
+                    engagementByEventId[targetEventId].reactions += 1;
+                    continue;
+                }
+
+                if (event.kind === 6 || event.kind === 16) {
+                    engagementByEventId[targetEventId].reposts += 1;
+                    continue;
+                }
+
+                if (event.kind === 9735) {
+                    engagementByEventId[targetEventId].zaps += 1;
+                    continue;
+                }
+
+                if (event.kind === 1 && isReplyEvent(event)) {
+                    engagementByEventId[targetEventId].replies += 1;
+                }
+            }
+
+            return engagementByEventId;
         },
     };
 }

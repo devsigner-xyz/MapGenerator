@@ -2,7 +2,7 @@ import { describe, expect, test, vi } from 'vitest';
 import {
     createFollowingFeedStore,
 } from './useFollowingFeed';
-import type { SocialFeedPage, SocialThreadPage } from '../../nostr/social-feed-service';
+import type { SocialEngagementByEventId, SocialFeedPage, SocialThreadPage } from '../../nostr/social-feed-service';
 
 const OWNER = 'a'.repeat(64);
 const FOLLOW_A = 'b'.repeat(64);
@@ -11,10 +11,12 @@ const FOLLOW_B = 'c'.repeat(64);
 function createServiceMock(overrides: {
     loadFollowingFeed?: (args: { follows: string[]; limit?: number; until?: number }) => Promise<SocialFeedPage>;
     loadThread?: (args: { rootEventId: string; limit?: number; until?: number }) => Promise<SocialThreadPage>;
+    loadEngagement?: (args: { eventIds: string[]; limit?: number; until?: number }) => Promise<SocialEngagementByEventId>;
 } = {}) {
     return {
         loadFollowingFeed: vi.fn(overrides.loadFollowingFeed ?? (async () => ({ items: [], hasMore: false }))),
         loadThread: vi.fn(overrides.loadThread ?? (async () => ({ root: null, replies: [], hasMore: false }))),
+        loadEngagement: vi.fn(overrides.loadEngagement ?? (async () => ({}))),
     };
 }
 
@@ -62,6 +64,14 @@ describe('useFollowingFeed store', () => {
                 ],
                 hasMore: false,
             }),
+            loadEngagement: async () => ({
+                'note-1': {
+                    replies: 3,
+                    reposts: 2,
+                    reactions: 5,
+                    zaps: 1,
+                },
+            }),
         });
 
         const store = createFollowingFeedStore({
@@ -77,9 +87,16 @@ describe('useFollowingFeed store', () => {
         const state = store.getState();
         expect(state.isDialogOpen).toBe(true);
         expect(state.items.map((item) => item.id)).toEqual(['note-1']);
+        expect(state.engagementByEventId['note-1']).toEqual({
+            replies: 3,
+            reposts: 2,
+            reactions: 5,
+            zaps: 1,
+        });
         expect(service.loadFollowingFeed).toHaveBeenCalledWith(expect.objectContaining({
             follows: [FOLLOW_A, FOLLOW_B],
         }));
+        expect(service.loadEngagement).toHaveBeenCalledWith({ eventIds: ['note-1'] });
     });
 
     test('openThread and loadNextThreadPage merge paginated replies', async () => {
@@ -148,6 +165,19 @@ describe('useFollowingFeed store', () => {
                     nextUntil: 449,
                 };
             },
+            loadEngagement: async ({ eventIds }) => {
+                const output: SocialEngagementByEventId = {};
+                for (const eventId of eventIds) {
+                    output[eventId] = {
+                        replies: eventId === 'root-1' ? 1 : 0,
+                        reposts: 0,
+                        reactions: 0,
+                        zaps: 0,
+                    };
+                }
+
+                return output;
+            },
         });
 
         const store = createFollowingFeedStore({
@@ -162,10 +192,13 @@ describe('useFollowingFeed store', () => {
 
         expect(store.getState().activeThread?.root?.id).toBe('root-1');
         expect(store.getState().activeThread?.replies.map((item) => item.id)).toEqual(['reply-a']);
+        expect(store.getState().engagementByEventId['root-1']?.replies).toBe(1);
+        expect(service.loadEngagement).toHaveBeenNthCalledWith(1, { eventIds: ['root-1', 'reply-a'] });
 
         await store.loadNextThreadPage();
 
         expect(store.getState().activeThread?.replies.map((item) => item.id)).toEqual(['reply-a', 'reply-b']);
+        expect(service.loadEngagement).toHaveBeenNthCalledWith(2, { eventIds: ['reply-b'] });
         expect(service.loadThread).toHaveBeenLastCalledWith(expect.objectContaining({
             rootEventId: 'root-1',
             until: 449,
@@ -189,12 +222,14 @@ describe('useFollowingFeed store', () => {
 
         expect(store.getState().reactionByEventId['note-1']).toBe(true);
         expect(store.getState().pendingReactionByEventId['note-1']).toBe(true);
+        expect(store.getState().engagementByEventId['note-1']?.reactions).toBe(1);
 
         const result = await pending;
 
         expect(result).toBe(false);
         expect(store.getState().reactionByEventId['note-1']).toBe(false);
         expect(store.getState().pendingReactionByEventId['note-1']).toBe(false);
+        expect(store.getState().engagementByEventId['note-1']?.reactions).toBe(0);
         expect(store.getState().publishError).toBe('relay-down');
     });
 
@@ -239,6 +274,32 @@ describe('useFollowingFeed store', () => {
                 tags: [['e', 'reaction-evt']],
             })
         );
+    });
+
+    test('toggleRepost applies optimistic engagement and rolls back on failure', async () => {
+        const service = createServiceMock();
+        const writeGateway = createWriteGatewayMock();
+        writeGateway.publishEvent.mockRejectedValueOnce(new Error('repost-failed'));
+
+        const store = createFollowingFeedStore({
+            ownerPubkey: OWNER,
+            follows: [FOLLOW_A],
+            canWrite: true,
+            service,
+            writeGateway,
+        });
+
+        const pending = store.toggleRepost({ eventId: 'note-1', targetPubkey: FOLLOW_A });
+
+        expect(store.getState().repostByEventId['note-1']).toBe(true);
+        expect(store.getState().engagementByEventId['note-1']?.reposts).toBe(1);
+
+        const result = await pending;
+
+        expect(result).toBe(false);
+        expect(store.getState().repostByEventId['note-1']).toBe(false);
+        expect(store.getState().engagementByEventId['note-1']?.reposts).toBe(0);
+        expect(store.getState().publishError).toBe('repost-failed');
     });
 
     test('publishPost inserts temp note and replaces it with published event', async () => {
@@ -325,6 +386,7 @@ describe('useFollowingFeed store', () => {
         });
 
         expect(result).toBe(true);
+        expect(store.getState().engagementByEventId['root-1']?.replies).toBe(1);
         expect(writeGateway.publishTextNote).toHaveBeenCalledWith(
             'respuesta',
             expect.arrayContaining([

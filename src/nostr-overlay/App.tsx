@@ -311,6 +311,13 @@ export function App({ mapBridge, services }: AppProps) {
         writeGateway: overlay.writeGateway,
     });
     const followingFeedState = followingFeed.getState();
+    const followingFeedProfilesByPubkey = useMemo(() => ({
+        ...overlay.followerProfiles,
+        ...overlay.profiles,
+        ...(overlay.ownerPubkey && overlay.ownerProfile
+            ? { [overlay.ownerPubkey]: overlay.ownerProfile }
+            : {}),
+    }), [overlay.followerProfiles, overlay.ownerProfile, overlay.ownerPubkey, overlay.profiles]);
 
     useEffect(() => {
         if (!overlay.directMessages) {
@@ -969,6 +976,8 @@ export function App({ mapBridge, services }: AppProps) {
                         <FollowingFeedSurface
                             onClose={closeFollowingFeed}
                             items={followingFeedState.items}
+                            profilesByPubkey={followingFeedProfilesByPubkey}
+                            engagementByEventId={followingFeedState.engagementByEventId}
                             isLoadingFeed={followingFeedState.isLoadingFeed}
                             feedError={followingFeedState.feedError}
                             hasMoreFeed={followingFeedState.hasMoreFeed}
