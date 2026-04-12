@@ -38,7 +38,6 @@ afterEach(async () => {
 
 function buildProps(overrides: Partial<Parameters<typeof FollowingFeedSurface>[0]> = {}): Parameters<typeof FollowingFeedSurface>[0] {
     return {
-        onClose: () => {},
         items: [],
         profilesByPubkey: {},
         engagementByEventId: {},
@@ -67,34 +66,17 @@ function buildProps(overrides: Partial<Parameters<typeof FollowingFeedSurface>[0
 }
 
 describe('FollowingFeedSurface', () => {
-    test('renders empty state and close action', async () => {
+    test('renders empty state without legacy close action', async () => {
         const rendered = await renderElement(<FollowingFeedSurface {...buildProps()} />);
         mounted.push(rendered);
 
         expect(rendered.container.textContent || '').toContain('Sin publicaciones');
-        expect(rendered.container.textContent || '').toContain('Volver al mapa');
+        expect(rendered.container.textContent || '').not.toContain('Volver al mapa');
         expect(rendered.container.textContent || '').toContain('Timeline en tiempo real de personas que sigues');
 
         const surfaceContent = rendered.container.querySelector('.nostr-following-feed-surface-content') as HTMLElement;
         expect(surfaceContent).toBeDefined();
         expect(surfaceContent.classList.contains('nostr-following-feed-dialog')).toBe(false);
-    });
-
-    test('invokes onClose when clicking close action', async () => {
-        const onClose = vi.fn();
-        const rendered = await renderElement(<FollowingFeedSurface {...buildProps({ onClose })} />);
-        mounted.push(rendered);
-
-        const closeButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
-            (button.textContent || '').includes('Volver al mapa')
-        ) as HTMLButtonElement;
-        expect(closeButton).toBeDefined();
-
-        await act(async () => {
-            closeButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
-
-        expect(onClose).toHaveBeenCalledTimes(1);
     });
 
     test('renders author identity and engagement icon counters on cards', async () => {

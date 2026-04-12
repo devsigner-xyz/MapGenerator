@@ -305,6 +305,20 @@ async function openDropdownTrigger(button: HTMLButtonElement): Promise<void> {
 }
 
 async function openSettingsContextMenu(container: HTMLDivElement): Promise<void> {
+    const inlineSettingsButton = container.querySelector('button[aria-label="Alternar ajustes"]') as HTMLButtonElement | null;
+    const inlineOptionsVisible = (container.textContent || '').includes('Advanced settings');
+    if (inlineSettingsButton && !inlineOptionsVisible) {
+        await act(async () => {
+            inlineSettingsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+        await waitFor(() => (container.textContent || '').includes('Advanced settings'));
+        return;
+    }
+
+    if (inlineOptionsVisible) {
+        return;
+    }
+
     const settingsButton = container.querySelector('button[aria-label="Abrir ajustes"]') as HTMLButtonElement;
     expect(settingsButton).toBeDefined();
 
@@ -316,7 +330,11 @@ async function openSettingsContextMenu(container: HTMLDivElement): Promise<void>
 async function selectSettingsContextAction(container: HTMLDivElement, label: string): Promise<void> {
     await openSettingsContextMenu(container);
 
-    const action = Array.from(document.body.querySelectorAll('[data-slot="dropdown-menu-item"]')).find((item) =>
+    const inlineAction = Array.from(container.querySelectorAll('button, a')).find((item) =>
+        (item.textContent || '').trim() === label
+    ) as HTMLElement | undefined;
+
+    const action = inlineAction ?? Array.from(document.body.querySelectorAll('[data-slot="dropdown-menu-item"]')).find((item) =>
         (item.textContent || '').trim() === label
     ) as HTMLElement;
     expect(action).toBeDefined();
@@ -404,7 +422,7 @@ describe('Nostr overlay App', () => {
         expect(content).not.toContain('Cargar seguidos');
     });
 
-    test('shows profile avatar initials fallback when image fails to load', async () => {
+    test('does not render redundant profile identity block in information tab', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const followedPubkey = 'a'.repeat(64);
         const { bridge } = createMapBridgeStub(1);
@@ -459,16 +477,8 @@ describe('Nostr overlay App', () => {
         expect(rendered.container.textContent || '').not.toContain('Modo solo lectura. Cambia a nsec o extension para habilitar acciones de escritura.');
         expect(rendered.container.textContent || '').toContain('Read Only');
 
-        const avatar = rendered.container.querySelector('.nostr-profile-avatar') as HTMLImageElement;
-        expect(avatar).toBeDefined();
-
-        await act(async () => {
-            avatar.dispatchEvent(new Event('error'));
-        });
-
-        const fallback = rendered.container.querySelector('.nostr-profile-avatar-fallback') as HTMLElement;
-        expect(fallback).toBeDefined();
-        expect(fallback.textContent || '').toContain('OW');
+        expect(rendered.container.querySelector('.nostr-profile-avatar')).toBeNull();
+        expect(rendered.container.querySelector('.nostr-profile-name')).toBeNull();
     });
 
     test('renders city stats icon button before regenerate and opens stats dialog', async () => {
@@ -478,7 +488,8 @@ describe('Nostr overlay App', () => {
 
         const toolbarButtons = Array.from(rendered.container.querySelectorAll('.nostr-panel-toolbar button')) as HTMLButtonElement[];
         expect(toolbarButtons.length).toBeGreaterThanOrEqual(4);
-        expect(toolbarButtons[0].getAttribute('aria-label')).toBe('Abrir estadisticas de la ciudad');
+        expect(toolbarButtons[0].getAttribute('aria-label')).toBe('Abrir mapa');
+        expect(toolbarButtons.some((button) => button.getAttribute('aria-label') === 'Abrir estadisticas de la ciudad')).toBe(true);
         expect(toolbarButtons.some((button) => button.getAttribute('aria-label') === 'Abrir descubre')).toBe(true);
         expect(toolbarButtons.some((button) => button.getAttribute('aria-label') === 'Regenerar mapa')).toBe(true);
         expect(rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir chats"]')).toBeNull();
@@ -661,13 +672,13 @@ describe('Nostr overlay App', () => {
             const rendered = await renderApp(<App mapBridge={bridge} />);
             mounted.push(rendered);
 
-            expect(rendered.container.textContent || '').toContain('Buscar usuarios globalmente');
+            expect(rendered.container.textContent || '').toContain('Buscar usuarios');
         } finally {
             window.location.hash = previousHash;
         }
     });
 
-    test('following feed route opens from toolbar and renders routed close action', async () => {
+    test('following feed route opens from toolbar and renders routed surface', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const socialFeed = createSocialFeedServiceMock();
         const { bridge } = createMapBridgeStub();
@@ -709,10 +720,11 @@ describe('Nostr overlay App', () => {
             feedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
-        await waitFor(() => (rendered.container.textContent || '').includes('Volver al mapa'));
+        await waitFor(() => (rendered.container.textContent || '').includes('Agora'));
+        expect(rendered.container.textContent || '').not.toContain('Volver al mapa');
     });
 
-    test('following feed route close action returns back to map view', async () => {
+    test('following feed route highlights active sidebar item and does not show legacy back button', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const socialFeed = createSocialFeedServiceMock();
         const { bridge } = createMapBridgeStub();
@@ -752,17 +764,62 @@ describe('Nostr overlay App', () => {
             feedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
-        await waitFor(() => (rendered.container.textContent || '').includes('Volver al mapa'));
-        const closeButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
-            (button.textContent || '').includes('Volver al mapa')
-        ) as HTMLButtonElement;
+        await waitFor(() => (rendered.container.textContent || '').includes('Agora'));
+
+        expect(rendered.container.textContent || '').not.toContain('Volver al mapa');
+        expect(rendered.container.querySelector('button[aria-label="Abrir mapa"]')).not.toBeNull();
+        expect(rendered.container.querySelector('button[aria-label="Abrir Agora"][data-active="true"]')).not.toBeNull();
+    });
+
+    test('following feed route returns back to map view from sidebar map action', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const socialFeed = createSocialFeedServiceMock();
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                    socialFeedService: socialFeed.service,
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        await loginWithNsec(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const feedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir Agora"]') as HTMLButtonElement;
+        await act(async () => {
+            feedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Agora'));
+        const closeButton = rendered.container.querySelector('button[aria-label="Abrir mapa"]') as HTMLButtonElement;
         expect(closeButton).toBeDefined();
 
         await act(async () => {
             closeButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
-        await waitFor(() => !((rendered.container.textContent || '').includes('Volver al mapa')));
+        await waitFor(() => rendered.container.querySelector('.nostr-following-feed-surface') === null);
     });
 
     test('agora route loads first page when entering /agora directly', async () => {
@@ -1579,6 +1636,8 @@ describe('Nostr overlay App', () => {
         await waitFor(() => Array.from(document.body.querySelectorAll('[data-slot="dropdown-menu-item"]')).some((node) =>
             (node.textContent || '').trim() === 'Copiar npub'
         ));
+
+        expect(document.body.querySelector('[data-slot="dropdown-menu-label"]')).toBeNull();
 
         const copyItem = Array.from(document.body.querySelectorAll('[data-slot="dropdown-menu-item"]')).find((node) =>
             (node.textContent || '').trim() === 'Copiar npub'
@@ -2600,7 +2659,7 @@ describe('Nostr overlay App', () => {
             });
         });
 
-        await waitFor(() => (rendered.container.textContent || '').includes('Volver al mapa'));
+        await waitFor(() => (rendered.container.textContent || '').includes('Agora'));
     });
 
     test('persists discovered easter eggs and shows persistent marker on map', async () => {
@@ -2653,18 +2712,37 @@ describe('Nostr overlay App', () => {
             return calls.length > 0 && calls[calls.length - 1][0] instanceof HTMLElement;
         });
 
-        const closeButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
-            (button.textContent || '').trim() === 'Cerrar'
-        ) as HTMLButtonElement;
-        expect(closeButton).toBeDefined();
-        await act(async () => {
-            closeButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
-
         await selectSettingsContextAction(rendered.container, 'Shortcuts');
 
         expect(rendered.container.textContent || '').toContain('Mantener pulsada la barra espaciadora y arrastrar');
         expect(rendered.container.textContent || '').toContain('Mantener pulsado el wheel del raton y mover el raton');
+    });
+
+    test('shows settings dropdown inside sidebar and opens routed settings pages', async () => {
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(<App mapBridge={bridge} />);
+        mounted.push(rendered);
+
+        const settingsToggleButton = rendered.container.querySelector('button[aria-label="Abrir ajustes"]') as HTMLButtonElement;
+        expect(settingsToggleButton).toBeDefined();
+
+        await act(async () => {
+            settingsToggleButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Advanced settings'));
+
+        const uiButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').trim() === 'UI'
+        ) as HTMLButtonElement;
+        expect(uiButton).toBeDefined();
+
+        await act(async () => {
+            uiButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Street labels'));
+        expect(rendered.container.querySelector('button[aria-label="Abrir Mapa UI"][data-active="true"]')).not.toBeNull();
     });
 
     test('applies traffic settings on mount and after UI slider updates', async () => {
@@ -2734,12 +2812,12 @@ describe('Nostr overlay App', () => {
         expect(rendered.container.querySelector('button[aria-label="Abrir ajustes"]')).not.toBeNull();
         const compactButtons = Array.from(rendered.container.querySelectorAll('.nostr-compact-toolbar button')) as HTMLButtonElement[];
         expect(compactButtons.length).toBe(6);
-        expect(compactButtons[0].getAttribute('aria-label')).toBe('Mostrar panel');
-        expect(compactButtons[1].getAttribute('aria-label')).toBe('Abrir ajustes');
-        expect(compactButtons[2].getAttribute('aria-label')).toBe('Abrir buscador global de usuarios');
-        expect(compactButtons[3].getAttribute('aria-label')).toBe('Abrir descubre');
-        expect(compactButtons[4].getAttribute('aria-label')).toBe('Regenerar mapa');
-        expect(compactButtons[5].getAttribute('aria-label')).toBe('Abrir estadisticas de la ciudad');
+        expect(compactButtons[0].getAttribute('aria-label')).toBe('Abrir mapa');
+        expect(compactButtons[1].getAttribute('aria-label')).toBe('Abrir estadisticas de la ciudad');
+        expect(compactButtons[2].getAttribute('aria-label')).toBe('Abrir descubre');
+        expect(compactButtons[3].getAttribute('aria-label')).toBe('Abrir buscador global de usuarios');
+        expect(compactButtons[4].getAttribute('aria-label')).toBe('Abrir ajustes');
+        expect(compactButtons[5].getAttribute('aria-label')).toBe('Regenerar mapa');
         expect(rendered.container.textContent || '').not.toContain('Información');
         expect(rendered.container.textContent || '').not.toContain('Sigues (');
         expect(rendered.container.textContent || '').not.toContain('Seguidores (');
@@ -2759,7 +2837,11 @@ describe('Nostr overlay App', () => {
         mounted.push(rendered);
 
         expect(rendered.container.querySelector('[data-slot="sidebar"]')).not.toBeNull();
+        expect(rendered.container.querySelector('[data-slot="sidebar-header"]')).not.toBeNull();
         expect(rendered.container.querySelector('[data-slot="sidebar-rail"]')).not.toBeNull();
+        expect(rendered.container.textContent || '').toContain('Nostr City');
+        expect(rendered.container.querySelector('[data-slot="sidebar-header"] [data-slot="sidebar-trigger"]')).not.toBeNull();
+        expect(rendered.container.querySelector('.nostr-panel-toolbar [data-slot="sidebar-trigger"]')).toBeNull();
     });
 
     test('renders social tabs before action menu in expanded sidebar', async () => {

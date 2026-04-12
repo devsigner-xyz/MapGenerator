@@ -1,13 +1,13 @@
-import { useMemo, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import {
     BellIcon,
     ChartColumnIcon,
+    ChevronDownIcon,
     ChevronsUpDownIcon,
     CompassIcon,
     LogOutIcon,
     MapPinIcon,
     MessageCircleIcon,
-    PanelLeftIcon,
     RefreshCcwIcon,
     SearchIcon,
     Settings2Icon,
@@ -18,6 +18,7 @@ import { encodeHexToNpub } from '../../nostr/npub';
 import type { AuthSessionState } from '../../nostr/auth/session';
 import type { NostrProfile } from '../../nostr/types';
 import type { SettingsView } from './MapSettingsDialog';
+import { useLocation } from 'react-router';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -25,7 +26,6 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
-    DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -34,12 +34,17 @@ import {
     SidebarContent,
     SidebarFooter,
     SidebarGroup,
+    SidebarHeader,
     SidebarMenu,
     SidebarMenuBadge,
     SidebarMenuButton,
     SidebarMenuItem,
+    SidebarMenuSub,
+    SidebarMenuSubButton,
+    SidebarMenuSubItem,
     SidebarProvider,
     SidebarRail,
+    SidebarTrigger,
     useSidebar,
 } from '@/components/ui/sidebar';
 
@@ -59,6 +64,7 @@ interface OverlaySidebarProps {
     notificationsHasUnread: boolean;
     followingFeedHasUnread: boolean;
     regenerateDisabled: boolean;
+    onOpenMap: () => void;
     onOpenCityStats: () => void;
     onOpenChat: () => void;
     onOpenNotifications: () => void;
@@ -93,6 +99,7 @@ function SidebarActionsMenu({
     notificationsHasUnread,
     followingFeedHasUnread,
     regenerateDisabled,
+    onOpenMap,
     onOpenCityStats,
     onOpenChat,
     onOpenNotifications,
@@ -105,89 +112,70 @@ function SidebarActionsMenu({
     missionsTotal,
     onOpenMissions,
 }: Omit<OverlaySidebarProps, 'open' | 'onOpenChange' | 'ownerPubkey' | 'ownerProfile' | 'onCopyOwnerNpub' | 'onLocateOwner' | 'onViewOwnerDetails' | 'children'>) {
-    const { state, isMobile, toggleSidebar } = useSidebar();
+    const { state } = useSidebar();
+    const location = useLocation();
     const collapsed = state === 'collapsed';
-    const toggleAriaLabel = collapsed ? 'Mostrar panel' : 'Ocultar panel';
-    const toggleTitle = collapsed ? 'Show panel' : 'Hide panel';
+    const activePath = location.pathname;
 
-    const settingsMenu = (
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <SidebarMenuButton asChild>
-                    <button type="button" aria-label="Abrir ajustes" title="Settings">
-                        <Settings2Icon />
-                        <span>Ajustes</span>
-                    </button>
-                </SidebarMenuButton>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-                className="min-w-52 rounded-lg"
-                side={isMobile ? 'bottom' : 'right'}
-                align={isMobile ? 'end' : 'start'}
-            >
-                <DropdownMenuItem onSelect={() => onOpenSettings('ui')}>UI</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => onOpenSettings('shortcuts')}>Shortcuts</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => onOpenSettings('relays')}>Relays</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => onOpenSettings('zaps')}>Zaps</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => onOpenSettings('about')}>About</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => onOpenSettings('advanced')}>Advanced settings</DropdownMenuItem>
-                {authSession ? (
-                    <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem variant="destructive" onSelect={() => {
-                            void onLogout?.();
-                        }}>
-                            Cerrar sesión
-                        </DropdownMenuItem>
-                    </>
-                ) : null}
-            </DropdownMenuContent>
-        </DropdownMenu>
-    );
+    const activeSettingsView = useMemo<SettingsView | null>(() => {
+        if (!activePath.startsWith('/settings/')) {
+            return null;
+        }
+
+        const segment = activePath.slice('/settings/'.length);
+        if (
+            segment === 'ui'
+            || segment === 'shortcuts'
+            || segment === 'relays'
+            || segment === 'about'
+            || segment === 'zaps'
+            || segment === 'advanced'
+        ) {
+            return segment;
+        }
+
+        return null;
+    }, [activePath]);
+
+    const isSettingsActive = activeSettingsView !== null;
+    const [settingsExpanded, setSettingsExpanded] = useState(isSettingsActive);
+
+    useEffect(() => {
+        if (isSettingsActive) {
+            setSettingsExpanded(true);
+        }
+    }, [isSettingsActive]);
 
     return (
         <SidebarGroup className="pt-1 pb-0">
             <SidebarMenu className={cn('nostr-panel-toolbar flex flex-col gap-1', collapsed && 'nostr-compact-toolbar')}>
-                {collapsed ? (
-                    <>
-                        <SidebarMenuItem>
-                            <SidebarMenuButton asChild>
-                                <button type="button" aria-label={toggleAriaLabel} title={toggleTitle} onClick={toggleSidebar}>
-                                    <PanelLeftIcon className="rotate-180" />
-                                    <span>{toggleAriaLabel}</span>
-                                </button>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
-                        <SidebarMenuItem>{settingsMenu}</SidebarMenuItem>
-                        <SidebarMenuItem>
-                            <SidebarMenuButton asChild>
-                                <button
-                                    type="button"
-                                    aria-label="Abrir buscador global de usuarios"
-                                    title="Buscar usuarios"
-                                    onClick={onOpenGlobalSearch}
-                                >
-                                    <SearchIcon />
-                                    <span>Buscar usuarios</span>
-                                </button>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
-                    </>
-                ) : (
-                    <SidebarMenuItem>
-                        <SidebarMenuButton asChild>
-                            <button
-                                type="button"
-                                aria-label="Abrir estadisticas de la ciudad"
-                                title="City stats"
-                                onClick={onOpenCityStats}
-                            >
-                                <ChartColumnIcon />
-                                <span>Estadisticas</span>
-                            </button>
-                        </SidebarMenuButton>
-                    </SidebarMenuItem>
-                )}
+                <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={activePath === '/'}>
+                        <button
+                            type="button"
+                            aria-label="Abrir mapa"
+                            title="Mapa"
+                            onClick={onOpenMap}
+                        >
+                            <MapPinIcon />
+                            <span>Mapa</span>
+                        </button>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
+
+                <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={activePath === '/estadisticas'}>
+                        <button
+                            type="button"
+                            aria-label="Abrir estadisticas de la ciudad"
+                            title="City stats"
+                            onClick={onOpenCityStats}
+                        >
+                            <ChartColumnIcon />
+                            <span>Estadisticas</span>
+                        </button>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
 
                 {canAccessDirectMessages ? (
                     <SidebarMenuItem>
@@ -209,7 +197,7 @@ function SidebarActionsMenu({
 
                 {canAccessSocialNotifications ? (
                     <SidebarMenuItem>
-                        <SidebarMenuButton asChild>
+                        <SidebarMenuButton asChild isActive={activePath === '/notificaciones'}>
                             <button
                                 type="button"
                                 className="nostr-notifications-icon-button"
@@ -227,7 +215,7 @@ function SidebarActionsMenu({
 
                 {canAccessFollowingFeed ? (
                     <SidebarMenuItem>
-                        <SidebarMenuButton asChild>
+                        <SidebarMenuButton asChild isActive={activePath === '/agora'}>
                             <button
                                 type="button"
                                 className="nostr-following-feed-icon-button"
@@ -244,7 +232,7 @@ function SidebarActionsMenu({
                 ) : null}
 
                 <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
+                    <SidebarMenuButton asChild isActive={activePath === '/descubre'}>
                         <button
                             type="button"
                             aria-label="Abrir descubre"
@@ -259,6 +247,109 @@ function SidebarActionsMenu({
                         <SidebarMenuBadge>{`${missionsDiscoveredCount}/${missionsTotal}`}</SidebarMenuBadge>
                     ) : null}
                 </SidebarMenuItem>
+
+                <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={activePath === '/buscar-usuarios'}>
+                        <button
+                            type="button"
+                            aria-label="Abrir buscador global de usuarios"
+                            title="Buscar usuarios"
+                            onClick={onOpenGlobalSearch}
+                        >
+                            <SearchIcon />
+                            <span>Buscar usuarios</span>
+                        </button>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
+
+                <SidebarMenuItem>
+                    <SidebarMenuButton
+                        asChild
+                        isActive={isSettingsActive}
+                    >
+                        <button
+                            type="button"
+                            aria-label="Abrir ajustes"
+                            title="Settings"
+                            onClick={() => {
+                                if (collapsed) {
+                                    onOpenSettings(activeSettingsView ?? 'ui');
+                                    return;
+                                }
+
+                                setSettingsExpanded((value) => !value);
+                            }}
+                        >
+                            <Settings2Icon />
+                            <span>Ajustes</span>
+                            {!collapsed ? (
+                                <ChevronDownIcon className={cn('ml-auto transition-transform', settingsExpanded ? 'rotate-180' : '')} />
+                            ) : null}
+                        </button>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
+
+                {!collapsed && settingsExpanded ? (
+                    <SidebarMenuSub>
+                        <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={activeSettingsView === 'ui'}>
+                                <button type="button" aria-label="Abrir Mapa UI" onClick={() => onOpenSettings('ui')}>
+                                    <span>UI</span>
+                                </button>
+                            </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={activeSettingsView === 'shortcuts'}>
+                                <button type="button" aria-label="Abrir ajustes de shortcuts" onClick={() => onOpenSettings('shortcuts')}>
+                                    <span>Shortcuts</span>
+                                </button>
+                            </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={activeSettingsView === 'relays'}>
+                                <button type="button" aria-label="Abrir ajustes de relays" onClick={() => onOpenSettings('relays')}>
+                                    <span>Relays</span>
+                                </button>
+                            </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={activeSettingsView === 'zaps'}>
+                                <button type="button" aria-label="Abrir ajustes de zaps" onClick={() => onOpenSettings('zaps')}>
+                                    <span>Zaps</span>
+                                </button>
+                            </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={activeSettingsView === 'about'}>
+                                <button type="button" aria-label="Abrir ajustes about" onClick={() => onOpenSettings('about')}>
+                                    <span>About</span>
+                                </button>
+                            </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={activeSettingsView === 'advanced'}>
+                                <button type="button" aria-label="Abrir advanced settings" onClick={() => onOpenSettings('advanced')}>
+                                    <span>Advanced settings</span>
+                                </button>
+                            </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        {authSession ? (
+                            <SidebarMenuSubItem>
+                                <SidebarMenuSubButton asChild>
+                                    <button
+                                        type="button"
+                                        aria-label="Cerrar sesión"
+                                        onClick={() => {
+                                            void onLogout?.();
+                                        }}
+                                    >
+                                        <span>Cerrar sesión</span>
+                                    </button>
+                                </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                        ) : null}
+                    </SidebarMenuSub>
+                ) : null}
 
                 <SidebarMenuItem>
                     <SidebarMenuButton asChild>
@@ -276,49 +367,36 @@ function SidebarActionsMenu({
                         </button>
                     </SidebarMenuButton>
                 </SidebarMenuItem>
-
-                {collapsed ? (
-                    <SidebarMenuItem>
-                        <SidebarMenuButton asChild>
-                            <button
-                                type="button"
-                                aria-label="Abrir estadisticas de la ciudad"
-                                title="City stats"
-                                onClick={onOpenCityStats}
-                            >
-                                <ChartColumnIcon />
-                                <span>Estadisticas</span>
-                            </button>
-                        </SidebarMenuButton>
-                    </SidebarMenuItem>
-                ) : (
-                    <>
-                        <SidebarMenuItem>{settingsMenu}</SidebarMenuItem>
-                        <SidebarMenuItem>
-                            <SidebarMenuButton asChild>
-                                <button
-                                    type="button"
-                                    aria-label="Abrir buscador global de usuarios"
-                                    title="Buscar usuarios"
-                                    onClick={onOpenGlobalSearch}
-                                >
-                                    <SearchIcon />
-                                    <span>Buscar usuarios</span>
-                                </button>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
-                        <SidebarMenuItem>
-                            <SidebarMenuButton asChild>
-                                <button type="button" aria-label={toggleAriaLabel} title={toggleTitle} onClick={toggleSidebar}>
-                                    <PanelLeftIcon />
-                                    <span>{toggleAriaLabel}</span>
-                                </button>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
-                    </>
-                )}
             </SidebarMenu>
         </SidebarGroup>
+    );
+}
+
+function SidebarPlatformHeader() {
+    const { state } = useSidebar();
+    const collapsed = state === 'collapsed';
+
+    return (
+        <SidebarHeader className="relative border-b border-sidebar-border/60 pb-2">
+            <SidebarTrigger
+                className="absolute top-2 right-2 z-10"
+                aria-label={collapsed ? 'Mostrar panel' : 'Ocultar panel'}
+                title={collapsed ? 'Show panel' : 'Hide panel'}
+            />
+            <SidebarMenu>
+                <SidebarMenuItem>
+                    <SidebarMenuButton size="lg" className="pr-10 hover:bg-transparent active:bg-transparent">
+                        <Avatar className="h-8 w-8 rounded-lg">
+                            <AvatarFallback className="rounded-lg">NC</AvatarFallback>
+                        </Avatar>
+                        <div className="grid flex-1 text-left text-sm leading-tight">
+                            <span className="truncate font-semibold">Nostr City</span>
+                            <span className="truncate text-xs text-muted-foreground">Plataforma social</span>
+                        </div>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
+            </SidebarMenu>
+        </SidebarHeader>
     );
 }
 
@@ -381,22 +459,6 @@ function SidebarUserMenu({
                         side={isMobile ? 'bottom' : 'right'}
                         align="end"
                     >
-                        <DropdownMenuLabel className="p-0 font-normal">
-                            <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                                <Avatar className="h-8 w-8 rounded-lg">
-                                    <AvatarImage src={ownerProfile?.picture} alt="Avatar de perfil" />
-                                    <AvatarFallback className="rounded-lg">{ownerFallback}</AvatarFallback>
-                                </Avatar>
-                                <div className="grid flex-1 text-left text-sm leading-tight">
-                                    <span className="truncate font-medium">{ownerName}</span>
-                                    <div className="flex items-center gap-1">
-                                        <span className="truncate text-xs">{ownerLabel}</span>
-                                        {authSession?.readonly ? <Badge variant="outline" className="ml-auto shrink-0 text-[10px]">Read Only</Badge> : null}
-                                    </div>
-                                </div>
-                            </div>
-                        </DropdownMenuLabel>
-                        <DropdownMenuSeparator />
                         <DropdownMenuItem onSelect={() => {
                             void onCopyOwnerNpub?.(ownerNpub || ownerPubkey);
                         }}>
@@ -459,6 +521,7 @@ export function OverlaySidebar({
     notificationsHasUnread,
     followingFeedHasUnread,
     regenerateDisabled,
+    onOpenMap,
     onOpenCityStats,
     onOpenChat,
     onOpenNotifications,
@@ -483,6 +546,7 @@ export function OverlaySidebar({
     return (
         <SidebarProvider open={open} onOpenChange={onOpenChange} style={providerStyle}>
             <Sidebar collapsible="icon">
+                <SidebarPlatformHeader />
                 <SidebarContent>
                     <SidebarGroup className="min-h-0 flex-1 pt-1">
                         <SidebarSocialContent>{children}</SidebarSocialContent>
@@ -498,6 +562,7 @@ export function OverlaySidebar({
                         notificationsHasUnread={notificationsHasUnread}
                         followingFeedHasUnread={followingFeedHasUnread}
                         regenerateDisabled={regenerateDisabled}
+                        onOpenMap={onOpenMap}
                         onOpenCityStats={onOpenCityStats}
                         onOpenChat={onOpenChat}
                         onOpenNotifications={onOpenNotifications}

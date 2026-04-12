@@ -81,14 +81,30 @@ function mapLoaderStageLabel(stage: MapLoaderStage | null): string | null {
     return null;
 }
 
+function settingsViewFromPathname(pathname: string): SettingsView | null {
+    if (!pathname.startsWith('/settings/')) {
+        return null;
+    }
+
+    const segment = pathname.slice('/settings/'.length);
+    if (
+        segment === 'advanced'
+        || segment === 'ui'
+        || segment === 'shortcuts'
+        || segment === 'relays'
+        || segment === 'about'
+        || segment === 'zaps'
+    ) {
+        return segment;
+    }
+
+    return null;
+}
+
 export function App({ mapBridge, services }: AppProps) {
     const navigate = useNavigate();
     const location = useLocation();
     const overlay = useNostrOverlay({ mapBridge, services });
-    const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
-    const [settingsInitialView, setSettingsInitialView] = useState<SettingsView>('ui');
-    const [cityStatsDialogOpen, setCityStatsDialogOpen] = useState(false);
-    const [missionsDialogOpen, setMissionsDialogOpen] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [uiSettings, setUiSettings] = useState<UiSettingsState>(() => loadUiSettings());
     const [zapSettings, setZapSettings] = useState<ZapSettingsState>(() => loadZapSettings());
@@ -96,7 +112,6 @@ export function App({ mapBridge, services }: AppProps) {
     const [buildingContextMenu, setBuildingContextMenu] = useState<OccupiedBuildingContextMenuState | null>(null);
     const [activeEasterEgg, setActiveEasterEgg] = useState<EasterEggDialogState | null>(null);
     const [chatOpen, setChatOpen] = useState(false);
-    const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
     const [chatComposerFocusKey, setChatComposerFocusKey] = useState('');
     const [chatStateVersion, setChatStateVersion] = useState(0);
     const [chatPinnedConversationId, setChatPinnedConversationId] = useState<string | null>(null);
@@ -446,7 +461,13 @@ export function App({ mapBridge, services }: AppProps) {
     const canAccessDirectMessages = Boolean(overlay.ownerPubkey && overlay.canDirectMessages && overlay.directMessages);
     const canAccessSocialNotifications = Boolean(overlay.ownerPubkey);
     const canAccessFollowingFeed = Boolean(overlay.ownerPubkey);
+    const activeSettingsView = useMemo(
+        () => settingsViewFromPathname(location.pathname),
+        [location.pathname]
+    );
+    const isMapRoute = location.pathname === '/';
     const isAgoraRoute = location.pathname === '/agora';
+    const isNotificationsRoute = location.pathname === '/notificaciones';
     const followingFeedHasUnread = !followingFeedState.isDialogOpen
         && followingFeedState.hasMoreFeed
         && followingFeedState.items.length > 0;
@@ -468,6 +489,25 @@ export function App({ mapBridge, services }: AppProps) {
 
         followingFeed.closeDialog();
     }, [isAgoraRoute, canAccessFollowingFeed, followingFeed]);
+
+    useEffect(() => {
+        if (isNotificationsRoute && canAccessSocialNotifications) {
+            socialNotifications.openDialog();
+            return;
+        }
+
+        socialNotifications.closeDialog();
+    }, [isNotificationsRoute, canAccessSocialNotifications, socialNotifications]);
+
+    useEffect(() => {
+        if (!location.pathname.startsWith('/settings/')) {
+            return;
+        }
+
+        if (!activeSettingsView) {
+            navigate('/settings/ui', { replace: true });
+        }
+    }, [location.pathname, activeSettingsView, navigate]);
 
     const copyOwnerIdentifier = async (value: string): Promise<void> => {
         if (!value) {
@@ -559,11 +599,11 @@ export function App({ mapBridge, services }: AppProps) {
             return;
         }
 
-        socialNotifications.openDialog();
+        navigate('/notificaciones');
     };
 
     const closeNotifications = (): void => {
-        socialNotifications.closeDialog();
+        navigate('/');
     };
 
     const openFollowingFeed = (): void => {
@@ -574,16 +614,12 @@ export function App({ mapBridge, services }: AppProps) {
         navigate('/agora');
     };
 
-    const closeFollowingFeed = (): void => {
-        navigate('/');
-    };
-
     const openGlobalUserSearch = (): void => {
-        setGlobalSearchOpen(true);
+        navigate('/buscar-usuarios');
     };
 
     const closeGlobalUserSearch = (): void => {
-        setGlobalSearchOpen(false);
+        navigate('/');
     };
 
     const setStreetLabelsQuickToggle = (enabled: boolean): void => {
@@ -624,8 +660,7 @@ export function App({ mapBridge, services }: AppProps) {
     };
 
     const openSettingsDialog = (view: SettingsView = 'ui'): void => {
-        setSettingsInitialView(view);
-        setSettingsDialogOpen(true);
+        navigate(`/settings/${view}`);
     };
 
     const openDmFromContextMenu = async (pubkey: string): Promise<void> => {
@@ -654,7 +689,8 @@ export function App({ mapBridge, services }: AppProps) {
                 notificationsHasUnread={socialState.hasUnread}
                 followingFeedHasUnread={followingFeedHasUnread}
                 regenerateDisabled={regenerateDisabled}
-                onOpenCityStats={() => setCityStatsDialogOpen(true)}
+                onOpenMap={() => navigate('/')}
+                onOpenCityStats={() => navigate('/estadisticas')}
                 onOpenChat={openChatList}
                 onOpenNotifications={openNotifications}
                 onOpenFollowingFeed={openFollowingFeed}
@@ -663,8 +699,7 @@ export function App({ mapBridge, services }: AppProps) {
                 onOpenSettings={openSettingsDialog}
                 onLogout={async () => {
                     await overlay.logoutSession?.();
-                    setSettingsDialogOpen(false);
-                    setSettingsInitialView('ui');
+                    navigate('/');
                 }}
                 onCopyOwnerNpub={copyOwnerIdentifier}
                 onLocateOwner={locateOwnerOnMap}
@@ -675,7 +710,7 @@ export function App({ mapBridge, services }: AppProps) {
                 }}
                 missionsDiscoveredCount={discoveredMissionsCount}
                 missionsTotal={EASTER_EGG_MISSIONS.length}
-                onOpenMissions={() => setMissionsDialogOpen(true)}
+                onOpenMissions={() => navigate('/descubre')}
             >
                 <SocialSidebar
                     ownerPubkey={overlay.ownerPubkey}
@@ -702,10 +737,10 @@ export function App({ mapBridge, services }: AppProps) {
                 />
             </OverlaySidebar>
 
-            {!isAgoraRoute ? (
+            {isMapRoute ? (
                 <MapZoomControls mapBridge={mapBridge} />
             ) : null}
-            {!isAgoraRoute ? (
+            {isMapRoute ? (
                 <MapDisplayToggleControls
                     carsEnabled={uiSettings.trafficParticlesCount > 0}
                     streetLabelsEnabled={uiSettings.streetLabelsEnabled}
@@ -810,19 +845,11 @@ export function App({ mapBridge, services }: AppProps) {
                 }}
             />
 
-            <NotificationsDialog
-                open={socialState.isDialogOpen}
-                hasUnread={socialState.hasUnread}
-                notifications={socialState.pendingSnapshot}
-                onClose={closeNotifications}
-            />
-
             <Routes>
                 <Route
                     path="/agora"
                     element={(
                         <FollowingFeedSurface
-                            onClose={closeFollowingFeed}
                             items={followingFeedState.items}
                             profilesByPubkey={followingFeedProfilesByPubkey}
                             engagementByEventId={followingFeedState.engagementByEventId}
@@ -849,48 +876,79 @@ export function App({ mapBridge, services }: AppProps) {
                         />
                     )}
                 />
+                <Route
+                    path="/estadisticas"
+                    element={(
+                        <CityStatsDialog
+                            variant="surface"
+                            buildingsCount={overlay.buildingsCount}
+                            occupiedBuildingsCount={overlay.assignedCount}
+                            assignedResidentsCount={overlay.assignedCount}
+                            followsCount={overlay.followsCount}
+                            followersCount={overlay.followersCount}
+                            parkCount={overlay.parkCount}
+                            unhousedResidentsCount={overlay.unassignedCount}
+                            onClose={() => navigate('/')}
+                        />
+                    )}
+                />
+                <Route
+                    path="/notificaciones"
+                    element={(
+                        <NotificationsDialog
+                            variant="surface"
+                            open={socialState.isDialogOpen}
+                            hasUnread={socialState.hasUnread}
+                            notifications={socialState.pendingSnapshot}
+                            onClose={closeNotifications}
+                        />
+                    )}
+                />
+                <Route
+                    path="/descubre"
+                    element={(
+                        <EasterEggMissionsDialog
+                            variant="surface"
+                            open
+                            discoveredIds={easterEggProgress.discoveredIds}
+                            onClose={() => navigate('/')}
+                        />
+                    )}
+                />
+                <Route
+                    path="/buscar-usuarios"
+                    element={(
+                        <GlobalUserSearchDialog
+                            variant="surface"
+                            open
+                            onClose={closeGlobalUserSearch}
+                            onSearch={overlay.searchUsers}
+                            onSelectUser={(pubkey) => {
+                                overlay.openActiveProfile(pubkey);
+                            }}
+                            onMessageUser={canAccessDirectMessages ? openDmFromContextMenu : undefined}
+                        />
+                    )}
+                />
+                <Route
+                    path="/settings/:view"
+                    element={(
+                        <MapSettingsDialog
+                            variant="surface"
+                            mapBridge={mapBridge}
+                            suggestedRelays={overlay.suggestedRelays}
+                            suggestedRelaysByType={overlay.suggestedRelaysByType}
+                            onUiSettingsChange={setUiSettings}
+                            zapSettings={zapSettings}
+                            onZapSettingsChange={setZapSettings}
+                            initialView={activeSettingsView ?? 'ui'}
+                            onClose={() => navigate('/')}
+                        />
+                    )}
+                />
                 <Route path="/" element={null} />
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
-
-            <GlobalUserSearchDialog
-                open={globalSearchOpen}
-                onClose={closeGlobalUserSearch}
-                onSearch={overlay.searchUsers}
-                onSelectUser={(pubkey) => {
-                    overlay.openActiveProfile(pubkey);
-                }}
-                onMessageUser={canAccessDirectMessages ? openDmFromContextMenu : undefined}
-            />
-
-            {settingsDialogOpen ? (
-                <MapSettingsDialog
-                    mapBridge={mapBridge}
-                    suggestedRelays={overlay.suggestedRelays}
-                    suggestedRelaysByType={overlay.suggestedRelaysByType}
-                    onUiSettingsChange={setUiSettings}
-                    zapSettings={zapSettings}
-                    onZapSettingsChange={setZapSettings}
-                    initialView={settingsInitialView}
-                    onClose={() => {
-                        setSettingsDialogOpen(false);
-                        setSettingsInitialView('ui');
-                    }}
-                />
-            ) : null}
-
-            {cityStatsDialogOpen ? (
-                <CityStatsDialog
-                    buildingsCount={overlay.buildingsCount}
-                    occupiedBuildingsCount={overlay.assignedCount}
-                    assignedResidentsCount={overlay.assignedCount}
-                    followsCount={overlay.followsCount}
-                    followersCount={overlay.followersCount}
-                    parkCount={overlay.parkCount}
-                    unhousedResidentsCount={overlay.unassignedCount}
-                    onClose={() => setCityStatsDialogOpen(false)}
-                />
-            ) : null}
 
             <MapPresenceLayer
                 mapBridge={mapBridge}
@@ -903,12 +961,6 @@ export function App({ mapBridge, services }: AppProps) {
                 occupiedLabelsZoomLevel={uiSettings.occupiedLabelsZoomLevel}
                 alwaysVisiblePubkeys={overlay.alwaysVisiblePubkeys}
                 specialMarkersEnabled={uiSettings.specialMarkersEnabled}
-            />
-
-            <EasterEggMissionsDialog
-                open={missionsDialogOpen}
-                discoveredIds={easterEggProgress.discoveredIds}
-                onClose={() => setMissionsDialogOpen(false)}
             />
 
             {overlay.activeProfilePubkey ? (

@@ -71,6 +71,27 @@ afterEach(async () => {
 });
 
 describe('ProfileTab relay stats', () => {
+    test('does not render redundant owner identity block in information tab', async () => {
+        const rendered = await renderElement(
+            <ProfileTab
+                ownerPubkey={'f'.repeat(64)}
+                ownerProfile={{
+                    pubkey: 'f'.repeat(64),
+                    displayName: 'Owner',
+                    picture: 'https://example.com/avatar.png',
+                }}
+                followsCount={1}
+                followersCount={2}
+                authSession={buildSession() as any}
+            />
+        );
+        mounted.push(rendered);
+
+        expect(rendered.container.querySelector('.nostr-profile-header-main')).toBeNull();
+        expect(rendered.container.querySelector('.nostr-profile-avatar')).toBeNull();
+        expect(rendered.container.querySelector('.nostr-profile-name')).toBeNull();
+    });
+
     test('does not render auth hint copy when owner pubkey is missing', async () => {
         const rendered = await renderElement(
             <ProfileTab

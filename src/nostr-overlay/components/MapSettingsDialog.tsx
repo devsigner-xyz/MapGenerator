@@ -60,6 +60,7 @@ interface MapSettingsDialogProps {
     zapSettings?: ZapSettingsState;
     onZapSettingsChange?: (nextState: ZapSettingsState) => void;
     initialView?: SettingsView;
+    variant?: 'dialog' | 'surface';
     onClose: () => void;
 }
 
@@ -321,6 +322,7 @@ export function MapSettingsDialog({
     zapSettings,
     onZapSettingsChange,
     initialView = 'ui',
+    variant = 'dialog',
     onClose,
 }: MapSettingsDialogProps) {
     const [view, setView] = useState<SettingsView>(initialView);
@@ -522,6 +524,10 @@ export function MapSettingsDialog({
     }, [zapSettings]);
 
     useEffect(() => {
+        setView(initialView);
+    }, [initialView]);
+
+    useEffect(() => {
         if (!mapBridge || view !== 'advanced' || !settingsHostRef.current) {
             return;
         }
@@ -603,6 +609,46 @@ export function MapSettingsDialog({
         || (selectedRelayDocument?.fees?.publication && selectedRelayDocument.fees.publication.length > 0)
     );
 
+    const settingsHeader = useMemo<{ title: string; description: string }>(() => {
+        switch (view) {
+            case 'advanced':
+                return {
+                    title: 'Advanced settings',
+                    description: 'Configuración avanzada del mapa y parámetros de simulación.',
+                };
+            case 'ui':
+                return {
+                    title: 'UI',
+                    description: 'Controles de visualización, etiquetas y tráfico del mapa.',
+                };
+            case 'shortcuts':
+                return {
+                    title: 'Shortcuts',
+                    description: 'Atajos de teclado y navegación rápida para el mapa.',
+                };
+            case 'relays':
+                return {
+                    title: 'Relays',
+                    description: 'Relays configurados, sugeridos y estado de conexión Nostr.',
+                };
+            case 'relay-detail':
+                return {
+                    title: 'Relay details',
+                    description: 'Metadata y capacidades técnicas del relay seleccionado.',
+                };
+            case 'zaps':
+                return {
+                    title: 'Zaps',
+                    description: 'Define cantidades rápidas para enviar zaps.',
+                };
+            default:
+                return {
+                    title: 'About',
+                    description: 'Información general de protocolo y funcionalidades disponibles.',
+                };
+        }
+    }, [view]);
+
     const copyRelayIdentity = async (value: string, key: string): Promise<void> => {
         if (!value || typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
             return;
@@ -622,35 +668,14 @@ export function MapSettingsDialog({
         }
     };
 
-    return (
-        <Dialog open onOpenChange={(open) => {
-            if (!open) {
-                onClose();
-            }
-        }}>
-            <DialogContent className={`nostr-settings-dialog${view === 'relays' || view === 'relay-detail' ? ' nostr-settings-dialog-relays' : ''}`} aria-label="Ajustes">
-                <DialogTitle className="sr-only">Ajustes</DialogTitle>
-                <DialogDescription className="sr-only">Configuracion del overlay del mapa.</DialogDescription>
-                <div className="nostr-settings-header">
-                    <p className="nostr-settings-title">
-                        {view === 'advanced'
-                            ? 'Advanced settings'
-                            : view === 'ui'
-                                ? 'UI'
-                                : view === 'shortcuts'
-                                    ? 'Shortcuts'
-                                    : view === 'relays'
-                                        ? 'Relays'
-                                        : view === 'relay-detail'
-                                            ? 'Relay details'
-                                            : view === 'zaps'
-                                                ? 'Zaps'
-                                                : 'About'}
-                    </p>
+    const settingsContent = (
+        <>
+            <header className="nostr-page-header">
+                <h3 className="nostr-page-header-inline-title">{settingsHeader.title}</h3>
+                <p>{settingsHeader.description}</p>
+            </header>
 
-                </div>
-
-                <div className="nostr-settings-body">
+            <div className="nostr-page-content nostr-settings-body">
                     {view === 'advanced' ? (
                         <div className="nostr-shortcuts-content">
                             <p>Configuracion avanzada del MapGenerator.</p>
@@ -1275,9 +1300,10 @@ export function MapSettingsDialog({
                             <p>Mantener pulsado el wheel del raton y mover el raton para desplazarte por el mapa.</p>
                         </div>
                     )}
-                </div>
+            </div>
 
-                {canGoBack ? (
+            {variant === 'dialog' ? (
+                canGoBack ? (
                     <DialogFooter className="sm:justify-between">
                         <Button type="button" variant="outline" onClick={() => setView('relays')}>
                             Volver
@@ -1292,7 +1318,41 @@ export function MapSettingsDialog({
                             <Button type="button" variant="outline">Cerrar</Button>
                         </DialogClose>
                     </DialogFooter>
-                )}
+                )
+            ) : canGoBack ? (
+                <DialogFooter className="sm:justify-start">
+                    <Button type="button" variant="outline" onClick={() => setView('relays')}>
+                        Volver
+                    </Button>
+                </DialogFooter>
+            ) : null}
+        </>
+    );
+
+    if (variant === 'surface') {
+        return (
+            <section className="nostr-routed-surface" aria-label="Ajustes">
+                <div className="nostr-routed-surface-content">
+                    <div className={`nostr-settings-page nostr-routed-surface-panel nostr-page-layout${view === 'relays' || view === 'relay-detail' ? ' nostr-settings-page-relays' : ''}`}>
+                        <h2 className="sr-only">Ajustes</h2>
+                        <p className="sr-only">Configuracion del overlay del mapa.</p>
+                        {settingsContent}
+                    </div>
+                </div>
+            </section>
+        );
+    }
+
+    return (
+        <Dialog open onOpenChange={(open) => {
+            if (!open) {
+                onClose();
+            }
+        }}>
+            <DialogContent className={`nostr-settings-dialog${view === 'relays' || view === 'relay-detail' ? ' nostr-settings-dialog-relays' : ''}`} aria-label="Ajustes">
+                <DialogTitle className="sr-only">Ajustes</DialogTitle>
+                <DialogDescription className="sr-only">Configuracion del overlay del mapa.</DialogDescription>
+                {settingsContent}
             </DialogContent>
         </Dialog>
     );

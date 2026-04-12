@@ -218,6 +218,67 @@ describe('FollowingFeedDialog', () => {
         expect(rendered.container.querySelector('[aria-label="Zaps recibidos: 2"]')).toBeDefined();
     });
 
+    test('renders reposts with nested original card instead of raw json content', async () => {
+        const originalEvent: {
+            id: string;
+            pubkey: string;
+            kind: number;
+            created_at: number;
+            tags: string[][];
+            content: string;
+        } = {
+            id: 'original-1',
+            pubkey: 'b'.repeat(64),
+            kind: 1,
+            created_at: 90,
+            tags: [],
+            content: 'contenido original de la nota',
+        };
+
+        const rendered = await renderElement(
+            <FollowingFeedDialog
+                {...buildProps({
+                    profilesByPubkey: {
+                        ['a'.repeat(64)]: {
+                            pubkey: 'a'.repeat(64),
+                            displayName: 'Alice',
+                        },
+                        ['b'.repeat(64)]: {
+                            pubkey: 'b'.repeat(64),
+                            displayName: 'Bob',
+                        },
+                    },
+                    items: [
+                        {
+                            id: 'repost-1',
+                            pubkey: 'a'.repeat(64),
+                            createdAt: 100,
+                            content: JSON.stringify(originalEvent),
+                            kind: 'repost',
+                            targetEventId: 'original-1',
+                            rawEvent: {
+                                id: 'repost-1',
+                                pubkey: 'a'.repeat(64),
+                                kind: 6,
+                                created_at: 100,
+                                tags: [['e', 'original-1']],
+                                content: JSON.stringify(originalEvent),
+                            },
+                        },
+                    ],
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        expect(rendered.container.textContent || '').toContain('Alice');
+        expect(rendered.container.textContent || '').toContain('Bob');
+        expect(rendered.container.textContent || '').toContain('contenido original de la nota');
+        expect(rendered.container.textContent || '').toContain('Repost sin comentario');
+        expect(rendered.container.textContent || '').not.toContain('{"id":"original-1"');
+        expect(rendered.container.querySelector('.nostr-following-feed-card-embedded')).toBeDefined();
+    });
+
     test('publishes reply from thread composer', async () => {
         const onPublishReply = vi.fn(async () => true);
         const rendered = await renderElement(

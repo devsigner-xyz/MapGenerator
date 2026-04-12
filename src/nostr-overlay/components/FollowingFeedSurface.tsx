@@ -1,24 +1,15 @@
-import { Button } from '@/components/ui/button';
 import { FollowingFeedContent, type FollowingFeedViewProps } from './FollowingFeedContent';
 
-interface FollowingFeedSurfaceProps extends FollowingFeedViewProps {
-    onClose: () => void;
-}
-
-export function FollowingFeedSurface({ onClose, ...feedProps }: FollowingFeedSurfaceProps) {
+export function FollowingFeedSurface(feedProps: FollowingFeedViewProps) {
     return (
-        <section className="nostr-following-feed-surface" aria-label="Agora">
-            <FollowingFeedContent
-                {...feedProps}
-                className="nostr-following-feed-surface-content"
-                headerKicker="Nostr social"
-                headerSubtitle="Timeline en tiempo real de personas que sigues"
-                headerActions={(
-                    <Button type="button" variant="outline" size="sm" onClick={onClose}>
-                        Volver al mapa
-                    </Button>
-                )}
-            />
+        <section className="nostr-routed-surface nostr-following-feed-surface" aria-label="Agora">
+            <div className="nostr-routed-surface-content">
+                <FollowingFeedContent
+                    {...feedProps}
+                    className="nostr-following-feed-surface-content nostr-following-feed-page nostr-routed-surface-panel nostr-page-layout"
+                    headerSubtitle="Timeline en tiempo real de personas que sigues"
+                />
+            </div>
         </section>
     );
 }

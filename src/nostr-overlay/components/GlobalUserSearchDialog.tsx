@@ -26,6 +26,7 @@ interface GlobalUserSearchDialogProps {
     onSearch: (query: string) => Promise<SearchUsersResult>;
     onSelectUser: (pubkey: string) => void;
     onMessageUser?: (pubkey: string) => void | Promise<void>;
+    variant?: 'dialog' | 'surface';
 }
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -49,7 +50,9 @@ export function GlobalUserSearchDialog({
     onSearch,
     onSelectUser,
     onMessageUser,
+    variant = 'dialog',
 }: GlobalUserSearchDialogProps) {
+    const isOpen = variant === 'surface' ? true : open;
     const [query, setQuery] = useState('');
     const [isSearching, setIsSearching] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -60,17 +63,17 @@ export function GlobalUserSearchDialog({
     const requestIdRef = useRef(0);
 
     useEffect(() => {
-        if (!open) {
+        if (!isOpen) {
             setQuery('');
             setIsSearching(false);
             setError(null);
             setResult({ pubkeys: [], profiles: {} });
             requestIdRef.current += 1;
         }
-    }, [open]);
+    }, [isOpen]);
 
     useEffect(() => {
-        if (!open) {
+        if (!isOpen) {
             return;
         }
 
@@ -112,12 +115,118 @@ export function GlobalUserSearchDialog({
         return () => {
             window.clearTimeout(timer);
         };
-    }, [open, query, onSearch]);
+    }, [isOpen, query, onSearch]);
 
     const rows = useMemo(
         () => result.pubkeys.map((pubkey) => ({ pubkey, profile: result.profiles[pubkey] })),
         [result]
     );
+
+    const resultsContent = !query.trim() ? (
+        <Empty className="nostr-global-search-empty">
+            <EmptyHeader>
+                <EmptyTitle>Buscar usuarios globalmente</EmptyTitle>
+                <EmptyDescription>Escribe para buscar por nombre, npub o pubkey.</EmptyDescription>
+            </EmptyHeader>
+        </Empty>
+    ) : isSearching ? (
+        <Empty className="nostr-global-search-empty">
+            <EmptyHeader>
+                <EmptyMedia variant="icon">
+                    <Spinner />
+                </EmptyMedia>
+                <EmptyTitle>Buscando usuarios</EmptyTitle>
+                <EmptyDescription>Estamos consultando perfiles en los relays.</EmptyDescription>
+            </EmptyHeader>
+        </Empty>
+    ) : error ? (
+        <Empty className="nostr-global-search-empty">
+            <EmptyHeader>
+                <EmptyTitle>Error de busqueda</EmptyTitle>
+                <EmptyDescription>{error}</EmptyDescription>
+            </EmptyHeader>
+        </Empty>
+    ) : rows.length === 0 ? (
+        <Empty className="nostr-global-search-empty">
+            <EmptyHeader>
+                <EmptyTitle>Sin resultados</EmptyTitle>
+                <EmptyDescription>No se encontraron usuarios.</EmptyDescription>
+            </EmptyHeader>
+        </Empty>
+    ) : (
+        rows.map(({ pubkey, profile }) => {
+            const display = profileDisplayName(pubkey, profile);
+            return (
+                <CommandItem
+                    key={pubkey}
+                    value={`${display} ${profileShortNpub(pubkey)} ${pubkey}`}
+                    className="nostr-global-search-result-row"
+                    onSelect={() => {
+                        onSelectUser(pubkey);
+                        onClose();
+                    }}
+                >
+                    <div className="nostr-global-search-result-main">
+                        <Avatar className="size-8">
+                            {profile?.picture ? <AvatarImage src={profile.picture} alt={display} /> : null}
+                            <AvatarFallback>{display.slice(0, 2).toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        <div className="nostr-global-search-result-copy">
+                            <p className="nostr-global-search-result-name">{display}</p>
+                            <p className="nostr-global-search-result-id">{profileShortNpub(pubkey)}</p>
+                        </div>
+                    </div>
+
+                    {onMessageUser ? (
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onPointerDown={(event: { stopPropagation: () => void }) => {
+                                event.stopPropagation();
+                            }}
+                            onClick={(event: { stopPropagation: () => void }) => {
+                                event.stopPropagation();
+                                void onMessageUser(pubkey);
+                                onClose();
+                            }}
+                        >
+                            Mensaje
+                        </Button>
+                    ) : null}
+                </CommandItem>
+            );
+        })
+    );
+
+    if (variant === 'surface') {
+        return (
+            <section className="nostr-routed-surface" aria-label="Buscar usuarios globalmente">
+                <div className="nostr-routed-surface-content">
+                    <div className="nostr-global-search-page nostr-routed-surface-panel nostr-page-layout">
+                        <header className="nostr-page-header">
+                            <h3 className="nostr-page-header-inline-title">Buscar usuarios globalmente</h3>
+                            <p>Filtra perfiles Nostr por nombre, npub o pubkey.</p>
+                        </header>
+
+                        <section className="nostr-page-content">
+                            <Command shouldFilter={false} className="nostr-global-search-command">
+                                <CommandInput
+                                    value={query}
+                                    aria-label="Buscar usuarios globalmente"
+                                    placeholder="Buscar por nombre, npub o pubkey"
+                                    onValueChange={setQuery}
+                                />
+                                <CommandList className="nostr-global-search-results">
+                                    {resultsContent}
+                                </CommandList>
+                            </Command>
+                        </section>
+                    </div>
+                </div>
+            </section>
+        );
+    }
 
     return (
         <CommandDialog
@@ -133,100 +242,29 @@ export function GlobalUserSearchDialog({
             showCloseButton={false}
         >
             <Command shouldFilter={false}>
-                <div className="flex items-center justify-between px-3 pt-3">
-                    <p className="text-sm font-medium">Buscar usuarios globalmente</p>
+                <header className="nostr-page-header nostr-global-search-page-header px-3 pt-3">
+                    <div>
+                        <h3 className="nostr-page-header-inline-title">Buscar usuarios globalmente</h3>
+                        <p>Filtra perfiles Nostr por nombre, npub o pubkey.</p>
+                    </div>
                     <DialogClose asChild>
                         <Button type="button" variant="ghost" size="icon-sm" aria-label="Cerrar buscador global">
                             <XIcon data-icon="inline-start" />
                         </Button>
                     </DialogClose>
-                </div>
+                </header>
 
-                <CommandInput
-                    value={query}
-                    aria-label="Buscar usuarios globalmente"
-                    placeholder="Buscar por nombre, npub o pubkey"
-                    onValueChange={setQuery}
-                />
-
-                <CommandList className="nostr-global-search-results">
-                    {!query.trim() ? (
-                        <Empty className="nostr-global-search-empty">
-                            <EmptyHeader>
-                                <EmptyTitle>Buscar usuarios globalmente</EmptyTitle>
-                                <EmptyDescription>Escribe para buscar por nombre, npub o pubkey.</EmptyDescription>
-                            </EmptyHeader>
-                        </Empty>
-                    ) : isSearching ? (
-                        <Empty className="nostr-global-search-empty">
-                            <EmptyHeader>
-                                <EmptyMedia variant="icon">
-                                    <Spinner />
-                                </EmptyMedia>
-                                <EmptyTitle>Buscando usuarios</EmptyTitle>
-                                <EmptyDescription>Estamos consultando perfiles en los relays.</EmptyDescription>
-                            </EmptyHeader>
-                        </Empty>
-                    ) : error ? (
-                        <Empty className="nostr-global-search-empty">
-                            <EmptyHeader>
-                                <EmptyTitle>Error de busqueda</EmptyTitle>
-                                <EmptyDescription>{error}</EmptyDescription>
-                            </EmptyHeader>
-                        </Empty>
-                    ) : rows.length === 0 ? (
-                        <Empty className="nostr-global-search-empty">
-                            <EmptyHeader>
-                                <EmptyTitle>Sin resultados</EmptyTitle>
-                                <EmptyDescription>No se encontraron usuarios.</EmptyDescription>
-                            </EmptyHeader>
-                        </Empty>
-                    ) : (
-                        rows.map(({ pubkey, profile }) => {
-                            const display = profileDisplayName(pubkey, profile);
-                            return (
-                                <CommandItem
-                                    key={pubkey}
-                                    value={`${display} ${profileShortNpub(pubkey)} ${pubkey}`}
-                                    className="nostr-global-search-result-row"
-                                    onSelect={() => {
-                                        onSelectUser(pubkey);
-                                        onClose();
-                                    }}
-                                >
-                                    <div className="nostr-global-search-result-main">
-                                        <Avatar className="size-8">
-                                            {profile?.picture ? <AvatarImage src={profile.picture} alt={display} /> : null}
-                                            <AvatarFallback>{display.slice(0, 2).toUpperCase()}</AvatarFallback>
-                                        </Avatar>
-                                        <div className="nostr-global-search-result-copy">
-                                            <p className="nostr-global-search-result-name">{display}</p>
-                                            <p className="nostr-global-search-result-id">{profileShortNpub(pubkey)}</p>
-                                        </div>
-                                    </div>
-
-                                    {onMessageUser ? (
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            onPointerDown={(event: { stopPropagation: () => void }) => {
-                                                event.stopPropagation();
-                                            }}
-                                            onClick={(event: { stopPropagation: () => void }) => {
-                                                event.stopPropagation();
-                                                void onMessageUser(pubkey);
-                                                onClose();
-                                            }}
-                                        >
-                                            Mensaje
-                                        </Button>
-                                    ) : null}
-                                </CommandItem>
-                            );
-                        })
-                    )}
-                </CommandList>
+                <section className="nostr-page-content">
+                    <CommandInput
+                        value={query}
+                        aria-label="Buscar usuarios globalmente"
+                        placeholder="Buscar por nombre, npub o pubkey"
+                        onValueChange={setQuery}
+                    />
+                    <CommandList className="nostr-global-search-results">
+                        {resultsContent}
+                    </CommandList>
+                </section>
             </Command>
         </CommandDialog>
     );

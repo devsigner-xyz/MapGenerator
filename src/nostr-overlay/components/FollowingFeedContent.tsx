@@ -53,7 +53,6 @@ export interface FollowingFeedViewProps {
 interface FollowingFeedContentProps extends FollowingFeedViewProps {
     className?: string;
     headerActions?: ReactNode;
-    headerKicker?: string;
     headerSubtitle?: string;
 }
 
@@ -112,6 +111,49 @@ function previewContent(content: string): string {
     }
 
     return `${normalized.slice(0, 177)}...`;
+}
+
+interface ParsedEmbeddedRepost {
+    id: string;
+    pubkey: string;
+    createdAt: number;
+    kind: number;
+    content: string;
+}
+
+function parseEmbeddedRepostEvent(content: string): ParsedEmbeddedRepost | null {
+    const normalized = content.trim();
+    if (!normalized.startsWith('{')) {
+        return null;
+    }
+
+    try {
+        const parsed: unknown = JSON.parse(normalized);
+        if (!parsed || typeof parsed !== 'object') {
+            return null;
+        }
+
+        const eventRecord = parsed as Record<string, unknown>;
+        if (
+            typeof eventRecord.id !== 'string'
+            || typeof eventRecord.pubkey !== 'string'
+            || !Number.isFinite(eventRecord.created_at)
+            || !Number.isFinite(eventRecord.kind)
+            || typeof eventRecord.content !== 'string'
+        ) {
+            return null;
+        }
+
+        return {
+            id: eventRecord.id,
+            pubkey: eventRecord.pubkey,
+            createdAt: Number(eventRecord.created_at),
+            kind: Number(eventRecord.kind),
+            content: eventRecord.content,
+        };
+    } catch {
+        return null;
+    }
 }
 
 function cardLabel(item: SocialFeedItem | SocialThreadItem): string {
@@ -226,7 +268,6 @@ function FeedActionBar({
 export function FollowingFeedContent({
     className,
     headerActions,
-    headerKicker,
     headerSubtitle,
     items,
     profilesByPubkey,
@@ -302,6 +343,10 @@ export function FollowingFeedContent({
         return `Respondiendo al evento ${shortPubkey(replyTargetEventId)}`;
     }, [replyTargetEventId]);
 
+    const resolvedSubtitle = activeThread
+        ? 'Respuestas y actividad de la conversación seleccionada.'
+        : (headerSubtitle || 'Timeline en tiempo real de personas que sigues');
+
     return (
         <div className={className || 'nostr-following-feed-dialog'}>
             <div className="nostr-following-feed-header">
@@ -316,13 +361,12 @@ export function FollowingFeedContent({
                         Volver al Agora
                     </Button>
                 ) : null}
-                <div className="nostr-following-feed-header-copy">
-                    {headerKicker ? <p className="nostr-following-feed-kicker">{headerKicker}</p> : null}
-                    <p className="nostr-following-feed-title">
-                        {activeThread ? 'Hilo' : 'Agora'}
-                    </p>
-                    {headerSubtitle ? <p className="nostr-following-feed-subtitle">{headerSubtitle}</p> : null}
-                </div>
+
+                <header className="nostr-page-header nostr-following-feed-page-header">
+                    <h3 className="nostr-page-header-inline-title">{activeThread ? 'Hilo' : 'Agora'}</h3>
+                    <p>{resolvedSubtitle}</p>
+                </header>
+
                 {headerActions ? (
                     <div className="nostr-following-feed-header-actions">{headerActions}</div>
                 ) : null}
@@ -391,6 +435,15 @@ export function FollowingFeedContent({
                                 const authorName = profileDisplayName(item.pubkey, profile);
                                 const publishedAt = formatCreatedAt(item.createdAt);
                                 const metrics = engagementByEventId[item.id] || EMPTY_ENGAGEMENT_METRICS;
+                                const embeddedRepost = item.kind === 'repost' ? parseEmbeddedRepostEvent(item.content) : null;
+                                const cardContent = item.kind === 'repost' && embeddedRepost
+                                    ? ''
+                                    : previewContent(item.content);
+                                const embeddedProfile = embeddedRepost ? profilesByPubkey[embeddedRepost.pubkey] : undefined;
+                                const embeddedAuthorName = embeddedRepost
+                                    ? profileDisplayName(embeddedRepost.pubkey, embeddedProfile)
+                                    : '';
+                                const embeddedPublishedAt = formatCreatedAt(embeddedRepost?.createdAt ?? 0);
 
                                 return (
                                     <article key={item.id} className="nostr-following-feed-card">
@@ -409,7 +462,30 @@ export function FollowingFeedContent({
                                                 </p>
                                             </div>
                                         </div>
-                                        <p className="nostr-following-feed-card-content">{previewContent(item.content) || '(sin contenido)'}</p>
+                                        <p className="nostr-following-feed-card-content">{cardContent || (item.kind === 'repost' ? 'Repost sin comentario' : '(sin contenido)')}</p>
+                                        {embeddedRepost ? (
+                                            <article className="nostr-following-feed-card-embedded" aria-label={`Nota original de ${embeddedAuthorName}`}>
+                                                <p className="nostr-following-feed-card-embedded-label">Nota original</p>
+                                                <div className="nostr-following-feed-card-head">
+                                                    <Avatar className="nostr-following-feed-card-avatar nostr-following-feed-card-embedded-avatar">
+                                                        {embeddedProfile?.picture
+                                                            ? <AvatarImage src={embeddedProfile.picture} alt={embeddedAuthorName} />
+                                                            : null}
+                                                        <AvatarFallback>{profileInitials(embeddedRepost.pubkey, embeddedProfile)}</AvatarFallback>
+                                                    </Avatar>
+                                                    <div className="nostr-following-feed-card-head-copy">
+                                                        <p className="nostr-following-feed-card-author">{embeddedAuthorName}</p>
+                                                        <p className="nostr-following-feed-card-meta">
+                                                            <span className="nostr-following-feed-card-kind">Nota</span>
+                                                            <span>{shortPubkey(embeddedRepost.pubkey)}</span>
+                                                            <span>·</span>
+                                                            <time dateTime={embeddedPublishedAt.iso}>{embeddedPublishedAt.label}</time>
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <p className="nostr-following-feed-card-content">{previewContent(embeddedRepost.content) || '(sin contenido)'}</p>
+                                            </article>
+                                        ) : null}
                                         <FeedActionBar
                                             eventId={item.id}
                                             pubkey={item.pubkey}
