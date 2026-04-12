@@ -14,15 +14,19 @@ import { ChatIconButton } from './components/ChatIconButton';
 import { ChatDialog, type ChatConversationSummary, type ChatDetailMessage } from './components/ChatDialog';
 import { NotificationsIconButton } from './components/NotificationsIconButton';
 import { NotificationsDialog } from './components/NotificationsDialog';
+import { FollowingFeedIconButton } from './components/FollowingFeedIconButton';
+import { FollowingFeedDialog } from './components/FollowingFeedDialog';
 import { GlobalUserSearchDialog } from './components/GlobalUserSearchDialog';
 import { PersonContextMenuItems } from './components/PersonContextMenuItems';
 import { useNostrOverlay, type MapLoaderStage, type NostrOverlayServices } from './hooks/useNostrOverlay';
 import { useNip05Verification } from './hooks/useNip05Verification';
+import { useFollowingFeed } from './hooks/useFollowingFeed';
 import { useSocialNotifications } from './hooks/useSocialNotifications';
 import type { EasterEggBuildingClickPayload, MapBridge, OccupiedBuildingContextPayload } from './map-bridge';
 import { extractStreetLabelUsernames } from './domain/street-label-users';
 import { getEasterEggEntry } from './easter-eggs/catalog';
 import { createRuntimeSocialNotificationsService } from '../nostr/social-notifications-runtime-service';
+import { createRuntimeSocialFeedService } from '../nostr/social-feed-runtime-service';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
@@ -292,6 +296,18 @@ export function App({ mapBridge, services }: AppProps) {
         service: socialNotificationsService,
     });
     const socialState = socialNotifications.getState();
+    const socialFeedService = useMemo(
+        () => services?.socialFeedService ?? createRuntimeSocialFeedService(),
+        [services?.socialFeedService]
+    );
+    const followingFeed = useFollowingFeed({
+        ownerPubkey: overlay.ownerPubkey,
+        follows: overlay.follows,
+        canWrite: overlay.canWrite,
+        service: socialFeedService,
+        writeGateway: overlay.writeGateway,
+    });
+    const followingFeedState = followingFeed.getState();
 
     useEffect(() => {
         if (!overlay.directMessages) {
@@ -380,6 +396,10 @@ export function App({ mapBridge, services }: AppProps) {
 
     const canAccessDirectMessages = Boolean(overlay.ownerPubkey && overlay.canDirectMessages && overlay.directMessages);
     const canAccessSocialNotifications = Boolean(overlay.ownerPubkey);
+    const canAccessFollowingFeed = Boolean(overlay.ownerPubkey);
+    const followingFeedHasUnread = !followingFeedState.isDialogOpen
+        && followingFeedState.hasMoreFeed
+        && followingFeedState.items.length > 0;
     const canSendChatMessages = canAccessDirectMessages;
 
     useEffect(() => {
@@ -485,6 +505,18 @@ export function App({ mapBridge, services }: AppProps) {
 
     const closeNotifications = (): void => {
         socialNotifications.closeDialog();
+    };
+
+    const openFollowingFeed = (): void => {
+        if (!canAccessFollowingFeed) {
+            return;
+        }
+
+        void followingFeed.openDialog();
+    };
+
+    const closeFollowingFeed = (): void => {
+        followingFeed.closeDialog();
     };
 
     const openGlobalUserSearch = (): void => {
@@ -634,6 +666,10 @@ export function App({ mapBridge, services }: AppProps) {
                         <NotificationsIconButton hasUnread={socialState.hasUnread} onClick={openNotifications} />
                     ) : null}
 
+                    {canAccessFollowingFeed ? (
+                        <FollowingFeedIconButton hasUnread={followingFeedHasUnread} onClick={openFollowingFeed} />
+                    ) : null}
+
                     <Button
                         type="button"
                         variant="outline"
@@ -700,6 +736,10 @@ export function App({ mapBridge, services }: AppProps) {
 
                             {canAccessSocialNotifications ? (
                                 <NotificationsIconButton hasUnread={socialState.hasUnread} onClick={openNotifications} />
+                            ) : null}
+
+                            {canAccessFollowingFeed ? (
+                                <FollowingFeedIconButton hasUnread={followingFeedHasUnread} onClick={openFollowingFeed} />
                             ) : null}
 
                             <Button
@@ -903,6 +943,32 @@ export function App({ mapBridge, services }: AppProps) {
                 hasUnread={socialState.hasUnread}
                 notifications={socialState.pendingSnapshot}
                 onClose={closeNotifications}
+            />
+
+            <FollowingFeedDialog
+                open={followingFeedState.isDialogOpen}
+                onClose={closeFollowingFeed}
+                items={followingFeedState.items}
+                isLoadingFeed={followingFeedState.isLoadingFeed}
+                feedError={followingFeedState.feedError}
+                hasMoreFeed={followingFeedState.hasMoreFeed}
+                activeThread={followingFeedState.activeThread}
+                canWrite={overlay.canWrite}
+                isPublishingPost={followingFeedState.isPublishingPost}
+                isPublishingReply={followingFeedState.isPublishingReply}
+                publishError={followingFeedState.publishError}
+                reactionByEventId={followingFeedState.reactionByEventId}
+                repostByEventId={followingFeedState.repostByEventId}
+                pendingReactionByEventId={followingFeedState.pendingReactionByEventId}
+                pendingRepostByEventId={followingFeedState.pendingRepostByEventId}
+                onLoadMoreFeed={followingFeed.loadNextFeedPage}
+                onOpenThread={followingFeed.openThread}
+                onCloseThread={followingFeed.closeThread}
+                onLoadMoreThread={followingFeed.loadNextThreadPage}
+                onPublishPost={followingFeed.publishPost}
+                onPublishReply={followingFeed.publishReply}
+                onToggleReaction={followingFeed.toggleReaction}
+                onToggleRepost={followingFeed.toggleRepost}
             />
 
             <GlobalUserSearchDialog

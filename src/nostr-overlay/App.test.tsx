@@ -11,6 +11,7 @@ import { App } from './App';
 import type { MapBridge } from './map-bridge';
 import type { NostrClient } from '../nostr/types';
 import type { SocialNotificationEvent, SocialNotificationsService } from '../nostr/social-notifications-service';
+import type { SocialFeedService } from '../nostr/social-feed-service';
 
 interface RenderResult {
     container: HTMLDivElement;
@@ -230,6 +231,17 @@ function createSocialNotificationsServiceMock() {
         emit(event: SocialNotificationEvent) {
             listener?.(event);
         },
+    };
+}
+
+function createSocialFeedServiceMock() {
+    const service: SocialFeedService = {
+        loadFollowingFeed: vi.fn(async () => ({ items: [], hasMore: false })),
+        loadThread: vi.fn(async () => ({ root: null, replies: [], hasMore: false })),
+    };
+
+    return {
+        service,
     };
 }
 
@@ -489,6 +501,121 @@ describe('Nostr overlay App', () => {
         });
 
         expect(rendered.container.textContent || '').toContain('Buscar usuarios globalmente');
+    });
+
+    test('renders following feed button in panel and compact toolbar when session is active', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const socialFeed = createSocialFeedServiceMock();
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                    socialFeedService: socialFeed.service,
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        await loginWithNsec(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const panelFeedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir feed de seguidos"]');
+        expect(panelFeedButton).not.toBeNull();
+
+        const hidePanelButton = rendered.container.querySelector('button[aria-label="Ocultar panel"]') as HTMLButtonElement;
+        await act(async () => {
+            hidePanelButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const compactFeedButton = rendered.container.querySelector('.nostr-compact-toolbar button[aria-label="Abrir feed de seguidos"]');
+        expect(compactFeedButton).not.toBeNull();
+    });
+
+    test('opens following feed dialog from toolbar and requests first page', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const socialFeed = createSocialFeedServiceMock();
+        (socialFeed.service.loadFollowingFeed as any).mockResolvedValue({
+            items: [
+                {
+                    id: 'note-1',
+                    pubkey: 'a'.repeat(64),
+                    createdAt: 100,
+                    content: 'hola feed',
+                    kind: 'note',
+                    rawEvent: {
+                        id: 'note-1',
+                        pubkey: 'a'.repeat(64),
+                        kind: 1,
+                        created_at: 100,
+                        tags: [],
+                        content: 'hola feed',
+                    },
+                },
+            ],
+            hasMore: false,
+        });
+
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: ['a'.repeat(64)],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                    socialFeedService: socialFeed.service,
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        await loginWithNsec(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const feedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir feed de seguidos"]') as HTMLButtonElement;
+        expect(feedButton).toBeDefined();
+
+        await act(async () => {
+            feedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Feed siguiendo'));
+        expect(rendered.container.textContent || '').toContain('hola feed');
+        expect(socialFeed.service.loadFollowingFeed).toHaveBeenCalled();
     });
 
     test('renders chat button in panel and compact toolbar and opens chat dialog in list view', async () => {

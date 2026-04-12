@@ -1,0 +1,263 @@
+import { describe, expect, test, vi } from 'vitest';
+import { createRuntimeSocialFeedService } from './social-feed-runtime-service';
+import type { NostrEvent } from './types';
+
+const FOLLOW_A = 'a'.repeat(64);
+const FOLLOW_B = 'b'.repeat(64);
+
+function noteEvent(input: {
+    id: string;
+    pubkey: string;
+    createdAt: number;
+    kind?: number;
+    tags?: string[][];
+    content?: string;
+}): NostrEvent {
+    return {
+        id: input.id,
+        pubkey: input.pubkey,
+        kind: input.kind ?? 1,
+        created_at: input.createdAt,
+        tags: input.tags ?? [],
+        content: input.content ?? '',
+    };
+}
+
+function createTransportMock(events: NostrEvent[]) {
+    return {
+        publishToRelays: vi.fn(async () => ({ ackedRelays: [], failedRelays: [], timeoutRelays: [] })),
+        subscribe: vi.fn(() => ({
+            unsubscribe() {
+                return;
+            },
+        })),
+        fetchBackfill: vi.fn(async () => events),
+    };
+}
+
+function buildReply(id: string, pubkey: string, createdAt: number, rootEventId: string): NostrEvent {
+    return noteEvent({
+        id,
+        pubkey,
+        createdAt,
+        tags: [['e', rootEventId, '', 'reply']],
+        content: 'reply',
+    });
+}
+
+describe('social-feed-runtime-service', () => {
+    test('loads following feed, excludes replies and keeps notes/reposts sorted', async () => {
+        const transport = createTransportMock([
+            noteEvent({
+                id: 'reply-1',
+                pubkey: FOLLOW_A,
+                createdAt: 420,
+                tags: [['e', 'root-1', '', 'reply']],
+                content: 'reply',
+            }),
+            noteEvent({ id: 'note-1', pubkey: FOLLOW_A, createdAt: 410, content: 'note' }),
+            noteEvent({ id: 'repost-1', pubkey: FOLLOW_B, kind: 6, createdAt: 405, tags: [['e', 'note-1']] }),
+        ]);
+
+        const service = createRuntimeSocialFeedService({
+            createTransport: () => transport as any,
+            resolveRelays: () => ['wss://relay.one'],
+        });
+
+        const page = await service.loadFollowingFeed({
+            follows: [FOLLOW_A, FOLLOW_B],
+            limit: 10,
+        });
+
+        expect(page.items.map((item) => item.id)).toEqual(['note-1', 'repost-1']);
+        expect(page.items.map((item) => item.kind)).toEqual(['note', 'repost']);
+        expect(page.hasMore).toBe(false);
+
+        expect(transport.fetchBackfill).toHaveBeenCalledWith([
+            expect.objectContaining({
+                authors: [FOLLOW_A, FOLLOW_B],
+                kinds: [1, 6, 16],
+            }),
+        ]);
+    });
+
+    test('dedupes/sorts feed and exposes pagination cursor', async () => {
+        const transport = createTransportMock([
+            noteEvent({ id: 'note-older', pubkey: FOLLOW_A, createdAt: 300 }),
+            noteEvent({ id: 'note-newer', pubkey: FOLLOW_A, createdAt: 500 }),
+            noteEvent({ id: 'note-mid', pubkey: FOLLOW_B, createdAt: 420 }),
+            noteEvent({ id: 'note-mid', pubkey: FOLLOW_B, createdAt: 420 }),
+        ]);
+
+        const service = createRuntimeSocialFeedService({
+            createTransport: () => transport as any,
+            resolveRelays: () => ['wss://relay.one'],
+        });
+
+        const page = await service.loadFollowingFeed({
+            follows: [FOLLOW_A, FOLLOW_B],
+            limit: 2,
+            until: 777,
+        });
+
+        expect(page.items.map((item) => item.id)).toEqual(['note-newer', 'note-mid']);
+        expect(page.hasMore).toBe(true);
+        expect(page.nextUntil).toBe(419);
+        expect(transport.fetchBackfill).toHaveBeenCalledWith([
+            expect.objectContaining({
+                until: 777,
+            }),
+        ]);
+    });
+
+    test('loads thread root and paginated replies by #e', async () => {
+        const root = noteEvent({ id: 'root-1', pubkey: FOLLOW_A, createdAt: 500, content: 'root' });
+        const replyA = noteEvent({
+            id: 'reply-a',
+            pubkey: FOLLOW_B,
+            createdAt: 450,
+            tags: [['e', 'root-1', '', 'reply']],
+            content: 'reply-a',
+        });
+        const replyB = noteEvent({
+            id: 'reply-b',
+            pubkey: FOLLOW_A,
+            createdAt: 430,
+            tags: [['e', 'root-1', '', 'reply']],
+            content: 'reply-b',
+        });
+        const unrelated = noteEvent({ id: 'unrelated', pubkey: FOLLOW_A, createdAt: 410, content: 'ignore' });
+
+        const transport = createTransportMock([root, replyA, replyB, unrelated]);
+
+        const service = createRuntimeSocialFeedService({
+            createTransport: () => transport as any,
+            resolveRelays: () => ['wss://relay.one'],
+        });
+
+        const page = await service.loadThread({
+            rootEventId: 'root-1',
+            limit: 1,
+            until: 600,
+        });
+
+        expect(page.root?.id).toBe('root-1');
+        expect(page.replies.map((item) => item.id)).toEqual(['reply-a']);
+        expect(page.hasMore).toBe(true);
+        expect(page.nextUntil).toBe(449);
+        expect(transport.fetchBackfill).toHaveBeenCalledWith([
+            expect.objectContaining({ ids: ['root-1'], limit: 1 }),
+            expect.objectContaining({ '#e': ['root-1'], kinds: [1], until: 600 }),
+        ]);
+    });
+
+    test('keeps feed pagination window aligned when author filters are chunked', async () => {
+        const highAuthor = 'd'.repeat(64);
+        const lowAuthor = 'e'.repeat(64);
+        const follows = [
+            highAuthor,
+            ...Array.from({ length: 119 }, (_, index) => `${(index + 1).toString(16).padStart(2, '0')}`.repeat(32).slice(0, 64)),
+            lowAuthor,
+        ];
+
+        const transport = {
+            publishToRelays: vi.fn(async () => ({ ackedRelays: [], failedRelays: [], timeoutRelays: [] })),
+            subscribe: vi.fn(() => ({
+                unsubscribe() {
+                    return;
+                },
+            })),
+            fetchBackfill: vi.fn(async (filters: Array<{ authors?: string[]; limit?: number; until?: number }>) => {
+                const filter = filters[0];
+                const authors = filter.authors ?? [];
+                const limit = filter.limit ?? 24;
+
+                if (authors.includes(highAuthor)) {
+                    if (typeof filter.until === 'number') {
+                        if (filter.until > 500) {
+                            return [noteEvent({ id: 'note-850', pubkey: highAuthor, createdAt: 850 })];
+                        }
+
+                        return [];
+                    }
+
+                    return [
+                        buildReply('reply-1000', highAuthor, 1000, 'root-1'),
+                        noteEvent({ id: 'note-900', pubkey: highAuthor, createdAt: 900 }),
+                        ...Array.from({ length: Math.max(0, limit - 2) }, (_, index) =>
+                            buildReply(`reply-extra-${index}`, highAuthor, 899 - index, 'root-1')
+                        ),
+                    ];
+                }
+
+                if (authors.includes(lowAuthor)) {
+                    if (typeof filter.until === 'number' && filter.until < 500) {
+                        return [];
+                    }
+
+                    return [noteEvent({ id: 'note-500', pubkey: lowAuthor, createdAt: 500 })];
+                }
+
+                return [];
+            }),
+        };
+
+        const service = createRuntimeSocialFeedService({
+            createTransport: () => transport as any,
+            resolveRelays: () => ['wss://relay.one'],
+        });
+
+        const page = await service.loadFollowingFeed({
+            follows,
+            limit: 2,
+        });
+
+        expect(page.items.map((item) => item.id)).toEqual(['note-900', 'note-850']);
+        expect(page.hasMore).toBe(true);
+        expect(page.nextUntil).toBe(849);
+    });
+
+    test('keeps hasMore true when capped by internal pass limit', async () => {
+        const highAuthor = 'f'.repeat(64);
+
+        const transport = {
+            publishToRelays: vi.fn(async () => ({ ackedRelays: [], failedRelays: [], timeoutRelays: [] })),
+            subscribe: vi.fn(() => ({
+                unsubscribe() {
+                    return;
+                },
+            })),
+            fetchBackfill: vi.fn(async (filters: Array<{ authors?: string[]; limit?: number; until?: number }>) => {
+                const filter = filters[0];
+                const limit = filter.limit ?? 24;
+                const until = typeof filter.until === 'number' ? filter.until : 1000;
+
+                if (typeof filter.until !== 'number') {
+                    const replies = Array.from({ length: limit - 1 }, (_, index) =>
+                        buildReply(`reply-cap-first-${index}`, highAuthor, until - 1 - index, 'root-cap')
+                    );
+                    return [noteEvent({ id: 'note-cap', pubkey: highAuthor, createdAt: 1000 }), ...replies];
+                }
+
+                const replies = Array.from({ length: limit }, (_, index) =>
+                    buildReply(`reply-cap-${until}-${index}`, highAuthor, until - 1 - index, 'root-cap')
+                );
+                return replies;
+            }),
+        };
+
+        const service = createRuntimeSocialFeedService({
+            createTransport: () => transport as any,
+            resolveRelays: () => ['wss://relay.one'],
+        });
+
+        const page = await service.loadFollowingFeed({
+            follows: [highAuthor],
+            limit: 5,
+        });
+
+        expect(page.items.map((item) => item.id)).toEqual(['note-cap']);
+        expect(page.hasMore).toBe(true);
+        expect(typeof page.nextUntil).toBe('number');
+    });
+});

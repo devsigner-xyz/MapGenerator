@@ -17,6 +17,7 @@ import { fetchLatestPostsByPubkey, type NostrPostPreview } from '../../nostr/pos
 import { fetchProfileStats } from '../../nostr/profile-stats';
 import { fetchProfiles } from '../../nostr/profiles';
 import { searchUsers as searchUsersDomain } from '../../nostr/user-search';
+import type { SocialFeedService } from '../../nostr/social-feed-service';
 import { getRelaySetByType, loadRelaySettings, type RelaySettingsByType } from '../../nostr/relay-settings';
 import {
     dmInboxRelayListFromKind10050Event,
@@ -101,6 +102,7 @@ export interface NostrOverlayServices {
     fetchProfileStatsFn?: typeof fetchProfileStats;
     directMessagesService?: DirectMessagesService;
     socialNotificationsService?: SocialNotificationsService;
+    socialFeedService?: SocialFeedService;
 }
 
 interface UseNostrOverlayOptions {
