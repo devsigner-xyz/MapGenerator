@@ -838,7 +838,8 @@
 }
 
 .nostr-easter-egg-missions-dialog {
-    width: min(860px, calc(100vw - 32px));
+    width: min(860px, calc(100vw - 32px)) !important;
+    max-width: min(860px, calc(100vw - 32px)) !important;
     max-height: min(86vh, 760px);
     padding: 0.95rem;
 }
