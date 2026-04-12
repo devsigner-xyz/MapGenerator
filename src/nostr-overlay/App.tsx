@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router';
 import { getDefaultUiSettings, loadUiSettings, saveUiSettings, type UiSettingsState } from '../nostr/ui-settings';
 import { loadZapSettings, type ZapSettingsState } from '../nostr/zap-settings';
 import { encodeHexToNpub } from '../nostr/npub';
@@ -15,7 +16,7 @@ import { ChatDialog, type ChatConversationSummary, type ChatDetailMessage } from
 import { NotificationsIconButton } from './components/NotificationsIconButton';
 import { NotificationsDialog } from './components/NotificationsDialog';
 import { FollowingFeedIconButton } from './components/FollowingFeedIconButton';
-import { FollowingFeedDialog } from './components/FollowingFeedDialog';
+import { FollowingFeedSurface } from './components/FollowingFeedSurface';
 import { GlobalUserSearchDialog } from './components/GlobalUserSearchDialog';
 import { PersonContextMenuItems } from './components/PersonContextMenuItems';
 import { useNostrOverlay, type MapLoaderStage, type NostrOverlayServices } from './hooks/useNostrOverlay';
@@ -72,6 +73,8 @@ function mapLoaderStageLabel(stage: MapLoaderStage | null): string | null {
 }
 
 export function App({ mapBridge, services }: AppProps) {
+    const navigate = useNavigate();
+    const location = useLocation();
     const overlay = useNostrOverlay({ mapBridge, services });
     const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
     const [settingsInitialView, setSettingsInitialView] = useState<SettingsView>('ui');
@@ -397,6 +400,7 @@ export function App({ mapBridge, services }: AppProps) {
     const canAccessDirectMessages = Boolean(overlay.ownerPubkey && overlay.canDirectMessages && overlay.directMessages);
     const canAccessSocialNotifications = Boolean(overlay.ownerPubkey);
     const canAccessFollowingFeed = Boolean(overlay.ownerPubkey);
+    const isFollowingFeedRoute = location.pathname === '/feed';
     const followingFeedHasUnread = !followingFeedState.isDialogOpen
         && followingFeedState.hasMoreFeed
         && followingFeedState.items.length > 0;
@@ -409,6 +413,15 @@ export function App({ mapBridge, services }: AppProps) {
 
         setChatOpen(false);
     }, [canAccessDirectMessages, chatOpen]);
+
+    useEffect(() => {
+        if (isFollowingFeedRoute && canAccessFollowingFeed) {
+            void followingFeed.openDialog();
+            return;
+        }
+
+        followingFeed.closeDialog();
+    }, [isFollowingFeedRoute, canAccessFollowingFeed, followingFeed]);
 
     const copyOwnerIdentifier = async (value: string): Promise<void> => {
         if (!value) {
@@ -512,11 +525,11 @@ export function App({ mapBridge, services }: AppProps) {
             return;
         }
 
-        void followingFeed.openDialog();
+        navigate('/feed');
     };
 
     const closeFollowingFeed = (): void => {
-        followingFeed.closeDialog();
+        navigate('/');
     };
 
     const openGlobalUserSearch = (): void => {
@@ -836,13 +849,17 @@ export function App({ mapBridge, services }: AppProps) {
                 </section>
             )}
 
-            <MapZoomControls mapBridge={mapBridge} />
-            <MapDisplayToggleControls
-                carsEnabled={uiSettings.trafficParticlesCount > 0}
-                streetLabelsEnabled={uiSettings.streetLabelsEnabled}
-                onCarsEnabledChange={setCarsQuickToggle}
-                onStreetLabelsEnabledChange={setStreetLabelsQuickToggle}
-            />
+            {!isFollowingFeedRoute ? (
+                <MapZoomControls mapBridge={mapBridge} />
+            ) : null}
+            {!isFollowingFeedRoute ? (
+                <MapDisplayToggleControls
+                    carsEnabled={uiSettings.trafficParticlesCount > 0}
+                    streetLabelsEnabled={uiSettings.streetLabelsEnabled}
+                    onCarsEnabledChange={setCarsQuickToggle}
+                    onStreetLabelsEnabledChange={setStreetLabelsQuickToggle}
+                />
+            ) : null}
 
             {buildingContextMenu ? (
                 <div
@@ -945,31 +962,39 @@ export function App({ mapBridge, services }: AppProps) {
                 onClose={closeNotifications}
             />
 
-            <FollowingFeedDialog
-                open={followingFeedState.isDialogOpen}
-                onClose={closeFollowingFeed}
-                items={followingFeedState.items}
-                isLoadingFeed={followingFeedState.isLoadingFeed}
-                feedError={followingFeedState.feedError}
-                hasMoreFeed={followingFeedState.hasMoreFeed}
-                activeThread={followingFeedState.activeThread}
-                canWrite={overlay.canWrite}
-                isPublishingPost={followingFeedState.isPublishingPost}
-                isPublishingReply={followingFeedState.isPublishingReply}
-                publishError={followingFeedState.publishError}
-                reactionByEventId={followingFeedState.reactionByEventId}
-                repostByEventId={followingFeedState.repostByEventId}
-                pendingReactionByEventId={followingFeedState.pendingReactionByEventId}
-                pendingRepostByEventId={followingFeedState.pendingRepostByEventId}
-                onLoadMoreFeed={followingFeed.loadNextFeedPage}
-                onOpenThread={followingFeed.openThread}
-                onCloseThread={followingFeed.closeThread}
-                onLoadMoreThread={followingFeed.loadNextThreadPage}
-                onPublishPost={followingFeed.publishPost}
-                onPublishReply={followingFeed.publishReply}
-                onToggleReaction={followingFeed.toggleReaction}
-                onToggleRepost={followingFeed.toggleRepost}
-            />
+            <Routes>
+                <Route
+                    path="/feed"
+                    element={(
+                        <FollowingFeedSurface
+                            onClose={closeFollowingFeed}
+                            items={followingFeedState.items}
+                            isLoadingFeed={followingFeedState.isLoadingFeed}
+                            feedError={followingFeedState.feedError}
+                            hasMoreFeed={followingFeedState.hasMoreFeed}
+                            activeThread={followingFeedState.activeThread}
+                            canWrite={overlay.canWrite}
+                            isPublishingPost={followingFeedState.isPublishingPost}
+                            isPublishingReply={followingFeedState.isPublishingReply}
+                            publishError={followingFeedState.publishError}
+                            reactionByEventId={followingFeedState.reactionByEventId}
+                            repostByEventId={followingFeedState.repostByEventId}
+                            pendingReactionByEventId={followingFeedState.pendingReactionByEventId}
+                            pendingRepostByEventId={followingFeedState.pendingRepostByEventId}
+                            onLoadMoreFeed={followingFeed.loadNextFeedPage}
+                            onOpenThread={followingFeed.openThread}
+                            onCloseThread={followingFeed.closeThread}
+                            onLoadMoreThread={followingFeed.loadNextThreadPage}
+                            onPublishPost={followingFeed.publishPost}
+                            onPublishReply={followingFeed.publishReply}
+                            onToggleReaction={followingFeed.toggleReaction}
+                            onToggleRepost={followingFeed.toggleRepost}
+                        />
+                    )}
+                />
+                <Route path="/" element={null} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
 
             <GlobalUserSearchDialog
                 open={globalSearchOpen}

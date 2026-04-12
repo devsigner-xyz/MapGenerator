@@ -19,6 +19,10 @@ interface RenderResult {
     root: Root;
 }
 
+interface RenderOptions {
+    initialEntries?: string[];
+}
+
 interface MapBridgeStub {
     bridge: MapBridge;
     triggerOccupiedBuildingClick: (payload: { buildingIndex: number; pubkey: string }) => void;
@@ -246,13 +250,17 @@ function createSocialFeedServiceMock() {
     };
 }
 
-async function renderApp(element: ReactElement): Promise<RenderResult> {
+async function renderApp(element: ReactElement, options: RenderOptions = {}): Promise<RenderResult> {
     const container = document.createElement('div');
     document.body.appendChild(container);
     const root = createRoot(container);
 
     await act(async () => {
-        root.render(<MemoryRouter>{element}</MemoryRouter>);
+        root.render(
+            <MemoryRouter initialEntries={options.initialEntries ?? ['/']}>
+                {element}
+            </MemoryRouter>
+        );
     });
 
     return { container, root };
@@ -632,6 +640,142 @@ describe('Nostr overlay App', () => {
         } finally {
             window.location.hash = previousHash;
         }
+    });
+
+    test('following feed route opens from toolbar and renders routed close action', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const socialFeed = createSocialFeedServiceMock();
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: ['a'.repeat(64)],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                    socialFeedService: socialFeed.service,
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        await loginWithNsec(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const feedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir feed de seguidos"]') as HTMLButtonElement;
+        expect(feedButton).toBeDefined();
+
+        await act(async () => {
+            feedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Volver al mapa'));
+    });
+
+    test('following feed route close action returns back to map view', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const socialFeed = createSocialFeedServiceMock();
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                    socialFeedService: socialFeed.service,
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        await loginWithNsec(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const feedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir feed de seguidos"]') as HTMLButtonElement;
+        await act(async () => {
+            feedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Volver al mapa'));
+        const closeButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Volver al mapa')
+        ) as HTMLButtonElement;
+        expect(closeButton).toBeDefined();
+
+        await act(async () => {
+            closeButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => !((rendered.container.textContent || '').includes('Volver al mapa')));
+    });
+
+    test('following feed route loads first page when entering /feed directly', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const socialFeed = createSocialFeedServiceMock();
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: ['a'.repeat(64)],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                    socialFeedService: socialFeed.service,
+                }}
+            />,
+            { initialEntries: ['/feed'] }
+        );
+        mounted.push(rendered);
+
+        await loginWithNsec(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+        await waitFor(() => (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mock.calls.length > 0);
     });
 
     test('renders chat button in panel and compact toolbar and opens chat dialog in list view', async () => {
@@ -2459,27 +2603,25 @@ describe('Nostr overlay App', () => {
 
         await selectSettingsContextAction(rendered.container, 'UI');
 
-        const trafficCountInput = rendered.container.querySelector('input[aria-label="Cars in city"]') as HTMLInputElement;
-        const trafficSpeedInput = rendered.container.querySelector('input[aria-label="Cars speed"]') as HTMLInputElement;
-        expect(trafficCountInput).toBeDefined();
-        expect(trafficSpeedInput).toBeDefined();
+        const trafficCountThumb = rendered.container.querySelector('[aria-label="Cars in city"] [data-slot="slider-thumb"]') as HTMLElement;
+        const trafficSpeedThumb = rendered.container.querySelector('[aria-label="Cars speed"] [data-slot="slider-thumb"]') as HTMLElement;
+        expect(trafficCountThumb).toBeDefined();
+        expect(trafficSpeedThumb).toBeDefined();
 
         await act(async () => {
-            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-            valueSetter?.call(trafficCountInput, '22');
-            trafficCountInput.dispatchEvent(new Event('input', { bubbles: true }));
-            trafficCountInput.dispatchEvent(new Event('change', { bubbles: true }));
+            trafficCountThumb.focus();
+            trafficCountThumb.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
         });
 
         await act(async () => {
-            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-            valueSetter?.call(trafficSpeedInput, '1.7');
-            trafficSpeedInput.dispatchEvent(new Event('input', { bubbles: true }));
-            trafficSpeedInput.dispatchEvent(new Event('change', { bubbles: true }));
+            trafficSpeedThumb.focus();
+            trafficSpeedThumb.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
         });
 
-        expect((bridge.setTrafficParticlesCount as any)).toHaveBeenLastCalledWith(22);
-        expect((bridge.setTrafficParticlesSpeed as any)).toHaveBeenLastCalledWith(1.7);
+        const lastTrafficCount = (bridge.setTrafficParticlesCount as any).mock.calls.at(-1)?.[0] as number;
+        const lastTrafficSpeed = (bridge.setTrafficParticlesSpeed as any).mock.calls.at(-1)?.[0] as number;
+        expect(lastTrafficCount).toBeGreaterThan(20);
+        expect(lastTrafficSpeed).toBeGreaterThan(1.4);
     });
 
     test('can collapse panel to compact icon row and restore it', async () => {
