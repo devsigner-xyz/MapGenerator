@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router';
 import { getDefaultUiSettings, loadUiSettings, saveUiSettings, type UiSettingsState } from '../nostr/ui-settings';
 import { loadZapSettings, type ZapSettingsState } from '../nostr/zap-settings';
@@ -14,14 +14,16 @@ import { OccupantProfileDialog } from './components/OccupantProfileDialog';
 import { EasterEggDialog } from './components/EasterEggDialog';
 import { EasterEggMissionsDialog } from './components/EasterEggMissionsDialog';
 import { SocialSidebar } from './components/SocialSidebar';
+import {
+    OverlaySidebar,
+    OVERLAY_SIDEBAR_COLLAPSED_WIDTH,
+    OVERLAY_SIDEBAR_EXPANDED_WIDTH,
+} from './components/OverlaySidebar';
 import { MapZoomControls } from './components/MapZoomControls';
 import { MapDisplayToggleControls } from './components/MapDisplayToggleControls';
 import { CityStatsDialog } from './components/CityStatsDialog';
-import { ChatIconButton } from './components/ChatIconButton';
 import { ChatDialog, type ChatConversationSummary, type ChatDetailMessage } from './components/ChatDialog';
-import { NotificationsIconButton } from './components/NotificationsIconButton';
 import { NotificationsDialog } from './components/NotificationsDialog';
-import { FollowingFeedIconButton } from './components/FollowingFeedIconButton';
 import { FollowingFeedSurface } from './components/FollowingFeedSurface';
 import { GlobalUserSearchDialog } from './components/GlobalUserSearchDialog';
 import { PersonContextMenuItems } from './components/PersonContextMenuItems';
@@ -34,8 +36,7 @@ import { extractStreetLabelUsernames } from './domain/street-label-users';
 import { getEasterEggEntry } from './easter-eggs/catalog';
 import { createRuntimeSocialNotificationsService } from '../nostr/social-notifications-runtime-service';
 import { createRuntimeSocialFeedService } from '../nostr/social-feed-runtime-service';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { Spinner } from '@/components/ui/spinner';
 import {
     ContextMenu,
@@ -86,7 +87,7 @@ export function App({ mapBridge, services }: AppProps) {
     const [settingsInitialView, setSettingsInitialView] = useState<SettingsView>('ui');
     const [cityStatsDialogOpen, setCityStatsDialogOpen] = useState(false);
     const [missionsDialogOpen, setMissionsDialogOpen] = useState(false);
-    const [panelCollapsed, setPanelCollapsed] = useState(false);
+    const [sidebarOpen, setSidebarOpen] = useState(true);
     const [uiSettings, setUiSettings] = useState<UiSettingsState>(() => loadUiSettings());
     const [zapSettings, setZapSettings] = useState<ZapSettingsState>(() => loadZapSettings());
     const [easterEggProgress, setEasterEggProgress] = useState<EasterEggProgressState>(() => loadEasterEggProgress());
@@ -97,6 +98,7 @@ export function App({ mapBridge, services }: AppProps) {
     const [chatComposerFocusKey, setChatComposerFocusKey] = useState('');
     const [chatStateVersion, setChatStateVersion] = useState(0);
     const [chatPinnedConversationId, setChatPinnedConversationId] = useState<string | null>(null);
+    const isMobile = useIsMobile();
     const contextMenuTriggerRef = useRef<HTMLSpanElement | null>(null);
     const contextMenuNonceRef = useRef(0);
     const easterEggNonceRef = useRef(0);
@@ -177,11 +179,17 @@ export function App({ mapBridge, services }: AppProps) {
             return;
         }
 
-        mapBridge.setViewportInsetLeft(panelCollapsed ? 0 : 380);
+        mapBridge.setViewportInsetLeft(
+            isMobile
+                ? 0
+                : sidebarOpen
+                    ? OVERLAY_SIDEBAR_EXPANDED_WIDTH
+                    : OVERLAY_SIDEBAR_COLLAPSED_WIDTH
+        );
         return () => {
             mapBridge.setViewportInsetLeft(0);
         };
-    }, [mapBridge, panelCollapsed]);
+    }, [isMobile, mapBridge, sidebarOpen]);
 
     useEffect(() => {
         if (!mapBridge) {
@@ -594,43 +602,6 @@ export function App({ mapBridge, services }: AppProps) {
         setSettingsDialogOpen(true);
     };
 
-    const openSettingsContextMenu = (event: ReactMouseEvent<HTMLButtonElement>): void => {
-        event.preventDefault();
-        const rect = event.currentTarget.getBoundingClientRect();
-        event.currentTarget.dispatchEvent(new window.MouseEvent('contextmenu', {
-            bubbles: true,
-            cancelable: true,
-            clientX: rect.left + rect.width / 2,
-            clientY: rect.top + rect.height / 2,
-        }));
-    };
-
-    const renderSettingsContextMenu = () => (
-        <ContextMenuContent className="w-52">
-            <ContextMenuItem onSelect={() => openSettingsDialog('ui')}>UI</ContextMenuItem>
-            <ContextMenuItem onSelect={() => openSettingsDialog('shortcuts')}>Shortcuts</ContextMenuItem>
-            <ContextMenuItem onSelect={() => openSettingsDialog('relays')}>Relays</ContextMenuItem>
-            <ContextMenuItem onSelect={() => openSettingsDialog('zaps')}>Zaps</ContextMenuItem>
-            <ContextMenuItem onSelect={() => openSettingsDialog('about')}>About</ContextMenuItem>
-            <ContextMenuItem onSelect={() => openSettingsDialog('advanced')}>Advanced settings</ContextMenuItem>
-            {overlay.authSession ? (
-                <>
-                    <ContextMenuSeparator />
-                    <ContextMenuItem
-                        variant="destructive"
-                        onSelect={() => {
-                            void overlay.logoutSession?.();
-                            setSettingsDialogOpen(false);
-                            setSettingsInitialView('ui');
-                        }}
-                    >
-                        Cerrar sesión
-                    </ContextMenuItem>
-                </>
-            ) : null}
-        </ContextMenuContent>
-    );
-
     const openDmFromContextMenu = async (pubkey: string): Promise<void> => {
         if (!canAccessDirectMessages || !overlay.directMessages) {
             return;
@@ -640,235 +611,69 @@ export function App({ mapBridge, services }: AppProps) {
     };
 
     return (
-        <div className={`nostr-overlay-shell${panelCollapsed ? ' nostr-overlay-shell-collapsed' : ''}`}>
-            {panelCollapsed ? (
-                <div className="nostr-compact-toolbar">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="nostr-settings-button"
-                        aria-label="Mostrar panel"
-                        title="Show panel"
-                        onClick={() => setPanelCollapsed(false)}
-                    >
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                            <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5v-13zm3 0v13h11v-13H7zm2.2 6.7h5.6l-2.3 2.3a1 1 0 1 0 1.4 1.4l4-4a1 1 0 0 0 0-1.4l-4-4a1 1 0 0 0-1.4 1.4l2.3 2.3H9.2a1 1 0 1 0 0 2z" />
-                        </svg>
-                    </Button>
-
-                    <ContextMenu>
-                        <ContextMenuTrigger asChild>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="nostr-settings-button"
-                                aria-label="Abrir ajustes"
-                                title="Settings"
-                                onClick={openSettingsContextMenu}
-                            >
-                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                    <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.56 7.56 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.57.23-1.11.54-1.63.94l-2.39-.96a.5.5 0 0 0-.61.22L2.71 8.84a.5.5 0 0 0 .12.64L4.86 11c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.31.61.22l2.39-.96c.5.4 1.05.72 1.63.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.57-.23 1.12-.54 1.63-.94l2.39.96c.22.09.48 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z" />
-                                </svg>
-                            </Button>
-                        </ContextMenuTrigger>
-                        {renderSettingsContextMenu()}
-                    </ContextMenu>
-
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="nostr-settings-button"
-                        aria-label="Abrir buscador global de usuarios"
-                        title="Buscar usuarios"
-                        onClick={openGlobalUserSearch}
-                    >
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                            <path d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm0-2a9 9 0 1 1 5.65 16l4.7 4.7a1 1 0 0 1-1.42 1.4l-4.7-4.7A9 9 0 0 1 11 2z" />
-                        </svg>
-                    </Button>
-
-                    {canAccessDirectMessages ? (
-                        <ChatIconButton hasUnread={chatState?.hasUnreadGlobal ?? false} onClick={openChatList} />
-                    ) : null}
-
-                    {canAccessSocialNotifications ? (
-                        <NotificationsIconButton hasUnread={socialState.hasUnread} onClick={openNotifications} />
-                    ) : null}
-
-                    {canAccessFollowingFeed ? (
-                        <FollowingFeedIconButton hasUnread={followingFeedHasUnread} onClick={openFollowingFeed} />
-                    ) : null}
-
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="nostr-settings-button"
-                        aria-label="Regenerar mapa"
-                        title="New map"
-                        onClick={() => {
-                            void overlay.regenerateMap();
-                        }}
-                        disabled={regenerateDisabled}
-                    >
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                            <path d="M20 12a8 8 0 1 1-2.34-5.66" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                            <path d="M20 4v6h-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                    </Button>
-
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="nostr-settings-button"
-                        aria-label="Abrir estadisticas de la ciudad"
-                        title="City stats"
-                        onClick={() => setCityStatsDialogOpen(true)}
-                    >
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                            <path d="M5 20h14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                            <path d="M8 20v-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                            <path d="M12 20v-11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                            <path d="M16 20v-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                        </svg>
-                    </Button>
-                </div>
-            ) : (
-                <section className="nostr-panel">
-                    <div className="nostr-panel-toolbar">
-                        <div className="nostr-panel-toolbar-status">
-                            {overlay.authSession?.readonly ? <Badge variant="outline">Read Only</Badge> : null}
-                        </div>
-
-                        <div className="nostr-panel-toolbar-actions">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="nostr-settings-button"
-                                aria-label="Abrir estadisticas de la ciudad"
-                                title="City stats"
-                                onClick={() => setCityStatsDialogOpen(true)}
-                            >
-                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                    <path d="M5 20h14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                                    <path d="M8 20v-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                                    <path d="M12 20v-11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                                    <path d="M16 20v-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                                </svg>
-                            </Button>
-
-                            {canAccessDirectMessages ? (
-                                <ChatIconButton hasUnread={chatState?.hasUnreadGlobal ?? false} onClick={openChatList} />
-                            ) : null}
-
-                            {canAccessSocialNotifications ? (
-                                <NotificationsIconButton hasUnread={socialState.hasUnread} onClick={openNotifications} />
-                            ) : null}
-
-                            {canAccessFollowingFeed ? (
-                                <FollowingFeedIconButton hasUnread={followingFeedHasUnread} onClick={openFollowingFeed} />
-                            ) : null}
-
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="nostr-settings-button"
-                                aria-label="Regenerar mapa"
-                                title="New map"
-                                onClick={() => {
-                                    void overlay.regenerateMap();
-                                }}
-                                disabled={regenerateDisabled}
-                            >
-                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                    <path d="M20 12a8 8 0 1 1-2.34-5.66" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                    <path d="M20 4v6h-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
-                            </Button>
-
-                            <ContextMenu>
-                                <ContextMenuTrigger asChild>
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="icon"
-                                        className="nostr-settings-button"
-                                        aria-label="Abrir ajustes"
-                                        title="Settings"
-                                        onClick={openSettingsContextMenu}
-                                    >
-                                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                            <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.56 7.56 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.57.23-1.11.54-1.63.94l-2.39-.96a.5.5 0 0 0-.61.22L2.71 8.84a.5.5 0 0 0 .12.64L4.86 11c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.31.61.22l2.39-.96c.5.4 1.05.72 1.63.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.57-.23 1.12-.54 1.63-.94l2.39.96c.22.09.48 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z" />
-                                        </svg>
-                                    </Button>
-                                </ContextMenuTrigger>
-                                {renderSettingsContextMenu()}
-                            </ContextMenu>
-
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="nostr-settings-button"
-                                aria-label="Abrir buscador global de usuarios"
-                                title="Buscar usuarios"
-                                onClick={openGlobalUserSearch}
-                            >
-                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                    <path d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm0-2a9 9 0 1 1 5.65 16l4.7 4.7a1 1 0 0 1-1.42 1.4l-4.7-4.7A9 9 0 0 1 11 2z" />
-                                </svg>
-                            </Button>
-
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="nostr-settings-button"
-                                aria-label="Ocultar panel"
-                                title="Hide panel"
-                                onClick={() => setPanelCollapsed(true)}
-                            >
-                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                    <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5v-13zm3 0v13h11v-13H7zm7.6 6.7H9l2.3 2.3a1 1 0 0 1-1.4 1.4l-4-4a1 1 0 0 1 0-1.4l4-4a1 1 0 1 1 1.4 1.4L9 10.2h5.6a1 1 0 1 1 0 2z" />
-                                </svg>
-                            </Button>
-                        </div>
-                    </div>
-
-                    <SocialSidebar
-                        ownerPubkey={overlay.ownerPubkey}
-                        ownerProfile={overlay.ownerProfile}
-                        follows={overlay.follows}
-                        profiles={overlay.profiles}
-                        followers={overlay.followers}
-                        followerProfiles={overlay.followerProfiles}
-                        followersLoading={overlay.followersLoading}
-                        selectedFollowingPubkey={overlay.selectedPubkey}
-                        onSelectFollowing={overlay.selectFollowing}
-                        onLocateFollowing={locateFollowingOnMap}
-                        onMessagePerson={canAccessDirectMessages ? openDmFromContextMenu : undefined}
-                        onViewPersonDetails={(pubkey) => overlay.openActiveProfile(pubkey)}
-                        zapAmounts={zapSettings.amounts}
-                        onConfigureZapAmounts={() => openSettingsDialog('zaps')}
-                        onLocateOwner={locateOwnerOnMap}
-                        onCopyOwnerNpub={copyOwnerIdentifier}
-                        loginDisabled={loginDisabled}
-                        authSession={overlay.authSession}
-                        canWrite={overlay.canWrite}
-                        canEncrypt={overlay.canEncrypt}
-                        onStartSession={overlay.startSession}
-                        verificationByPubkey={verificationByPubkey}
-                        easterEggDiscoveredIds={easterEggProgress.discoveredIds}
-                        onOpenMissions={() => setMissionsDialogOpen(true)}
-                    />
-                </section>
-            )}
+        <div
+            className="nostr-overlay-shell"
+            style={{ width: isMobile ? '100vw' : `${sidebarOpen ? OVERLAY_SIDEBAR_EXPANDED_WIDTH : OVERLAY_SIDEBAR_COLLAPSED_WIDTH}px` }}
+        >
+            <OverlaySidebar
+                open={sidebarOpen}
+                onOpenChange={setSidebarOpen}
+                authSession={overlay.authSession}
+                ownerPubkey={overlay.ownerPubkey}
+                ownerProfile={overlay.ownerProfile}
+                canAccessDirectMessages={canAccessDirectMessages}
+                canAccessSocialNotifications={canAccessSocialNotifications}
+                canAccessFollowingFeed={canAccessFollowingFeed}
+                chatHasUnread={chatState?.hasUnreadGlobal ?? false}
+                notificationsHasUnread={socialState.hasUnread}
+                followingFeedHasUnread={followingFeedHasUnread}
+                regenerateDisabled={regenerateDisabled}
+                onOpenCityStats={() => setCityStatsDialogOpen(true)}
+                onOpenChat={openChatList}
+                onOpenNotifications={openNotifications}
+                onOpenFollowingFeed={openFollowingFeed}
+                onOpenGlobalSearch={openGlobalUserSearch}
+                onRegenerateMap={overlay.regenerateMap}
+                onOpenSettings={openSettingsDialog}
+                onLogout={async () => {
+                    await overlay.logoutSession?.();
+                    setSettingsDialogOpen(false);
+                    setSettingsInitialView('ui');
+                }}
+                onCopyOwnerNpub={copyOwnerIdentifier}
+                onLocateOwner={locateOwnerOnMap}
+                onViewOwnerDetails={() => {
+                    if (overlay.ownerPubkey) {
+                        overlay.openActiveProfile(overlay.ownerPubkey, overlay.ownerBuildingIndex);
+                    }
+                }}
+            >
+                <SocialSidebar
+                    ownerPubkey={overlay.ownerPubkey}
+                    ownerProfile={overlay.ownerProfile}
+                    follows={overlay.follows}
+                    profiles={overlay.profiles}
+                    followers={overlay.followers}
+                    followerProfiles={overlay.followerProfiles}
+                    followersLoading={overlay.followersLoading}
+                    selectedFollowingPubkey={overlay.selectedPubkey}
+                    onSelectFollowing={overlay.selectFollowing}
+                    onLocateFollowing={locateFollowingOnMap}
+                    onMessagePerson={canAccessDirectMessages ? openDmFromContextMenu : undefined}
+                    onViewPersonDetails={(pubkey) => overlay.openActiveProfile(pubkey)}
+                    zapAmounts={zapSettings.amounts}
+                    onConfigureZapAmounts={() => openSettingsDialog('zaps')}
+                    onCopyOwnerNpub={copyOwnerIdentifier}
+                    loginDisabled={loginDisabled}
+                    authSession={overlay.authSession}
+                    canWrite={overlay.canWrite}
+                    canEncrypt={overlay.canEncrypt}
+                    onStartSession={overlay.startSession}
+                    verificationByPubkey={verificationByPubkey}
+                    easterEggDiscoveredIds={easterEggProgress.discoveredIds}
+                    onOpenMissions={() => setMissionsDialogOpen(true)}
+                />
+            </OverlaySidebar>
 
             {!isFollowingFeedRoute ? (
                 <MapZoomControls mapBridge={mapBridge} />

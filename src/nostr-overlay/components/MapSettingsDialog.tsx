@@ -634,7 +634,7 @@ export function MapSettingsDialog({
                 <div className="nostr-settings-header">
                     <p className="nostr-settings-title">
                         {view === 'advanced'
-                                ? 'Advanced settings'
+                            ? 'Advanced settings'
                             : view === 'ui'
                                 ? 'UI'
                                 : view === 'shortcuts'
@@ -643,639 +643,637 @@ export function MapSettingsDialog({
                                         ? 'Relays'
                                         : view === 'relay-detail'
                                             ? 'Relay details'
-                                        : view === 'zaps'
-                                            ? 'Zaps'
-                                            : 'About'}
+                                            : view === 'zaps'
+                                                ? 'Zaps'
+                                                : 'About'}
                     </p>
 
                 </div>
 
                 <div className="nostr-settings-body">
                     {view === 'advanced' ? (
-                    <div className="nostr-shortcuts-content">
-                        <p>Configuracion avanzada del MapGenerator.</p>
-                        <div ref={settingsHostRef} className="nostr-settings-host" />
-                    </div>
-                ) : view === 'ui' ? (
-                    <div className="nostr-shortcuts-content">
-                        <p>Configura el zoom minimo para mostrar avatar y nombre en edificios ocupados.</p>
-                        <div className="nostr-ui-slider-row">
-                            <Label className="nostr-label" htmlFor="nostr-occupied-zoom-level">Occupied labels zoom level</Label>
-                            <span className="nostr-ui-slider-value">{uiSettings.occupiedLabelsZoomLevel}</span>
+                        <div className="nostr-shortcuts-content">
+                            <p>Configuracion avanzada del MapGenerator.</p>
+                            <div ref={settingsHostRef} className="nostr-settings-host" />
                         </div>
-                        <Slider
-                            id="nostr-occupied-zoom-level"
-                            aria-label="Occupied labels zoom level"
-                            min={1}
-                            max={20}
-                            step={1}
-                            value={[uiSettings.occupiedLabelsZoomLevel]}
-                            onValueChange={(values) => {
-                                const nextValue = values[0];
-                                if (!Number.isFinite(nextValue)) {
-                                    return;
-                                }
-                                persistUiSettings({
-                                    ...uiSettings,
-                                    occupiedLabelsZoomLevel: nextValue,
-                                });
-                            }}
-                        />
-                        <div className="nostr-ui-slider-marks" aria-hidden="true">
-                            <span>1</span>
-                            <span>8</span>
-                            <span>20</span>
-                        </div>
-
-                        <Separator className="nostr-divider" />
-
-                        <div className="nostr-ui-toggle-row">
-                            <Label className="nostr-label" htmlFor="nostr-street-labels-enabled">Street labels</Label>
-                            <Switch
-                                id="nostr-street-labels-enabled"
-                                size="sm"
-                                aria-label="Street labels enabled"
-                                checked={uiSettings.streetLabelsEnabled}
-                                onCheckedChange={(checked) => {
-                                    persistUiSettings({
-                                        ...uiSettings,
-                                        streetLabelsEnabled: checked,
-                                    });
-                                }}
-                            />
-                        </div>
-
-                        <div className="nostr-ui-toggle-row">
-                            <Label className="nostr-label" htmlFor="nostr-verified-buildings-overlay-enabled">Verified buildings overlay</Label>
-                            <Switch
-                                id="nostr-verified-buildings-overlay-enabled"
-                                size="sm"
-                                aria-label="Verified buildings overlay enabled"
-                                checked={uiSettings.verifiedBuildingsOverlayEnabled}
-                                onCheckedChange={(checked) => {
-                                    persistUiSettings({
-                                        ...uiSettings,
-                                        verifiedBuildingsOverlayEnabled: checked,
-                                    });
-                                }}
-                            />
-                        </div>
-
-                        <div className="nostr-ui-slider-row">
-                            <Label className="nostr-label" htmlFor="nostr-street-zoom-level">Street labels zoom level</Label>
-                            <span className="nostr-ui-slider-value">{uiSettings.streetLabelsZoomLevel}</span>
-                        </div>
-                        <Slider
-                            id="nostr-street-zoom-level"
-                            aria-label="Street labels zoom level"
-                            min={1}
-                            max={20}
-                            step={1}
-                            disabled={!uiSettings.streetLabelsEnabled}
-                            value={[uiSettings.streetLabelsZoomLevel]}
-                            onValueChange={(values) => {
-                                const nextValue = values[0];
-                                if (!Number.isFinite(nextValue)) {
-                                    return;
-                                }
-                                persistUiSettings({
-                                    ...uiSettings,
-                                    streetLabelsZoomLevel: nextValue,
-                                });
-                            }}
-                        />
-
-                        <Separator className="nostr-divider" />
-
-                        <div className="nostr-ui-slider-row">
-                            <Label className="nostr-label" htmlFor="nostr-traffic-count">Cars in city</Label>
-                            <span className="nostr-ui-slider-value">{uiSettings.trafficParticlesCount}</span>
-                        </div>
-                        <Slider
-                            id="nostr-traffic-count"
-                            min={0}
-                            max={50}
-                            step={1}
-                            aria-label="Cars in city"
-                            value={[uiSettings.trafficParticlesCount]}
-                            onValueChange={(values) => {
-                                const nextValue = values[0];
-                                if (!Number.isFinite(nextValue)) {
-                                    return;
-                                }
-
-                                persistUiSettings({
-                                    ...uiSettings,
-                                    trafficParticlesCount: nextValue,
-                                });
-                            }}
-                        />
-
-                        <div className="nostr-ui-slider-row">
-                            <Label className="nostr-label" htmlFor="nostr-traffic-speed">Cars speed</Label>
-                            <span className="nostr-ui-slider-value">{uiSettings.trafficParticlesSpeed.toFixed(1)}x</span>
-                        </div>
-                        <Slider
-                            id="nostr-traffic-speed"
-                            min={0.2}
-                            max={3}
-                            step={0.1}
-                            aria-label="Cars speed"
-                            value={[uiSettings.trafficParticlesSpeed]}
-                            onValueChange={(values) => {
-                                const nextValue = values[0];
-                                if (!Number.isFinite(nextValue)) {
-                                    return;
-                                }
-
-                                persistUiSettings({
-                                    ...uiSettings,
-                                    trafficParticlesSpeed: nextValue,
-                                });
-                            }}
-                        />
-                    </div>
-                ) : view === 'relays' ? (
-                    <div className="nostr-relays-content">
-                        <p className="nostr-relays-help">Conecta varios relays. Puedes agregar uno por vez y elegir categoria.</p>
-
-                        <div className="nostr-relay-connection-summary" role="status" aria-live="polite">
-                            <p>Relays configurados: {configuredRows.length}</p>
-                            <p>Conectados: {connectedConfiguredRelays}</p>
-                            <p>Sin conexión: {disconnectedConfiguredRelays}</p>
-                        </div>
-
-                        <div className="nostr-relay-table-wrap">
-                            <Table className="nostr-relay-table">
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Relay</TableHead>
-                                        <TableHead>Type</TableHead>
-                                        <TableHead>Estado</TableHead>
-                                        <TableHead className="nostr-relay-actions-head">Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {configuredRows.map(({ relayUrl, relayType }) => {
-                                        const details = describeRelay(relayUrl, 'configured');
-                                        const info = relayInfoByUrl[relayUrl];
-                                        const document = info?.data;
-                                        const relayConnectionStatus = configuredRelayConnectionStatusByRelay[relayUrl];
-
-                                        return (
-                                            <TableRow key={`configured-${relayType}-${relayUrl}`}>
-                                                <TableCell className="nostr-relay-url-cell">
-                                                    <div className="nostr-relay-main-cell">
-                                                        <Avatar className="size-8">
-                                                            {document?.icon ? <AvatarImage src={document.icon} alt={document.name || details.host} /> : null}
-                                                            <AvatarFallback>{relayAvatarFallback(details, document)}</AvatarFallback>
-                                                        </Avatar>
-                                                        <div className="min-w-0">
-                                                            <p className="nostr-relay-summary-primary">{document?.name || relayUrl}</p>
-                                                        </div>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Badge variant="outline">{RELAY_TYPE_LABELS[relayType]}</Badge>
-                                                </TableCell>
-                                                <TableCell>
-                                                    {relayConnectionBadge(relayConnectionStatus)}
-                                                </TableCell>
-                                                <TableCell className="nostr-relay-actions-cell">
-                                                    <ContextMenu>
-                                                        <ContextMenuTrigger asChild>
-                                                            <Button
-                                                                type="button"
-                                                                variant="outline"
-                                                                size="icon-sm"
-                                                                aria-label={`Abrir acciones para ${relayUrl} (${RELAY_TYPE_LABELS[relayType]})`}
-                                                                onClick={openRelayActionsMenu}
-                                                            >
-                                                                <EllipsisVerticalIcon data-icon="inline-start" />
-                                                            </Button>
-                                                        </ContextMenuTrigger>
-                                                        <ContextMenuContent>
-                                                            <ContextMenuGroup>
-                                                                <ContextMenuItem onSelect={() => openRelayDetails(relayUrl, 'configured', relayType)}>
-                                                                    Details
-                                                                </ContextMenuItem>
-                                                                <ContextMenuItem variant="destructive" onSelect={() => handleRemoveRelay(relayUrl, relayType)}>
-                                                                    Remove
-                                                                </ContextMenuItem>
-                                                            </ContextMenuGroup>
-                                                        </ContextMenuContent>
-                                                    </ContextMenu>
-                                                </TableCell>
-                                            </TableRow>
-                                        );
-                                    })}
-                                </TableBody>
-                            </Table>
-                        </div>
-
-                        <InputGroup>
-                            <InputGroupInput
-                                aria-label="Relay URLs"
-                                placeholder="wss://relay.example"
-                                value={newRelayInput}
-                                onChange={(event) => setNewRelayInput(event.target.value)}
-                            />
-                            <InputGroupAddon align="inline-end">
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <InputGroupButton variant="ghost" aria-label="Relay category">
-                                            {RELAY_TYPE_LABELS[newRelayType]}
-                                            <ChevronDownIcon />
-                                        </InputGroupButton>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                        <DropdownMenuGroup>
-                                            {RELAY_TYPES.map((relayType) => (
-                                                <DropdownMenuItem
-                                                    key={`relay-type-${relayType}`}
-                                                    onSelect={() => setNewRelayType(relayType)}
-                                                >
-                                                    {RELAY_TYPE_LABELS[relayType]}
-                                                </DropdownMenuItem>
-                                            ))}
-                                        </DropdownMenuGroup>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-
-                                <InputGroupButton
-                                    variant="secondary"
-                                    onClick={handleAddRelays}
-                                >
-                                    Añadir
-                                </InputGroupButton>
-                            </InputGroupAddon>
-                        </InputGroup>
-
-                        {invalidRelayInputs.length > 0 ? (
-                            <p className="nostr-settings-error">
-                                Entradas invalidas: {invalidRelayInputs.join(', ')}
-                            </p>
-                        ) : null}
-
-                        {suggestedRows.length > 0 ? (
-                            <section className="nostr-relay-suggested">
-                                <div className="nostr-relay-suggested-header">
-                                    <p>Relays sugeridos por protocolo (NIP-65 / NIP-17)</p>
-                                    <Button type="button" variant="outline" className="nostr-relay-add-suggested" onClick={handleAddAllSuggestedRelays}>
-                                        Agregar todos
-                                    </Button>
-                                </div>
-
-                                <div className="nostr-relay-table-wrap">
-                                    <Table className="nostr-relay-table">
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>Relay</TableHead>
-                                                <TableHead>Type</TableHead>
-                                                <TableHead>Estado</TableHead>
-                                                <TableHead className="nostr-relay-actions-head">Actions</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {suggestedRows.map(({ relayUrl, relayType }) => {
-                                                const details = describeRelay(relayUrl, 'suggested');
-                                                const info = relayInfoByUrl[relayUrl];
-                                                const document = info?.data;
-                                                const relayConnectionStatus = relayConnectionStatusByRelay[relayUrl];
-
-                                                return (
-                                                    <TableRow key={`suggested-${relayType}-${relayUrl}`}>
-                                                        <TableCell className="nostr-relay-url-cell">
-                                                            <div className="nostr-relay-main-cell">
-                                                                <Avatar className="size-8">
-                                                                    {document?.icon ? <AvatarImage src={document.icon} alt={document.name || details.host} /> : null}
-                                                                    <AvatarFallback>{relayAvatarFallback(details, document)}</AvatarFallback>
-                                                                </Avatar>
-                                                                <div className="min-w-0">
-                                                                    <p className="nostr-relay-summary-primary">{document?.name || relayUrl}</p>
-                                                                </div>
-                                                            </div>
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <Badge variant="outline">{RELAY_TYPE_LABELS[relayType]}</Badge>
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {relayConnectionBadge(relayConnectionStatus)}
-                                                        </TableCell>
-                                                        <TableCell className="nostr-relay-actions-cell">
-                                                            <ContextMenu>
-                                                                <ContextMenuTrigger asChild>
-                                                                    <Button
-                                                                        type="button"
-                                                                        variant="outline"
-                                                                        size="icon-sm"
-                                                                        aria-label={`Abrir acciones sugeridas para ${relayUrl} (${RELAY_TYPE_LABELS[relayType]})`}
-                                                                        onClick={openRelayActionsMenu}
-                                                                    >
-                                                                        <EllipsisVerticalIcon data-icon="inline-start" />
-                                                                    </Button>
-                                                                </ContextMenuTrigger>
-                                                                <ContextMenuContent>
-                                                                    <ContextMenuGroup>
-                                                                        <ContextMenuItem onSelect={() => openRelayDetails(relayUrl, 'suggested', relayType)}>
-                                                                            Details
-                                                                        </ContextMenuItem>
-                                                                        <ContextMenuItem onSelect={() => handleAddSuggestedRelay(relayUrl, relayType)}>
-                                                                            Add
-                                                                        </ContextMenuItem>
-                                                                    </ContextMenuGroup>
-                                                                </ContextMenuContent>
-                                                            </ContextMenu>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                );
-                                            })}
-                                        </TableBody>
-                                    </Table>
-                                </div>
-                            </section>
-                        ) : hasSuggestedRelays ? (
-                            <p className="nostr-relays-help">Todos los relays sugeridos ya estan agregados.</p>
-                        ) : null}
-                    </div>
-                ) : view === 'relay-detail' && selectedRelayDetails ? (
-                    <div className="nostr-relays-content">
-                        {selectedRelayInfo?.status === 'loading' ? (
-                            <p className="nostr-relay-meta-loading"><Spinner /> Cargando metadata NIP-11...</p>
-                        ) : null}
-
-                        <div className="nostr-relay-detail-header">
-                            <Avatar className="size-10">
-                                {selectedRelayDocument?.icon ? <AvatarImage src={selectedRelayDocument.icon} alt={selectedRelayDocument.name || selectedRelayDetails.host} /> : null}
-                                <AvatarFallback>{relayAvatarFallback(selectedRelayDetails, selectedRelayDocument)}</AvatarFallback>
-                            </Avatar>
-
-                            <div className="min-w-0">
-                                <p className="nostr-relay-summary-primary">{selectedRelayDocument?.name || selectedRelayDetails.relayUrl}</p>
-                                <p className="nostr-relay-summary-sub">
-                                    {RELAY_TYPE_LABELS[selectedRelay.relayType]}
-                                </p>
+                    ) : view === 'ui' ? (
+                        <div className="nostr-shortcuts-content">
+                            <p>Configura el zoom minimo para mostrar avatar y nombre en edificios ocupados.</p>
+                            <div className="nostr-ui-slider-row">
+                                <Label className="nostr-label" htmlFor="nostr-occupied-zoom-level">Occupied labels zoom level</Label>
+                                <span className="nostr-ui-slider-value">{uiSettings.occupiedLabelsZoomLevel}</span>
                             </div>
-                        </div>
-
-                        {selectedRelayInfo?.status === 'error' ? (
-                            <Item variant="outline" size="sm" className="nostr-relay-meta-item">
-                                <ItemMedia variant="icon">
-                                    <AlertTriangleIcon />
-                                </ItemMedia>
-                                <ItemContent>
-                                    <ItemDescription>No se pudo obtener metadata remota del relay.</ItemDescription>
-                                </ItemContent>
-                            </Item>
-                        ) : null}
-
-                        {selectedRelayInfo?.status === 'ready' && !relayHasNip11Metadata ? (
-                            <Item variant="outline" size="sm" className="nostr-relay-meta-item">
-                                <ItemMedia variant="icon">
-                                    <AlertTriangleIcon />
-                                </ItemMedia>
-                                <ItemContent>
-                                    <ItemDescription>Este relay no publica metadata NIP-11 util.</ItemDescription>
-                                </ItemContent>
-                            </Item>
-                        ) : null}
-
-                        <div className="nostr-relay-detail-table-wrap">
-                            <Table className="nostr-relay-detail-table">
-                                <TableBody>
-                                    <TableRow>
-                                        <TableHead className="nostr-relay-detail-key">URL</TableHead>
-                                        <TableCell className="nostr-relay-detail-value">{selectedRelayDetails.relayUrl}</TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                        <TableHead className="nostr-relay-detail-key">Category</TableHead>
-                                        <TableCell className="nostr-relay-detail-value">{RELAY_TYPE_LABELS[selectedRelay.relayType]}</TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                        <TableHead className="nostr-relay-detail-key">Connection</TableHead>
-                                        <TableCell className="nostr-relay-detail-value">{relayConnectionBadge(selectedRelayConnectionStatus)}</TableCell>
-                                    </TableRow>
-                                    {selectedRelayDocument?.description ? (
-                                        <TableRow>
-                                            <TableHead className="nostr-relay-detail-key">Description</TableHead>
-                                            <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.description}</TableCell>
-                                        </TableRow>
-                                    ) : null}
-                                    {selectedRelayAdminIdentity ? (
-                                        <TableRow>
-                                            <TableHead className="nostr-relay-detail-key">Admin pubkey</TableHead>
-                                            <TableCell className="nostr-relay-detail-value">
-                                                <div className="nostr-relay-detail-value-group">
-                                                    <span className="nostr-relay-detail-mono">{selectedRelayAdminIdentity}</span>
-                                                    <div className="nostr-relay-detail-actions-inline">
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            className="nostr-relay-copy-button"
-                                                            onClick={() => {
-                                                                void copyRelayIdentity(selectedRelayAdminIdentity, 'relay-admin-npub');
-                                                            }}
-                                                        >
-                                                            {copiedRelayIdentityKey === 'relay-admin-npub' ? 'Copiado npub' : 'Copiar npub'}
-                                                        </Button>
-                                                    </div>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : null}
-                                    {selectedRelayDocument?.self ? (
-                                        <TableRow>
-                                            <TableHead className="nostr-relay-detail-key">Relay pubkey</TableHead>
-                                            <TableCell className="nostr-relay-detail-value">
-                                                <span className="nostr-relay-detail-mono">{selectedRelayDocument.self}</span>
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : null}
-                                    {selectedRelayDocument?.contact ? (
-                                        <TableRow>
-                                            <TableHead className="nostr-relay-detail-key">Contact</TableHead>
-                                            <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.contact}</TableCell>
-                                        </TableRow>
-                                    ) : null}
-                                    {selectedRelayDocument?.software ? (
-                                        <TableRow>
-                                            <TableHead className="nostr-relay-detail-key">Software</TableHead>
-                                            <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.version ? `${selectedRelayDocument.software} (${selectedRelayDocument.version})` : selectedRelayDocument.software}</TableCell>
-                                        </TableRow>
-                                    ) : null}
-                                    {selectedRelayDocument?.supported_nips && selectedRelayDocument.supported_nips.length > 0 ? (
-                                        <TableRow>
-                                            <TableHead className="nostr-relay-detail-key">Supported NIPs</TableHead>
-                                            <TableCell className="nostr-relay-detail-value">
-                                                <div className="nostr-relay-nip-badges">
-                                                    {selectedRelayDocument.supported_nips.slice(0, 24).map((nip) => (
-                                                        <Badge key={`nip-${nip}`} variant="outline">NIP-{nip}</Badge>
-                                                    ))}
-                                                    {selectedRelayDocument.supported_nips.length > 24 ? (
-                                                        <Badge variant="secondary">+{selectedRelayDocument.supported_nips.length - 24}</Badge>
-                                                    ) : null}
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : null}
-                                    {typeof selectedRelayDocument?.limitation?.auth_required === 'boolean' ? (
-                                        <TableRow>
-                                            <TableHead className="nostr-relay-detail-key">Auth required</TableHead>
-                                            <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.limitation.auth_required ? 'Required' : 'Not required'}</TableCell>
-                                        </TableRow>
-                                    ) : null}
-                                    {typeof selectedRelayDocument?.limitation?.payment_required === 'boolean' ? (
-                                        <TableRow>
-                                            <TableHead className="nostr-relay-detail-key">Payment required</TableHead>
-                                            <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.limitation.payment_required ? 'Required' : 'Not required'}</TableCell>
-                                        </TableRow>
-                                    ) : null}
-                                    {typeof selectedRelayDocument?.limitation?.restricted_writes === 'boolean' ? (
-                                        <TableRow>
-                                            <TableHead className="nostr-relay-detail-key">Write policy</TableHead>
-                                            <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.limitation.restricted_writes ? 'Restricted' : 'Open'}</TableCell>
-                                        </TableRow>
-                                    ) : null}
-                                    {typeof relayEventLimit === 'number' ? (
-                                        <TableRow>
-                                            <TableHead className="nostr-relay-detail-key">Event limit</TableHead>
-                                            <TableCell className="nostr-relay-detail-value">{relayEventLimit}</TableCell>
-                                        </TableRow>
-                                    ) : null}
-                                    {selectedRelayDocument?.payments_url ? (
-                                        <TableRow>
-                                            <TableHead className="nostr-relay-detail-key">Payments URL</TableHead>
-                                            <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.payments_url}</TableCell>
-                                        </TableRow>
-                                    ) : null}
-                                    {relayHasFees && selectedRelayDocument?.fees ? (
-                                        <TableRow>
-                                            <TableHead className="nostr-relay-detail-key">Fees</TableHead>
-                                            <TableCell className="nostr-relay-detail-value">
-                                                <div className="nostr-relay-detail-inline-list">
-                                                    {selectedRelayDocument.fees.admission?.map((fee, index) => (
-                                                        <span key={`admission-${index}`}>Admission: {formatRelayFee(fee)}</span>
-                                                    ))}
-                                                    {selectedRelayDocument.fees.subscription?.map((fee, index) => (
-                                                        <span key={`subscription-${index}`}>Subscription: {formatRelayFee(fee)}</span>
-                                                    ))}
-                                                    {selectedRelayDocument.fees.publication?.map((fee, index) => (
-                                                        <span key={`publication-${index}`}>Publication: {formatRelayFee(fee)}</span>
-                                                    ))}
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : null}
-                                    {selectedRelayDocument?.terms_of_service ? (
-                                        <TableRow>
-                                            <TableHead className="nostr-relay-detail-key">Terms of Service</TableHead>
-                                            <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.terms_of_service}</TableCell>
-                                        </TableRow>
-                                    ) : null}
-                                    {selectedRelayDocument?.privacy_policy ? (
-                                        <TableRow>
-                                            <TableHead className="nostr-relay-detail-key">Privacy Policy</TableHead>
-                                            <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.privacy_policy}</TableCell>
-                                        </TableRow>
-                                    ) : null}
-                                </TableBody>
-                            </Table>
-                        </div>
-                    </div>
-                ) : view === 'about' ? (
-                    <div className="nostr-shortcuts-content">
-                        <div className="nostr-about-section">
-                            <h4>NIPs soportadas</h4>
-                            <ul>
-                                <li>NIP-19 (npub)</li>
-                                <li>NIP-65 (relay list metadata)</li>
-                                <li>NIP-17 (DM inbox relays)</li>
-                                <li>Kind 0 (metadata de perfil)</li>
-                                <li>Kind 1 (publicaciones)</li>
-                                <li>Kind 3 (follows/followers)</li>
-                            </ul>
-                        </div>
-
-                        <div className="nostr-about-section">
-                            <h4>Caracteristicas</h4>
-                            <ul>
-                                <li>Overlay social sobre el mapa</li>
-                                <li>Foco de ocupantes y perfil detallado</li>
-                                <li>Carga progresiva de red y publicaciones</li>
-                                <li>Configuracion de relays desde ajustes</li>
-                                <li>Estadisticas de ciudad en tiempo real</li>
-                            </ul>
-                        </div>
-                    </div>
-                ) : view === 'zaps' ? (
-                    <div className="nostr-shortcuts-content">
-                        <p>Cantidad de zaps</p>
-
-                        <div className="nostr-zap-list">
-                            {zapSettingsState.amounts.map((amount, index) => (
-                                <div key={`zap-${index}-${amount}`} className="nostr-zap-item">
-                                    <span>{amount} sats</span>
-                                    <div className="nostr-zap-item-actions">
-                                        <Input
-                                            type="number"
-                                            min={1}
-                                            step={1}
-                                            className="nostr-input"
-                                            aria-label={`Cantidad zap ${index + 1}`}
-                                            value={String(amount)}
-                                            onChange={(event) => {
-                                                const nextValue = Number(event.target.value);
-                                                if (!Number.isFinite(nextValue)) {
-                                                    return;
-                                                }
-                                                persistZapSettings(updateZapAmount(zapSettingsState, index, nextValue));
-                                            }}
-                                        />
-
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            onClick={() => persistZapSettings(removeZapAmount(zapSettingsState, index))}
-                                        >
-                                            Quitar
-                                        </Button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-
-                        <div className="nostr-zap-add-row">
-                            <Input
-                                type="number"
+                            <Slider
+                                id="nostr-occupied-zoom-level"
+                                aria-label="Occupied labels zoom level"
                                 min={1}
+                                max={20}
                                 step={1}
-                                className="nostr-input"
-                                aria-label="Nueva cantidad de zap"
-                                placeholder="512"
-                                value={newZapAmountInput}
-                                onChange={(event) => setNewZapAmountInput(event.target.value)}
-                            />
-                            <Button
-                                type="button"
-                                className="nostr-submit"
-                                onClick={() => {
-                                    const nextValue = Number(newZapAmountInput.trim());
+                                value={[uiSettings.occupiedLabelsZoomLevel]}
+                                onValueChange={(values) => {
+                                    const nextValue = values[0];
                                     if (!Number.isFinite(nextValue)) {
                                         return;
                                     }
-                                    persistZapSettings(addZapAmount(zapSettingsState, nextValue));
-                                    setNewZapAmountInput('');
+                                    persistUiSettings({
+                                        ...uiSettings,
+                                        occupiedLabelsZoomLevel: nextValue,
+                                    });
                                 }}
-                            >
-                                Agregar cantidad
-                            </Button>
+                            />
+                            <div className="nostr-ui-slider-marks" aria-hidden="true">
+                                <span>1</span>
+                                <span>8</span>
+                                <span>20</span>
+                            </div>
+
+                            <Separator className="nostr-divider" />
+
+                            <div className="nostr-ui-toggle-row">
+                                <Label className="nostr-label" htmlFor="nostr-street-labels-enabled">Street labels</Label>
+                                <Switch
+                                    id="nostr-street-labels-enabled"
+                                    size="sm"
+                                    aria-label="Street labels enabled"
+                                    checked={uiSettings.streetLabelsEnabled}
+                                    onCheckedChange={(checked) => {
+                                        persistUiSettings({
+                                            ...uiSettings,
+                                            streetLabelsEnabled: checked,
+                                        });
+                                    }}
+                                />
+                            </div>
+
+                            <div className="nostr-ui-toggle-row">
+                                <Label className="nostr-label" htmlFor="nostr-verified-buildings-overlay-enabled">Verified buildings overlay</Label>
+                                <Switch
+                                    id="nostr-verified-buildings-overlay-enabled"
+                                    size="sm"
+                                    aria-label="Verified buildings overlay enabled"
+                                    checked={uiSettings.verifiedBuildingsOverlayEnabled}
+                                    onCheckedChange={(checked) => {
+                                        persistUiSettings({
+                                            ...uiSettings,
+                                            verifiedBuildingsOverlayEnabled: checked,
+                                        });
+                                    }}
+                                />
+                            </div>
+
+                            <div className="nostr-ui-slider-row">
+                                <Label className="nostr-label" htmlFor="nostr-street-zoom-level">Street labels zoom level</Label>
+                                <span className="nostr-ui-slider-value">{uiSettings.streetLabelsZoomLevel}</span>
+                            </div>
+                            <Slider
+                                id="nostr-street-zoom-level"
+                                aria-label="Street labels zoom level"
+                                min={1}
+                                max={20}
+                                step={1}
+                                disabled={!uiSettings.streetLabelsEnabled}
+                                value={[uiSettings.streetLabelsZoomLevel]}
+                                onValueChange={(values) => {
+                                    const nextValue = values[0];
+                                    if (!Number.isFinite(nextValue)) {
+                                        return;
+                                    }
+                                    persistUiSettings({
+                                        ...uiSettings,
+                                        streetLabelsZoomLevel: nextValue,
+                                    });
+                                }}
+                            />
+
+                            <Separator className="nostr-divider" />
+
+                            <div className="nostr-ui-slider-row">
+                                <Label className="nostr-label" htmlFor="nostr-traffic-count">Cars in city</Label>
+                                <span className="nostr-ui-slider-value">{uiSettings.trafficParticlesCount}</span>
+                            </div>
+                            <Slider
+                                id="nostr-traffic-count"
+                                min={0}
+                                max={50}
+                                step={1}
+                                aria-label="Cars in city"
+                                value={[uiSettings.trafficParticlesCount]}
+                                onValueChange={(values) => {
+                                    const nextValue = values[0];
+                                    if (!Number.isFinite(nextValue)) {
+                                        return;
+                                    }
+
+                                    persistUiSettings({
+                                        ...uiSettings,
+                                        trafficParticlesCount: nextValue,
+                                    });
+                                }}
+                            />
+
+                            <div className="nostr-ui-slider-row">
+                                <Label className="nostr-label" htmlFor="nostr-traffic-speed">Cars speed</Label>
+                                <span className="nostr-ui-slider-value">{uiSettings.trafficParticlesSpeed.toFixed(1)}x</span>
+                            </div>
+                            <Slider
+                                id="nostr-traffic-speed"
+                                min={0.2}
+                                max={3}
+                                step={0.1}
+                                aria-label="Cars speed"
+                                value={[uiSettings.trafficParticlesSpeed]}
+                                onValueChange={(values) => {
+                                    const nextValue = values[0];
+                                    if (!Number.isFinite(nextValue)) {
+                                        return;
+                                    }
+
+                                    persistUiSettings({
+                                        ...uiSettings,
+                                        trafficParticlesSpeed: nextValue,
+                                    });
+                                }}
+                            />
                         </div>
-                    </div>
+                    ) : view === 'relays' ? (
+                        <div className="nostr-relays-content">
+                            <p className="nostr-relays-help">Conecta varios relays. Puedes agregar uno por vez y elegir categoria.</p>
+
+                            <div className="nostr-relay-connection-summary" role="status" aria-live="polite">
+                                <p>Relays configurados: {configuredRows.length}</p>
+                                <p>Conectados: {connectedConfiguredRelays}</p>
+                                <p>Sin conexión: {disconnectedConfiguredRelays}</p>
+                            </div>
+
+                            <div className="nostr-relay-table-wrap">
+                                <Table className="nostr-relay-table">
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Relay</TableHead>
+                                            <TableHead>Type</TableHead>
+                                            <TableHead>Estado</TableHead>
+                                            <TableHead className="nostr-relay-actions-head">Actions</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {configuredRows.map(({ relayUrl, relayType }) => {
+                                            const details = describeRelay(relayUrl, 'configured');
+                                            const info = relayInfoByUrl[relayUrl];
+                                            const document = info?.data;
+                                            const relayConnectionStatus = configuredRelayConnectionStatusByRelay[relayUrl];
+
+                                            return (
+                                                <TableRow key={`configured-${relayType}-${relayUrl}`}>
+                                                    <TableCell className="nostr-relay-url-cell">
+                                                        <div className="nostr-relay-main-cell">
+                                                            <Avatar className="size-8">
+                                                                {document?.icon ? <AvatarImage src={document.icon} alt={document.name || details.host} /> : null}
+                                                                <AvatarFallback>{relayAvatarFallback(details, document)}</AvatarFallback>
+                                                            </Avatar>
+                                                            <div className="min-w-0">
+                                                                <p className="nostr-relay-summary-primary">{document?.name || relayUrl}</p>
+                                                            </div>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Badge variant="outline">{RELAY_TYPE_LABELS[relayType]}</Badge>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {relayConnectionBadge(relayConnectionStatus)}
+                                                    </TableCell>
+                                                    <TableCell className="nostr-relay-actions-cell">
+                                                        <ContextMenu>
+                                                            <ContextMenuTrigger asChild>
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    size="icon-sm"
+                                                                    aria-label={`Abrir acciones para ${relayUrl} (${RELAY_TYPE_LABELS[relayType]})`}
+                                                                    onClick={openRelayActionsMenu}
+                                                                >
+                                                                    <EllipsisVerticalIcon data-icon="inline-start" />
+                                                                </Button>
+                                                            </ContextMenuTrigger>
+                                                            <ContextMenuContent>
+                                                                <ContextMenuGroup>
+                                                                    <ContextMenuItem onSelect={() => openRelayDetails(relayUrl, 'configured', relayType)}>
+                                                                        Details
+                                                                    </ContextMenuItem>
+                                                                    <ContextMenuItem variant="destructive" onSelect={() => handleRemoveRelay(relayUrl, relayType)}>
+                                                                        Remove
+                                                                    </ContextMenuItem>
+                                                                </ContextMenuGroup>
+                                                            </ContextMenuContent>
+                                                        </ContextMenu>
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
+                                    </TableBody>
+                                </Table>
+                            </div>
+
+                            <InputGroup>
+                                <InputGroupInput
+                                    aria-label="Relay URLs"
+                                    placeholder="wss://relay.example"
+                                    value={newRelayInput}
+                                    onChange={(event) => setNewRelayInput(event.target.value)}
+                                />
+                                <InputGroupAddon align="inline-end">
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <InputGroupButton variant="ghost" aria-label="Relay category">
+                                                {RELAY_TYPE_LABELS[newRelayType]}
+                                                <ChevronDownIcon />
+                                            </InputGroupButton>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuGroup>
+                                                {RELAY_TYPES.map((relayType) => (
+                                                    <DropdownMenuItem
+                                                        key={`relay-type-${relayType}`}
+                                                        onSelect={() => setNewRelayType(relayType)}
+                                                    >
+                                                        {RELAY_TYPE_LABELS[relayType]}
+                                                    </DropdownMenuItem>
+                                                ))}
+                                            </DropdownMenuGroup>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+
+                                    <InputGroupButton
+                                        variant="secondary"
+                                        onClick={handleAddRelays}
+                                    >
+                                        Añadir
+                                    </InputGroupButton>
+                                </InputGroupAddon>
+                            </InputGroup>
+
+                            {invalidRelayInputs.length > 0 ? (
+                                <p className="nostr-settings-error">
+                                    Entradas invalidas: {invalidRelayInputs.join(', ')}
+                                </p>
+                            ) : null}
+
+                            {suggestedRows.length > 0 ? (
+                                <section className="nostr-relay-suggested">
+                                    <div className="nostr-relay-suggested-header">
+                                        <p>Relays sugeridos por protocolo (NIP-65 / NIP-17)</p>
+                                        <Button type="button" variant="outline" className="nostr-relay-add-suggested" onClick={handleAddAllSuggestedRelays}>
+                                            Agregar todos
+                                        </Button>
+                                    </div>
+
+                                    <div className="nostr-relay-table-wrap">
+                                        <Table className="nostr-relay-table">
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Relay</TableHead>
+                                                    <TableHead>Type</TableHead>
+                                                    <TableHead>Estado</TableHead>
+                                                    <TableHead className="nostr-relay-actions-head">Actions</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {suggestedRows.map(({ relayUrl, relayType }) => {
+                                                    const details = describeRelay(relayUrl, 'suggested');
+                                                    const info = relayInfoByUrl[relayUrl];
+                                                    const document = info?.data;
+                                                    const relayConnectionStatus = relayConnectionStatusByRelay[relayUrl];
+
+                                                    return (
+                                                        <TableRow key={`suggested-${relayType}-${relayUrl}`}>
+                                                            <TableCell className="nostr-relay-url-cell">
+                                                                <div className="nostr-relay-main-cell">
+                                                                    <Avatar className="size-8">
+                                                                        {document?.icon ? <AvatarImage src={document.icon} alt={document.name || details.host} /> : null}
+                                                                        <AvatarFallback>{relayAvatarFallback(details, document)}</AvatarFallback>
+                                                                    </Avatar>
+                                                                    <div className="min-w-0">
+                                                                        <p className="nostr-relay-summary-primary">{document?.name || relayUrl}</p>
+                                                                    </div>
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                <Badge variant="outline">{RELAY_TYPE_LABELS[relayType]}</Badge>
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {relayConnectionBadge(relayConnectionStatus)}
+                                                            </TableCell>
+                                                            <TableCell className="nostr-relay-actions-cell">
+                                                                <ContextMenu>
+                                                                    <ContextMenuTrigger asChild>
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="outline"
+                                                                            size="icon-sm"
+                                                                            aria-label={`Abrir acciones sugeridas para ${relayUrl} (${RELAY_TYPE_LABELS[relayType]})`}
+                                                                            onClick={openRelayActionsMenu}
+                                                                        >
+                                                                            <EllipsisVerticalIcon data-icon="inline-start" />
+                                                                        </Button>
+                                                                    </ContextMenuTrigger>
+                                                                    <ContextMenuContent>
+                                                                        <ContextMenuGroup>
+                                                                            <ContextMenuItem onSelect={() => openRelayDetails(relayUrl, 'suggested', relayType)}>
+                                                                                Details
+                                                                            </ContextMenuItem>
+                                                                            <ContextMenuItem onSelect={() => handleAddSuggestedRelay(relayUrl, relayType)}>
+                                                                                Add
+                                                                            </ContextMenuItem>
+                                                                        </ContextMenuGroup>
+                                                                    </ContextMenuContent>
+                                                                </ContextMenu>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    );
+                                                })}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                </section>
+                            ) : null}
+                        </div>
+                    ) : view === 'relay-detail' && selectedRelayDetails ? (
+                        <div className="nostr-relays-content">
+                            {selectedRelayInfo?.status === 'loading' ? (
+                                <p className="nostr-relay-meta-loading"><Spinner /> Cargando metadata NIP-11...</p>
+                            ) : null}
+
+                            <div className="nostr-relay-detail-header">
+                                <Avatar className="size-10">
+                                    {selectedRelayDocument?.icon ? <AvatarImage src={selectedRelayDocument.icon} alt={selectedRelayDocument.name || selectedRelayDetails.host} /> : null}
+                                    <AvatarFallback>{relayAvatarFallback(selectedRelayDetails, selectedRelayDocument)}</AvatarFallback>
+                                </Avatar>
+
+                                <div className="min-w-0">
+                                    <p className="nostr-relay-summary-primary">{selectedRelayDocument?.name || selectedRelayDetails.relayUrl}</p>
+                                    <p className="nostr-relay-summary-sub">
+                                        {RELAY_TYPE_LABELS[selectedRelay.relayType]}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {selectedRelayInfo?.status === 'error' ? (
+                                <Item variant="outline" size="sm" className="nostr-relay-meta-item">
+                                    <ItemMedia variant="icon">
+                                        <AlertTriangleIcon />
+                                    </ItemMedia>
+                                    <ItemContent>
+                                        <ItemDescription>No se pudo obtener metadata remota del relay.</ItemDescription>
+                                    </ItemContent>
+                                </Item>
+                            ) : null}
+
+                            {selectedRelayInfo?.status === 'ready' && !relayHasNip11Metadata ? (
+                                <Item variant="outline" size="sm" className="nostr-relay-meta-item">
+                                    <ItemMedia variant="icon">
+                                        <AlertTriangleIcon />
+                                    </ItemMedia>
+                                    <ItemContent>
+                                        <ItemDescription>Este relay no publica metadata NIP-11 util.</ItemDescription>
+                                    </ItemContent>
+                                </Item>
+                            ) : null}
+
+                            <div className="nostr-relay-detail-table-wrap">
+                                <Table className="nostr-relay-detail-table">
+                                    <TableBody>
+                                        <TableRow>
+                                            <TableHead className="nostr-relay-detail-key">URL</TableHead>
+                                            <TableCell className="nostr-relay-detail-value">{selectedRelayDetails.relayUrl}</TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                            <TableHead className="nostr-relay-detail-key">Category</TableHead>
+                                            <TableCell className="nostr-relay-detail-value">{RELAY_TYPE_LABELS[selectedRelay.relayType]}</TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                            <TableHead className="nostr-relay-detail-key">Connection</TableHead>
+                                            <TableCell className="nostr-relay-detail-value">{relayConnectionBadge(selectedRelayConnectionStatus)}</TableCell>
+                                        </TableRow>
+                                        {selectedRelayDocument?.description ? (
+                                            <TableRow>
+                                                <TableHead className="nostr-relay-detail-key">Description</TableHead>
+                                                <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.description}</TableCell>
+                                            </TableRow>
+                                        ) : null}
+                                        {selectedRelayAdminIdentity ? (
+                                            <TableRow>
+                                                <TableHead className="nostr-relay-detail-key">Admin pubkey</TableHead>
+                                                <TableCell className="nostr-relay-detail-value">
+                                                    <div className="nostr-relay-detail-value-group">
+                                                        <span className="nostr-relay-detail-mono">{selectedRelayAdminIdentity}</span>
+                                                        <div className="nostr-relay-detail-actions-inline">
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                className="nostr-relay-copy-button"
+                                                                onClick={() => {
+                                                                    void copyRelayIdentity(selectedRelayAdminIdentity, 'relay-admin-npub');
+                                                                }}
+                                                            >
+                                                                {copiedRelayIdentityKey === 'relay-admin-npub' ? 'Copiado npub' : 'Copiar npub'}
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : null}
+                                        {selectedRelayDocument?.self ? (
+                                            <TableRow>
+                                                <TableHead className="nostr-relay-detail-key">Relay pubkey</TableHead>
+                                                <TableCell className="nostr-relay-detail-value">
+                                                    <span className="nostr-relay-detail-mono">{selectedRelayDocument.self}</span>
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : null}
+                                        {selectedRelayDocument?.contact ? (
+                                            <TableRow>
+                                                <TableHead className="nostr-relay-detail-key">Contact</TableHead>
+                                                <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.contact}</TableCell>
+                                            </TableRow>
+                                        ) : null}
+                                        {selectedRelayDocument?.software ? (
+                                            <TableRow>
+                                                <TableHead className="nostr-relay-detail-key">Software</TableHead>
+                                                <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.version ? `${selectedRelayDocument.software} (${selectedRelayDocument.version})` : selectedRelayDocument.software}</TableCell>
+                                            </TableRow>
+                                        ) : null}
+                                        {selectedRelayDocument?.supported_nips && selectedRelayDocument.supported_nips.length > 0 ? (
+                                            <TableRow>
+                                                <TableHead className="nostr-relay-detail-key">Supported NIPs</TableHead>
+                                                <TableCell className="nostr-relay-detail-value">
+                                                    <div className="nostr-relay-nip-badges">
+                                                        {selectedRelayDocument.supported_nips.slice(0, 24).map((nip) => (
+                                                            <Badge key={`nip-${nip}`} variant="outline">NIP-{nip}</Badge>
+                                                        ))}
+                                                        {selectedRelayDocument.supported_nips.length > 24 ? (
+                                                            <Badge variant="secondary">+{selectedRelayDocument.supported_nips.length - 24}</Badge>
+                                                        ) : null}
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : null}
+                                        {typeof selectedRelayDocument?.limitation?.auth_required === 'boolean' ? (
+                                            <TableRow>
+                                                <TableHead className="nostr-relay-detail-key">Auth required</TableHead>
+                                                <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.limitation.auth_required ? 'Required' : 'Not required'}</TableCell>
+                                            </TableRow>
+                                        ) : null}
+                                        {typeof selectedRelayDocument?.limitation?.payment_required === 'boolean' ? (
+                                            <TableRow>
+                                                <TableHead className="nostr-relay-detail-key">Payment required</TableHead>
+                                                <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.limitation.payment_required ? 'Required' : 'Not required'}</TableCell>
+                                            </TableRow>
+                                        ) : null}
+                                        {typeof selectedRelayDocument?.limitation?.restricted_writes === 'boolean' ? (
+                                            <TableRow>
+                                                <TableHead className="nostr-relay-detail-key">Write policy</TableHead>
+                                                <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.limitation.restricted_writes ? 'Restricted' : 'Open'}</TableCell>
+                                            </TableRow>
+                                        ) : null}
+                                        {typeof relayEventLimit === 'number' ? (
+                                            <TableRow>
+                                                <TableHead className="nostr-relay-detail-key">Event limit</TableHead>
+                                                <TableCell className="nostr-relay-detail-value">{relayEventLimit}</TableCell>
+                                            </TableRow>
+                                        ) : null}
+                                        {selectedRelayDocument?.payments_url ? (
+                                            <TableRow>
+                                                <TableHead className="nostr-relay-detail-key">Payments URL</TableHead>
+                                                <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.payments_url}</TableCell>
+                                            </TableRow>
+                                        ) : null}
+                                        {relayHasFees && selectedRelayDocument?.fees ? (
+                                            <TableRow>
+                                                <TableHead className="nostr-relay-detail-key">Fees</TableHead>
+                                                <TableCell className="nostr-relay-detail-value">
+                                                    <div className="nostr-relay-detail-inline-list">
+                                                        {selectedRelayDocument.fees.admission?.map((fee, index) => (
+                                                            <span key={`admission-${index}`}>Admission: {formatRelayFee(fee)}</span>
+                                                        ))}
+                                                        {selectedRelayDocument.fees.subscription?.map((fee, index) => (
+                                                            <span key={`subscription-${index}`}>Subscription: {formatRelayFee(fee)}</span>
+                                                        ))}
+                                                        {selectedRelayDocument.fees.publication?.map((fee, index) => (
+                                                            <span key={`publication-${index}`}>Publication: {formatRelayFee(fee)}</span>
+                                                        ))}
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : null}
+                                        {selectedRelayDocument?.terms_of_service ? (
+                                            <TableRow>
+                                                <TableHead className="nostr-relay-detail-key">Terms of Service</TableHead>
+                                                <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.terms_of_service}</TableCell>
+                                            </TableRow>
+                                        ) : null}
+                                        {selectedRelayDocument?.privacy_policy ? (
+                                            <TableRow>
+                                                <TableHead className="nostr-relay-detail-key">Privacy Policy</TableHead>
+                                                <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.privacy_policy}</TableCell>
+                                            </TableRow>
+                                        ) : null}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </div>
+                    ) : view === 'about' ? (
+                        <div className="nostr-shortcuts-content">
+                            <div className="nostr-about-section">
+                                <h4>NIPs soportadas</h4>
+                                <ul>
+                                    <li>NIP-19 (npub)</li>
+                                    <li>NIP-65 (relay list metadata)</li>
+                                    <li>NIP-17 (DM inbox relays)</li>
+                                    <li>Kind 0 (metadata de perfil)</li>
+                                    <li>Kind 1 (publicaciones)</li>
+                                    <li>Kind 3 (follows/followers)</li>
+                                </ul>
+                            </div>
+
+                            <div className="nostr-about-section">
+                                <h4>Caracteristicas</h4>
+                                <ul>
+                                    <li>Overlay social sobre el mapa</li>
+                                    <li>Foco de ocupantes y perfil detallado</li>
+                                    <li>Carga progresiva de red y publicaciones</li>
+                                    <li>Configuracion de relays desde ajustes</li>
+                                    <li>Estadisticas de ciudad en tiempo real</li>
+                                </ul>
+                            </div>
+                        </div>
+                    ) : view === 'zaps' ? (
+                        <div className="nostr-shortcuts-content">
+                            <p>Cantidad de zaps</p>
+
+                            <div className="nostr-zap-list">
+                                {zapSettingsState.amounts.map((amount, index) => (
+                                    <div key={`zap-${index}-${amount}`} className="nostr-zap-item">
+                                        <span>{amount} sats</span>
+                                        <div className="nostr-zap-item-actions">
+                                            <Input
+                                                type="number"
+                                                min={1}
+                                                step={1}
+                                                className="nostr-input"
+                                                aria-label={`Cantidad zap ${index + 1}`}
+                                                value={String(amount)}
+                                                onChange={(event) => {
+                                                    const nextValue = Number(event.target.value);
+                                                    if (!Number.isFinite(nextValue)) {
+                                                        return;
+                                                    }
+                                                    persistZapSettings(updateZapAmount(zapSettingsState, index, nextValue));
+                                                }}
+                                            />
+
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                onClick={() => persistZapSettings(removeZapAmount(zapSettingsState, index))}
+                                            >
+                                                Quitar
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="nostr-zap-add-row">
+                                <Input
+                                    type="number"
+                                    min={1}
+                                    step={1}
+                                    className="nostr-input"
+                                    aria-label="Nueva cantidad de zap"
+                                    placeholder="512"
+                                    value={newZapAmountInput}
+                                    onChange={(event) => setNewZapAmountInput(event.target.value)}
+                                />
+                                <Button
+                                    type="button"
+                                    className="nostr-submit"
+                                    onClick={() => {
+                                        const nextValue = Number(newZapAmountInput.trim());
+                                        if (!Number.isFinite(nextValue)) {
+                                            return;
+                                        }
+                                        persistZapSettings(addZapAmount(zapSettingsState, nextValue));
+                                        setNewZapAmountInput('');
+                                    }}
+                                >
+                                    Agregar cantidad
+                                </Button>
+                            </div>
+                        </div>
                     ) : (
-                    <div className="nostr-shortcuts-content">
-                        <p>Mantener pulsada la barra espaciadora y arrastrar para desplazarte por el mapa.</p>
-                        <p>Mantener pulsado el wheel del raton y mover el raton para desplazarte por el mapa.</p>
-                    </div>
+                        <div className="nostr-shortcuts-content">
+                            <p>Mantener pulsada la barra espaciadora y arrastrar para desplazarte por el mapa.</p>
+                            <p>Mantener pulsado el wheel del raton y mover el raton para desplazarte por el mapa.</p>
+                        </div>
                     )}
                 </div>
 

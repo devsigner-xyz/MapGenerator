@@ -27,7 +27,6 @@ interface SocialSidebarProps {
     onViewPersonDetails?: (pubkey: string) => void;
     zapAmounts?: number[];
     onConfigureZapAmounts?: () => void;
-    onLocateOwner?: () => void;
     onCopyOwnerNpub?: (value: string) => void | Promise<void>;
     loginDisabled?: boolean;
     authSession?: AuthSessionState;
@@ -54,7 +53,6 @@ export function SocialSidebar({
     onViewPersonDetails,
     zapAmounts = [21, 128, 256],
     onConfigureZapAmounts,
-    onLocateOwner,
     onCopyOwnerNpub,
     loginDisabled = false,
     authSession,
@@ -127,8 +125,6 @@ export function SocialSidebar({
                             authSession={authSession}
                             canWrite={canWrite}
                             canEncrypt={canEncrypt}
-                            onLocateOwner={onLocateOwner}
-                            onCopyOwnerNpub={onCopyOwnerNpub}
                             ownerVerification={ownerPubkey ? verificationByPubkey[ownerPubkey] : undefined}
                             easterEggDiscoveredIds={easterEggDiscoveredIds}
                             onOpenMissions={onOpenMissions}

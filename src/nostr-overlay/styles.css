@@ -11,107 +11,32 @@
     left: 0;
     bottom: 0;
     z-index: 5;
-    width: min(380px, 100vw);
     pointer-events: auto;
-}
-
-.nostr-overlay-shell-collapsed {
-    width: auto;
-}
-
-.nostr-compact-toolbar {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.4rem;
-    margin: 0.55rem;
-    padding: 0.35rem;
-    border-radius: 10px;
-    border: 1px solid rgba(185, 194, 202, 0.95);
-    background: rgba(255, 255, 255, 0.92);
-    backdrop-filter: blur(6px);
-    box-shadow: 0 10px 20px rgba(15, 37, 48, 0.12);
-    width: 42px;
-}
-
-.nostr-panel {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    gap: 0.75rem;
-    border-radius: 0;
-    background: rgba(255, 255, 255, 0.92);
-    border-right: 1px solid rgba(185, 194, 202, 0.95);
-    padding: 0.95rem;
-    backdrop-filter: blur(6px);
-    box-shadow: 0 12px 28px rgba(15, 37, 48, 0.14);
-    overflow: hidden;
 }
 
 .nostr-panel-toolbar {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.45rem;
+    flex-direction: column;
+    gap: 0.3rem;
 }
 
 .nostr-panel-toolbar-status {
-    min-height: 1.25rem;
+    min-height: 1.15rem;
     display: flex;
     align-items: center;
 }
 
-.nostr-panel-toolbar-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
+.nostr-compact-toolbar {
+    gap: 0.35rem;
 }
 
-.nostr-settings-button {
-    width: 34px;
-    height: 34px;
-    border-radius: 8px;
-    border: 1px solid rgba(145, 164, 176, 0.75);
-    background: rgba(249, 251, 253, 0.95);
-    color: #2b4a59;
-    cursor: pointer;
-    display: grid;
-    place-items: center;
+.nostr-panel-toolbar button {
+    position: relative;
 }
 
-.nostr-settings-button svg {
-    width: 18px;
-    height: 18px;
-    fill: currentColor;
-}
-
-.nostr-settings-button:focus-visible,
-.nostr-icon-button:focus-visible,
 .nostr-dialog-close:focus-visible {
     outline: 2px solid #2b6f8f;
     outline-offset: 2px;
-}
-
-.nostr-icon-button {
-    width: 31px;
-    height: 31px;
-    border-radius: 8px;
-    border: 1px solid rgba(170, 188, 198, 0.95);
-    background: rgba(252, 254, 255, 0.98);
-    color: #315162;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.nostr-icon-button:hover {
-    background: rgba(240, 248, 253, 0.98);
-}
-
-.nostr-icon-button svg {
-    width: 16px;
-    height: 16px;
 }
 
 .nostr-header {
@@ -445,12 +370,6 @@
     gap: 0.65rem;
     align-items: center;
     min-width: 0;
-}
-
-.nostr-profile-actions {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
 }
 
 .nostr-profile-avatar {
@@ -2376,10 +2295,6 @@
 }
 
 @media (max-width: 720px) {
-    .nostr-overlay-shell {
-        width: 100vw;
-    }
-
     .nostr-city-kpi-grid {
         grid-template-columns: minmax(0, 1fr);
     }

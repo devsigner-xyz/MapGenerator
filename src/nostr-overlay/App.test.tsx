@@ -280,13 +280,18 @@ async function waitFor(condition: () => boolean): Promise<void> {
     throw new Error('Condition was not met in time');
 }
 
+async function openDropdownTrigger(button: HTMLButtonElement): Promise<void> {
+    await act(async () => {
+        button.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+        button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+}
+
 async function openSettingsContextMenu(container: HTMLDivElement): Promise<void> {
     const settingsButton = container.querySelector('button[aria-label="Abrir ajustes"]') as HTMLButtonElement;
     expect(settingsButton).toBeDefined();
 
-    await act(async () => {
-        settingsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await openDropdownTrigger(settingsButton);
 
     await waitFor(() => (document.body.textContent || '').includes('Advanced settings'));
 }
@@ -294,7 +299,7 @@ async function openSettingsContextMenu(container: HTMLDivElement): Promise<void>
 async function selectSettingsContextAction(container: HTMLDivElement, label: string): Promise<void> {
     await openSettingsContextMenu(container);
 
-    const action = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+    const action = Array.from(document.body.querySelectorAll('[data-slot="dropdown-menu-item"]')).find((item) =>
         (item.textContent || '').trim() === label
     ) as HTMLElement;
     expect(action).toBeDefined();
@@ -1522,24 +1527,22 @@ describe('Nostr overlay App', () => {
 
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
-        const actionsButton = rendered.container.querySelector('button[aria-label="Abrir acciones de perfil"]') as HTMLButtonElement;
+        const actionsButton = rendered.container.querySelector('button[aria-label="Abrir menu de usuario"]') as HTMLButtonElement;
         expect(actionsButton).toBeDefined();
 
-        await act(async () => {
-            actionsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
+        await openDropdownTrigger(actionsButton);
 
-        await waitFor(() => Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).some((node) =>
+        await waitFor(() => Array.from(document.body.querySelectorAll('[data-slot="dropdown-menu-item"]')).some((node) =>
             (node.textContent || '').trim() === 'Copiar npub'
         ));
 
-        const copyItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((node) =>
+        const copyItem = Array.from(document.body.querySelectorAll('[data-slot="dropdown-menu-item"]')).find((node) =>
             (node.textContent || '').trim() === 'Copiar npub'
         ) as HTMLElement;
-        const locateItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((node) =>
+        const locateItem = Array.from(document.body.querySelectorAll('[data-slot="dropdown-menu-item"]')).find((node) =>
             (node.textContent || '').trim() === 'Ubicar en el mapa'
         ) as HTMLElement;
-        const messageItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((node) =>
+        const messageItem = Array.from(document.body.querySelectorAll('[data-slot="dropdown-menu-item"]')).find((node) =>
             (node.textContent || '').trim() === 'Enviar mensaje'
         );
 
@@ -1555,15 +1558,13 @@ describe('Nostr overlay App', () => {
         expect((clipboardWriteText.mock.calls[0][0] as string).startsWith('npub1')).toBe(true);
         await waitFor(() => (rendered.container.textContent || '').includes('npub copiada'));
 
-        await act(async () => {
-            actionsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
+        await openDropdownTrigger(actionsButton);
 
-        await waitFor(() => Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).some((node) =>
+        await waitFor(() => Array.from(document.body.querySelectorAll('[data-slot="dropdown-menu-item"]')).some((node) =>
             (node.textContent || '').trim() === 'Ubicar en el mapa'
         ));
 
-        const locateItemAgain = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((node) =>
+        const locateItemAgain = Array.from(document.body.querySelectorAll('[data-slot="dropdown-menu-item"]')).find((node) =>
             (node.textContent || '').trim() === 'Ubicar en el mapa'
         ) as HTMLElement;
 
@@ -2672,7 +2673,7 @@ describe('Nostr overlay App', () => {
             hidePanelButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
-        expect(rendered.container.querySelector('input[name="npub"]')).toBeNull();
+        expect(rendered.container.querySelector('[data-slot="sidebar"][data-state="collapsed"]')).not.toBeNull();
         const showPanelButton = rendered.container.querySelector('button[aria-label="Mostrar panel"]') as HTMLButtonElement;
         expect(showPanelButton).toBeDefined();
         expect(showPanelButton.getAttribute('title')).toBe('Show panel');
@@ -2684,7 +2685,7 @@ describe('Nostr overlay App', () => {
         expect(compactButtons[2].getAttribute('aria-label')).toBe('Abrir buscador global de usuarios');
         expect(compactButtons[3].getAttribute('aria-label')).toBe('Regenerar mapa');
         expect(compactButtons[4].getAttribute('aria-label')).toBe('Abrir estadisticas de la ciudad');
-        expect((bridge.setViewportInsetLeft as any).mock.calls[(bridge.setViewportInsetLeft as any).mock.calls.length - 1][0]).toBe(0);
+        expect((bridge.setViewportInsetLeft as any).mock.calls[(bridge.setViewportInsetLeft as any).mock.calls.length - 1][0]).toBe(56);
 
         await act(async () => {
             showPanelButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -2692,6 +2693,15 @@ describe('Nostr overlay App', () => {
 
         expect(rendered.container.querySelector('input[name="npub"]')).not.toBeNull();
         expect((bridge.setViewportInsetLeft as any).mock.calls[(bridge.setViewportInsetLeft as any).mock.calls.length - 1][0]).toBe(380);
+    });
+
+    test('renders shadcn sidebar structure with rail', async () => {
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(<App mapBridge={bridge} />);
+        mounted.push(rendered);
+
+        expect(rendered.container.querySelector('[data-slot="sidebar"]')).not.toBeNull();
+        expect(rendered.container.querySelector('[data-slot="sidebar-rail"]')).not.toBeNull();
     });
 
     test('filters following tab by name or npub and can clear search', async () => {

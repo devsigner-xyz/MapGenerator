@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react';
-import { EllipsisVerticalIcon } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import type { EasterEggId } from '../../ts/ui/easter_eggs';
 import type { Nip05ValidationResult } from '../../nostr/nip05';
 import type { AuthSessionState } from '../../nostr/auth/session';
@@ -9,10 +8,8 @@ import { loadRelaySettings } from '../../nostr/relay-settings';
 import { useRelayConnectionSummary, type RelayConnectionProbe } from '../hooks/useRelayConnectionSummary';
 import { EASTER_EGG_MISSIONS } from '../easter-eggs/missions';
 import { Nip05Identifier } from './Nip05Identifier';
-import { PersonContextMenuItems } from './PersonContextMenuItems';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ContextMenu, ContextMenuContent, ContextMenuGroup, ContextMenuTrigger } from '@/components/ui/context-menu';
 
 interface ProfileTabProps {
     ownerPubkey?: string;
@@ -23,8 +20,6 @@ interface ProfileTabProps {
     authSession?: AuthSessionState;
     canWrite?: boolean;
     canEncrypt?: boolean;
-    onLocateOwner?: () => void;
-    onCopyOwnerNpub?: (value: string) => void | Promise<void>;
     ownerVerification?: Nip05ValidationResult;
     relayConnectionProbe?: RelayConnectionProbe;
     easterEggDiscoveredIds?: EasterEggId[];
@@ -41,8 +36,6 @@ export function ProfileTab({
     followsCount,
     followersCount,
     authSession,
-    onLocateOwner,
-    onCopyOwnerNpub,
     ownerVerification,
     relayConnectionProbe,
     easterEggDiscoveredIds = [],
@@ -85,18 +78,6 @@ export function ProfileTab({
         ),
         [discoveredIds]
     );
-
-    const openActionsMenu = (event: ReactMouseEvent<HTMLButtonElement>): void => {
-        event.preventDefault();
-        event.stopPropagation();
-        const rect = event.currentTarget.getBoundingClientRect();
-        event.currentTarget.dispatchEvent(new window.MouseEvent('contextmenu', {
-            bubbles: true,
-            cancelable: true,
-            clientX: rect.left + rect.width / 2,
-            clientY: rect.top + rect.height / 2,
-        }));
-    };
 
     useEffect(() => {
         setAvatarLoadError(false);
@@ -162,31 +143,6 @@ export function ProfileTab({
                     </div>
                 </div>
 
-                <div className="nostr-profile-actions" aria-label="Acciones de perfil">
-                    <ContextMenu>
-                        <ContextMenuTrigger asChild>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="icon-sm"
-                                className="nostr-icon-button"
-                                aria-label="Abrir acciones de perfil"
-                                title="Profile actions"
-                                onClick={openActionsMenu}
-                            >
-                                <EllipsisVerticalIcon data-icon="inline-start" />
-                            </Button>
-                        </ContextMenuTrigger>
-                        <ContextMenuContent className="w-48">
-                            <ContextMenuGroup>
-                                <PersonContextMenuItems
-                                    onLocateOnMap={onLocateOwner}
-                                    onCopyNpub={() => onCopyOwnerNpub?.(ownerNpub || ownerPubkey)}
-                                />
-                            </ContextMenuGroup>
-                        </ContextMenuContent>
-                    </ContextMenu>
-                </div>
             </div>
 
             <dl className="nostr-profile-stats">
