@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { buildPresenceLayerEntries, isPointWithinViewport } from './presence-layer-model';
+import { buildDiscoveredEasterEggEntries, buildPresenceLayerEntries, isPointWithinViewport } from './presence-layer-model';
 
 const ALICE = 'a'.repeat(64);
 const BOB = 'b'.repeat(64);
@@ -67,5 +67,30 @@ describe('isPointWithinViewport', () => {
         });
 
         expect(visible).toBe(false);
+    });
+});
+
+describe('buildDiscoveredEasterEggEntries', () => {
+    test('returns only currently-assigned discovered easter eggs with valid buildings', () => {
+        const entries = buildDiscoveredEasterEggEntries({
+            discoveredIds: ['bitcoin_whitepaper', 'cyberspace_independence'],
+            easterEggBuildings: [
+                { index: 1, easterEggId: 'bitcoin_whitepaper' },
+                { index: 8, easterEggId: 'crypto_anarchist_manifesto' },
+                { index: 9, easterEggId: 'cyberspace_independence' },
+            ],
+            buildingsByIndex: {
+                1: { index: 1, centroid: { x: 120, y: 80 } },
+            },
+        });
+
+        expect(entries).toEqual([
+            {
+                key: 'easter-egg-bitcoin_whitepaper-1',
+                easterEggId: 'bitcoin_whitepaper',
+                index: 1,
+                centroid: { x: 120, y: 80 },
+            },
+        ]);
     });
 });

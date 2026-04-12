@@ -6,6 +6,7 @@ function createMainApiStub(overrides: Partial<MapMainApi> = {}): MapMainApi {
         generateMap: vi.fn().mockResolvedValue(undefined),
         roadsEmpty: vi.fn().mockReturnValue(false),
         getBuildingCentroidsWorld: vi.fn().mockReturnValue([{ x: 10, y: 20 }, { x: 30, y: 40 }]),
+        getEasterEggBuildings: vi.fn().mockReturnValue([]),
         setOccupancyByBuildingIndex: vi.fn(),
         setVerifiedBuildingIndexes: vi.fn(),
         setViewportInsetLeft: vi.fn(),
@@ -61,6 +62,21 @@ describe('createMapBridge', () => {
         expect(bridge.listBuildings()).toEqual([
             { index: 0, centroid: { x: 1, y: 2 } },
             { index: 1, centroid: { x: 3, y: 4 } },
+        ]);
+    });
+
+    test('listEasterEggBuildings delegates current assignment to map api', () => {
+        const api = createMainApiStub({
+            getEasterEggBuildings: vi.fn().mockReturnValue([
+                { index: 2, easterEggId: 'bitcoin_whitepaper' },
+                { index: 7, easterEggId: 'crypto_anarchist_manifesto' },
+            ]),
+        });
+
+        const bridge = createMapBridge(api);
+        expect(bridge.listEasterEggBuildings?.()).toEqual([
+            { index: 2, easterEggId: 'bitcoin_whitepaper' },
+            { index: 7, easterEggId: 'crypto_anarchist_manifesto' },
         ]);
     });
 

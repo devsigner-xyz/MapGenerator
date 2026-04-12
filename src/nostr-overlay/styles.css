@@ -600,6 +600,68 @@
     color: #213b47;
 }
 
+.nostr-profile-missions {
+    display: grid;
+    gap: 0.5rem;
+    border: 1px solid rgba(201, 212, 220, 0.94);
+    border-radius: 9px;
+    background: rgba(249, 252, 255, 0.96);
+    padding: 0.55rem;
+}
+
+.nostr-profile-missions-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.nostr-profile-missions-header h3 {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #203844;
+}
+
+.nostr-profile-missions-header p {
+    margin: 0.15rem 0 0;
+    font-size: 0.73rem;
+    color: #4c6370;
+}
+
+.nostr-profile-missions-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.35rem;
+}
+
+.nostr-profile-missions-item {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-size: 0.76rem;
+    color: #213943;
+}
+
+.nostr-profile-missions-status {
+    flex-shrink: 0;
+    border: 1px solid rgba(175, 189, 198, 0.94);
+    border-radius: 999px;
+    padding: 0.1rem 0.42rem;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: #4a6370;
+    background: rgba(240, 245, 249, 0.95);
+}
+
+.nostr-profile-missions-status.is-discovered {
+    border-color: rgba(89, 154, 105, 0.9);
+    color: #1f6130;
+    background: rgba(224, 246, 231, 0.95);
+}
+
 .nostr-people-list {
     list-style: none;
     margin: 0;
@@ -783,7 +845,7 @@
 }
 
 .nostr-easter-egg-dialog {
-    width: min(900px, calc(100vw - 32px));
+    width: min(1040px, calc(100vw - 32px));
     max-height: min(88vh, 980px);
     padding: 0.9rem;
 }
@@ -854,6 +916,55 @@
     padding: 0.65rem;
     max-height: 64vh;
     overflow: auto;
+}
+
+.nostr-easter-egg-missions-dialog {
+    width: min(760px, calc(100vw - 32px));
+    max-height: min(86vh, 760px);
+    padding: 0.95rem;
+}
+
+.nostr-easter-egg-missions-list {
+    list-style: none;
+    margin: 0.5rem 0 0;
+    padding: 0;
+    display: grid;
+    gap: 0.44rem;
+    max-height: 62vh;
+    overflow: auto;
+}
+
+.nostr-easter-egg-missions-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.55rem;
+    border: 1px solid rgba(204, 214, 222, 0.95);
+    border-radius: 9px;
+    background: rgba(250, 252, 254, 0.96);
+    padding: 0.46rem 0.52rem;
+}
+
+.nostr-easter-egg-missions-label {
+    font-size: 0.82rem;
+    color: #213943;
+}
+
+.nostr-easter-egg-missions-status {
+    flex-shrink: 0;
+    border: 1px solid rgba(175, 189, 198, 0.94);
+    border-radius: 999px;
+    padding: 0.12rem 0.44rem;
+    font-size: 0.69rem;
+    font-weight: 600;
+    color: #4a6370;
+    background: rgba(240, 245, 249, 0.95);
+}
+
+.nostr-easter-egg-missions-status.is-discovered {
+    border-color: rgba(89, 154, 105, 0.9);
+    color: #1f6130;
+    background: rgba(224, 246, 231, 0.95);
 }
 
 .nostr-city-stats-body {
@@ -2186,6 +2297,23 @@
     color: #1f3340;
     font-size: 0.76rem;
     font-weight: 600;
+}
+
+.nostr-map-easter-egg-marker {
+    position: absolute;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transform: translate(-50%, -120%);
+    width: 1.2rem;
+    height: 1.2rem;
+    border-radius: 999px;
+    border: 1px solid rgba(201, 154, 43, 0.98);
+    color: #714d0f;
+    background: rgba(255, 232, 171, 0.98);
+    box-shadow: 0 8px 16px rgba(14, 32, 44, 0.2);
+    font-size: 0.78rem;
+    font-weight: 800;
 }
 
 .nostr-map-owner-tooltip {

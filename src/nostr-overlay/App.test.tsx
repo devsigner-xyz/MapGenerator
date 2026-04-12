@@ -124,6 +124,7 @@ function createMapBridgeStub(buildingsCount = 0): MapBridgeStub {
         setTrafficParticlesSpeed: vi.fn(),
         mountSettingsPanel: vi.fn(),
         focusBuilding: vi.fn(),
+        listEasterEggBuildings: vi.fn().mockReturnValue([]),
         getParkCount: vi.fn().mockReturnValue(0),
         getZoom: vi.fn().mockReturnValue(1),
         worldToScreen: vi.fn().mockImplementation((point: { x: number; y: number }) => point),
@@ -2545,6 +2546,37 @@ describe('Nostr overlay App', () => {
 
         await waitFor(() => (rendered.container.textContent || '').includes('A Declaration of the Independence of Cyberspace'));
         expect(rendered.container.textContent || '').toContain('Governments of the Industrial World');
+    });
+
+    test('persists discovered easter eggs and shows persistent marker on map', async () => {
+        const { bridge, triggerEasterEggBuildingClick } = createMapBridgeStub(8);
+        (bridge as any).listEasterEggBuildings.mockReturnValue([
+            {
+                index: 7,
+                easterEggId: 'crypto_anarchist_manifesto',
+            },
+        ]);
+
+        const rendered = await renderApp(<App mapBridge={bridge} />);
+        mounted.push(rendered);
+
+        await act(async () => {
+            triggerEasterEggBuildingClick({
+                buildingIndex: 7,
+                easterEggId: 'crypto_anarchist_manifesto',
+            });
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('The Crypto Anarchist Manifesto'));
+
+        const progressRaw = window.localStorage.getItem('nostr.overlay.easter-eggs.v1');
+        expect(progressRaw).toBeTruthy();
+        expect(JSON.parse(progressRaw || '{}')).toEqual({
+            discoveredIds: ['crypto_anarchist_manifesto'],
+        });
+
+        const marker = rendered.container.querySelector('.nostr-map-easter-egg-marker') as HTMLElement;
+        expect(marker).toBeDefined();
     });
 
     test('opens settings dialog, mounts map settings from advanced section and shows shortcuts screen', async () => {

@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NostrProfile } from '../../nostr/types';
-import type { MapBridge, MapBuildingSlot } from '../map-bridge';
-import { buildPresenceLayerEntries, isPointWithinViewport } from '../domain/presence-layer-model';
+import type { EasterEggId } from '../../ts/ui/easter_eggs';
+import type { EasterEggBuildingSlot, MapBridge, MapBuildingSlot } from '../map-bridge';
+import { buildDiscoveredEasterEggEntries, buildPresenceLayerEntries, isPointWithinViewport } from '../domain/presence-layer-model';
+import { getEasterEggEntry } from '../easter-eggs/catalog';
 
 interface MapPresenceLayerProps {
     mapBridge: MapBridge | null;
     occupancyByBuildingIndex: Record<number, string>;
+    discoveredEasterEggIds: EasterEggId[];
     profiles: Record<string, NostrProfile>;
     ownerPubkey?: string;
     ownerProfile?: NostrProfile;
@@ -58,6 +61,7 @@ function areBuildingSlotsEqual(left: MapBuildingSlot[], right: MapBuildingSlot[]
 export function MapPresenceLayer({
     mapBridge,
     occupancyByBuildingIndex,
+    discoveredEasterEggIds,
     profiles,
     ownerPubkey,
     ownerProfile,
@@ -67,12 +71,14 @@ export function MapPresenceLayer({
 }: MapPresenceLayerProps) {
     const VIEWPORT_MARGIN_PX = 42;
     const [buildings, setBuildings] = useState<MapBuildingSlot[]>([]);
+    const [easterEggBuildings, setEasterEggBuildings] = useState<EasterEggBuildingSlot[]>([]);
     const [viewState, setViewState] = useState({
         zoom: 0,
         insetLeft: 0,
     });
     const pendingFrameRef = useRef<number | null>(null);
     const occupantRefs = useRef<Record<string, HTMLDivElement | null>>({});
+    const easterEggRefs = useRef<Record<string, HTMLDivElement | null>>({});
     const ownerRef = useRef<HTMLDivElement | null>(null);
 
     const buildingsByIndex = useMemo(() => {
@@ -104,6 +110,12 @@ export function MapPresenceLayer({
         viewState.zoom,
     ]);
 
+    const discoveredEasterEggEntries = useMemo(() => buildDiscoveredEasterEggEntries({
+        discoveredIds: discoveredEasterEggIds,
+        easterEggBuildings,
+        buildingsByIndex,
+    }), [buildingsByIndex, discoveredEasterEggIds, easterEggBuildings]);
+
     const updateTagPositions = useCallback((): void => {
         if (!mapBridge) {
             return;
@@ -115,6 +127,23 @@ export function MapPresenceLayer({
 
         for (const entry of occupiedEntries) {
             const node = occupantRefs.current[entry.key];
+            if (!node) {
+                continue;
+            }
+
+            const screenPoint = mapBridge.worldToScreen(entry.centroid);
+            node.style.left = `${screenPoint.x + insetLeft}px`;
+            node.style.top = `${screenPoint.y}px`;
+            node.style.display = isPointWithinViewport({
+                point: screenPoint,
+                viewportWidth,
+                viewportHeight,
+                marginPx: VIEWPORT_MARGIN_PX,
+            }) ? '' : 'none';
+        }
+
+        for (const entry of discoveredEasterEggEntries) {
+            const node = easterEggRefs.current[entry.key];
             if (!node) {
                 continue;
             }
@@ -143,11 +172,12 @@ export function MapPresenceLayer({
         ownerRef.current.style.left = `${ownerScreenPoint.x + insetLeft}px`;
         ownerRef.current.style.top = `${ownerScreenPoint.y}px`;
         ownerRef.current.style.display = '';
-    }, [mapBridge, occupiedEntries, ownerBuilding, ownerPubkey]);
+    }, [discoveredEasterEggEntries, mapBridge, occupiedEntries, ownerBuilding, ownerPubkey]);
 
     useEffect(() => {
         if (!mapBridge) {
             setBuildings([]);
+            setEasterEggBuildings([]);
             setViewState({
                 zoom: 0,
                 insetLeft: 0,
@@ -160,6 +190,7 @@ export function MapPresenceLayer({
                 const next = mapBridge.listBuildings();
                 return areBuildingSlotsEqual(current, next) ? current : next;
             });
+            setEasterEggBuildings(mapBridge.listEasterEggBuildings?.() ?? []);
         };
 
         const refreshView = (): void => {
@@ -215,6 +246,15 @@ export function MapPresenceLayer({
     }, [occupiedEntries]);
 
     useEffect(() => {
+        const validKeys = new Set(discoveredEasterEggEntries.map((entry) => entry.key));
+        for (const key of Object.keys(easterEggRefs.current)) {
+            if (!validKeys.has(key)) {
+                delete easterEggRefs.current[key];
+            }
+        }
+    }, [discoveredEasterEggEntries]);
+
+    useEffect(() => {
         if (!mapBridge) {
             return;
         }
@@ -266,6 +306,28 @@ export function MapPresenceLayer({
                         {entry.displayName ? (
                             <span className="nostr-map-occupant-name">{entry.displayName}</span>
                         ) : null}
+                    </div>
+                );
+            })}
+
+            {discoveredEasterEggEntries.map((entry) => {
+                const initialPosition = mapBridge.worldToScreen(entry.centroid);
+                const easterEggTitle = getEasterEggEntry(entry.easterEggId).title;
+
+                return (
+                    <div
+                        key={entry.key}
+                        ref={(node) => {
+                            easterEggRefs.current[entry.key] = node;
+                        }}
+                        className="nostr-map-easter-egg-marker"
+                        title={`Easter egg descubierto: ${easterEggTitle}`}
+                        style={{
+                            left: `${initialPosition.x + viewState.insetLeft}px`,
+                            top: `${initialPosition.y}px`,
+                        }}
+                    >
+                        ★
                     </div>
                 );
             })}

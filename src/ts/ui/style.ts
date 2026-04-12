@@ -90,6 +90,21 @@ function resolveEasterEggDebugStroke(colourScheme: ColourScheme, animationTimeMs
     return rgbTripletToString(blendRgb(emptyRgb, occupiedRgb, blendAmount));
 }
 
+function resolveEasterEggDebugFill(colourScheme: ColourScheme, animationTimeMs: number): string {
+    const emptyFill = colourScheme.buildingColour || colourScheme.bgColour;
+    const occupiedFill = 'rgb(247,240,206)';
+
+    const emptyRgb = parseRgbTriplet(emptyFill);
+    const occupiedRgb = parseRgbTriplet(occupiedFill);
+    if (!emptyRgb || !occupiedRgb) {
+        return emptyFill;
+    }
+
+    const oscillation = (Math.sin(animationTimeMs / 1100) + 1) / 2;
+    const blendAmount = 0.1 + oscillation * 0.26;
+    return rgbTripletToString(blendRgb(emptyRgb, occupiedRgb, blendAmount));
+}
+
 export function resolveBuildingRenderColours(
     state: BuildingRenderState,
     colourScheme: ColourScheme,
@@ -124,9 +139,8 @@ export function resolveBuildingRenderColours(
     }
 
     if (state === 'easter_egg_debug') {
-        const emptyFill = colourScheme.buildingColour || colourScheme.bgColour;
         return {
-            fill: emptyFill,
+            fill: resolveEasterEggDebugFill(colourScheme, animationTimeMs),
             stroke: resolveEasterEggDebugStroke(colourScheme, animationTimeMs),
         };
     }

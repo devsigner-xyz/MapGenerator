@@ -37,14 +37,16 @@ describe('resolveBuildingRenderColours', () => {
         });
     });
 
-    test('renders easter egg debug buildings with empty fill and animated occupied-like border', () => {
+    test('renders easter egg debug buildings with animated fill and occupied-like border', () => {
         const coloursAtStart = resolveBuildingRenderColours('easter_egg_debug' as any, baseScheme, 0);
         const coloursLater = resolveBuildingRenderColours('easter_egg_debug' as any, baseScheme, 550);
 
-        expect(coloursAtStart.fill).toBe('rgb(240,240,240)');
+        expect(coloursAtStart.fill).toMatch(/^rgb\(\d+,\d+,\d+\)$/);
+        expect(coloursAtStart.fill).not.toBe('rgb(240,240,240)');
         expect(coloursAtStart.stroke).toMatch(/^rgb\(\d+,\d+,\d+\)$/);
         expect(coloursAtStart.stroke).not.toBe('rgb(200,200,200)');
         expect(coloursAtStart.stroke).not.toBe('rgb(228,202,120)');
+        expect(coloursLater.fill).not.toBe(coloursAtStart.fill);
         expect(coloursLater.stroke).not.toBe(coloursAtStart.stroke);
     });
 

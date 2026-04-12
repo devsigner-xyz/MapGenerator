@@ -5,7 +5,8 @@ import type { SocialEngagementMetrics, SocialFeedItem, SocialThreadItem } from '
 import { ListLoadingFooter } from './ListLoadingFooter';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
+import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
 
 interface FollowingFeedThreadView {
@@ -361,13 +362,25 @@ export function FollowingFeedContent({
                         className="nostr-following-feed-list"
                         onScroll={(event) => onFeedScroll(event.currentTarget)}
                     >
-                        {items.length === 0 && !isLoadingFeed ? (
-                            <Empty className="nostr-following-feed-empty">
-                                <EmptyHeader>
-                                    <EmptyTitle>Sin publicaciones</EmptyTitle>
-                                    <EmptyDescription>Todavia no hay notas o reposts para mostrar.</EmptyDescription>
-                                </EmptyHeader>
-                            </Empty>
+                        {items.length === 0 ? (
+                            isLoadingFeed ? (
+                                <Empty className="nostr-following-feed-empty">
+                                    <EmptyHeader>
+                                        <EmptyMedia variant="icon">
+                                            <Spinner />
+                                        </EmptyMedia>
+                                        <EmptyTitle>Cargando feed</EmptyTitle>
+                                        <EmptyDescription>Buscando publicaciones de personas que sigues.</EmptyDescription>
+                                    </EmptyHeader>
+                                </Empty>
+                            ) : (
+                                <Empty className="nostr-following-feed-empty">
+                                    <EmptyHeader>
+                                        <EmptyTitle>Sin publicaciones</EmptyTitle>
+                                        <EmptyDescription>Todavia no hay notas o reposts para mostrar.</EmptyDescription>
+                                    </EmptyHeader>
+                                </Empty>
+                            )
                         ) : (
                             items.map((item) => {
                                 const isReactionActive = Boolean(reactionByEventId[item.id]);
@@ -418,7 +431,7 @@ export function FollowingFeedContent({
                             })
                         )}
 
-                        <ListLoadingFooter loading={isLoadingFeed} label="Cargando publicaciones..." />
+                        <ListLoadingFooter loading={isLoadingFeed && items.length > 0} label="Cargando publicaciones..." />
 
                         {hasMoreFeed && !isLoadingFeed ? (
                             <Button

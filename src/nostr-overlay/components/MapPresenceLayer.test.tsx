@@ -31,6 +31,7 @@ function createMapBridgeStub(zoom: number): MapBridge {
         setTrafficParticlesSpeed: vi.fn(),
         mountSettingsPanel: vi.fn(),
         focusBuilding: vi.fn(),
+        listEasterEggBuildings: vi.fn().mockReturnValue([]),
         getParkCount: vi.fn().mockReturnValue(0),
         onMapGenerated: vi.fn().mockReturnValue(() => {}),
         onOccupiedBuildingClick: vi.fn().mockReturnValue(() => {}),
@@ -87,6 +88,7 @@ describe('MapPresenceLayer', () => {
             <MapPresenceLayer
                 mapBridge={bridge}
                 occupancyByBuildingIndex={{}}
+                discoveredEasterEggIds={[]}
                 profiles={profiles}
                 ownerPubkey={ownerPubkey}
                 ownerProfile={{ pubkey: ownerPubkey, displayName: 'Owner' }}
@@ -108,6 +110,7 @@ describe('MapPresenceLayer', () => {
             <MapPresenceLayer
                 mapBridge={bridge}
                 occupancyByBuildingIndex={{ 0: occupantPubkey }}
+                discoveredEasterEggIds={[]}
                 profiles={profiles}
                 ownerPubkey={ownerPubkey}
                 ownerProfile={{ pubkey: ownerPubkey, displayName: 'Owner' }}
@@ -126,6 +129,7 @@ describe('MapPresenceLayer', () => {
             <MapPresenceLayer
                 mapBridge={bridge}
                 occupancyByBuildingIndex={{ 0: occupantPubkey }}
+                discoveredEasterEggIds={[]}
                 profiles={profiles}
                 ownerPubkey={ownerPubkey}
                 ownerProfile={{ pubkey: ownerPubkey, displayName: 'Owner' }}
@@ -144,6 +148,7 @@ describe('MapPresenceLayer', () => {
             <MapPresenceLayer
                 mapBridge={bridge}
                 occupancyByBuildingIndex={{ 0: occupantPubkey }}
+                discoveredEasterEggIds={[]}
                 profiles={profiles}
                 ownerPubkey={ownerPubkey}
                 ownerProfile={{ pubkey: ownerPubkey, displayName: 'Owner' }}
@@ -163,6 +168,7 @@ describe('MapPresenceLayer', () => {
             <MapPresenceLayer
                 mapBridge={bridge}
                 occupancyByBuildingIndex={{ 0: occupantPubkey }}
+                discoveredEasterEggIds={[]}
                 profiles={{
                     [occupantPubkey]: {
                         pubkey: occupantPubkey,
@@ -192,6 +198,7 @@ describe('MapPresenceLayer', () => {
             <MapPresenceLayer
                 mapBridge={bridge}
                 occupancyByBuildingIndex={{ 0: occupantPubkey }}
+                discoveredEasterEggIds={[]}
                 profiles={profiles}
                 ownerPubkey={ownerPubkey}
                 ownerProfile={{ pubkey: ownerPubkey, displayName: 'Owner' }}
@@ -221,6 +228,7 @@ describe('MapPresenceLayer', () => {
                 <MapPresenceLayer
                     mapBridge={bridge}
                     occupancyByBuildingIndex={{ 0: occupantPubkey }}
+                    discoveredEasterEggIds={[]}
                     profiles={profiles}
                     ownerPubkey={ownerPubkey}
                     ownerProfile={{ pubkey: ownerPubkey, displayName: 'Owner' }}
@@ -241,5 +249,36 @@ describe('MapPresenceLayer', () => {
         } finally {
             consoleErrorSpy.mockRestore();
         }
+    });
+
+    test('renders persistent discovered easter egg marker', async () => {
+        const bridge = createMapBridgeStub(4);
+        (bridge.listBuildings as any).mockReturnValue([
+            {
+                index: 5,
+                centroid: { x: 120, y: 90 },
+            },
+        ]);
+        (bridge.listEasterEggBuildings as any).mockReturnValue([
+            {
+                index: 5,
+                easterEggId: 'crypto_anarchist_manifesto',
+            },
+        ]);
+
+        const rendered = await renderElement(
+            <MapPresenceLayer
+                mapBridge={bridge}
+                occupancyByBuildingIndex={{}}
+                discoveredEasterEggIds={['crypto_anarchist_manifesto']}
+                profiles={profiles}
+                occupiedLabelsZoomLevel={10}
+            />
+        );
+        mounted.push(rendered);
+
+        const marker = rendered.container.querySelector('.nostr-map-easter-egg-marker') as HTMLElement;
+        expect(marker).toBeDefined();
+        expect(marker.textContent || '').toContain('★');
     });
 });

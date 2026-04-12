@@ -2,11 +2,17 @@ import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEven
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router';
 import { getDefaultUiSettings, loadUiSettings, saveUiSettings, type UiSettingsState } from '../nostr/ui-settings';
 import { loadZapSettings, type ZapSettingsState } from '../nostr/zap-settings';
+import {
+    loadEasterEggProgress,
+    markEasterEggDiscovered,
+    type EasterEggProgressState,
+} from '../nostr/easter-egg-progress';
 import { encodeHexToNpub } from '../nostr/npub';
 import { MapPresenceLayer } from './components/MapPresenceLayer';
 import { MapSettingsDialog, type SettingsView } from './components/MapSettingsDialog';
 import { OccupantProfileDialog } from './components/OccupantProfileDialog';
 import { EasterEggDialog } from './components/EasterEggDialog';
+import { EasterEggMissionsDialog } from './components/EasterEggMissionsDialog';
 import { SocialSidebar } from './components/SocialSidebar';
 import { MapZoomControls } from './components/MapZoomControls';
 import { MapDisplayToggleControls } from './components/MapDisplayToggleControls';
@@ -79,9 +85,11 @@ export function App({ mapBridge, services }: AppProps) {
     const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
     const [settingsInitialView, setSettingsInitialView] = useState<SettingsView>('ui');
     const [cityStatsDialogOpen, setCityStatsDialogOpen] = useState(false);
+    const [missionsDialogOpen, setMissionsDialogOpen] = useState(false);
     const [panelCollapsed, setPanelCollapsed] = useState(false);
     const [uiSettings, setUiSettings] = useState<UiSettingsState>(() => loadUiSettings());
     const [zapSettings, setZapSettings] = useState<ZapSettingsState>(() => loadZapSettings());
+    const [easterEggProgress, setEasterEggProgress] = useState<EasterEggProgressState>(() => loadEasterEggProgress());
     const [buildingContextMenu, setBuildingContextMenu] = useState<OccupiedBuildingContextMenuState | null>(null);
     const [activeEasterEgg, setActiveEasterEgg] = useState<EasterEggDialogState | null>(null);
     const [chatOpen, setChatOpen] = useState(false);
@@ -249,6 +257,10 @@ export function App({ mapBridge, services }: AppProps) {
         }
 
         return mapBridge.onEasterEggBuildingClick((payload) => {
+            setEasterEggProgress((currentProgress) => markEasterEggDiscovered({
+                easterEggId: payload.easterEggId,
+                currentState: currentProgress,
+            }));
             easterEggNonceRef.current += 1;
             setActiveEasterEgg({
                 ...payload,
@@ -852,6 +864,8 @@ export function App({ mapBridge, services }: AppProps) {
                         canEncrypt={overlay.canEncrypt}
                         onStartSession={overlay.startSession}
                         verificationByPubkey={verificationByPubkey}
+                        easterEggDiscoveredIds={easterEggProgress.discoveredIds}
+                        onOpenMissions={() => setMissionsDialogOpen(true)}
                     />
                 </section>
             )}
@@ -1047,12 +1061,19 @@ export function App({ mapBridge, services }: AppProps) {
             <MapPresenceLayer
                 mapBridge={mapBridge}
                 occupancyByBuildingIndex={overlay.occupancyByBuildingIndex}
+                discoveredEasterEggIds={easterEggProgress.discoveredIds}
                 profiles={overlay.profiles}
                 ownerPubkey={overlay.ownerPubkey}
                 ownerProfile={overlay.ownerProfile}
                 ownerBuildingIndex={overlay.ownerBuildingIndex}
                 occupiedLabelsZoomLevel={uiSettings.occupiedLabelsZoomLevel}
                 alwaysVisiblePubkeys={overlay.alwaysVisiblePubkeys}
+            />
+
+            <EasterEggMissionsDialog
+                open={missionsDialogOpen}
+                discoveredIds={easterEggProgress.discoveredIds}
+                onClose={() => setMissionsDialogOpen(false)}
             />
 
             {overlay.activeProfilePubkey ? (

@@ -1,5 +1,6 @@
 import type { NostrProfile } from '../../nostr/types';
-import type { MapBuildingSlot, WorldPoint } from '../map-bridge';
+import type { EasterEggBuildingSlot, MapBuildingSlot, WorldPoint } from '../map-bridge';
+import type { EasterEggId } from '../../ts/ui/easter_eggs';
 
 export interface PresenceLayerEntry {
     key: string;
@@ -18,6 +19,19 @@ export interface BuildPresenceLayerEntriesInput {
     zoom: number;
     occupiedLabelsZoomLevel: number;
     alwaysVisiblePubkeys: string[];
+}
+
+export interface DiscoveredEasterEggEntry {
+    key: string;
+    easterEggId: EasterEggId;
+    index: number;
+    centroid: WorldPoint;
+}
+
+export interface BuildDiscoveredEasterEggEntriesInput {
+    discoveredIds: EasterEggId[];
+    easterEggBuildings: EasterEggBuildingSlot[];
+    buildingsByIndex: Record<number, MapBuildingSlot>;
 }
 
 function sanitizeLabel(value: string | undefined): string | undefined {
@@ -91,4 +105,24 @@ export function isPointWithinViewport(input: {
         && input.point.y >= -margin
         && input.point.x <= (input.viewportWidth + margin)
         && input.point.y <= (input.viewportHeight + margin);
+}
+
+export function buildDiscoveredEasterEggEntries(input: BuildDiscoveredEasterEggEntriesInput): DiscoveredEasterEggEntry[] {
+    const discoveredIds = new Set(input.discoveredIds);
+    return input.easterEggBuildings
+        .filter((entry) => discoveredIds.has(entry.easterEggId))
+        .map((entry) => {
+            const building = input.buildingsByIndex[entry.index];
+            if (!building) {
+                return null;
+            }
+
+            return {
+                key: `easter-egg-${entry.easterEggId}-${entry.index}`,
+                easterEggId: entry.easterEggId,
+                index: entry.index,
+                centroid: building.centroid,
+            };
+        })
+        .filter((entry): entry is DiscoveredEasterEggEntry => entry !== null);
 }

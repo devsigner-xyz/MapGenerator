@@ -595,6 +595,16 @@ export default class MainGUI {
         };
     }
 
+    getEasterEggBuildings(): Array<{ index: number; easterEggId: EasterEggId }> {
+        return Object.entries(this.easterEggByBuildingIndex)
+            .map(([indexKey, easterEggId]) => ({
+                index: Number(indexKey),
+                easterEggId,
+            }))
+            .filter((entry) => Number.isInteger(entry.index) && entry.index >= 0)
+            .sort((left, right) => left.index - right.index);
+    }
+
     // OBJ Export methods
 
     public get seaPolygon(): Vector[] {

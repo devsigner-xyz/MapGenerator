@@ -212,6 +212,10 @@ class Main {
         return this.mainGui.getBuildingFootprintsWorld();
     }
 
+    getEasterEggBuildings(): Array<{ index: number; easterEggId: EasterEggId }> {
+        return this.mainGui.getEasterEggBuildings();
+    }
+
     setOccupancyByBuildingIndex(byBuildingIndex: Record<number, string>): void {
         this.mainGui.setOccupancyByBuildingIndex(byBuildingIndex);
     }

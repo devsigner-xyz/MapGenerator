@@ -22,10 +22,16 @@ export interface EasterEggBuildingClickPayload {
     easterEggId: EasterEggId;
 }
 
+export interface EasterEggBuildingSlot {
+    index: number;
+    easterEggId: EasterEggId;
+}
+
 export interface MapMainApi {
     generateMap(): Promise<void> | void;
     roadsEmpty(): boolean;
     getBuildingCentroidsWorld(): WorldPoint[];
+    getEasterEggBuildings?(): EasterEggBuildingSlot[];
     setOccupancyByBuildingIndex(byBuildingIndex: Record<number, string>): void;
     setVerifiedBuildingIndexes?(indexes: number[]): void;
     setViewportInsetLeft(inset: number): void;
@@ -54,6 +60,7 @@ export interface MapBridge {
     ensureGenerated(): Promise<void>;
     regenerateMap(): Promise<void>;
     listBuildings(): MapBuildingSlot[];
+    listEasterEggBuildings?(): EasterEggBuildingSlot[];
     applyOccupancy(input: { byBuildingIndex: Record<number, string>; selectedBuildingIndex?: number }): void;
     setViewportInsetLeft(inset: number): void;
     setVerifiedBuildingIndexes(indexes: number[]): void;
@@ -97,6 +104,17 @@ export function createMapBridge(mainApi: MapMainApi): MapBridge {
                     y: centroid.y,
                 },
             }));
+        },
+
+        listEasterEggBuildings(): EasterEggBuildingSlot[] {
+            const slots = mainApi.getEasterEggBuildings?.() ?? [];
+            return slots
+                .filter((slot) => Number.isInteger(slot.index) && slot.index >= 0)
+                .sort((left, right) => left.index - right.index)
+                .map((slot) => ({
+                    index: slot.index,
+                    easterEggId: slot.easterEggId,
+                }));
         },
 
         applyOccupancy(input: { byBuildingIndex: Record<number, string>; selectedBuildingIndex?: number }): void {
