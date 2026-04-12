@@ -33,7 +33,6 @@ import { nextStreetLabelSeed } from './street_label_seed';
 import {
     TrafficParticlesSimulation,
     type TrafficRenderParticle,
-    type TrafficWorldBounds,
 } from './traffic_particles';
 
 /**
@@ -314,7 +313,6 @@ export default class MainGUI {
         if (this.trafficNetworkDirty) {
             this.rebuildTrafficNetwork();
         }
-        this.trafficSimulation.setWorldBounds(this.getTrafficWorldBounds());
         this.trafficParticlesWorld = this.trafficSimulation.step(deltaSeconds);
 
         const hasTrafficAnimation = this.trafficParticlesCount > 0 && this.trafficParticlesWorld.length > 0;
@@ -644,17 +642,6 @@ export default class MainGUI {
         this.trafficSimulation.setCount(this.trafficParticlesCount);
         this.trafficSimulation.setSpeedMultiplier(this.trafficParticlesSpeed);
         this.trafficNetworkDirty = false;
-    }
-
-    private getTrafficWorldBounds(): TrafficWorldBounds {
-        const origin = this.domainController.origin;
-        const worldDimensions = this.domainController.worldDimensions;
-        return {
-            minX: origin.x,
-            minY: origin.y,
-            maxX: origin.x + worldDimensions.x,
-            maxY: origin.y + worldDimensions.y,
-        };
     }
 
     private resetOccupancyState(): void {
