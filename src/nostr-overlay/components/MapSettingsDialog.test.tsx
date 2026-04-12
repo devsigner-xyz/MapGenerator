@@ -2,7 +2,9 @@ import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { MapBridge } from '../map-bridge';
-import { MapSettingsDialog } from './MapSettingsDialog';
+import { MapSettingsPage } from './MapSettingsPage';
+
+const MapSettingsDialog = MapSettingsPage;
 import { encodeHexToNpub } from '../../nostr/npub';
 import { RELAY_SETTINGS_STORAGE_KEY } from '../../nostr/relay-settings';
 import { UI_SETTINGS_STORAGE_KEY } from '../../nostr/ui-settings';
@@ -333,7 +335,7 @@ describe('MapSettingsDialog UI settings', () => {
         expect(raw || '').toContain('wss://relay.two');
     });
 
-    test('uses wider relays layout and shows compact relay metadata in table', async () => {
+    test('uses wider relays layout with right sidebar and shows compact relay metadata in table', async () => {
         window.localStorage.setItem(
             RELAY_SETTINGS_STORAGE_KEY,
             JSON.stringify({ relays: ['wss://relay.one/socket'] })
@@ -351,6 +353,14 @@ describe('MapSettingsDialog UI settings', () => {
 
         const dialogContent = rendered.container.querySelector('.nostr-settings-dialog-relays');
         expect(dialogContent).toBeDefined();
+
+        const relaysLayout = rendered.container.querySelector('.nostr-relays-layout');
+        expect(relaysLayout).toBeDefined();
+
+        const sidebar = rendered.container.querySelector('.nostr-relays-sidebar');
+        expect(sidebar).toBeDefined();
+        expect(sidebar?.querySelector('input[aria-label="Relay URLs"]')).toBeDefined();
+        expect(sidebar?.querySelector('button[aria-label="Relay category"]')).toBeDefined();
 
         expect(rendered.container.textContent || '').toContain('relay.one');
         expect(rendered.container.textContent || '').toContain('wss');

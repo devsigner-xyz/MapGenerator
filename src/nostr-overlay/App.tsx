@@ -9,10 +9,10 @@ import {
 } from '../nostr/easter-egg-progress';
 import { encodeHexToNpub } from '../nostr/npub';
 import { MapPresenceLayer } from './components/MapPresenceLayer';
-import { MapSettingsDialog, type SettingsView } from './components/MapSettingsDialog';
+import type { SettingsView } from './components/settings-pages/types';
 import { OccupantProfileDialog } from './components/OccupantProfileDialog';
 import { EasterEggDialog } from './components/EasterEggDialog';
-import { EasterEggMissionsDialog } from './components/EasterEggMissionsDialog';
+import { DiscoverPage } from './components/DiscoverPage';
 import { SocialSidebar } from './components/SocialSidebar';
 import {
     OverlaySidebar,
@@ -21,11 +21,12 @@ import {
 } from './components/OverlaySidebar';
 import { MapZoomControls } from './components/MapZoomControls';
 import { MapDisplayToggleControls } from './components/MapDisplayToggleControls';
-import { CityStatsDialog } from './components/CityStatsDialog';
+import { CityStatsPage } from './components/CityStatsPage';
 import { ChatDialog, type ChatConversationSummary, type ChatDetailMessage } from './components/ChatDialog';
-import { NotificationsDialog } from './components/NotificationsDialog';
+import { NotificationsPage } from './components/NotificationsPage';
 import { FollowingFeedSurface } from './components/FollowingFeedSurface';
-import { GlobalUserSearchDialog } from './components/GlobalUserSearchDialog';
+import { SettingsPage } from './components/SettingsPage';
+import { UserSearchPage } from './components/UserSearchPage';
 import { PersonContextMenuItems } from './components/PersonContextMenuItems';
 import { useNostrOverlay, type MapLoaderStage, type NostrOverlayServices } from './hooks/useNostrOverlay';
 import { useNip05Verification } from './hooks/useNip05Verification';
@@ -879,8 +880,7 @@ export function App({ mapBridge, services }: AppProps) {
                 <Route
                     path="/estadisticas"
                     element={(
-                        <CityStatsDialog
-                            variant="surface"
+                        <CityStatsPage
                             buildingsCount={overlay.buildingsCount}
                             occupiedBuildingsCount={overlay.assignedCount}
                             assignedResidentsCount={overlay.assignedCount}
@@ -895,8 +895,7 @@ export function App({ mapBridge, services }: AppProps) {
                 <Route
                     path="/notificaciones"
                     element={(
-                        <NotificationsDialog
-                            variant="surface"
+                        <NotificationsPage
                             open={socialState.isDialogOpen}
                             hasUnread={socialState.hasUnread}
                             notifications={socialState.pendingSnapshot}
@@ -907,8 +906,7 @@ export function App({ mapBridge, services }: AppProps) {
                 <Route
                     path="/descubre"
                     element={(
-                        <EasterEggMissionsDialog
-                            variant="surface"
+                        <DiscoverPage
                             open
                             discoveredIds={easterEggProgress.discoveredIds}
                             onClose={() => navigate('/')}
@@ -918,8 +916,7 @@ export function App({ mapBridge, services }: AppProps) {
                 <Route
                     path="/buscar-usuarios"
                     element={(
-                        <GlobalUserSearchDialog
-                            variant="surface"
+                        <UserSearchPage
                             open
                             onClose={closeGlobalUserSearch}
                             onSearch={overlay.searchUsers}
@@ -933,8 +930,7 @@ export function App({ mapBridge, services }: AppProps) {
                 <Route
                     path="/settings/:view"
                     element={(
-                        <MapSettingsDialog
-                            variant="surface"
+                        <SettingsPage
                             mapBridge={mapBridge}
                             suggestedRelays={overlay.suggestedRelays}
                             suggestedRelaysByType={overlay.suggestedRelaysByType}

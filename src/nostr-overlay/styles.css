@@ -1115,6 +1115,41 @@
     gap: 0.6rem;
 }
 
+.nostr-relays-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+    gap: 0.65rem;
+    align-items: start;
+}
+
+.nostr-relays-main {
+    display: grid;
+    gap: 0.6rem;
+    min-width: 0;
+}
+
+.nostr-relays-sidebar {
+    display: grid;
+    gap: 0.6rem;
+    min-width: 0;
+}
+
+.nostr-relays-sidebar-panel {
+    display: grid;
+    gap: 0.45rem;
+    border: 1px solid rgba(206, 214, 222, 0.95);
+    border-radius: 8px;
+    background: rgba(251, 253, 255, 0.95);
+    padding: 0.5rem;
+}
+
+.nostr-relays-sidebar-title {
+    margin: 0;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #314b59;
+}
+
 .nostr-relays-help {
     margin: 0;
     font-size: 0.86rem;
@@ -1328,6 +1363,11 @@
 .nostr-relay-suggested {
     display: grid;
     gap: 0.45rem;
+}
+
+.nostr-relays-sidebar .nostr-relay-table-wrap {
+    max-height: min(44vh, 340px);
+    overflow: auto;
 }
 
 .nostr-relay-suggested-header {
@@ -2447,6 +2487,10 @@
     .nostr-settings-page-relays {
         width: calc(100vw - 20px) !important;
         max-width: calc(100vw - 20px) !important;
+    }
+
+    .nostr-relays-layout {
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .nostr-relay-detail-key {

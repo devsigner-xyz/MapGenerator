@@ -17,7 +17,7 @@ import {
 import { encodeHexToNpub } from '../../nostr/npub';
 import type { AuthSessionState } from '../../nostr/auth/session';
 import type { NostrProfile } from '../../nostr/types';
-import type { SettingsView } from './MapSettingsDialog';
+import type { SettingsView } from './settings-pages/types';
 import { useLocation } from 'react-router';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
