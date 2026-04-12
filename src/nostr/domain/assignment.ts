@@ -48,15 +48,27 @@ export function assignPubkeysToBuildings(input: {
     buildingsCount: number;
     seed: string;
     priorityPubkeys?: string[];
+    excludedBuildingIndexes?: number[];
 }): AssignmentResult {
     const capacity = Math.max(0, Math.floor(input.buildingsCount));
     const sortedPubkeys = normalizePubkeys(input.pubkeys, input.priorityPubkeys || []);
+    const excludedSet = new Set<number>();
+    for (const value of input.excludedBuildingIndexes || []) {
+        const candidate = Number(value);
+        if (!Number.isInteger(candidate) || candidate < 0 || candidate >= capacity) {
+            continue;
+        }
+        excludedSet.add(candidate);
+    }
 
     const assignments: BuildingAssignment[] = [];
     const byBuildingIndex: Record<number, string> = {};
     const pubkeyToBuildingIndex: Record<string, number> = {};
     const unassignedPubkeys: string[] = [];
     const occupied = new Array<boolean>(capacity).fill(false);
+    for (const index of excludedSet) {
+        occupied[index] = true;
+    }
 
     for (const pubkey of sortedPubkeys) {
         if (capacity === 0) {

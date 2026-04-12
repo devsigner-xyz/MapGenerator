@@ -46,6 +46,22 @@ describe('pickEmptyBuildingIndices', () => {
 
         expect(result).toEqual([]);
     });
+
+    test('skips explicitly excluded empty indexes', () => {
+        const result = pickEmptyBuildingIndices({
+            buildingCount: 7,
+            occupiedPubkeyByBuildingIndex: {
+                1: 'occupied',
+            },
+            excludedBuildingIndexes: [0, 3, 99],
+            maxCount: 4,
+            random: () => 0,
+        });
+
+        expect(result.includes(0)).toBe(false);
+        expect(result.includes(3)).toBe(false);
+        expect(result.includes(1)).toBe(false);
+    });
 });
 
 describe('buildEasterEggAssignment', () => {
@@ -85,5 +101,17 @@ describe('buildEasterEggAssignment', () => {
         });
 
         expect(Object.keys(assignment)).toHaveLength(1);
+    });
+
+    test('never assigns easter eggs into explicitly excluded indexes', () => {
+        const assignment = buildEasterEggAssignment({
+            buildingCount: 12,
+            occupiedPubkeyByBuildingIndex: {},
+            excludedBuildingIndexes: [2, 4, 6, 8],
+            random: () => 0,
+        });
+
+        const assignedIndexes = Object.keys(assignment).map((value) => Number(value));
+        expect(assignedIndexes.some((index) => [2, 4, 6, 8].includes(index))).toBe(false);
     });
 });

@@ -2236,6 +2236,23 @@
     font-weight: 800;
 }
 
+.nostr-map-special-building-marker {
+    position: absolute;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transform: translate(-50%, -120%);
+    width: 1.2rem;
+    height: 1.2rem;
+    border-radius: 999px;
+    border: 1px solid rgba(33, 89, 133, 0.95);
+    color: #0f3b5d;
+    background: rgba(204, 234, 255, 0.98);
+    box-shadow: 0 8px 16px rgba(14, 32, 44, 0.2);
+    font-size: 0.72rem;
+    font-weight: 800;
+}
+
 .nostr-map-owner-tooltip {
     position: absolute;
     display: grid;

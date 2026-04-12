@@ -34,6 +34,7 @@ import { useSocialNotifications } from './hooks/useSocialNotifications';
 import type { EasterEggBuildingClickPayload, MapBridge, OccupiedBuildingContextPayload } from './map-bridge';
 import { extractStreetLabelUsernames } from './domain/street-label-users';
 import { getEasterEggEntry } from './easter-eggs/catalog';
+import { getSpecialBuildingEntry } from './special-buildings/catalog';
 import { EASTER_EGG_MISSIONS } from './easter-eggs/missions';
 import { createRuntimeSocialNotificationsService } from '../nostr/social-notifications-runtime-service';
 import { createRuntimeSocialFeedService } from '../nostr/social-feed-runtime-service';
@@ -283,6 +284,19 @@ export function App({ mapBridge, services }: AppProps) {
     }, [mapBridge]);
 
     useEffect(() => {
+        if (!mapBridge) {
+            return;
+        }
+
+        return mapBridge.onSpecialBuildingClick((payload) => {
+            const entry = getSpecialBuildingEntry(payload.specialBuildingId);
+            if (entry.action === 'open_agora') {
+                navigate('/agora');
+            }
+        });
+    }, [mapBridge, navigate]);
+
+    useEffect(() => {
         if (!buildingContextMenu || !contextMenuTriggerRef.current) {
             return;
         }
@@ -432,7 +446,7 @@ export function App({ mapBridge, services }: AppProps) {
     const canAccessDirectMessages = Boolean(overlay.ownerPubkey && overlay.canDirectMessages && overlay.directMessages);
     const canAccessSocialNotifications = Boolean(overlay.ownerPubkey);
     const canAccessFollowingFeed = Boolean(overlay.ownerPubkey);
-    const isFollowingFeedRoute = location.pathname === '/feed';
+    const isAgoraRoute = location.pathname === '/agora';
     const followingFeedHasUnread = !followingFeedState.isDialogOpen
         && followingFeedState.hasMoreFeed
         && followingFeedState.items.length > 0;
@@ -447,13 +461,13 @@ export function App({ mapBridge, services }: AppProps) {
     }, [canAccessDirectMessages, chatOpen]);
 
     useEffect(() => {
-        if (isFollowingFeedRoute && canAccessFollowingFeed) {
+        if (isAgoraRoute && canAccessFollowingFeed) {
             void followingFeed.openDialog();
             return;
         }
 
         followingFeed.closeDialog();
-    }, [isFollowingFeedRoute, canAccessFollowingFeed, followingFeed]);
+    }, [isAgoraRoute, canAccessFollowingFeed, followingFeed]);
 
     const copyOwnerIdentifier = async (value: string): Promise<void> => {
         if (!value) {
@@ -557,7 +571,7 @@ export function App({ mapBridge, services }: AppProps) {
             return;
         }
 
-        navigate('/feed');
+        navigate('/agora');
     };
 
     const closeFollowingFeed = (): void => {
@@ -576,6 +590,13 @@ export function App({ mapBridge, services }: AppProps) {
         setUiSettings((currentSettings) => saveUiSettings({
             ...currentSettings,
             streetLabelsEnabled: enabled,
+        }));
+    };
+
+    const setSpecialMarkersQuickToggle = (enabled: boolean): void => {
+        setUiSettings((currentSettings) => saveUiSettings({
+            ...currentSettings,
+            specialMarkersEnabled: enabled,
         }));
     };
 
@@ -681,15 +702,17 @@ export function App({ mapBridge, services }: AppProps) {
                 />
             </OverlaySidebar>
 
-            {!isFollowingFeedRoute ? (
+            {!isAgoraRoute ? (
                 <MapZoomControls mapBridge={mapBridge} />
             ) : null}
-            {!isFollowingFeedRoute ? (
+            {!isAgoraRoute ? (
                 <MapDisplayToggleControls
                     carsEnabled={uiSettings.trafficParticlesCount > 0}
                     streetLabelsEnabled={uiSettings.streetLabelsEnabled}
+                    specialMarkersEnabled={uiSettings.specialMarkersEnabled}
                     onCarsEnabledChange={setCarsQuickToggle}
                     onStreetLabelsEnabledChange={setStreetLabelsQuickToggle}
+                    onSpecialMarkersEnabledChange={setSpecialMarkersQuickToggle}
                 />
             ) : null}
 
@@ -796,7 +819,7 @@ export function App({ mapBridge, services }: AppProps) {
 
             <Routes>
                 <Route
-                    path="/feed"
+                    path="/agora"
                     element={(
                         <FollowingFeedSurface
                             onClose={closeFollowingFeed}
@@ -879,6 +902,7 @@ export function App({ mapBridge, services }: AppProps) {
                 ownerBuildingIndex={overlay.ownerBuildingIndex}
                 occupiedLabelsZoomLevel={uiSettings.occupiedLabelsZoomLevel}
                 alwaysVisiblePubkeys={overlay.alwaysVisiblePubkeys}
+                specialMarkersEnabled={uiSettings.specialMarkersEnabled}
             />
 
             <EasterEggMissionsDialog

@@ -74,4 +74,16 @@ describe('assignPubkeysToBuildings', () => {
         expect(result.unassignedPubkeys).toContain(PUBKEYS[0]);
         expect(result.unassignedPubkeys).toContain(PUBKEYS[1]);
     });
+
+    test('never assigns pubkeys to excluded building indexes', () => {
+        const result = assignPubkeysToBuildings({
+            pubkeys: PUBKEYS,
+            buildingsCount: 6,
+            seed: 'owner-pubkey',
+            excludedBuildingIndexes: [1, 3, 5],
+        });
+
+        const assignedIndexes = Object.values(result.pubkeyToBuildingIndex);
+        expect(assignedIndexes.some((index) => [1, 3, 5].includes(index))).toBe(false);
+    });
 });

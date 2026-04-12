@@ -16,8 +16,8 @@ export function FollowingFeedDialog({ open, onClose, ...feedProps }: FollowingFe
                 }
             }}
         >
-            <DialogContent className="nostr-dialog nostr-following-feed-dialog sm:max-w-none" aria-label="Feed siguiendo">
-                <DialogTitle className="sr-only">Feed siguiendo</DialogTitle>
+            <DialogContent className="nostr-dialog nostr-following-feed-dialog sm:max-w-none" aria-label="Agora">
+                <DialogTitle className="sr-only">Agora</DialogTitle>
                 <DialogDescription className="sr-only">Timeline de usuarios seguidos con hilos y acciones sociales.</DialogDescription>
                 <FollowingFeedContent {...feedProps} />
             </DialogContent>

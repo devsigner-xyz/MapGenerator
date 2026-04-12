@@ -231,12 +231,12 @@ function SidebarActionsMenu({
                             <button
                                 type="button"
                                 className="nostr-following-feed-icon-button"
-                                aria-label="Abrir feed de seguidos"
-                                title="Feed de seguidos"
+                                aria-label="Abrir Agora"
+                                title="Agora"
                                 onClick={onOpenFollowingFeed}
                             >
                                 <UsersIcon />
-                                <span>Feed</span>
+                                <span>Agora</span>
                                 {followingFeedHasUnread ? <span className="nostr-following-feed-unread-dot" /> : null}
                             </button>
                         </SidebarMenuButton>

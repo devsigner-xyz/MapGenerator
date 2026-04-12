@@ -9,6 +9,7 @@ export const EASTER_EGG_IDS: EasterEggId[] = [
 interface PickEmptyBuildingIndicesInput {
     buildingCount: number;
     occupiedPubkeyByBuildingIndex: Record<number, string>;
+    excludedBuildingIndexes?: number[];
     maxCount?: number;
     random?: () => number;
 }
@@ -16,13 +17,28 @@ interface PickEmptyBuildingIndicesInput {
 interface BuildEasterEggAssignmentInput {
     buildingCount: number;
     occupiedPubkeyByBuildingIndex: Record<number, string>;
+    excludedBuildingIndexes?: number[];
     easterEggIds?: EasterEggId[];
     random?: () => number;
+}
+
+function normalizeExcludedIndexes(excludedBuildingIndexes: number[]): Set<number> {
+    const normalized = new Set<number>();
+    for (const value of excludedBuildingIndexes) {
+        const candidate = Number(value);
+        if (!Number.isInteger(candidate) || candidate < 0) {
+            continue;
+        }
+        normalized.add(candidate);
+    }
+
+    return normalized;
 }
 
 export function pickEmptyBuildingIndices({
     buildingCount,
     occupiedPubkeyByBuildingIndex,
+    excludedBuildingIndexes = [],
     maxCount = EASTER_EGG_IDS.length,
     random = Math.random,
 }: PickEmptyBuildingIndicesInput): number[] {
@@ -33,9 +49,10 @@ export function pickEmptyBuildingIndices({
         return [];
     }
 
+    const excludedSet = normalizeExcludedIndexes(excludedBuildingIndexes);
     const emptyBuildingIndices: number[] = [];
     for (let index = 0; index < safeBuildingCount; index++) {
-        if (!occupiedPubkeyByBuildingIndex[index]) {
+        if (!occupiedPubkeyByBuildingIndex[index] && !excludedSet.has(index)) {
             emptyBuildingIndices.push(index);
         }
     }
@@ -59,12 +76,14 @@ export function pickEmptyBuildingIndices({
 export function buildEasterEggAssignment({
     buildingCount,
     occupiedPubkeyByBuildingIndex,
+    excludedBuildingIndexes = [],
     easterEggIds = EASTER_EGG_IDS,
     random = Math.random,
 }: BuildEasterEggAssignmentInput): Record<number, EasterEggId> {
     const selectedBuildingIndices = pickEmptyBuildingIndices({
         buildingCount,
         occupiedPubkeyByBuildingIndex,
+        excludedBuildingIndexes,
         maxCount: easterEggIds.length,
         random,
     });

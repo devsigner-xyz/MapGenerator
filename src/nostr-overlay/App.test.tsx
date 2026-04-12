@@ -28,6 +28,7 @@ interface MapBridgeStub {
     triggerOccupiedBuildingClick: (payload: { buildingIndex: number; pubkey: string }) => void;
     triggerOccupiedBuildingContextMenu: (payload: { buildingIndex: number; pubkey: string; clientX: number; clientY: number }) => void;
     triggerEasterEggBuildingClick: (payload: { buildingIndex: number; easterEggId: 'bitcoin_whitepaper' | 'crypto_anarchist_manifesto' | 'cyberspace_independence' }) => void;
+    triggerSpecialBuildingClick: (payload: { buildingIndex: number; specialBuildingId: 'agora' }) => void;
 }
 
 interface Deferred<T> {
@@ -100,6 +101,9 @@ function createMapBridgeStub(buildingsCount = 0): MapBridgeStub {
     const easterEggBuildingClickListeners: Array<
         (payload: { buildingIndex: number; easterEggId: 'bitcoin_whitepaper' | 'crypto_anarchist_manifesto' | 'cyberspace_independence' }) => void
     > = [];
+    const specialBuildingClickListeners: Array<
+        (payload: { buildingIndex: number; specialBuildingId: 'agora' }) => void
+    > = [];
     const bridge = {
         ensureGenerated: vi.fn().mockResolvedValue(undefined),
         regenerateMap: vi.fn().mockResolvedValue(undefined),
@@ -125,6 +129,7 @@ function createMapBridgeStub(buildingsCount = 0): MapBridgeStub {
         mountSettingsPanel: vi.fn(),
         focusBuilding: vi.fn(),
         listEasterEggBuildings: vi.fn().mockReturnValue([]),
+        listSpecialBuildings: vi.fn().mockReturnValue([]),
         getParkCount: vi.fn().mockReturnValue(0),
         getZoom: vi.fn().mockReturnValue(1),
         worldToScreen: vi.fn().mockImplementation((point: { x: number; y: number }) => point),
@@ -157,6 +162,15 @@ function createMapBridgeStub(buildingsCount = 0): MapBridgeStub {
                 }
             };
         }),
+        onSpecialBuildingClick: vi.fn().mockImplementation((listener: (payload: { buildingIndex: number; specialBuildingId: 'agora' }) => void) => {
+            specialBuildingClickListeners.push(listener);
+            return () => {
+                const index = specialBuildingClickListeners.indexOf(listener);
+                if (index >= 0) {
+                    specialBuildingClickListeners.splice(index, 1);
+                }
+            };
+        }),
         onViewChanged: vi.fn().mockReturnValue(() => {}),
     } as unknown as MapBridge;
 
@@ -170,6 +184,9 @@ function createMapBridgeStub(buildingsCount = 0): MapBridgeStub {
         },
         triggerEasterEggBuildingClick: (payload: { buildingIndex: number; easterEggId: 'bitcoin_whitepaper' | 'crypto_anarchist_manifesto' | 'cyberspace_independence' }) => {
             easterEggBuildingClickListeners.forEach((listener) => listener(payload));
+        },
+        triggerSpecialBuildingClick: (payload: { buildingIndex: number; specialBuildingId: 'agora' }) => {
+            specialBuildingClickListeners.forEach((listener) => listener(payload));
         },
     };
 }
@@ -555,7 +572,7 @@ describe('Nostr overlay App', () => {
         await loginWithNsec(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
-        const panelFeedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir feed de seguidos"]');
+        const panelFeedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir Agora"]');
         expect(panelFeedButton).not.toBeNull();
 
         const hidePanelButton = rendered.container.querySelector('button[aria-label="Ocultar panel"]') as HTMLButtonElement;
@@ -563,7 +580,7 @@ describe('Nostr overlay App', () => {
             hidePanelButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
-        const compactFeedButton = rendered.container.querySelector('.nostr-compact-toolbar button[aria-label="Abrir feed de seguidos"]');
+        const compactFeedButton = rendered.container.querySelector('.nostr-compact-toolbar button[aria-label="Abrir Agora"]');
         expect(compactFeedButton).not.toBeNull();
     });
 
@@ -623,21 +640,21 @@ describe('Nostr overlay App', () => {
         await loginWithNsec(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
-        const feedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir feed de seguidos"]') as HTMLButtonElement;
+        const feedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir Agora"]') as HTMLButtonElement;
         expect(feedButton).toBeDefined();
 
         await act(async () => {
             feedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
-        await waitFor(() => (rendered.container.textContent || '').includes('Feed siguiendo'));
+        await waitFor(() => (rendered.container.textContent || '').includes('Agora'));
         expect(rendered.container.textContent || '').toContain('hola feed');
         expect(socialFeed.service.loadFollowingFeed).toHaveBeenCalled();
     });
 
     test('feed route hash entry keeps overlay renderable', async () => {
         const previousHash = window.location.hash;
-        window.location.hash = '#/feed';
+        window.location.hash = '#/agora';
 
         try {
             const { bridge } = createMapBridgeStub();
@@ -685,7 +702,7 @@ describe('Nostr overlay App', () => {
         await loginWithNsec(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
-        const feedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir feed de seguidos"]') as HTMLButtonElement;
+        const feedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir Agora"]') as HTMLButtonElement;
         expect(feedButton).toBeDefined();
 
         await act(async () => {
@@ -730,7 +747,7 @@ describe('Nostr overlay App', () => {
         await loginWithNsec(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
-        const feedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir feed de seguidos"]') as HTMLButtonElement;
+        const feedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir Agora"]') as HTMLButtonElement;
         await act(async () => {
             feedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
@@ -748,7 +765,7 @@ describe('Nostr overlay App', () => {
         await waitFor(() => !((rendered.container.textContent || '').includes('Volver al mapa')));
     });
 
-    test('following feed route loads first page when entering /feed directly', async () => {
+    test('agora route loads first page when entering /agora directly', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const socialFeed = createSocialFeedServiceMock();
         const { bridge } = createMapBridgeStub();
@@ -777,7 +794,7 @@ describe('Nostr overlay App', () => {
                     socialFeedService: socialFeed.service,
                 }}
             />,
-            { initialEntries: ['/feed'] }
+            { initialEntries: ['/agora'] }
         );
         mounted.push(rendered);
 
@@ -1388,7 +1405,7 @@ describe('Nostr overlay App', () => {
         expect(buttons[1].className.includes('nostr-map-zoom-button-right')).toBe(true);
     });
 
-    test('renders floating display toggle group with car and street label toggles', async () => {
+    test('renders floating display toggle group with car, street and special marker toggles', async () => {
         const { bridge } = createMapBridgeStub();
         const rendered = await renderApp(<App mapBridge={bridge} />);
         mounted.push(rendered);
@@ -1397,10 +1414,36 @@ describe('Nostr overlay App', () => {
         expect(controls).toBeDefined();
         const carsButton = rendered.container.querySelector('button[aria-label="Alternar coches del mapa"]') as HTMLButtonElement;
         const streetsButton = rendered.container.querySelector('button[aria-label="Alternar etiquetas de calles"]') as HTMLButtonElement;
+        const specialMarkersButton = rendered.container.querySelector('button[aria-label="Alternar iconos especiales"]') as HTMLButtonElement;
         expect(carsButton).toBeDefined();
         expect(streetsButton).toBeDefined();
+        expect(specialMarkersButton).toBeDefined();
         expect(carsButton.className.includes('nostr-map-display-toggle-button')).toBe(true);
         expect(streetsButton.className.includes('nostr-map-display-toggle-button')).toBe(true);
+        expect(specialMarkersButton.className.includes('nostr-map-display-toggle-button')).toBe(true);
+    });
+
+    test('toggles special markers from floating controls and persists preference', async () => {
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(<App mapBridge={bridge} />);
+        mounted.push(rendered);
+
+        const specialMarkersButton = rendered.container.querySelector('button[aria-label="Alternar iconos especiales"]') as HTMLButtonElement;
+        expect(specialMarkersButton).toBeDefined();
+
+        await act(async () => {
+            specialMarkersButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const firstSaved = JSON.parse(window.localStorage.getItem(UI_SETTINGS_STORAGE_KEY) || '{}');
+        expect(firstSaved.specialMarkersEnabled).toBe(false);
+
+        await act(async () => {
+            specialMarkersButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const secondSaved = JSON.parse(window.localStorage.getItem(UI_SETTINGS_STORAGE_KEY) || '{}');
+        expect(secondSaved.specialMarkersEnabled).toBe(true);
     });
 
     test('toggles street labels from floating controls', async () => {
@@ -2543,6 +2586,21 @@ describe('Nostr overlay App', () => {
 
         await waitFor(() => (rendered.container.textContent || '').includes('A Declaration of the Independence of Cyberspace'));
         expect(rendered.container.textContent || '').toContain('Governments of the Industrial World');
+    });
+
+    test('opens Agora route when clicking reserved special building', async () => {
+        const { bridge, triggerSpecialBuildingClick } = createMapBridgeStub();
+        const rendered = await renderApp(<App mapBridge={bridge} />);
+        mounted.push(rendered);
+
+        await act(async () => {
+            triggerSpecialBuildingClick({
+                buildingIndex: 4,
+                specialBuildingId: 'agora',
+            });
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Volver al mapa'));
     });
 
     test('persists discovered easter eggs and shows persistent marker on map', async () => {

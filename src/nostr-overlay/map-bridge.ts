@@ -1,4 +1,5 @@
 import type { EasterEggId } from '../ts/ui/easter_eggs';
+import type { SpecialBuildingId } from '../ts/ui/special_buildings';
 
 export interface WorldPoint {
     x: number;
@@ -22,9 +23,19 @@ export interface EasterEggBuildingClickPayload {
     easterEggId: EasterEggId;
 }
 
+export interface SpecialBuildingClickPayload {
+    buildingIndex: number;
+    specialBuildingId: SpecialBuildingId;
+}
+
 export interface EasterEggBuildingSlot {
     index: number;
     easterEggId: EasterEggId;
+}
+
+export interface SpecialBuildingSlot {
+    index: number;
+    specialBuildingId: SpecialBuildingId;
 }
 
 export interface MapMainApi {
@@ -32,6 +43,7 @@ export interface MapMainApi {
     roadsEmpty(): boolean;
     getBuildingCentroidsWorld(): WorldPoint[];
     getEasterEggBuildings?(): EasterEggBuildingSlot[];
+    getSpecialBuildings(): SpecialBuildingSlot[];
     setOccupancyByBuildingIndex(byBuildingIndex: Record<number, string>): void;
     setVerifiedBuildingIndexes?(indexes: number[]): void;
     setViewportInsetLeft(inset: number): void;
@@ -53,6 +65,7 @@ export interface MapMainApi {
     subscribeOccupiedBuildingClick?(listener: (payload: { buildingIndex: number; pubkey: string }) => void): (() => void) | void;
     subscribeOccupiedBuildingContextMenu?(listener: (payload: OccupiedBuildingContextPayload) => void): (() => void) | void;
     subscribeEasterEggBuildingClick?(listener: (payload: EasterEggBuildingClickPayload) => void): (() => void) | void;
+    subscribeSpecialBuildingClick(listener: (payload: SpecialBuildingClickPayload) => void): (() => void) | void;
     subscribeViewChanged?(listener: () => void): (() => void) | void;
 }
 
@@ -61,6 +74,7 @@ export interface MapBridge {
     regenerateMap(): Promise<void>;
     listBuildings(): MapBuildingSlot[];
     listEasterEggBuildings?(): EasterEggBuildingSlot[];
+    listSpecialBuildings(): SpecialBuildingSlot[];
     applyOccupancy(input: { byBuildingIndex: Record<number, string>; selectedBuildingIndex?: number }): void;
     setViewportInsetLeft(inset: number): void;
     setVerifiedBuildingIndexes(indexes: number[]): void;
@@ -81,6 +95,7 @@ export interface MapBridge {
     onOccupiedBuildingClick(listener: (payload: { buildingIndex: number; pubkey: string }) => void): () => void;
     onOccupiedBuildingContextMenu(listener: (payload: OccupiedBuildingContextPayload) => void): () => void;
     onEasterEggBuildingClick?(listener: (payload: EasterEggBuildingClickPayload) => void): () => void;
+    onSpecialBuildingClick(listener: (payload: SpecialBuildingClickPayload) => void): () => void;
     onViewChanged(listener: () => void): () => void;
 }
 
@@ -114,6 +129,16 @@ export function createMapBridge(mainApi: MapMainApi): MapBridge {
                 .map((slot) => ({
                     index: slot.index,
                     easterEggId: slot.easterEggId,
+                }));
+        },
+
+        listSpecialBuildings(): SpecialBuildingSlot[] {
+            return mainApi.getSpecialBuildings()
+                .filter((slot) => Number.isInteger(slot.index) && slot.index >= 0)
+                .sort((left, right) => left.index - right.index)
+                .map((slot) => ({
+                    index: slot.index,
+                    specialBuildingId: slot.specialBuildingId,
                 }));
         },
 
@@ -227,6 +252,15 @@ export function createMapBridge(mainApi: MapMainApi): MapBridge {
             }
 
             const maybeUnsubscribe = mainApi.subscribeEasterEggBuildingClick(listener);
+            if (typeof maybeUnsubscribe === 'function') {
+                return maybeUnsubscribe;
+            }
+
+            return () => {};
+        },
+
+        onSpecialBuildingClick(listener: (payload: SpecialBuildingClickPayload) => void): () => void {
+            const maybeUnsubscribe = mainApi.subscribeSpecialBuildingClick(listener);
             if (typeof maybeUnsubscribe === 'function') {
                 return maybeUnsubscribe;
             }

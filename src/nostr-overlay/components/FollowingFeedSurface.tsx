@@ -7,7 +7,7 @@ interface FollowingFeedSurfaceProps extends FollowingFeedViewProps {
 
 export function FollowingFeedSurface({ onClose, ...feedProps }: FollowingFeedSurfaceProps) {
     return (
-        <section className="nostr-following-feed-surface" aria-label="Feed siguiendo">
+        <section className="nostr-following-feed-surface" aria-label="Agora">
             <FollowingFeedContent
                 {...feedProps}
                 className="nostr-following-feed-surface-content"

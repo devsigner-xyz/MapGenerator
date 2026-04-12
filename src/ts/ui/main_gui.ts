@@ -20,6 +20,7 @@ import Buildings, {BuildingModel} from './buildings';
 import PolygonUtil from '../impl/polygon_util';
 import { findBuildingHit, findOccupiedBuildingHit, type OccupiedBuildingHit } from './occupied_building_hit';
 import { buildEasterEggAssignment, type EasterEggId } from './easter_eggs';
+import { buildSpecialBuildingAssignment, type SpecialBuildingId } from './special_buildings';
 import mapLabelNamePool from '../../data/map-label-name-pool.json';
 import {
     createBigParkLabels,
@@ -79,6 +80,7 @@ export default class MainGUI {
     private selectedBuildingIndex: number = null;
     private hoveredBuildingIndex: number = null;
     private dialogHighlightedBuildingIndex: number = null;
+    private specialBuildingByBuildingIndex: Record<number, SpecialBuildingId> = {};
     private easterEggByBuildingIndex: Record<number, EasterEggId> = {};
     private readonly easterEggDebugEnabled = import.meta.env.DEV;
     private streetLabelsEnabled = true;
@@ -295,6 +297,7 @@ export default class MainGUI {
         await this.minorRoads.generateRoads(this.animate);
         this.redraw = true;
         await this.buildings.generate(this.animate);
+        this.recalculateSpecialBuildingAssignments();
         this.recalculateEasterEggAssignments();
         this.markTrafficNetworkDirty();
     }
@@ -595,11 +598,46 @@ export default class MainGUI {
         };
     }
 
+    getSpecialBuildingAtWorldPoint(point: Vector): { index: number; specialBuildingId: SpecialBuildingId } | null {
+        const hit = findBuildingHit({
+            point,
+            footprints: this.getBuildingFootprintsWorld(),
+        });
+
+        if (!hit) {
+            return null;
+        }
+
+        if (this.occupiedPubkeyByBuildingIndex[hit.index]) {
+            return null;
+        }
+
+        const specialBuildingId = this.specialBuildingByBuildingIndex[hit.index];
+        if (!specialBuildingId) {
+            return null;
+        }
+
+        return {
+            index: hit.index,
+            specialBuildingId,
+        };
+    }
+
     getEasterEggBuildings(): Array<{ index: number; easterEggId: EasterEggId }> {
         return Object.entries(this.easterEggByBuildingIndex)
             .map(([indexKey, easterEggId]) => ({
                 index: Number(indexKey),
                 easterEggId,
+            }))
+            .filter((entry) => Number.isInteger(entry.index) && entry.index >= 0)
+            .sort((left, right) => left.index - right.index);
+    }
+
+    getSpecialBuildings(): Array<{ index: number; specialBuildingId: SpecialBuildingId }> {
+        return Object.entries(this.specialBuildingByBuildingIndex)
+            .map(([indexKey, specialBuildingId]) => ({
+                index: Number(indexKey),
+                specialBuildingId,
             }))
             .filter((entry) => Number.isInteger(entry.index) && entry.index >= 0)
             .sort((left, right) => left.index - right.index);
@@ -657,6 +695,7 @@ export default class MainGUI {
 
     private resetOccupancyState(): void {
         this.occupiedPubkeyByBuildingIndex = {};
+        this.specialBuildingByBuildingIndex = {};
         this.easterEggByBuildingIndex = {};
         this.verifiedBuildingIndexSet.clear();
         this.selectedBuildingIndex = null;
@@ -699,6 +738,13 @@ export default class MainGUI {
         this.easterEggByBuildingIndex = buildEasterEggAssignment({
             buildingCount: this.buildings.lotWorlds.length,
             occupiedPubkeyByBuildingIndex: this.occupiedPubkeyByBuildingIndex,
+            excludedBuildingIndexes: Object.keys(this.specialBuildingByBuildingIndex).map((value) => Number(value)),
+        });
+    }
+
+    private recalculateSpecialBuildingAssignments(): void {
+        this.specialBuildingByBuildingIndex = buildSpecialBuildingAssignment({
+            buildingCount: this.buildings.lotWorlds.length,
         });
     }
 

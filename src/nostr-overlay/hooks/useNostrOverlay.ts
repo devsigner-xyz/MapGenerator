@@ -179,13 +179,52 @@ function createInitialData(): OverlayData {
     };
 }
 
-function resolveOwnerBuildingIndex(ownerPubkey: string | undefined, buildingsCount: number): number | undefined {
+function resolveOwnerBuildingIndex(
+    ownerPubkey: string | undefined,
+    buildingsCount: number,
+    excludedBuildingIndexes: number[] = []
+): number | undefined {
     if (!ownerPubkey) {
         return undefined;
     }
 
-    const index = hashPubkeyToIndex(ownerPubkey, buildingsCount, ownerPubkey);
-    return index >= 0 ? index : undefined;
+    const capacity = Math.max(0, Math.floor(buildingsCount));
+    if (capacity <= 0) {
+        return undefined;
+    }
+
+    const excludedSet = new Set<number>();
+    for (const value of excludedBuildingIndexes) {
+        const candidate = Number(value);
+        if (!Number.isInteger(candidate) || candidate < 0 || candidate >= capacity) {
+            continue;
+        }
+        excludedSet.add(candidate);
+    }
+
+    if (excludedSet.size >= capacity) {
+        return undefined;
+    }
+
+    const baseIndex = hashPubkeyToIndex(ownerPubkey, capacity, ownerPubkey);
+    if (baseIndex < 0) {
+        return undefined;
+    }
+
+    for (let offset = 0; offset < capacity; offset += 1) {
+        const candidate = (baseIndex + offset) % capacity;
+        if (!excludedSet.has(candidate)) {
+            return candidate;
+        }
+    }
+
+    return undefined;
+}
+
+function getReservedSpecialBuildingIndexes(mapBridge: MapBridge): number[] {
+    return mapBridge.listSpecialBuildings()
+        .map((entry) => entry.index)
+        .filter((value) => Number.isInteger(value) && value >= 0);
 }
 
 function dedupe(values: string[]): string[] {
@@ -442,12 +481,14 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 }
 
                 const buildings = mapBridge.listBuildings();
+                const reservedBuildingIndexes = getReservedSpecialBuildingIndexes(mapBridge);
                 const assignmentPubkeys = dedupe([...current.data.follows, ...current.data.featuredPubkeys]);
                 const assignments = assignPubkeysToBuildings({
                     pubkeys: assignmentPubkeys,
                     priorityPubkeys: current.data.featuredPubkeys,
                     buildingsCount: buildings.length,
                     seed: current.data.ownerPubkey,
+                    excludedBuildingIndexes: reservedBuildingIndexes,
                 });
 
                 const occupancy = buildOccupancyState({
@@ -472,7 +513,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                         buildingsCount: buildings.length,
                         parkCount: mapBridge.getParkCount(),
                         assignments,
-                        ownerBuildingIndex: resolveOwnerBuildingIndex(current.data.ownerPubkey, buildings.length),
+                        ownerBuildingIndex: resolveOwnerBuildingIndex(current.data.ownerPubkey, buildings.length, reservedBuildingIndexes),
                     },
                 };
             });
@@ -873,11 +914,13 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
 
             await mapBridge.ensureGenerated();
             const buildings = mapBridge.listBuildings();
+            const reservedBuildingIndexes = getReservedSpecialBuildingIndexes(mapBridge);
             const assignments = assignPubkeysToBuildings({
                 pubkeys: assignmentPubkeys,
                 priorityPubkeys: featuredPubkeys,
                 buildingsCount: buildings.length,
                 seed: graph.ownerPubkey,
+                excludedBuildingIndexes: reservedBuildingIndexes,
             });
 
             const occupancy = buildOccupancyState({
@@ -903,7 +946,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                     ownerPubkey: graph.ownerPubkey,
                     authSession: input.session,
                     ownerProfile,
-                    ownerBuildingIndex: resolveOwnerBuildingIndex(graph.ownerPubkey, buildings.length),
+                    ownerBuildingIndex: resolveOwnerBuildingIndex(graph.ownerPubkey, buildings.length, reservedBuildingIndexes),
                     follows,
                     featuredPubkeys,
                     profiles,
@@ -1126,12 +1169,14 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             await mapBridge.regenerateMap();
 
             const buildings = mapBridge.listBuildings();
+            const reservedBuildingIndexes = getReservedSpecialBuildingIndexes(mapBridge);
             const assignmentPubkeys = dedupe([...current.data.follows, ...current.data.featuredPubkeys]);
             const assignments = assignPubkeysToBuildings({
                 pubkeys: assignmentPubkeys,
                 priorityPubkeys: current.data.featuredPubkeys,
                 buildingsCount: buildings.length,
                 seed: current.data.ownerPubkey,
+                excludedBuildingIndexes: reservedBuildingIndexes,
             });
 
             const occupancy = buildOccupancyState({
@@ -1161,7 +1206,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                         buildingsCount: buildings.length,
                         parkCount: mapBridge.getParkCount(),
                         assignments,
-                        ownerBuildingIndex: resolveOwnerBuildingIndex(nextState.data.ownerPubkey, buildings.length),
+                        ownerBuildingIndex: resolveOwnerBuildingIndex(nextState.data.ownerPubkey, buildings.length, reservedBuildingIndexes),
                     },
                 };
             });

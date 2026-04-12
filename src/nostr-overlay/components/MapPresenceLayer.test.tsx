@@ -32,10 +32,12 @@ function createMapBridgeStub(zoom: number): MapBridge {
         mountSettingsPanel: vi.fn(),
         focusBuilding: vi.fn(),
         listEasterEggBuildings: vi.fn().mockReturnValue([]),
+        listSpecialBuildings: vi.fn().mockReturnValue([]),
         getParkCount: vi.fn().mockReturnValue(0),
         onMapGenerated: vi.fn().mockReturnValue(() => {}),
         onOccupiedBuildingClick: vi.fn().mockReturnValue(() => {}),
         onOccupiedBuildingContextMenu: vi.fn().mockReturnValue(() => {}),
+        onSpecialBuildingClick: vi.fn().mockReturnValue(() => {}),
         getZoom: vi.fn().mockReturnValue(zoom),
         worldToScreen: vi.fn().mockImplementation((point: { x: number; y: number }) => point),
         getViewportInsetLeft: vi.fn().mockReturnValue(0),
@@ -253,7 +255,7 @@ describe('MapPresenceLayer', () => {
 
     test('does not hit maximum update depth when listEasterEggBuildings returns fresh arrays', async () => {
         const bridge = createMapBridgeStub(10);
-        (bridge.listEasterEggBuildings as any).mockImplementation(() => []);
+        (bridge.listEasterEggBuildings as any).mockImplementation((): Array<{ index: number; easterEggId: 'bitcoin_whitepaper' | 'crypto_anarchist_manifesto' | 'cyberspace_independence' }> => []);
         const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
         try {
@@ -313,5 +315,77 @@ describe('MapPresenceLayer', () => {
         const marker = rendered.container.querySelector('.nostr-map-easter-egg-marker') as HTMLElement;
         expect(marker).toBeDefined();
         expect(marker.textContent || '').toContain('★');
+    });
+
+    test('renders reserved special building marker', async () => {
+        const bridge = createMapBridgeStub(4);
+        (bridge.listBuildings as any).mockReturnValue([
+            {
+                index: 2,
+                centroid: { x: 180, y: 120 },
+            },
+        ]);
+        (bridge.listSpecialBuildings as any).mockReturnValue([
+            {
+                index: 2,
+                specialBuildingId: 'agora',
+            },
+        ]);
+
+        const rendered = await renderElement(
+            <MapPresenceLayer
+                mapBridge={bridge}
+                occupancyByBuildingIndex={{}}
+                discoveredEasterEggIds={[]}
+                profiles={profiles}
+                occupiedLabelsZoomLevel={10}
+            />
+        );
+        mounted.push(rendered);
+
+        const marker = rendered.container.querySelector('.nostr-map-special-building-marker') as HTMLElement;
+        expect(marker).toBeDefined();
+        expect(marker.textContent || '').toContain('A');
+    });
+
+    test('hides easter egg and special markers when special markers toggle is disabled', async () => {
+        const bridge = createMapBridgeStub(4);
+        (bridge.listBuildings as any).mockReturnValue([
+            {
+                index: 5,
+                centroid: { x: 120, y: 90 },
+            },
+            {
+                index: 7,
+                centroid: { x: 180, y: 90 },
+            },
+        ]);
+        (bridge.listEasterEggBuildings as any).mockReturnValue([
+            {
+                index: 5,
+                easterEggId: 'crypto_anarchist_manifesto',
+            },
+        ]);
+        (bridge.listSpecialBuildings as any).mockReturnValue([
+            {
+                index: 7,
+                specialBuildingId: 'agora',
+            },
+        ]);
+
+        const rendered = await renderElement(
+            <MapPresenceLayer
+                mapBridge={bridge}
+                occupancyByBuildingIndex={{}}
+                discoveredEasterEggIds={['crypto_anarchist_manifesto']}
+                profiles={profiles}
+                occupiedLabelsZoomLevel={10}
+                specialMarkersEnabled={false}
+            />
+        );
+        mounted.push(rendered);
+
+        expect(rendered.container.querySelector('.nostr-map-easter-egg-marker')).toBeNull();
+        expect(rendered.container.querySelector('.nostr-map-special-building-marker')).toBeNull();
     });
 });

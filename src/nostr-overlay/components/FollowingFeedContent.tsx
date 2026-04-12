@@ -313,13 +313,13 @@ export function FollowingFeedContent({
                         className="nostr-following-feed-back"
                         onClick={onCloseThread}
                     >
-                        Volver al feed
+                        Volver al Agora
                     </Button>
                 ) : null}
                 <div className="nostr-following-feed-header-copy">
                     {headerKicker ? <p className="nostr-following-feed-kicker">{headerKicker}</p> : null}
                     <p className="nostr-following-feed-title">
-                        {activeThread ? 'Hilo' : 'Feed siguiendo'}
+                        {activeThread ? 'Hilo' : 'Agora'}
                     </p>
                     {headerSubtitle ? <p className="nostr-following-feed-subtitle">{headerSubtitle}</p> : null}
                 </div>
