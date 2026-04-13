@@ -151,11 +151,12 @@ describe('useNip05VerificationQueries', () => {
         }));
         mounted.push(rendered);
 
-        await waitFor(() =>
-            Object.values(snapshots.at(-1) ?? {}).every((entry) => entry?.status === 'verified')
-            && Object.keys(snapshots.at(-1) ?? {}).length === 2
-        );
-        const readySnapshot = snapshots.at(-1);
+        await waitFor(() => {
+            const latestSnapshot = snapshots[snapshots.length - 1] ?? {};
+            return Object.values(latestSnapshot).every((entry) => entry?.status === 'verified')
+                && Object.keys(latestSnapshot).length === 2;
+        });
+        const readySnapshot = snapshots[snapshots.length - 1];
         expect(Object.keys(readySnapshot ?? {})).toEqual(['pubkey-a', 'pubkey-b']);
 
         await rendered.rerender(createElement(Nip05Probe, {
@@ -167,7 +168,7 @@ describe('useNip05VerificationQueries', () => {
         }));
 
         await waitFor(() => snapshots.length >= 2);
-        expect(snapshots.at(-1)).toBe(readySnapshot);
+        expect(snapshots[snapshots.length - 1]).toBe(readySnapshot);
     });
 
     test('does not retry failed validations with identity defaults', async () => {

@@ -214,8 +214,11 @@ describe('useRelayMetadataByUrlQuery', () => {
         }));
         mounted.push(rendered);
 
-        await waitFor(() => Object.values(snapshots.at(-1) ?? {}).some((entry) => entry.status === 'ready'));
-        const readySnapshot = snapshots.at(-1);
+        await waitFor(() => {
+            const latestSnapshot = snapshots[snapshots.length - 1] ?? {};
+            return Object.values(latestSnapshot).some((entry) => entry.status === 'ready');
+        });
+        const readySnapshot = snapshots[snapshots.length - 1];
 
         expect(readySnapshot).toBeDefined();
         expect(Object.keys(readySnapshot ?? {})).toEqual(['wss://stable.relay']);
@@ -229,6 +232,6 @@ describe('useRelayMetadataByUrlQuery', () => {
         }));
 
         await waitFor(() => snapshots.length >= 2);
-        expect(snapshots.at(-1)).toBe(readySnapshot);
+        expect(snapshots[snapshots.length - 1]).toBe(readySnapshot);
     });
 });

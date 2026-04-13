@@ -10,13 +10,6 @@ interface BaseQueryOptions {
     retryDelay?: QueryRetryDelay;
 }
 
-type QueryOptionsWithDefaults<T extends BaseQueryOptions> = T & {
-    staleTime: number;
-    gcTime: number;
-    retry: QueryRetry;
-    retryDelay: QueryRetryDelay;
-};
-
 interface QueryTimingDefaults {
     staleTime: number;
     gcTime: number;
@@ -50,16 +43,17 @@ function isRecoverableIdentityError(error: unknown): boolean {
     return message.includes('timeout') || message.includes('network') || message.includes('status 429') || message.includes('status 5');
 }
 
-function withDomainDefaults<T extends BaseQueryOptions>(
+function withDomainDefaults<T extends object>(
     options: T,
     defaults: QueryTimingDefaults
-): QueryOptionsWithDefaults<T> {
+): T & BaseQueryOptions {
+    const queryOptions = options as T & BaseQueryOptions;
     return {
-        ...options,
-        staleTime: options.staleTime ?? defaults.staleTime,
-        gcTime: options.gcTime ?? defaults.gcTime,
-        retry: options.retry ?? defaults.retry,
-        retryDelay: options.retryDelay ?? defaults.retryDelay,
+        ...queryOptions,
+        staleTime: queryOptions.staleTime ?? defaults.staleTime,
+        gcTime: queryOptions.gcTime ?? defaults.gcTime,
+        retry: queryOptions.retry ?? defaults.retry,
+        retryDelay: queryOptions.retryDelay ?? defaults.retryDelay,
     };
 }
 
@@ -96,18 +90,18 @@ const REALTIME_DEFAULTS: QueryTimingDefaults = {
     retryDelay: 0,
 };
 
-export function createSocialQueryOptions<T extends BaseQueryOptions>(options: T): QueryOptionsWithDefaults<T> {
+export function createSocialQueryOptions<T extends object>(options: T): T & BaseQueryOptions {
     return withDomainDefaults(options, SOCIAL_DEFAULTS);
 }
 
-export function createMetadataQueryOptions<T extends BaseQueryOptions>(options: T): QueryOptionsWithDefaults<T> {
+export function createMetadataQueryOptions<T extends object>(options: T): T & BaseQueryOptions {
     return withDomainDefaults(options, METADATA_DEFAULTS);
 }
 
-export function createIdentityQueryOptions<T extends BaseQueryOptions>(options: T): QueryOptionsWithDefaults<T> {
+export function createIdentityQueryOptions<T extends object>(options: T): T & BaseQueryOptions {
     return withDomainDefaults(options, IDENTITY_DEFAULTS);
 }
 
-export function createRealtimeQueryOptions<T extends BaseQueryOptions>(options: T): QueryOptionsWithDefaults<T> {
+export function createRealtimeQueryOptions<T extends object>(options: T): T & BaseQueryOptions {
     return withDomainDefaults(options, REALTIME_DEFAULTS);
 }

@@ -37,33 +37,33 @@ export function useFollowingFeedInfiniteQuery(options: UseFollowingFeedInfiniteQ
     const follows = normalizeEventIds(options.follows);
     const pageSize = Math.max(1, options.pageSize ?? DEFAULT_FEED_PAGE_SIZE);
 
-    return useInfiniteQuery(createSocialQueryOptions({
+    return useInfiniteQuery<SocialFeedPage, Error>(createSocialQueryOptions({
         queryKey: nostrOverlayQueryKeys.followingFeed({
             ownerPubkey: options.ownerPubkey,
             follows,
             pageSize,
         }),
-        queryFn: ({ pageParam }) => options.service.loadFollowingFeed({
+        queryFn: ({ pageParam }: { pageParam: unknown }) => options.service.loadFollowingFeed({
             follows,
             limit: pageSize,
-            until: pageParam,
+            until: typeof pageParam === 'number' ? pageParam : undefined,
         }),
         enabled: options.enabled && follows.length > 0,
         initialPageParam: undefined,
-        getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextUntil : undefined),
-    }));
+        getNextPageParam: (lastPage: SocialFeedPage) => (lastPage.hasMore ? lastPage.nextUntil : undefined),
+    }) as any);
 }
 
 export function useThreadInfiniteQuery(options: UseThreadInfiniteQueryOptions) {
     const rootEventId = options.rootEventId;
     const pageSize = Math.max(1, options.pageSize ?? DEFAULT_THREAD_PAGE_SIZE);
 
-    return useInfiniteQuery(createSocialQueryOptions({
+    return useInfiniteQuery<SocialThreadPage, Error>(createSocialQueryOptions({
         queryKey: nostrOverlayQueryKeys.thread({
             rootEventId: rootEventId || '__none__',
             pageSize,
         }),
-        queryFn: ({ pageParam }) => {
+        queryFn: ({ pageParam }: { pageParam: unknown }) => {
             if (!rootEventId) {
                 return Promise.resolve({
                     root: null,
@@ -76,13 +76,13 @@ export function useThreadInfiniteQuery(options: UseThreadInfiniteQueryOptions) {
             return options.service.loadThread({
                 rootEventId,
                 limit: pageSize,
-                until: pageParam,
+                until: typeof pageParam === 'number' ? pageParam : undefined,
             });
         },
         enabled: options.enabled && Boolean(rootEventId),
         initialPageParam: undefined,
-        getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextUntil : undefined),
-    }));
+        getNextPageParam: (lastPage: SocialThreadPage) => (lastPage.hasMore ? lastPage.nextUntil : undefined),
+    }) as any);
 }
 
 export function useFollowingFeedEngagementQuery(options: UseFollowingFeedEngagementQueryOptions) {

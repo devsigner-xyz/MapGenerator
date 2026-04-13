@@ -66,9 +66,9 @@ export function useActiveProfileQuery(input: UseActiveProfileQueryInput): Active
     const pubkey = input.pubkey;
     const pageSize = Math.max(1, input.pageSize ?? DEFAULT_PAGE_SIZE);
 
-    const postsQuery = useInfiniteQuery<ActiveProfilePostsPage>(createSocialQueryOptions({
+    const postsQuery = useInfiniteQuery<ActiveProfilePostsPage, Error>(createSocialQueryOptions({
         queryKey: ['nostr-overlay', 'social', 'active-profile', 'posts', { pubkey: pubkey || '__none__', pageSize }] as const,
-        queryFn: ({ pageParam }) => {
+        queryFn: ({ pageParam }: { pageParam: unknown }) => {
             if (!pubkey) {
                 return Promise.resolve({
                     posts: [],
@@ -85,8 +85,8 @@ export function useActiveProfileQuery(input: UseActiveProfileQueryInput): Active
         },
         enabled: Boolean(pubkey),
         initialPageParam: undefined,
-        getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextUntil : undefined),
-    }));
+        getNextPageParam: (lastPage: ActiveProfilePostsPage) => (lastPage.hasMore ? lastPage.nextUntil : undefined),
+    }) as any);
 
     const statsQuery = useQuery(createSocialQueryOptions({
         queryKey: ['nostr-overlay', 'social', 'active-profile', 'stats', { pubkey: pubkey || '__none__' }] as const,
