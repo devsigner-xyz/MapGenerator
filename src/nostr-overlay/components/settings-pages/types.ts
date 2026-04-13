@@ -58,6 +58,7 @@ export interface RelaySelection {
 }
 
 export interface RelayRow {
-    relayType: RelayType;
     relayUrl: string;
+    relayTypes: RelayType[];
+    primaryRelayType: RelayType;
 }

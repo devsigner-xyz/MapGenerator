@@ -6,6 +6,7 @@ import type { MapBridge } from '../map-bridge';
 import { MapSettingsPage } from './MapSettingsPage';
 import { encodeHexToNpub } from '../../nostr/npub';
 import { RELAY_SETTINGS_STORAGE_KEY } from '../../nostr/relay-settings';
+import { getBootstrapRelays } from '../../nostr/relay-policy';
 import { UI_SETTINGS_STORAGE_KEY } from '../../nostr/ui-settings';
 import { ZAP_SETTINGS_STORAGE_KEY } from '../../nostr/zap-settings';
 import { createNostrOverlayQueryClient } from '../query/query-client';
@@ -340,6 +341,51 @@ describe('MapSettingsPage UI settings', () => {
         expect(raw || '').toContain('wss://relay.two');
     });
 
+    test('resets relay list to bootstrap relay defaults from sidebar action', async () => {
+        window.localStorage.setItem(
+            RELAY_SETTINGS_STORAGE_KEY,
+            JSON.stringify({ relays: ['wss://relay.custom.one'] })
+        );
+
+        const bridge = createBridgeStub();
+        const rendered = await renderElement(
+            <MapSettingsPage
+                mapBridge={bridge}
+                initialView="relays"
+                onClose={() => {}}
+            />
+        );
+        mounted.push(rendered);
+
+        expect(rendered.container.textContent || '').toContain('wss://relay.custom.one');
+
+        const resetButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').trim() === 'Restablecer por defecto'
+        ) as HTMLButtonElement;
+        expect(resetButton).toBeDefined();
+
+        await act(async () => {
+            resetButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(rendered.container.textContent || '').not.toContain('wss://relay.custom.one');
+
+        const raw = window.localStorage.getItem(RELAY_SETTINGS_STORAGE_KEY);
+        expect(raw).not.toBeNull();
+        const parsed = JSON.parse(raw || '{}') as { relays?: string[]; byType?: unknown };
+        const bootstrap = getBootstrapRelays();
+        expect(parsed.relays).toEqual(bootstrap);
+        expect(parsed.byType).toEqual({
+            nip65Both: bootstrap,
+            nip65Read: bootstrap,
+            nip65Write: bootstrap,
+            dmInbox: [],
+        });
+
+        const configuredActionButtons = rendered.container.querySelectorAll('button[aria-label^="Abrir acciones para "]');
+        expect(configuredActionButtons.length).toBe(bootstrap.length);
+    });
+
     test('uses wider relays layout with right sidebar and shows compact relay metadata in table', async () => {
         window.localStorage.setItem(
             RELAY_SETTINGS_STORAGE_KEY,
@@ -403,8 +449,6 @@ describe('MapSettingsPage UI settings', () => {
         expect(relayEditor).toBeDefined();
         expect(addButton).toBeDefined();
         expect(rendered.container.textContent || '').toContain('NIP-65 read+write');
-        expect(rendered.container.textContent || '').toContain('NIP-65 read');
-        expect(rendered.container.textContent || '').toContain('NIP-65 write');
         expect(rendered.container.textContent || '').toContain('NIP-17 DM inbox');
 
         await act(async () => {
@@ -1002,7 +1046,7 @@ describe('MapSettingsPage UI settings', () => {
 
         await waitForCondition(() => {
             const content = rendered.container.textContent || '';
-            return content.includes('Relays configurados: 5') && content.includes('Conectados: 1') && content.includes('Sin conexión: 4');
+            return content.includes('Relays configurados: 4') && content.includes('Conectados: 1') && content.includes('Sin conexión: 3');
         });
 
         expect(rendered.container.textContent || '').toContain('Conectado');
@@ -1018,6 +1062,19 @@ describe('MapSettingsPage UI settings', () => {
         expect(probeRelayStatus).toHaveBeenCalledWith('wss://relay.inbox.one', expect.any(Number));
         expect(probeRelayStatus).toHaveBeenCalledWith('wss://relay.shared.one', expect.any(Number));
         expect(probeRelayStatus).toHaveBeenCalledWith('wss://relay.outbox.one', expect.any(Number));
+
+        const sharedRelayActionButtons = rendered.container.querySelectorAll('button[aria-label^="Abrir acciones para wss://relay.shared.one"]');
+        expect(sharedRelayActionButtons.length).toBe(1);
+
+        const sharedRelayCompactTypeAction = rendered.container.querySelector(
+            'button[aria-label="Abrir acciones para wss://relay.shared.one (NIP-65 read+write)"]'
+        );
+        expect(sharedRelayCompactTypeAction).not.toBeNull();
+
+        const sharedRelayVerboseTypeAction = rendered.container.querySelector(
+            'button[aria-label="Abrir acciones para wss://relay.shared.one (NIP-65 read, NIP-65 write)"]'
+        );
+        expect(sharedRelayVerboseTypeAction).toBeNull();
     });
 
     test('keeps configured relay status stable even with many suggested relay probes', async () => {

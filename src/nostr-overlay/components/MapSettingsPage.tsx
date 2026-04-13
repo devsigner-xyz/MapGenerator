@@ -10,7 +10,7 @@ import {
     type RelaySettingsState,
     type RelayType,
 } from '../../nostr/relay-settings';
-import { mergeRelaySets, normalizeRelayUrl } from '../../nostr/relay-policy';
+import { getBootstrapRelays, mergeRelaySets, normalizeRelayUrl } from '../../nostr/relay-policy';
 import { loadUiSettings, saveUiSettings, type UiSettingsState } from '../../nostr/ui-settings';
 import {
     addZapAmount,
@@ -72,6 +72,29 @@ const RELAY_TYPE_LABELS: Record<RelayType, string> = {
     nip65Write: 'NIP-65 write',
     dmInbox: 'NIP-17 DM inbox',
 };
+
+function buildRelayRowsByUrl(byType: RelaySettingsByType): RelayRow[] {
+    const relayTypesByUrl = new Map<string, Set<RelayType>>();
+
+    for (const relayType of RELAY_TYPES) {
+        for (const relayUrl of byType[relayType]) {
+            const relayTypes = relayTypesByUrl.get(relayUrl) ?? new Set<RelayType>();
+            relayTypes.add(relayType);
+            relayTypesByUrl.set(relayUrl, relayTypes);
+        }
+    }
+
+    return [...relayTypesByUrl.entries()]
+        .map(([relayUrl, relayTypes]) => {
+            const sortedRelayTypes = RELAY_TYPES.filter((relayType) => relayTypes.has(relayType));
+            return {
+                relayUrl,
+                relayTypes: sortedRelayTypes,
+                primaryRelayType: sortedRelayTypes[0] ?? 'nip65Both',
+            };
+        })
+        .sort((left, right) => left.relayUrl.localeCompare(right.relayUrl));
+}
 
 function describeRelay(relayUrl: string, source: RelaySource): RelayDetails {
     try {
@@ -254,23 +277,24 @@ export function MapSettingsPage({
     }, [suggestedRelaysByType, suggestedRelays]);
 
     const configuredRows = useMemo(() => {
-        return RELAY_TYPES.flatMap((relayType) =>
-            getRelaySetByType(relaySettings, relayType).map((relayUrl) => ({
-                relayType,
-                relayUrl,
-            }))
-        );
-    }, [relaySettings]);
+        return buildRelayRowsByUrl(relaySettings.byType);
+    }, [relaySettings.byType]);
 
     const suggestedRows = useMemo(() => {
-        return RELAY_TYPES.flatMap((relayType) =>
-            normalizedSuggestedByType[relayType]
-                .filter((relayUrl) => !getRelaySetByType(relaySettings, relayType).includes(relayUrl))
-                .map((relayUrl) => ({
-                    relayType,
-                    relayUrl,
-                }))
-        );
+        const missingByType: RelaySettingsByType = {
+            nip65Both: [],
+            nip65Read: [],
+            nip65Write: [],
+            dmInbox: [],
+        };
+
+        for (const relayType of RELAY_TYPES) {
+            const configuredSet = new Set(getRelaySetByType(relaySettings, relayType));
+            missingByType[relayType] = normalizedSuggestedByType[relayType]
+                .filter((relayUrl) => !configuredSet.has(relayUrl));
+        }
+
+        return buildRelayRowsByUrl(missingByType);
     }, [normalizedSuggestedByType, relaySettings]);
 
     const hasSuggestedRelays = useMemo(() => {
@@ -297,11 +321,11 @@ export function MapSettingsPage({
     });
 
     const checkingConfiguredRelays = useMemo(() => {
-        return configuredRows.reduce((count, row) => {
-            const status = configuredRelayConnectionStatusByRelay[row.relayUrl];
+        return configuredRelayStatusTargets.reduce((count, relayUrl) => {
+            const status = configuredRelayConnectionStatusByRelay[relayUrl];
             return count + (status === 'connected' || status === 'disconnected' ? 0 : 1);
         }, 0);
-    }, [configuredRows, configuredRelayConnectionStatusByRelay]);
+    }, [configuredRelayStatusTargets, configuredRelayConnectionStatusByRelay]);
 
     const { statusByRelay: suggestedRelayConnectionStatusByRelay } = useRelayConnectionSummary(suggestedRelayStatusTargets, {
         enabled: view === 'relays' && checkingConfiguredRelays === 0,
@@ -317,15 +341,15 @@ export function MapSettingsPage({
     }, [suggestedRelayConnectionStatusByRelay, configuredRelayConnectionStatusByRelay]);
 
     const connectedConfiguredRelays = useMemo(() => {
-        return configuredRows.reduce(
-            (count, row) => count + (configuredRelayConnectionStatusByRelay[row.relayUrl] === 'connected' ? 1 : 0),
+        return configuredRelayStatusTargets.reduce(
+            (count, relayUrl) => count + (configuredRelayConnectionStatusByRelay[relayUrl] === 'connected' ? 1 : 0),
             0
         );
-    }, [configuredRows, configuredRelayConnectionStatusByRelay]);
+    }, [configuredRelayStatusTargets, configuredRelayConnectionStatusByRelay]);
 
     const disconnectedConfiguredRelays = Math.max(
         0,
-        configuredRows.length - connectedConfiguredRelays - checkingConfiguredRelays
+        configuredRelayStatusTargets.length - connectedConfiguredRelays - checkingConfiguredRelays
     );
 
     const handleAddRelays = (): void => {
@@ -357,22 +381,46 @@ export function MapSettingsPage({
         setNewRelayInput('');
     };
 
-    const handleRemoveRelay = (relayUrl: string, relayType: RelayType): void => {
-        const nextState = removeRelay(relaySettings, relayUrl, relayType);
+    const handleRemoveRelay = (relayUrl: string): void => {
+        let nextState = relaySettings;
+        for (const relayType of RELAY_TYPES) {
+            nextState = removeRelay(nextState, relayUrl, relayType);
+        }
         persistRelaySettings(nextState);
     };
 
-    const handleAddSuggestedRelay = (relayUrl: string, relayType: RelayType): void => {
-        const nextState = addRelay(relaySettings, relayUrl, relayType);
+    const handleAddSuggestedRelay = (relayUrl: string, relayTypes: RelayType[]): void => {
+        let nextState = relaySettings;
+        for (const relayType of relayTypes) {
+            nextState = addRelay(nextState, relayUrl, relayType);
+        }
         persistRelaySettings(nextState);
     };
 
     const handleAddAllSuggestedRelays = (): void => {
         let nextState = relaySettings;
         for (const row of suggestedRows) {
-            nextState = addRelay(nextState, row.relayUrl, row.relayType);
+            for (const relayType of row.relayTypes) {
+                nextState = addRelay(nextState, row.relayUrl, relayType);
+            }
         }
         persistRelaySettings(nextState);
+    };
+
+    const handleResetRelaysToDefault = (): void => {
+        const bootstrap = getBootstrapRelays();
+        persistRelaySettings({
+            relays: bootstrap,
+            byType: {
+                nip65Both: bootstrap,
+                nip65Read: bootstrap,
+                nip65Write: bootstrap,
+                dmInbox: [],
+            },
+        });
+        setInvalidRelayInputs([]);
+        setNewRelayInput('');
+        setNewRelayType('nip65Both');
     };
 
     const relayInfoTargets = useMemo(() => {
@@ -501,6 +549,7 @@ export function MapSettingsPage({
                     onRemoveRelay={handleRemoveRelay}
                     onAddSuggestedRelay={handleAddSuggestedRelay}
                     onAddAllSuggestedRelays={handleAddAllSuggestedRelays}
+                    onResetRelaysToDefault={handleResetRelaysToDefault}
                     onOpenRelayActionsMenu={openRelayActionsMenu}
                     describeRelay={describeRelay}
                     relayAvatarFallback={relayAvatarFallback}
