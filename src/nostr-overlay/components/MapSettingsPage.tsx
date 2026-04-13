@@ -36,9 +36,10 @@ import { SettingsAboutPage } from './settings-pages/SettingsAboutPage';
 import { SettingsRelayDetailPage } from './settings-pages/SettingsRelayDetailPage';
 import { SettingsRelaysPage } from './settings-pages/SettingsRelaysPage';
 import { SettingsShortcutsPage } from './settings-pages/SettingsShortcutsPage';
-import type { RelayDetails, RelayFee, RelayInformationDocument, RelayInfoState, RelayRow, RelaySelection, RelaySource, SettingsView } from './settings-pages/types';
+import type { RelayDetails, RelayFee, RelayInformationDocument, RelayRow, RelaySelection, RelaySource, SettingsView } from './settings-pages/types';
 import { SettingsUiPage } from './settings-pages/SettingsUiPage';
 import { SettingsZapsPage } from './settings-pages/SettingsZapsPage';
+import { useRelayMetadataByUrlQuery } from '../query/relay-metadata.query';
 
 export type { SettingsView } from './settings-pages/types';
 
@@ -85,62 +86,6 @@ function describeRelay(relayUrl: string, source: RelaySource): RelayDetails {
             source,
             host: 'unknown',
         };
-    }
-}
-
-function relayHttpEndpoint(relayUrl: string): string | null {
-    try {
-        const parsed = new URL(relayUrl);
-        if (parsed.protocol === 'wss:') {
-            parsed.protocol = 'https:';
-        } else if (parsed.protocol === 'ws:') {
-            parsed.protocol = 'http:';
-        } else {
-            return null;
-        }
-        return parsed.toString();
-    } catch {
-        return null;
-    }
-}
-
-async function fetchRelayInformation(relayUrl: string): Promise<RelayInformationDocument> {
-    const endpoint = relayHttpEndpoint(relayUrl);
-    if (!endpoint) {
-        throw new Error('invalid relay endpoint');
-    }
-
-    const fetchFn = typeof window !== 'undefined' ? window.fetch?.bind(window) : globalThis.fetch;
-    if (typeof fetchFn !== 'function') {
-        throw new Error('fetch unavailable');
-    }
-
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => {
-        controller.abort();
-    }, 3500);
-
-    try {
-        const response = await fetchFn(endpoint, {
-            method: 'GET',
-            headers: {
-                Accept: 'application/nostr+json, application/json;q=0.9',
-            },
-            signal: controller.signal,
-        });
-
-        if (!response.ok) {
-            throw new Error(`status ${response.status}`);
-        }
-
-        const payload = await response.json() as unknown;
-        if (!payload || typeof payload !== 'object') {
-            throw new Error('invalid payload');
-        }
-
-        return payload as RelayInformationDocument;
-    } finally {
-        window.clearTimeout(timeout);
     }
 }
 
@@ -269,7 +214,6 @@ export function MapSettingsPage({
     const [newZapAmountInput, setNewZapAmountInput] = useState('');
     const [invalidRelayInputs, setInvalidRelayInputs] = useState<string[]>([]);
     const [selectedRelay, setSelectedRelay] = useState<RelaySelection | null>(null);
-    const [relayInfoByUrl, setRelayInfoByUrl] = useState<Record<string, RelayInfoState>>({});
     const [copiedRelayIdentityKey, setCopiedRelayIdentityKey] = useState<string | null>(null);
     const settingsHostRef = useRef<HTMLDivElement | null>(null);
     const relayCopyResetTimeoutRef = useRef<number | null>(null);
@@ -434,6 +378,12 @@ export function MapSettingsPage({
         ])];
     }, [relaySettings.relays, normalizedSuggestedByType]);
 
+    const relayMetadataEnabled = view === 'relays' || view === 'relay-detail';
+    const relayInfoByUrl = useRelayMetadataByUrlQuery({
+        relayUrls: relayInfoTargets,
+        enabled: relayMetadataEnabled,
+    });
+
     const openRelayDetails = (relayUrl: string, source: RelaySource, relayType: RelayType): void => {
         setSelectedRelay({ relayUrl, source, relayType });
         setView('relay-detail');
@@ -472,54 +422,6 @@ export function MapSettingsPage({
             mapBridge.mountSettingsPanel(null);
         };
     }, [mapBridge, view]);
-
-    useEffect(() => {
-        const fetchAvailable = typeof window !== 'undefined' && typeof window.fetch === 'function';
-        if ((view !== 'relays' && view !== 'relay-detail') || relayInfoTargets.length === 0 || !fetchAvailable) {
-            return;
-        }
-
-        const pending = relayInfoTargets.filter((relayUrl) => {
-            const current = relayInfoByUrl[relayUrl];
-            return !current;
-        });
-
-        if (pending.length === 0) {
-            return;
-        }
-
-        setRelayInfoByUrl((current) => {
-            let changed = false;
-            const next = { ...current };
-            for (const relayUrl of pending) {
-                if (next[relayUrl]?.status !== 'loading') {
-                    next[relayUrl] = { status: 'loading' };
-                    changed = true;
-                }
-            }
-            return changed ? next : current;
-        });
-
-        void Promise.all(pending.map(async (relayUrl) => {
-            try {
-                const data = await fetchRelayInformation(relayUrl);
-                setRelayInfoByUrl((current) => ({
-                    ...current,
-                    [relayUrl]: {
-                        status: 'ready',
-                        data,
-                    },
-                }));
-            } catch {
-                setRelayInfoByUrl((current) => ({
-                    ...current,
-                    [relayUrl]: {
-                        status: 'error',
-                    },
-                }));
-            }
-        }));
-    }, [view, relayInfoTargets, relayInfoByUrl]);
 
     useEffect(() => {
         return () => {

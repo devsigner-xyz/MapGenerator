@@ -66,6 +66,93 @@ function buildProps(overrides: Partial<Parameters<typeof FollowingFeedSurface>[0
 }
 
 describe('FollowingFeedSurface', () => {
+    test('load more feed action requests next query page', async () => {
+        const onLoadMoreFeed = vi.fn(async () => {});
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    hasMoreFeed: true,
+                    items: [
+                        {
+                            id: 'note-1',
+                            pubkey: 'a'.repeat(64),
+                            createdAt: 100,
+                            content: 'hola feed',
+                            kind: 'note',
+                            rawEvent: {
+                                id: 'note-1',
+                                pubkey: 'a'.repeat(64),
+                                kind: 1,
+                                created_at: 100,
+                                tags: [],
+                                content: 'hola feed',
+                            },
+                        },
+                    ],
+                    onLoadMoreFeed,
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const loadMoreButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Cargar mas')
+        ) as HTMLButtonElement;
+        expect(loadMoreButton).toBeDefined();
+
+        await act(async () => {
+            loadMoreButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onLoadMoreFeed).toHaveBeenCalledTimes(1);
+    });
+
+    test('load more thread action requests next query page', async () => {
+        const onLoadMoreThread = vi.fn(async () => {});
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    activeThread: {
+                        rootEventId: 'root-1',
+                        root: {
+                            id: 'root-1',
+                            pubkey: 'b'.repeat(64),
+                            createdAt: 500,
+                            eventKind: 1,
+                            content: 'root',
+                            rawEvent: {
+                                id: 'root-1',
+                                pubkey: 'b'.repeat(64),
+                                kind: 1,
+                                created_at: 500,
+                                tags: [],
+                                content: 'root',
+                            },
+                        },
+                        replies: [],
+                        isLoading: false,
+                        isLoadingMore: false,
+                        error: null,
+                        hasMore: true,
+                    },
+                    onLoadMoreThread,
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const loadMoreRepliesButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Cargar mas respuestas')
+        ) as HTMLButtonElement;
+        expect(loadMoreRepliesButton).toBeDefined();
+
+        await act(async () => {
+            loadMoreRepliesButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onLoadMoreThread).toHaveBeenCalledTimes(1);
+    });
+
     test('renders empty state without legacy close action', async () => {
         const rendered = await renderElement(<FollowingFeedSurface {...buildProps()} />);
         mounted.push(rendered);
@@ -124,6 +211,50 @@ describe('FollowingFeedSurface', () => {
         expect(rendered.container.querySelector('button[aria-label="Reaccionar (3)"]')).toBeDefined();
         expect(rendered.container.querySelector('button[aria-label="Repostear (2)"]')).toBeDefined();
         expect(rendered.container.querySelector('[aria-label="Zaps recibidos: 4"]')).toBeDefined();
+    });
+
+    test('renders optimistic pending states for reaction and repost actions', async () => {
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    engagementByEventId: {
+                        'note-1': {
+                            replies: 0,
+                            reposts: 5,
+                            reactions: 7,
+                            zaps: 0,
+                        },
+                    },
+                    pendingReactionByEventId: { 'note-1': true },
+                    pendingRepostByEventId: { 'note-1': true },
+                    items: [
+                        {
+                            id: 'note-1',
+                            pubkey: 'a'.repeat(64),
+                            createdAt: 100,
+                            content: 'optimistic note',
+                            kind: 'note',
+                            rawEvent: {
+                                id: 'note-1',
+                                pubkey: 'a'.repeat(64),
+                                kind: 1,
+                                created_at: 100,
+                                tags: [],
+                                content: 'optimistic note',
+                            },
+                        },
+                    ],
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const reactionButton = rendered.container.querySelector('button[aria-label="Reaccionar (7)"]') as HTMLButtonElement;
+        const repostButton = rendered.container.querySelector('button[aria-label="Repostear (5)"]') as HTMLButtonElement;
+        expect(reactionButton).toBeDefined();
+        expect(repostButton).toBeDefined();
+        expect(reactionButton.disabled).toBe(true);
+        expect(repostButton.disabled).toBe(true);
     });
 
     test('keeps thread actions working inside routed surface', async () => {

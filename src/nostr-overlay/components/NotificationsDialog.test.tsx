@@ -59,6 +59,34 @@ function buildItem(overrides: Partial<SocialNotificationItem> = {}): SocialNotif
 }
 
 describe('NotificationsDialog', () => {
+    test('shows unread indicator when hasUnread is true', async () => {
+        const rendered = await renderElement(
+            <NotificationsDialog
+                open
+                hasUnread
+                notifications={[buildItem()]}
+                onClose={() => {}}
+            />
+        );
+        mounted.push(rendered);
+
+        expect(rendered.container.querySelector('.nostr-notifications-unread-dot')).not.toBeNull();
+    });
+
+    test('hides unread indicator when hasUnread is false', async () => {
+        const rendered = await renderElement(
+            <NotificationsDialog
+                open
+                hasUnread={false}
+                notifications={[buildItem()]}
+                onClose={() => {}}
+            />
+        );
+        mounted.push(rendered);
+
+        expect(rendered.container.querySelector('.nostr-notifications-unread-dot')).toBeNull();
+    });
+
     test('renders empty state when there are no pending notifications', async () => {
         const rendered = await renderElement(
             <NotificationsDialog

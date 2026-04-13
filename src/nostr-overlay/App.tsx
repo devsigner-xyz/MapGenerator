@@ -30,8 +30,10 @@ import { UserSearchPage } from './components/UserSearchPage';
 import { PersonContextMenuItems } from './components/PersonContextMenuItems';
 import { useNostrOverlay, type MapLoaderStage, type NostrOverlayServices } from './hooks/useNostrOverlay';
 import { useNip05Verification } from './hooks/useNip05Verification';
-import { useFollowingFeed } from './hooks/useFollowingFeed';
-import { useSocialNotifications } from './hooks/useSocialNotifications';
+import { useFollowingFeedController } from './hooks/useFollowingFeedController';
+import { useSocialNotificationsController } from './query/social-notifications.query';
+import { useDirectMessagesController } from './query/direct-messages.query';
+import { useActiveProfileQuery } from './query/active-profile.query';
 import type { EasterEggBuildingClickPayload, MapBridge, OccupiedBuildingContextPayload } from './map-bridge';
 import { extractStreetLabelUsernames } from './domain/street-label-users';
 import { getEasterEggEntry } from './easter-eggs/catalog';
@@ -106,6 +108,10 @@ export function App({ mapBridge, services }: AppProps) {
     const navigate = useNavigate();
     const location = useLocation();
     const overlay = useNostrOverlay({ mapBridge, services });
+    const activeProfileData = useActiveProfileQuery({
+        pubkey: overlay.activeProfilePubkey,
+        service: overlay.activeProfileService,
+    });
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [uiSettings, setUiSettings] = useState<UiSettingsState>(() => loadUiSettings());
     const [zapSettings, setZapSettings] = useState<ZapSettingsState>(() => loadZapSettings());
@@ -114,7 +120,6 @@ export function App({ mapBridge, services }: AppProps) {
     const [activeEasterEgg, setActiveEasterEgg] = useState<EasterEggDialogState | null>(null);
     const [chatOpen, setChatOpen] = useState(false);
     const [chatComposerFocusKey, setChatComposerFocusKey] = useState('');
-    const [chatStateVersion, setChatStateVersion] = useState(0);
     const [chatPinnedConversationId, setChatPinnedConversationId] = useState<string | null>(null);
     const isMobile = useIsMobile();
     const contextMenuTriggerRef = useRef<HTMLSpanElement | null>(null);
@@ -140,7 +145,7 @@ export function App({ mapBridge, services }: AppProps) {
         const merged = {
             ...overlay.profiles,
             ...overlay.followerProfiles,
-            ...overlay.activeProfileNetworkProfiles,
+            ...activeProfileData.networkProfiles,
         };
 
         if (overlay.ownerPubkey && overlay.ownerProfile) {
@@ -155,7 +160,7 @@ export function App({ mapBridge, services }: AppProps) {
     }, [
         overlay.profiles,
         overlay.followerProfiles,
-        overlay.activeProfileNetworkProfiles,
+        activeProfileData.networkProfiles,
         overlay.ownerPubkey,
         overlay.ownerProfile,
         overlay.activeProfilePubkey,
@@ -340,32 +345,31 @@ export function App({ mapBridge, services }: AppProps) {
         }
     };
 
-    const refreshChatState = (): void => {
-        setChatStateVersion((version) => version + 1);
-    };
-
-    const chatState = overlay.directMessages?.getState();
+    const directMessages = useDirectMessagesController({
+        ownerPubkey: overlay.ownerPubkey,
+        dmService: overlay.directMessagesService,
+    });
+    const chatState = directMessages;
     const socialNotificationsService = useMemo(
         () => services?.socialNotificationsService ?? createRuntimeSocialNotificationsService(),
         [services?.socialNotificationsService]
     );
-    const socialNotifications = useSocialNotifications({
+    const socialNotifications = useSocialNotificationsController({
         ownerPubkey: overlay.ownerPubkey,
         service: socialNotificationsService,
     });
-    const socialState = socialNotifications.getState();
+    const socialState = socialNotifications;
     const socialFeedService = useMemo(
         () => services?.socialFeedService ?? createRuntimeSocialFeedService(),
         [services?.socialFeedService]
     );
-    const followingFeed = useFollowingFeed({
+    const followingFeed = useFollowingFeedController({
         ownerPubkey: overlay.ownerPubkey,
         follows: overlay.follows,
         canWrite: overlay.canWrite,
         service: socialFeedService,
         writeGateway: overlay.writeGateway,
     });
-    const followingFeedState = followingFeed.getState();
     const followingFeedProfilesByPubkey = useMemo(() => ({
         ...overlay.followerProfiles,
         ...overlay.profiles,
@@ -374,36 +378,7 @@ export function App({ mapBridge, services }: AppProps) {
             : {}),
     }), [overlay.followerProfiles, overlay.ownerProfile, overlay.ownerPubkey, overlay.profiles]);
 
-    useEffect(() => {
-        if (!overlay.directMessages) {
-            refreshChatState();
-            return;
-        }
-
-        setChatStateVersion(overlay.directMessages.getVersion());
-        return overlay.directMessages.subscribe(() => {
-            setChatStateVersion(overlay.directMessages?.getVersion() ?? 0);
-        });
-    }, [overlay.directMessages, overlay.ownerPubkey]);
-
     const chatConversations = useMemo<ChatConversationSummary[]>(() => {
-        if (!chatState) {
-            if (!chatPinnedConversationId) {
-                return [];
-            }
-
-            const profile = overlay.profiles[chatPinnedConversationId] || overlay.followerProfiles[chatPinnedConversationId];
-            const title = profile?.displayName ?? profile?.name ?? `${chatPinnedConversationId.slice(0, 10)}...${chatPinnedConversationId.slice(-6)}`;
-            return [{
-                id: chatPinnedConversationId,
-                peerPubkey: chatPinnedConversationId,
-                title,
-                lastMessagePreview: '',
-                lastMessageAt: 0,
-                hasUnread: false,
-            }];
-        }
-
         const summaries = Object.values(chatState.conversations)
             .map((conversation) => {
                 const lastMessage = conversation.messages[conversation.messages.length - 1];
@@ -435,12 +410,12 @@ export function App({ mapBridge, services }: AppProps) {
         }
 
         return summaries;
-    }, [chatStateVersion, chatState, overlay.profiles, overlay.followerProfiles, chatPinnedConversationId]);
+    }, [chatState, overlay.profiles, overlay.followerProfiles, chatPinnedConversationId]);
 
-    const chatActiveConversationId = chatState?.activeConversationId ?? chatPinnedConversationId;
+    const chatActiveConversationId = chatState.activeConversationId ?? chatPinnedConversationId;
 
     const chatMessages = useMemo<ChatDetailMessage[]>(() => {
-        if (!chatState || !chatActiveConversationId) {
+        if (!chatActiveConversationId) {
             return [];
         }
 
@@ -457,9 +432,9 @@ export function App({ mapBridge, services }: AppProps) {
             deliveryState: message.deliveryState,
             isUndecryptable: message.isUndecryptable,
         }));
-    }, [chatStateVersion, chatState, chatActiveConversationId]);
+    }, [chatState, chatActiveConversationId]);
 
-    const canAccessDirectMessages = Boolean(overlay.ownerPubkey && overlay.canDirectMessages && overlay.directMessages);
+    const canAccessDirectMessages = Boolean(overlay.ownerPubkey && overlay.canDirectMessages && overlay.directMessagesService);
     const canAccessSocialNotifications = Boolean(overlay.ownerPubkey);
     const canAccessFollowingFeed = Boolean(overlay.ownerPubkey);
     const activeSettingsView = useMemo(
@@ -469,9 +444,7 @@ export function App({ mapBridge, services }: AppProps) {
     const isMapRoute = location.pathname === '/';
     const isAgoraRoute = location.pathname === '/agora';
     const isNotificationsRoute = location.pathname === '/notificaciones';
-    const followingFeedHasUnread = !followingFeedState.isDialogOpen
-        && followingFeedState.hasMoreFeed
-        && followingFeedState.items.length > 0;
+    const followingFeedHasUnread = !followingFeed.isDialogOpen && followingFeed.hasUnread;
     const canSendChatMessages = canAccessDirectMessages;
 
     useEffect(() => {
@@ -489,16 +462,26 @@ export function App({ mapBridge, services }: AppProps) {
         }
 
         followingFeed.closeDialog();
-    }, [isAgoraRoute, canAccessFollowingFeed, followingFeed]);
+    }, [isAgoraRoute, canAccessFollowingFeed, followingFeed.closeDialog, followingFeed.openDialog]);
 
     useEffect(() => {
         if (isNotificationsRoute && canAccessSocialNotifications) {
-            socialNotifications.openDialog();
+            if (!socialState.isDialogOpen) {
+                socialNotifications.openDialog();
+            }
             return;
         }
 
-        socialNotifications.closeDialog();
-    }, [isNotificationsRoute, canAccessSocialNotifications, socialNotifications]);
+        if (socialState.isDialogOpen) {
+            socialNotifications.closeDialog();
+        }
+    }, [
+        isNotificationsRoute,
+        canAccessSocialNotifications,
+        socialState.isDialogOpen,
+        socialNotifications.closeDialog,
+        socialNotifications.openDialog,
+    ]);
 
     useEffect(() => {
         if (!location.pathname.startsWith('/settings/')) {
@@ -567,28 +550,26 @@ export function App({ mapBridge, services }: AppProps) {
     };
 
     const openChatList = (): void => {
-        if (!canAccessDirectMessages || !overlay.directMessages) {
+        if (!canAccessDirectMessages) {
             return;
         }
 
-        overlay.directMessages.openList();
+        chatState.openList();
         setChatPinnedConversationId(null);
         setChatOpen(true);
-        refreshChatState();
     };
 
     const openChatConversation = (conversationId: string, focusComposer: boolean = false): void => {
-        if (!canAccessDirectMessages || !overlay.directMessages) {
+        if (!canAccessDirectMessages) {
             return;
         }
 
-        overlay.directMessages.openConversation(conversationId);
+        chatState.openConversation(conversationId);
         setChatPinnedConversationId(conversationId);
         setChatOpen(true);
         if (focusComposer) {
             setChatComposerFocusKey(`${conversationId}:${Date.now()}`);
         }
-        refreshChatState();
     };
 
     const closeChat = (): void => {
@@ -665,7 +646,7 @@ export function App({ mapBridge, services }: AppProps) {
     };
 
     const openDmFromContextMenu = async (pubkey: string): Promise<void> => {
-        if (!canAccessDirectMessages || !overlay.directMessages) {
+        if (!canAccessDirectMessages) {
             return;
         }
 
@@ -686,7 +667,7 @@ export function App({ mapBridge, services }: AppProps) {
                 canAccessDirectMessages={canAccessDirectMessages}
                 canAccessSocialNotifications={canAccessSocialNotifications}
                 canAccessFollowingFeed={canAccessFollowingFeed}
-                chatHasUnread={chatState?.hasUnreadGlobal ?? false}
+                chatHasUnread={chatState.hasUnreadGlobal}
                 notificationsHasUnread={socialState.hasUnread}
                 followingFeedHasUnread={followingFeedHasUnread}
                 regenerateDisabled={regenerateDisabled}
@@ -819,8 +800,8 @@ export function App({ mapBridge, services }: AppProps) {
 
             <ChatDialog
                 open={chatOpen}
-                hasUnreadGlobal={chatState?.hasUnreadGlobal ?? false}
-                isLoadingConversations={chatState?.isBootstrapping ?? false}
+                hasUnreadGlobal={chatState.hasUnreadGlobal}
+                isLoadingConversations={chatState.isBootstrapping}
                 conversations={chatConversations}
                 messages={chatMessages}
                 activeConversationId={chatActiveConversationId}
@@ -835,14 +816,11 @@ export function App({ mapBridge, services }: AppProps) {
                 onOpenConversation={(conversationId) => openChatConversation(conversationId)}
                 onBackToList={openChatList}
                 onSendMessage={async (plaintext) => {
-                    if (!overlay.directMessages || !chatActiveConversationId || !canSendChatMessages) {
+                    if (!chatActiveConversationId || !canSendChatMessages) {
                         return;
                     }
 
-                    const sendPromise = overlay.directMessages.sendMessage(chatActiveConversationId, plaintext);
-                    refreshChatState();
-                    await sendPromise;
-                    refreshChatState();
+                    await chatState.sendMessage(chatActiveConversationId, plaintext);
                 }}
             />
 
@@ -851,21 +829,21 @@ export function App({ mapBridge, services }: AppProps) {
                     path="/agora"
                     element={(
                         <FollowingFeedSurface
-                            items={followingFeedState.items}
+                            items={followingFeed.items}
                             profilesByPubkey={followingFeedProfilesByPubkey}
-                            engagementByEventId={followingFeedState.engagementByEventId}
-                            isLoadingFeed={followingFeedState.isLoadingFeed}
-                            feedError={followingFeedState.feedError}
-                            hasMoreFeed={followingFeedState.hasMoreFeed}
-                            activeThread={followingFeedState.activeThread}
+                            engagementByEventId={followingFeed.engagementByEventId}
+                            isLoadingFeed={followingFeed.isLoadingFeed}
+                            feedError={followingFeed.feedError}
+                            hasMoreFeed={followingFeed.hasMoreFeed}
+                            activeThread={followingFeed.activeThread}
                             canWrite={overlay.canWrite}
-                            isPublishingPost={followingFeedState.isPublishingPost}
-                            isPublishingReply={followingFeedState.isPublishingReply}
-                            publishError={followingFeedState.publishError}
-                            reactionByEventId={followingFeedState.reactionByEventId}
-                            repostByEventId={followingFeedState.repostByEventId}
-                            pendingReactionByEventId={followingFeedState.pendingReactionByEventId}
-                            pendingRepostByEventId={followingFeedState.pendingRepostByEventId}
+                            isPublishingPost={followingFeed.isPublishingPost}
+                            isPublishingReply={followingFeed.isPublishingReply}
+                            publishError={followingFeed.publishError}
+                            reactionByEventId={followingFeed.reactionByEventId}
+                            repostByEventId={followingFeed.repostByEventId}
+                            pendingReactionByEventId={followingFeed.pendingReactionByEventId}
+                            pendingRepostByEventId={followingFeed.pendingRepostByEventId}
                             onLoadMoreFeed={followingFeed.loadNextFeedPage}
                             onOpenThread={followingFeed.openThread}
                             onCloseThread={followingFeed.closeThread}
@@ -963,21 +941,21 @@ export function App({ mapBridge, services }: AppProps) {
                 <OccupantProfileDialog
                     pubkey={overlay.activeProfilePubkey}
                     profile={overlay.activeProfile}
-                    followsCount={overlay.activeProfileFollowsCount}
-                    followersCount={overlay.activeProfileFollowersCount}
-                    statsLoading={overlay.activeProfileStatsLoading}
-                    statsError={overlay.activeProfileStatsError}
-                    posts={overlay.activeProfilePosts}
-                    postsLoading={overlay.activeProfilePostsLoading}
-                    postsError={overlay.activeProfilePostsError}
-                    hasMorePosts={overlay.activeProfilePostsHasMore}
-                    follows={overlay.activeProfileFollows}
-                    followers={overlay.activeProfileFollowers}
-                    networkProfiles={overlay.activeProfileNetworkProfiles}
-                    networkLoading={overlay.activeProfileNetworkLoading}
-                    networkError={overlay.activeProfileNetworkError}
+                    followsCount={activeProfileData.followsCount}
+                    followersCount={activeProfileData.followersCount}
+                    statsLoading={activeProfileData.statsLoading}
+                    statsError={activeProfileData.statsError}
+                    posts={activeProfileData.posts}
+                    postsLoading={activeProfileData.postsLoading}
+                    postsError={activeProfileData.postsError}
+                    hasMorePosts={activeProfileData.hasMorePosts}
+                    follows={activeProfileData.follows}
+                    followers={activeProfileData.followers}
+                    networkProfiles={activeProfileData.networkProfiles}
+                    networkLoading={activeProfileData.networkLoading}
+                    networkError={activeProfileData.networkError}
                     verification={verificationByPubkey[overlay.activeProfilePubkey]}
-                    onLoadMorePosts={overlay.loadMoreActiveProfilePosts}
+                    onLoadMorePosts={activeProfileData.loadMorePosts}
                     onClose={overlay.closeActiveProfileDialog}
                 />
             ) : null}

@@ -13,7 +13,7 @@ import { buildOccupancyState } from '../../nostr/domain/occupancy';
 import { fetchFollowersBestEffort } from '../../nostr/followers';
 import { fetchFollowsByNpub, fetchFollowsByPubkey, parseFollowsFromKind3 } from '../../nostr/follows';
 import { createLazyNdkClient } from '../../nostr/lazy-ndk-client';
-import { fetchLatestPostsByPubkey, type NostrPostPreview } from '../../nostr/posts';
+import { fetchLatestPostsByPubkey } from '../../nostr/posts';
 import { fetchProfileStats } from '../../nostr/profile-stats';
 import { fetchProfiles } from '../../nostr/profiles';
 import { searchUsers as searchUsersDomain } from '../../nostr/user-search';
@@ -33,7 +33,8 @@ import { createRuntimeDirectMessagesService } from '../../nostr/dm-runtime-servi
 import type { MapBridge } from '../map-bridge';
 import { FEATURED_OCCUPANT_PUBKEYS } from '../domain/featured-occupants';
 import { createFollowerBatcher } from './follower-batcher';
-import { createDmReadStateStorage, useDirectMessages, type DirectMessagesService } from './useDirectMessages';
+import type { DirectMessagesService } from '../query/direct-messages.query';
+import type { ActiveProfileQueryService } from '../query/active-profile.query';
 
 export type OverlayStatus =
     | 'idle'
@@ -69,20 +70,6 @@ interface OverlayData {
     suggestedRelaysByType: RelaySettingsByType;
     activeProfilePubkey?: string;
     activeProfileBuildingIndex?: number;
-    activeProfilePosts: NostrPostPreview[];
-    activeProfilePostsCursor?: number;
-    activeProfilePostsHasMore: boolean;
-    activeProfilePostsLoading: boolean;
-    activeProfilePostsError?: string;
-    activeProfileFollowsCount: number;
-    activeProfileFollowersCount: number;
-    activeProfileStatsLoading: boolean;
-    activeProfileStatsError?: string;
-    activeProfileFollows: string[];
-    activeProfileFollowers: string[];
-    activeProfileNetworkProfiles: Record<string, NostrProfile>;
-    activeProfileNetworkLoading: boolean;
-    activeProfileNetworkError?: string;
 }
 
 interface OverlayState {
@@ -114,38 +101,10 @@ function createEmptyActiveProfileState(): Pick<
     OverlayData,
     | 'activeProfilePubkey'
     | 'activeProfileBuildingIndex'
-    | 'activeProfilePosts'
-    | 'activeProfilePostsCursor'
-    | 'activeProfilePostsHasMore'
-    | 'activeProfilePostsLoading'
-    | 'activeProfilePostsError'
-    | 'activeProfileFollowsCount'
-    | 'activeProfileFollowersCount'
-    | 'activeProfileStatsLoading'
-    | 'activeProfileStatsError'
-    | 'activeProfileFollows'
-    | 'activeProfileFollowers'
-    | 'activeProfileNetworkProfiles'
-    | 'activeProfileNetworkLoading'
-    | 'activeProfileNetworkError'
 > {
     return {
         activeProfilePubkey: undefined,
         activeProfileBuildingIndex: undefined,
-        activeProfilePosts: [],
-        activeProfilePostsCursor: undefined,
-        activeProfilePostsHasMore: true,
-        activeProfilePostsLoading: false,
-        activeProfilePostsError: undefined,
-        activeProfileFollowsCount: 0,
-        activeProfileFollowersCount: 0,
-        activeProfileStatsLoading: false,
-        activeProfileStatsError: undefined,
-        activeProfileFollows: [],
-        activeProfileFollowers: [],
-        activeProfileNetworkProfiles: {},
-        activeProfileNetworkLoading: false,
-        activeProfileNetworkError: undefined,
     };
 }
 
@@ -253,7 +212,6 @@ function hasLoadedOverlayData(status: OverlayStatus): boolean {
 }
 
 export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions) {
-    const ACTIVE_PROFILE_POST_LIMIT = 10;
     const OCCUPANCY_BATCH_SIZE = 8;
     const OCCUPANCY_BATCH_DELAY_MS = 22;
     const createClient = services?.createClient || ((relays: string[] = []) => createLazyNdkClient({ relays }));
@@ -280,7 +238,6 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
     });
     const [mapLoaderStage, setMapLoaderStage] = useState<MapLoaderStage | null>(null);
     const requestIdRef = useRef(0);
-    const activeProfileLoadIdRef = useRef(0);
     const latestStateRef = useRef(state);
     const occupancyAnimationTokenRef = useRef(0);
     const skipNextMapGeneratedRef = useRef(false);
@@ -338,21 +295,6 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         }),
         [services?.directMessagesService, writeGateway, runtimeDmRelayKey]
     );
-    const dmReadStateStorage = useMemo(
-        () =>
-            createDmReadStateStorage({
-                storage: window.localStorage,
-                now: () => Math.floor(Date.now() / 1000),
-                version: 'v1',
-            }),
-        []
-    );
-    const directMessages = useDirectMessages({
-        ownerPubkey: state.data.ownerPubkey,
-        dmService: directMessagesService,
-        storage: dmReadStateStorage,
-    });
-
     const cancelOccupancyAnimation = (): number => {
         occupancyAnimationTokenRef.current += 1;
         return occupancyAnimationTokenRef.current;
@@ -575,210 +517,6 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             });
         });
     }, [mapBridge]);
-
-    useEffect(() => {
-        if (!hasLoadedOverlayData(state.status) || !state.data.activeProfilePubkey) {
-            return;
-        }
-
-        const pubkey = state.data.activeProfilePubkey;
-        activeProfileLoadIdRef.current += 1;
-        const loadId = activeProfileLoadIdRef.current;
-
-        setState((current) => {
-            if (!hasLoadedOverlayData(current.status) || current.data.activeProfilePubkey !== pubkey) {
-                return current;
-            }
-
-            return {
-                ...current,
-                data: {
-                    ...current.data,
-                    ...createEmptyActiveProfileState(),
-                    activeProfileBuildingIndex: current.data.activeProfileBuildingIndex,
-                    activeProfilePostsLoading: true,
-                    activeProfileStatsLoading: true,
-                    activeProfileNetworkLoading: true,
-                    activeProfilePubkey: pubkey,
-                },
-            };
-        });
-
-        void (async () => {
-            const current = latestStateRef.current;
-            const client = createClient(resolveOverlayRelays(current.data.relayHints));
-
-            void (async () => {
-                try {
-                    const postsResult = await fetchLatestPostsByPubkeyFn({
-                        pubkey,
-                        client,
-                        limit: ACTIVE_PROFILE_POST_LIMIT,
-                    });
-
-                    if (activeProfileLoadIdRef.current !== loadId) {
-                        return;
-                    }
-
-                    setState((nextState) => {
-                        if (!hasLoadedOverlayData(nextState.status) || nextState.data.activeProfilePubkey !== pubkey) {
-                            return nextState;
-                        }
-
-                        return {
-                            ...nextState,
-                            data: {
-                                ...nextState.data,
-                                activeProfilePosts: postsResult.posts,
-                                activeProfilePostsCursor: postsResult.nextUntil,
-                                activeProfilePostsHasMore: postsResult.hasMore,
-                                activeProfilePostsLoading: false,
-                                activeProfilePostsError: undefined,
-                            },
-                        };
-                    });
-                } catch (error) {
-                    if (activeProfileLoadIdRef.current !== loadId) {
-                        return;
-                    }
-
-                    const message = error instanceof Error ? error.message : 'No se pudieron cargar publicaciones';
-                    setState((nextState) => {
-                        if (!hasLoadedOverlayData(nextState.status) || nextState.data.activeProfilePubkey !== pubkey) {
-                            return nextState;
-                        }
-
-                        return {
-                            ...nextState,
-                            data: {
-                                ...nextState.data,
-                                activeProfilePostsLoading: false,
-                                activeProfilePostsError: message,
-                            },
-                        };
-                    });
-                }
-            })();
-
-            void (async () => {
-                try {
-                    const statsResult = await fetchProfileStatsFn({
-                        pubkey,
-                        client,
-                        candidateAuthors: current.data.follows,
-                    });
-
-                    if (activeProfileLoadIdRef.current !== loadId) {
-                        return;
-                    }
-
-                    setState((nextState) => {
-                        if (!hasLoadedOverlayData(nextState.status) || nextState.data.activeProfilePubkey !== pubkey) {
-                            return nextState;
-                        }
-
-                        return {
-                            ...nextState,
-                            data: {
-                                ...nextState.data,
-                                activeProfileFollowsCount: statsResult.followsCount,
-                                activeProfileFollowersCount: statsResult.followersCount,
-                                activeProfileStatsLoading: false,
-                                activeProfileStatsError: undefined,
-                            },
-                        };
-                    });
-                } catch (error) {
-                    if (activeProfileLoadIdRef.current !== loadId) {
-                        return;
-                    }
-
-                    const message = error instanceof Error ? error.message : 'No se pudo cargar estadisticas del perfil';
-                    setState((nextState) => {
-                        if (!hasLoadedOverlayData(nextState.status) || nextState.data.activeProfilePubkey !== pubkey) {
-                            return nextState;
-                        }
-
-                        return {
-                            ...nextState,
-                            data: {
-                                ...nextState.data,
-                                activeProfileStatsLoading: false,
-                                activeProfileStatsError: message,
-                            },
-                        };
-                    });
-                }
-            })();
-
-            void (async () => {
-                try {
-                    const [kind3Event, followersResult] = await Promise.all([
-                        client.fetchLatestReplaceableEvent(pubkey, 3),
-                        fetchFollowersBestEffortFn({
-                            targetPubkey: pubkey,
-                            client,
-                            candidateAuthors: current.data.follows,
-                        }),
-                    ]);
-                    const follows = kind3Event ? parseFollowsFromKind3(kind3Event) : [];
-                    const followers = dedupe(followersResult.followers);
-                    const networkPubkeys = dedupe([...follows, ...followers]);
-                    const networkProfiles = await fetchProfilesFn(networkPubkeys, client);
-
-                    if (activeProfileLoadIdRef.current !== loadId) {
-                        return;
-                    }
-
-                    setState((nextState) => {
-                        if (!hasLoadedOverlayData(nextState.status) || nextState.data.activeProfilePubkey !== pubkey) {
-                            return nextState;
-                        }
-
-                        return {
-                            ...nextState,
-                            data: {
-                                ...nextState.data,
-                                activeProfileFollows: follows,
-                                activeProfileFollowers: followers,
-                                activeProfileNetworkProfiles: networkProfiles,
-                                activeProfileNetworkLoading: false,
-                                activeProfileNetworkError: undefined,
-                                activeProfileFollowsCount:
-                                    nextState.data.activeProfileStatsLoading || nextState.data.activeProfileStatsError
-                                        ? follows.length
-                                        : nextState.data.activeProfileFollowsCount,
-                                activeProfileFollowersCount:
-                                    nextState.data.activeProfileStatsLoading || nextState.data.activeProfileStatsError
-                                        ? followers.length
-                                        : nextState.data.activeProfileFollowersCount,
-                            },
-                        };
-                    });
-                } catch (error) {
-                    if (activeProfileLoadIdRef.current !== loadId) {
-                        return;
-                    }
-
-                    const message = error instanceof Error ? error.message : 'No se pudo cargar red social del perfil';
-                    setState((nextState) => {
-                        if (!hasLoadedOverlayData(nextState.status) || nextState.data.activeProfilePubkey !== pubkey) {
-                            return nextState;
-                        }
-
-                        return {
-                            ...nextState,
-                            data: {
-                                ...nextState.data,
-                                activeProfileNetworkLoading: false,
-                                activeProfileNetworkError: message,
-                            },
-                        };
-                    });
-                }
-            })();
-        })();
-    }, [state.status, state.data.activeProfilePubkey]);
 
     const loadOwnerGraph = async (input: {
         session: AuthSessionState;
@@ -1228,8 +966,6 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             return;
         }
 
-        activeProfileLoadIdRef.current += 1;
-
         const selectedPubkey = state.data.selectedPubkey === pubkey ? undefined : pubkey;
         const occupancy = buildOccupancyState({
             buildingsCount: state.data.buildingsCount,
@@ -1260,8 +996,6 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         if (!mapBridge || !hasLoadedOverlayData(state.status) || !pubkey) {
             return;
         }
-
-        activeProfileLoadIdRef.current += 1;
 
         const occupancy = buildOccupancyState({
             buildingsCount: state.data.buildingsCount,
@@ -1328,7 +1062,6 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
     };
 
     const closeActiveProfileDialog = (): void => {
-        activeProfileLoadIdRef.current += 1;
         setState((current) => ({
             ...current,
             data: {
@@ -1338,96 +1071,53 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         }));
     };
 
-    const loadMoreActiveProfilePosts = async (): Promise<void> => {
-        const current = latestStateRef.current;
-        if (!hasLoadedOverlayData(current.status) || !current.data.activeProfilePubkey) {
-            return;
-        }
+    const activeProfileService: ActiveProfileQueryService = useMemo(
+        () => ({
+            loadPosts: async ({ pubkey, limit, until }) => {
+                const current = latestStateRef.current;
+                const client = createClient(resolveOverlayRelays(current.data.relayHints));
+                return fetchLatestPostsByPubkeyFn({
+                    pubkey,
+                    client,
+                    limit,
+                    until,
+                });
+            },
+            loadStats: async ({ pubkey }) => {
+                const current = latestStateRef.current;
+                const client = createClient(resolveOverlayRelays(current.data.relayHints));
+                return fetchProfileStatsFn({
+                    pubkey,
+                    client,
+                    candidateAuthors: current.data.follows,
+                });
+            },
+            loadNetwork: async ({ pubkey }) => {
+                const current = latestStateRef.current;
+                const client = createClient(resolveOverlayRelays(current.data.relayHints));
 
-        if (current.data.activeProfilePostsLoading || !current.data.activeProfilePostsHasMore) {
-            return;
-        }
+                const [kind3Event, followersResult] = await Promise.all([
+                    client.fetchLatestReplaceableEvent(pubkey, 3),
+                    fetchFollowersBestEffortFn({
+                        targetPubkey: pubkey,
+                        client,
+                        candidateAuthors: current.data.follows,
+                    }),
+                ]);
 
-        const pubkey = current.data.activeProfilePubkey;
-        const until = current.data.activeProfilePostsCursor;
-        if (until === undefined) {
-            return;
-        }
-
-        const loadId = activeProfileLoadIdRef.current;
-        setState((nextState) => {
-            if (!hasLoadedOverlayData(nextState.status) || nextState.data.activeProfilePubkey !== pubkey) {
-                return nextState;
-            }
-
-            return {
-                ...nextState,
-                data: {
-                    ...nextState.data,
-                    activeProfilePostsLoading: true,
-                    activeProfilePostsError: undefined,
-                },
-            };
-        });
-
-        try {
-            const client = createClient(resolveOverlayRelays(current.data.relayHints));
-            const nextBatch = await fetchLatestPostsByPubkeyFn({
-                pubkey,
-                client,
-                limit: ACTIVE_PROFILE_POST_LIMIT,
-                until,
-            });
-
-            if (activeProfileLoadIdRef.current !== loadId) {
-                return;
-            }
-
-            setState((nextState) => {
-                if (!hasLoadedOverlayData(nextState.status) || nextState.data.activeProfilePubkey !== pubkey) {
-                    return nextState;
-                }
-
-                const existingIds = new Set(nextState.data.activeProfilePosts.map((post) => post.id));
-                const mergedPosts = [
-                    ...nextState.data.activeProfilePosts,
-                    ...nextBatch.posts.filter((post) => !existingIds.has(post.id)),
-                ];
-
+                const follows = kind3Event ? parseFollowsFromKind3(kind3Event) : [];
+                const followers = dedupe(followersResult.followers);
+                const networkPubkeys = dedupe([...follows, ...followers]);
+                const profiles = await fetchProfilesFn(networkPubkeys, client);
                 return {
-                    ...nextState,
-                    data: {
-                        ...nextState.data,
-                        activeProfilePosts: mergedPosts,
-                        activeProfilePostsCursor: nextBatch.nextUntil,
-                        activeProfilePostsHasMore: nextBatch.hasMore,
-                        activeProfilePostsLoading: false,
-                        activeProfilePostsError: undefined,
-                    },
+                    follows,
+                    followers,
+                    profiles,
                 };
-            });
-        } catch (error) {
-            if (activeProfileLoadIdRef.current !== loadId) {
-                return;
-            }
-
-            const message = error instanceof Error ? error.message : 'No se pudieron cargar mas publicaciones';
-            setState((nextState) => {
-                if (!hasLoadedOverlayData(nextState.status) || nextState.data.activeProfilePubkey !== pubkey) {
-                    return nextState;
-                }
-
-                return {
-                    ...nextState,
-                    data: {
-                        ...nextState.data,
-                        activeProfilePostsLoading: false,
-                        activeProfilePostsError: message,
-                    },
-                };
-            });
-        }
-    };
+            },
+        }),
+        [createClient, fetchFollowersBestEffortFn, fetchLatestPostsByPubkeyFn, fetchProfileStatsFn, fetchProfilesFn]
+    );
 
     const assignedCount = useMemo(() => Object.keys(state.data.assignments.byBuildingIndex).length, [state.data.assignments]);
 
@@ -1453,19 +1143,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         suggestedRelaysByType: state.data.suggestedRelaysByType,
         activeProfilePubkey: state.data.activeProfilePubkey,
         activeProfile: state.data.activeProfilePubkey ? state.data.profiles[state.data.activeProfilePubkey] : undefined,
-        activeProfilePosts: state.data.activeProfilePosts,
-        activeProfilePostsLoading: state.data.activeProfilePostsLoading,
-        activeProfilePostsError: state.data.activeProfilePostsError,
-        activeProfilePostsHasMore: state.data.activeProfilePostsHasMore,
-        activeProfileFollowsCount: state.data.activeProfileFollowsCount,
-        activeProfileFollowersCount: state.data.activeProfileFollowersCount,
-        activeProfileStatsLoading: state.data.activeProfileStatsLoading,
-        activeProfileStatsError: state.data.activeProfileStatsError,
-        activeProfileFollows: state.data.activeProfileFollows,
-        activeProfileFollowers: state.data.activeProfileFollowers,
-        activeProfileNetworkProfiles: state.data.activeProfileNetworkProfiles,
-        activeProfileNetworkLoading: state.data.activeProfileNetworkLoading,
-        activeProfileNetworkError: state.data.activeProfileNetworkError,
+        activeProfileService,
         followsCount: state.data.follows.length,
         followersCount: state.data.followers.length,
         buildingsCount: state.data.buildingsCount,
@@ -1478,13 +1156,12 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         unlockSession,
         logoutSession,
         writeGateway,
-        directMessages,
+        directMessagesService,
         submitNpub,
         regenerateMap,
         searchUsers,
         selectFollowing,
         openActiveProfile,
         closeActiveProfileDialog,
-        loadMoreActiveProfilePosts,
     };
 }

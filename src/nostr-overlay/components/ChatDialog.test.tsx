@@ -60,6 +60,26 @@ function buildMessage(overrides: Partial<ChatDetailMessage> = {}): ChatDetailMes
 }
 
 describe('ChatDialog', () => {
+    test('query surface exposes data-chat-source marker', async () => {
+        const rendered = await renderElement(
+            <ChatDialog
+                open
+                hasUnreadGlobal={false}
+                conversations={[buildConversation()]}
+                messages={[buildMessage()]}
+                activeConversationId="peer-1"
+                onClose={() => {}}
+                onOpenConversation={() => {}}
+                onBackToList={() => {}}
+                onSendMessage={async () => {}}
+            />
+        );
+        mounted.push(rendered);
+
+        const querySurface = rendered.container.querySelector('[data-chat-source="query"]');
+        expect(querySurface).not.toBeNull();
+    });
+
     test('renders unread red dot and empty state', async () => {
         const rendered = await renderElement(
             <ChatDialog

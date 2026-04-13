@@ -2,22 +2,13 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { HeartIcon, MessageCircleIcon, Repeat2Icon, ZapIcon } from 'lucide-react';
 import type { NostrProfile } from '../../nostr/types';
 import type { SocialEngagementMetrics, SocialFeedItem, SocialThreadItem } from '../../nostr/social-feed-service';
+import type { FollowingFeedThreadView } from '../query/following-feed.selectors';
 import { ListLoadingFooter } from './ListLoadingFooter';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
-
-interface FollowingFeedThreadView {
-    rootEventId: string;
-    root: SocialThreadItem | null;
-    replies: SocialThreadItem[];
-    isLoading: boolean;
-    isLoadingMore: boolean;
-    error: string | null;
-    hasMore: boolean;
-}
 
 export interface FollowingFeedViewProps {
     items: SocialFeedItem[];

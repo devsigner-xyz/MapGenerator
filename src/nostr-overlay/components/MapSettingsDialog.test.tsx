@@ -1,6 +1,7 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
+import { QueryClientProvider } from '@tanstack/react-query';
 import type { MapBridge } from '../map-bridge';
 import { MapSettingsPage } from './MapSettingsPage';
 
@@ -9,6 +10,7 @@ import { encodeHexToNpub } from '../../nostr/npub';
 import { RELAY_SETTINGS_STORAGE_KEY } from '../../nostr/relay-settings';
 import { UI_SETTINGS_STORAGE_KEY } from '../../nostr/ui-settings';
 import { ZAP_SETTINGS_STORAGE_KEY } from '../../nostr/zap-settings';
+import { createNostrOverlayQueryClient } from '../query/query-client';
 
 interface RenderResult {
     container: HTMLDivElement;
@@ -19,9 +21,14 @@ async function renderElement(element: ReactElement): Promise<RenderResult> {
     const container = document.createElement('div');
     document.body.appendChild(container);
     const root = createRoot(container);
+    const queryClient = createNostrOverlayQueryClient();
 
     await act(async () => {
-        root.render(element);
+        root.render(
+            <QueryClientProvider client={queryClient}>
+                {element}
+            </QueryClientProvider>
+        );
     });
 
     return { container, root };
@@ -815,6 +822,79 @@ describe('MapSettingsDialog UI settings', () => {
 
         expect(Boolean(header && item && (header.compareDocumentPosition(item) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
         expect(Boolean(item && tableWrap && (item.compareDocumentPosition(tableWrap) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
+    });
+
+    test('retries relay metadata request once and recovers after transient error', async () => {
+        const fetchMock = vi
+            .fn<
+                (input: RequestInfo | URL) => Promise<Response>
+            >()
+            .mockResolvedValueOnce(new Response('error', { status: 503 }))
+            .mockResolvedValueOnce(new Response(JSON.stringify({
+                contact: 'mailto:retry@relay.one',
+            }), {
+                status: 200,
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            }));
+        vi.stubGlobal('fetch', fetchMock);
+        (window as any).fetch = fetchMock;
+
+        window.localStorage.setItem(
+            RELAY_SETTINGS_STORAGE_KEY,
+            JSON.stringify({
+                relays: ['wss://relay.one'],
+                byType: {
+                    nip65Both: ['wss://relay.one'],
+                    nip65Read: [],
+                    nip65Write: [],
+                    dmInbox: [],
+                },
+            })
+        );
+
+        const bridge = createBridgeStub();
+        const rendered = await renderElement(
+            <MapSettingsDialog
+                mapBridge={bridge}
+                initialView="relays"
+                onClose={() => {}}
+            />
+        );
+        mounted.push(rendered);
+
+        await waitForCondition(() => {
+            const relayOneCalls = fetchMock.mock.calls.filter((call) => String(call[0]).includes('https://relay.one'));
+            return relayOneCalls.length >= 2;
+        });
+
+        const configuredActions = rendered.container.querySelector('button[aria-label="Abrir acciones para wss://relay.one (NIP-65 read+write)"]') as HTMLButtonElement;
+        expect(configuredActions).toBeDefined();
+
+        await act(async () => {
+            configuredActions.dispatchEvent(new MouseEvent('contextmenu', {
+                bubbles: true,
+                cancelable: true,
+                clientX: 24,
+                clientY: 24,
+            }));
+        });
+
+        const detailsConfigured = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Details'
+        ) as HTMLElement;
+        expect(detailsConfigured).toBeDefined();
+
+        await act(async () => {
+            detailsConfigured.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitForCondition(() => (rendered.container.textContent || '').includes('retry@relay.one'));
+        const relayOneCalls = fetchMock.mock.calls.filter((call) => String(call[0]).includes('https://relay.one'));
+        expect(relayOneCalls.length).toBe(2);
+        expect(rendered.container.textContent || '').toContain('retry@relay.one');
+        expect(rendered.container.textContent || '').not.toContain('No se pudo obtener metadata remota del relay.');
     });
 
     test('does not show suggested relays empty-state hint text', async () => {

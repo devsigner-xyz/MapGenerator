@@ -2,10 +2,12 @@ import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { MemoryRouter } from 'react-router';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { App } from './App';
 import type { MapBridge } from './map-bridge';
 import { assignPubkeysToBuildings } from '../nostr/domain/assignment';
 import * as ndkClientModule from '../nostr/ndk-client';
+import { createNostrOverlayQueryClient } from './query/query-client';
 
 function createMapBridgeStub(buildingsCount: number): { bridge: MapBridge; triggerMapGenerated: () => void } {
     const listeners: Array<() => void> = [];
@@ -85,9 +87,14 @@ async function renderApp(element: ReactElement): Promise<RenderResult> {
     const container = document.createElement('div');
     document.body.appendChild(container);
     const root = createRoot(container);
+    const queryClient = createNostrOverlayQueryClient();
 
     await act(async () => {
-        root.render(<MemoryRouter>{element}</MemoryRouter>);
+        root.render(
+            <QueryClientProvider client={queryClient}>
+                <MemoryRouter>{element}</MemoryRouter>
+            </QueryClientProvider>
+        );
     });
 
     return { container, root };

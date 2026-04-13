@@ -75,7 +75,7 @@ export function ChatDialog({
                     </p>
                 </div>
 
-                <div className="nostr-chat-layout">
+                <div className="nostr-chat-layout" data-chat-source="query">
                     <div className="nostr-chat-list-panel">
                         <ChatConversationList
                             conversations={conversations}

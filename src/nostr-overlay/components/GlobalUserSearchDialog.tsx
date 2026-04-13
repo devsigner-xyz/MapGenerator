@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { XIcon } from 'lucide-react';
 import { encodeHexToNpub } from '../../nostr/npub';
 import type { NostrProfile } from '../../nostr/types';
@@ -14,11 +14,7 @@ import {
 import { DialogClose } from '@/components/ui/dialog';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
-
-interface SearchUsersResult {
-    pubkeys: string[];
-    profiles: Record<string, NostrProfile>;
-}
+import { type SearchUsersResult, useUserSearchQuery } from '../query/user-search.query';
 
 interface GlobalUserSearchDialogProps {
     open: boolean;
@@ -54,21 +50,12 @@ export function GlobalUserSearchDialog({
 }: GlobalUserSearchDialogProps) {
     const isOpen = variant === 'surface' ? true : open;
     const [query, setQuery] = useState('');
-    const [isSearching, setIsSearching] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [result, setResult] = useState<SearchUsersResult>({
-        pubkeys: [],
-        profiles: {},
-    });
-    const requestIdRef = useRef(0);
+    const [debouncedQuery, setDebouncedQuery] = useState('');
 
     useEffect(() => {
         if (!isOpen) {
             setQuery('');
-            setIsSearching(false);
-            setError(null);
-            setResult({ pubkeys: [], profiles: {} });
-            requestIdRef.current += 1;
+            setDebouncedQuery('');
         }
     }, [isOpen]);
 
@@ -77,49 +64,24 @@ export function GlobalUserSearchDialog({
             return;
         }
 
-        const normalizedQuery = query.trim();
-        if (!normalizedQuery) {
-            requestIdRef.current += 1;
-            setIsSearching(false);
-            setError(null);
-            setResult({ pubkeys: [], profiles: {} });
-            return;
-        }
-
-        requestIdRef.current += 1;
-        const requestId = requestIdRef.current;
-
         const timer = window.setTimeout(() => {
-            setIsSearching(true);
-            setError(null);
-            void onSearch(normalizedQuery)
-                .then((nextResult) => {
-                    if (requestIdRef.current !== requestId) {
-                        return;
-                    }
-
-                    setResult(nextResult);
-                    setIsSearching(false);
-                })
-                .catch(() => {
-                    if (requestIdRef.current !== requestId) {
-                        return;
-                    }
-
-                    setError('No se pudo buscar usuarios.');
-                    setResult({ pubkeys: [], profiles: {} });
-                    setIsSearching(false);
-                });
+            setDebouncedQuery(query);
         }, SEARCH_DEBOUNCE_MS);
 
         return () => {
             window.clearTimeout(timer);
         };
-    }, [isOpen, query, onSearch]);
+    }, [isOpen, query]);
+
+    const searchQuery = useUserSearchQuery({
+        term: debouncedQuery,
+        enabled: isOpen,
+        onSearch,
+    });
 
     const rows = useMemo(
-        () => result.pubkeys.map((pubkey) => ({ pubkey, profile: result.profiles[pubkey] })),
-        [result]
+        () => searchQuery.result.pubkeys.map((pubkey) => ({ pubkey, profile: searchQuery.result.profiles[pubkey] })),
+        [searchQuery.result]
     );
 
     const resultsContent = !query.trim() ? (
@@ -129,7 +91,7 @@ export function GlobalUserSearchDialog({
                 <EmptyDescription>Escribe para buscar por nombre, npub o pubkey.</EmptyDescription>
             </EmptyHeader>
         </Empty>
-    ) : isSearching ? (
+    ) : searchQuery.isLoading ? (
         <Empty className="nostr-global-search-empty">
             <EmptyHeader>
                 <EmptyMedia variant="icon">
@@ -139,11 +101,11 @@ export function GlobalUserSearchDialog({
                 <EmptyDescription>Estamos consultando perfiles en los relays.</EmptyDescription>
             </EmptyHeader>
         </Empty>
-    ) : error ? (
+    ) : searchQuery.error ? (
         <Empty className="nostr-global-search-empty">
             <EmptyHeader>
                 <EmptyTitle>Error de busqueda</EmptyTitle>
-                <EmptyDescription>{error}</EmptyDescription>
+                <EmptyDescription>{searchQuery.error}</EmptyDescription>
             </EmptyHeader>
         </Empty>
     ) : rows.length === 0 ? (

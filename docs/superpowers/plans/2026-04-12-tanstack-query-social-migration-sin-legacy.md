@@ -30,23 +30,23 @@
 - Create: `src/nostr-overlay/query/keys.ts`
 - Create: `src/nostr-overlay/query/types.ts`
 
-- [ ] **Step 1: Add failing bootstrap test for missing Query provider**
+- [x] **Step 1: Add failing bootstrap test for missing Query provider**
 Add test coverage in `src/nostr-overlay/App.test.tsx` that renders a component using React Query hooks under current bootstrap and verifies provider is required.
 
-- [ ] **Step 2: Run targeted test to confirm failure**
+- [x] **Step 2: Run targeted test to confirm failure**
 Run: `pnpm test:unit -- src/nostr-overlay/App.test.tsx -t "query provider"`
 Expected: FAIL (no `QueryClientProvider`).
 
-- [ ] **Step 3: Add dependency and Query client factory**
+- [x] **Step 3: Add dependency and Query client factory**
 Install and configure `@tanstack/react-query` with defaults:
 - `staleTime` tuned for social reads,
 - `gcTime` bounded,
 - retries conservative for relay errors.
 
-- [ ] **Step 4: Wire provider in bootstrap**
+- [x] **Step 4: Wire provider in bootstrap**
 Wrap `<App />` with `<QueryClientProvider>` in `src/nostr-overlay/bootstrap.tsx`.
 
-- [ ] **Step 5: Add strongly typed query keys**
+- [x] **Step 5: Add strongly typed query keys**
 Create canonical keys for:
 - following feed,
 - thread,
@@ -54,7 +54,7 @@ Create canonical keys for:
 - notifications,
 - direct messages (list + conversation).
 
-- [ ] **Step 6: Re-run tests**
+- [x] **Step 6: Re-run tests**
 Run: `pnpm test:unit -- src/nostr-overlay/App.test.tsx`
 Expected: PASS.
 
@@ -79,31 +79,31 @@ Expected: PASS.
 - Delete: `src/nostr-overlay/hooks/useFollowingFeed.ts`
 - Delete: `src/nostr-overlay/hooks/useFollowingFeed.test.ts`
 
-- [ ] **Step 1: Add failing tests for feed pagination via Query**
+- [x] **Step 1: Add failing tests for feed pagination via Query**
 Update tests to assert `onLoadMoreFeed` and thread open/load behaviors via query-backed controller (not store methods).
 
-- [ ] **Step 2: Run targeted tests to confirm failure**
+- [x] **Step 2: Run targeted tests to confirm failure**
 Run: `pnpm test:unit -- src/nostr-overlay/components/FollowingFeedSurface.test.tsx -t "load more"`
 Expected: FAIL (controller/query path missing).
 
-- [ ] **Step 3: Implement feed and thread infinite queries**
+- [x] **Step 3: Implement feed and thread infinite queries**
 In `following-feed.query.ts`:
 - `useInfiniteQuery` for feed (`loadFollowingFeed`),
 - `useInfiniteQuery` for thread (`loadThread`),
 - normalized merge/dedupe in selectors.
 
-- [ ] **Step 4: Build controller hook for UI consumption**
+- [x] **Step 4: Build controller hook for UI consumption**
 In `useFollowingFeedController.ts`, expose declarative view model:
 - `items`, `isLoadingFeed`, `feedError`, `hasMoreFeed`,
 - `activeThread`, `openThread`, `closeThread`, `loadMoreThread`.
 
-- [ ] **Step 5: Replace App wiring and remove store calls**
+- [x] **Step 5: Replace App wiring and remove store calls**
 Update `src/nostr-overlay/App.tsx` to consume controller data; remove `followingFeed.getState()` and direct store method wiring.
 
-- [ ] **Step 6: Delete legacy feed store files immediately**
+- [x] **Step 6: Delete legacy feed store files immediately**
 Delete `useFollowingFeed.ts` and `useFollowingFeed.test.ts` after replacement compiles.
 
-- [ ] **Step 7: Re-run tests**
+- [x] **Step 7: Re-run tests**
 Run: `pnpm test:unit -- src/nostr-overlay/components/FollowingFeedSurface.test.tsx src/nostr-overlay/App.test.tsx`
 Expected: PASS.
 
@@ -124,26 +124,26 @@ Expected: PASS.
 - Modify: `src/nostr-overlay/components/FollowingFeedSurface.test.tsx`
 - Modify: `src/nostr-overlay/App.test.tsx`
 
-- [ ] **Step 1: Add failing tests for optimistic behavior**
+- [x] **Step 1: Add failing tests for optimistic behavior**
 Add tests covering:
 - optimistic reaction/repost counters,
 - rollback on mutation failure,
 - reply insertion + reconciliation.
 
-- [ ] **Step 2: Run targeted tests to confirm failure**
+- [x] **Step 2: Run targeted tests to confirm failure**
 Run: `pnpm test:unit -- src/nostr-overlay/components/FollowingFeedSurface.test.tsx -t "optimistic"`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement mutation hooks**
+- [x] **Step 3: Implement mutation hooks**
 Use `useMutation` + `onMutate/onError/onSettled` and `queryClient.setQueryData` for optimistic cache updates.
 
-- [ ] **Step 4: Remove legacy pending maps from source-of-truth path**
+- [x] **Step 4: Remove legacy pending maps from source-of-truth path**
 Ensure UI state comes from mutation/query states rather than hand-managed `pending*ByEventId` maps.
 
-- [ ] **Step 5: Wire mutations to feed UI actions**
+- [x] **Step 5: Wire mutations to feed UI actions**
 `FollowingFeedContent` should call mutation handlers from controller.
 
-- [ ] **Step 6: Re-run tests**
+- [x] **Step 6: Re-run tests**
 Run: `pnpm test:unit -- src/nostr-overlay/components/FollowingFeedSurface.test.tsx src/nostr-overlay/App.test.tsx`
 Expected: PASS.
 
@@ -166,23 +166,23 @@ Expected: PASS.
 - Delete: `src/nostr-overlay/hooks/useSocialNotifications.ts`
 - Delete: `src/nostr-overlay/hooks/useSocialNotifications.test.ts`
 
-- [ ] **Step 1: Add failing tests for unread semantics**
+- [x] **Step 1: Add failing tests for unread semantics**
 Cover unread based on `lastReadAt` and incoming realtime events.
 
-- [ ] **Step 2: Run targeted tests to confirm failure**
+- [x] **Step 2: Run targeted tests to confirm failure**
 Run: `pnpm test:unit -- src/nostr-overlay/components/NotificationsDialog.test.tsx -t "unread"`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement notifications query + realtime subscription bridge**
+- [x] **Step 3: Implement notifications query + realtime subscription bridge**
 Use query for initial load and subscription callback to patch cache via `setQueryData`.
 
-- [ ] **Step 4: Replace unread heuristic in App**
+- [x] **Step 4: Replace unread heuristic in App**
 Remove `hasMoreFeed && items.length > 0`-style approximations; use read-state timestamps.
 
-- [ ] **Step 5: Delete legacy notifications hook and tests**
+- [x] **Step 5: Delete legacy notifications hook and tests**
 Delete old store-based implementation immediately after integration.
 
-- [ ] **Step 6: Re-run tests**
+- [x] **Step 6: Re-run tests**
 Run: `pnpm test:unit -- src/nostr-overlay/components/NotificationsDialog.test.tsx src/nostr-overlay/App.test.tsx`
 Expected: PASS.
 
@@ -206,26 +206,26 @@ Expected: PASS.
 - Delete: `src/nostr-overlay/hooks/useDirectMessages.ts`
 - Delete: `src/nostr-overlay/hooks/useDirectMessages.test.ts`
 
-- [ ] **Step 1: Add failing tests for chat state without manual `chatStateVersion`**
+- [x] **Step 1: Add failing tests for chat state without manual `chatStateVersion`**
 Assert conversation list/detail updates from query cache and subscription events.
 
-- [ ] **Step 2: Run targeted tests to confirm failure**
+- [x] **Step 2: Run targeted tests to confirm failure**
 Run: `pnpm test:unit -- src/nostr-overlay/components/ChatDialog.test.tsx -t "query"`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement DM queries + send mutation**
+- [x] **Step 3: Implement DM queries + send mutation**
 Add bootstrap query, conversation query, realtime ingest, optimistic send state (`pending` -> `sent`/`failed`).
 
-- [ ] **Step 4: Remove imperative chat synchronization in App**
+- [x] **Step 4: Remove imperative chat synchronization in App**
 Delete manual subscription path and local version ticks in `App.tsx`.
 
-- [ ] **Step 5: Update `useNostrOverlay` contract**
+- [x] **Step 5: Update `useNostrOverlay` contract**
 Stop returning DM store object; expose only data/services needed by query layer.
 
-- [ ] **Step 6: Delete legacy DM store files**
+- [x] **Step 6: Delete legacy DM store files**
 Delete `useDirectMessages.ts` and tests in the same phase.
 
-- [ ] **Step 7: Re-run tests**
+- [x] **Step 7: Re-run tests**
 Run: `pnpm test:unit -- src/nostr-overlay/components/ChatDialog.test.tsx src/nostr-overlay/App.test.tsx`
 Expected: PASS.
 
@@ -245,10 +245,10 @@ Expected: PASS.
 - Modify: `src/nostr-overlay/App.test.tsx`
 - Modify: `tsconfig.json` (if path cleanup needed)
 
-- [ ] **Step 1: Delete dead component and related tests**
+- [x] **Step 1: Delete dead component and related tests**
 Remove `FollowingFeedDialog` artifacts no longer used by routed surface architecture.
 
-- [ ] **Step 2: Add no-legacy guard checks**
+- [x] **Step 2: Add no-legacy guard checks**
 Add CI-friendly grep checks (or test assertions) that fail if these symbols exist:
 - `useFollowingFeed(`
 - `useSocialNotifications(`
@@ -256,12 +256,12 @@ Add CI-friendly grep checks (or test assertions) that fail if these symbols exis
 - `chatStateVersion`
 - `FollowingFeedDialog`
 
-- [ ] **Step 3: Run complete validation**
+- [x] **Step 3: Run complete validation**
 Run:
 `pnpm typecheck && pnpm test:unit && pnpm build`
 Expected: PASS.
 
-- [ ] **Step 4: Verify no legacy references remain**
+- [x] **Step 4: Verify no legacy references remain**
 Run:
 `rg "useFollowingFeed\(|useSocialNotifications\(|useDirectMessages\(|chatStateVersion|FollowingFeedDialog" src/nostr-overlay`
 Expected: no matches.

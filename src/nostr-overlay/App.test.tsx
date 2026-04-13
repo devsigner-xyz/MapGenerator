@@ -2,6 +2,7 @@ import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { MemoryRouter } from 'react-router';
+import { QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { RELAY_SETTINGS_STORAGE_KEY } from '../nostr/relay-settings';
 import { UI_SETTINGS_STORAGE_KEY } from '../nostr/ui-settings';
 import { getBootstrapRelays } from '../nostr/relay-policy';
@@ -13,6 +14,9 @@ import type { MapBridge } from './map-bridge';
 import type { NostrClient } from '../nostr/types';
 import type { SocialNotificationEvent, SocialNotificationsService } from '../nostr/social-notifications-service';
 import type { SocialFeedService } from '../nostr/social-feed-service';
+import { createNostrOverlayQueryClient } from './query/query-client';
+import { buildSocialLastReadStorageKey } from './query/read-state';
+import { buildFollowingFeedLastReadStorageKey } from './query/following-feed-read-state';
 
 interface RenderResult {
     container: HTMLDivElement;
@@ -269,16 +273,24 @@ function createSocialFeedServiceMock() {
     };
 }
 
+function QueryProviderProbe() {
+    useQueryClient();
+    return <span data-testid="query-provider-probe">query provider ready</span>;
+}
+
 async function renderApp(element: ReactElement, options: RenderOptions = {}): Promise<RenderResult> {
     const container = document.createElement('div');
     document.body.appendChild(container);
     const root = createRoot(container);
+    const queryClient = createNostrOverlayQueryClient();
 
     await act(async () => {
         root.render(
-            <MemoryRouter initialEntries={options.initialEntries ?? ['/']}>
-                {element}
-            </MemoryRouter>
+            <QueryClientProvider client={queryClient}>
+                <MemoryRouter initialEntries={options.initialEntries ?? ['/']}>
+                    {element}
+                </MemoryRouter>
+            </QueryClientProvider>
         );
     });
 
@@ -403,6 +415,13 @@ afterEach(async () => {
 });
 
 describe('Nostr overlay App', () => {
+    test('provides query provider in app render helper', async () => {
+        const rendered = await renderApp(<QueryProviderProbe />);
+        mounted.push(rendered);
+
+        expect(rendered.container.textContent || '').toContain('query provider ready');
+    });
+
     test('shows standalone login selector and hides social tabs before session starts', async () => {
         const { bridge } = createMapBridgeStub();
         const rendered = await renderApp(<App mapBridge={bridge} />);
@@ -659,8 +678,546 @@ describe('Nostr overlay App', () => {
         });
 
         await waitFor(() => (rendered.container.textContent || '').includes('Agora'));
-        expect(rendered.container.textContent || '').toContain('hola feed');
+        await waitFor(() => (rendered.container.textContent || '').includes('hola feed'));
         expect(socialFeed.service.loadFollowingFeed).toHaveBeenCalled();
+    });
+
+    test('loads more feed and thread pages through query controller pagination', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const socialFeed = createSocialFeedServiceMock();
+        (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>)
+            .mockResolvedValueOnce({
+                items: [
+                    {
+                        id: 'note-1',
+                        pubkey: 'a'.repeat(64),
+                        createdAt: 100,
+                        content: 'page-1',
+                        kind: 'note',
+                        rawEvent: {
+                            id: 'note-1',
+                            pubkey: 'a'.repeat(64),
+                            kind: 1,
+                            created_at: 100,
+                            tags: [],
+                            content: 'page-1',
+                        },
+                    },
+                ],
+                hasMore: true,
+                nextUntil: 90,
+            })
+            .mockResolvedValueOnce({
+                items: [
+                    {
+                        id: 'note-2',
+                        pubkey: 'b'.repeat(64),
+                        createdAt: 90,
+                        content: 'page-2',
+                        kind: 'note',
+                        rawEvent: {
+                            id: 'note-2',
+                            pubkey: 'b'.repeat(64),
+                            kind: 1,
+                            created_at: 90,
+                            tags: [],
+                            content: 'page-2',
+                        },
+                    },
+                ],
+                hasMore: false,
+                nextUntil: undefined,
+            });
+        (socialFeed.service.loadThread as ReturnType<typeof vi.fn>)
+            .mockResolvedValueOnce({
+                root: {
+                    id: 'note-1',
+                    pubkey: 'a'.repeat(64),
+                    createdAt: 100,
+                    eventKind: 1,
+                    content: 'root',
+                    rawEvent: {
+                        id: 'note-1',
+                        pubkey: 'a'.repeat(64),
+                        kind: 1,
+                        created_at: 100,
+                        tags: [],
+                        content: 'root',
+                    },
+                },
+                replies: [
+                    {
+                        id: 'reply-1',
+                        pubkey: 'b'.repeat(64),
+                        createdAt: 95,
+                        eventKind: 1,
+                        content: 'reply-1',
+                        targetEventId: 'note-1',
+                        rawEvent: {
+                            id: 'reply-1',
+                            pubkey: 'b'.repeat(64),
+                            kind: 1,
+                            created_at: 95,
+                            tags: [['e', 'note-1', '', 'reply']],
+                            content: 'reply-1',
+                        },
+                    },
+                ],
+                hasMore: true,
+                nextUntil: 70,
+            })
+            .mockResolvedValueOnce({
+                root: null,
+                replies: [
+                    {
+                        id: 'reply-2',
+                        pubkey: 'c'.repeat(64),
+                        createdAt: 70,
+                        eventKind: 1,
+                        content: 'reply-2',
+                        targetEventId: 'note-1',
+                        rawEvent: {
+                            id: 'reply-2',
+                            pubkey: 'c'.repeat(64),
+                            kind: 1,
+                            created_at: 70,
+                            tags: [['e', 'note-1', '', 'reply']],
+                            content: 'reply-2',
+                        },
+                    },
+                ],
+                hasMore: false,
+                nextUntil: undefined,
+            });
+
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: ['a'.repeat(64), 'b'.repeat(64), 'c'.repeat(64)],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                    socialFeedService: socialFeed.service,
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        await loginWithNsec(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const feedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir Agora"]') as HTMLButtonElement;
+        await act(async () => {
+            feedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mock.calls.length >= 1);
+
+        await waitFor(() => Array.from(rendered.container.querySelectorAll('button')).some((button) =>
+            (button.textContent || '').includes('Cargar mas')
+        ));
+        const loadMoreFeedButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Cargar mas')
+        ) as HTMLButtonElement;
+        await act(async () => {
+            loadMoreFeedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mock.calls.length >= 2);
+
+        const feedCalls = (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mock.calls;
+        expect(feedCalls[0]?.[0]).toMatchObject({ until: undefined });
+        expect(feedCalls[1]?.[0]).toMatchObject({ until: 90 });
+
+        await waitFor(() => Boolean(rendered.container.querySelector('button[aria-label="Responder (0)"]')));
+        const openThreadButton = rendered.container.querySelector('button[aria-label="Responder (0)"]') as HTMLButtonElement;
+        await act(async () => {
+            openThreadButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (socialFeed.service.loadThread as ReturnType<typeof vi.fn>).mock.calls.length >= 1);
+        await waitFor(() => Array.from(rendered.container.querySelectorAll('button')).some((button) =>
+            (button.textContent || '').includes('Cargar mas respuestas')
+        ));
+        const loadMoreThreadButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Cargar mas respuestas')
+        ) as HTMLButtonElement;
+
+        await act(async () => {
+            loadMoreThreadButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (socialFeed.service.loadThread as ReturnType<typeof vi.fn>).mock.calls.length >= 2);
+        const threadCalls = (socialFeed.service.loadThread as ReturnType<typeof vi.fn>).mock.calls;
+        expect(threadCalls[0]?.[0]).toMatchObject({ rootEventId: 'note-1', until: undefined });
+        expect(threadCalls[1]?.[0]).toMatchObject({ rootEventId: 'note-1', until: 70 });
+    });
+
+    test('applies optimistic reaction and repost counters and rolls back on mutation failure', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const socialFeed = createSocialFeedServiceMock();
+        (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mockResolvedValue({
+            items: [
+                {
+                    id: 'note-1',
+                    pubkey: 'a'.repeat(64),
+                    createdAt: 100,
+                    content: 'optimistic target',
+                    kind: 'note',
+                    rawEvent: {
+                        id: 'note-1',
+                        pubkey: 'a'.repeat(64),
+                        kind: 1,
+                        created_at: 100,
+                        tags: [],
+                        content: 'optimistic target',
+                    },
+                },
+            ],
+            hasMore: false,
+        });
+        (socialFeed.service.loadEngagement as ReturnType<typeof vi.fn>).mockResolvedValue({
+            'note-1': {
+                replies: 0,
+                reposts: 2,
+                reactions: 3,
+                zaps: 0,
+            },
+        });
+
+        const reactionFailure = createDeferred<never>();
+        const repostFailure = createDeferred<never>();
+        const publishEvent = vi.fn(async (event: { kind: number }) => {
+            if (event.kind === 7) {
+                return reactionFailure.promise;
+            }
+
+            if (event.kind === 6) {
+                return repostFailure.promise;
+            }
+
+            if (event.kind === 5) {
+                return {
+                    id: 'd'.repeat(64),
+                    pubkey: ownerPubkey,
+                    kind: 5,
+                    created_at: 200,
+                    tags: [],
+                    content: '',
+                };
+            }
+
+            return {
+                id: 'x'.repeat(64),
+                pubkey: ownerPubkey,
+                kind: event.kind,
+                created_at: 200,
+                tags: [],
+                content: '',
+            };
+        });
+        vi.spyOn(writeGatewayModule, 'createWriteGateway').mockReturnValue({
+            publishEvent,
+            publishTextNote: vi.fn(async (content: string) => ({
+                id: 'y'.repeat(64),
+                pubkey: ownerPubkey,
+                kind: 1,
+                created_at: 200,
+                tags: [],
+                content,
+            })),
+            encryptDm: vi.fn(async (_pubkey: string, plaintext: string) => plaintext),
+            decryptDm: vi.fn(async (_pubkey: string, ciphertext: string) => ciphertext),
+        } as any);
+
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: ['a'.repeat(64)],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                    socialFeedService: socialFeed.service,
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        await loginWithNsec(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const feedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir Agora"]') as HTMLButtonElement;
+        await act(async () => {
+            feedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => Boolean(rendered.container.querySelector('button[aria-label="Reaccionar (3)"]')));
+        const reactionButton = rendered.container.querySelector('button[aria-label="Reaccionar (3)"]') as HTMLButtonElement;
+
+        await act(async () => {
+            reactionButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => Boolean(rendered.container.querySelector('button[aria-label="Reaccionar (4)"]')));
+        expect((rendered.container.querySelector('button[aria-label="Reaccionar (4)"]') as HTMLButtonElement).disabled).toBe(true);
+        await act(async () => {
+            reactionFailure.reject(new Error('reaction-failed'));
+        });
+        await waitFor(() => Boolean(rendered.container.querySelector('button[aria-label="Reaccionar (3)"]')));
+        await waitFor(() => (rendered.container.textContent || '').includes('reaction-failed'));
+
+        const repostButton = rendered.container.querySelector('button[aria-label="Repostear (2)"]') as HTMLButtonElement;
+        await act(async () => {
+            repostButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => Boolean(rendered.container.querySelector('button[aria-label="Repostear (3)"]')));
+        expect((rendered.container.querySelector('button[aria-label="Repostear (3)"]') as HTMLButtonElement).disabled).toBe(true);
+        await act(async () => {
+            repostFailure.reject(new Error('repost-failed'));
+        });
+        await waitFor(() => Boolean(rendered.container.querySelector('button[aria-label="Repostear (2)"]')));
+        await waitFor(() => (rendered.container.textContent || '').includes('repost-failed'));
+
+        expect(publishEvent).toHaveBeenCalledWith(expect.objectContaining({ kind: 7 }));
+        expect(publishEvent).toHaveBeenCalledWith(expect.objectContaining({ kind: 6 }));
+    });
+
+    test('inserts optimistic reply and reconciles to published reply', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const socialFeed = createSocialFeedServiceMock();
+        (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mockResolvedValue({
+            items: [
+                {
+                    id: 'note-1',
+                    pubkey: 'a'.repeat(64),
+                    createdAt: 100,
+                    content: 'root note',
+                    kind: 'note',
+                    rawEvent: {
+                        id: 'note-1',
+                        pubkey: 'a'.repeat(64),
+                        kind: 1,
+                        created_at: 100,
+                        tags: [],
+                        content: 'root note',
+                    },
+                },
+            ],
+            hasMore: false,
+        });
+        (socialFeed.service.loadThread as ReturnType<typeof vi.fn>)
+            .mockResolvedValueOnce({
+                root: {
+                    id: 'note-1',
+                    pubkey: 'a'.repeat(64),
+                    createdAt: 100,
+                    eventKind: 1,
+                    content: 'root note',
+                    rawEvent: {
+                        id: 'note-1',
+                        pubkey: 'a'.repeat(64),
+                        kind: 1,
+                        created_at: 100,
+                        tags: [],
+                        content: 'root note',
+                    },
+                },
+                replies: [],
+                hasMore: false,
+            })
+            .mockResolvedValue({
+                root: {
+                    id: 'note-1',
+                    pubkey: 'a'.repeat(64),
+                    createdAt: 100,
+                    eventKind: 1,
+                    content: 'root note',
+                    rawEvent: {
+                        id: 'note-1',
+                        pubkey: 'a'.repeat(64),
+                        kind: 1,
+                        created_at: 100,
+                        tags: [],
+                        content: 'root note',
+                    },
+                },
+                replies: [
+                    {
+                        id: 'reply-final',
+                        pubkey: ownerPubkey,
+                        createdAt: 220,
+                        eventKind: 1,
+                        content: 'respuesta final',
+                        targetEventId: 'note-1',
+                        rawEvent: {
+                            id: 'reply-final',
+                            pubkey: ownerPubkey,
+                            kind: 1,
+                            created_at: 220,
+                            tags: [['e', 'note-1', '', 'root'], ['e', 'note-1', '', 'reply']],
+                            content: 'respuesta final',
+                        },
+                    },
+                ],
+                hasMore: false,
+            });
+
+        const publishReplyDeferred = createDeferred<{
+            id: string;
+            pubkey: string;
+            kind: number;
+            created_at: number;
+            tags: string[][];
+            content: string;
+        }>();
+        const publishTextNote = vi.fn(async (_content: string, tags?: string[][]) => {
+            if (tags && tags.length > 0) {
+                return publishReplyDeferred.promise;
+            }
+
+            return {
+                id: 'z'.repeat(64),
+                pubkey: ownerPubkey,
+                kind: 1,
+                created_at: 200,
+                tags: [],
+                content: _content,
+            };
+        });
+
+        vi.spyOn(writeGatewayModule, 'createWriteGateway').mockReturnValue({
+            publishEvent: vi.fn(async () => ({
+                id: 'w'.repeat(64),
+                pubkey: ownerPubkey,
+                kind: 7,
+                created_at: 200,
+                tags: [],
+                content: '+',
+            })),
+            publishTextNote,
+            encryptDm: vi.fn(async (_pubkey: string, plaintext: string) => plaintext),
+            decryptDm: vi.fn(async (_pubkey: string, ciphertext: string) => ciphertext),
+        } as any);
+
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: ['a'.repeat(64)],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                    socialFeedService: socialFeed.service,
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        await loginWithNsec(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const feedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir Agora"]') as HTMLButtonElement;
+        await act(async () => {
+            feedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => Boolean(rendered.container.querySelector('button[aria-label="Responder (0)"]')));
+        const openThreadButton = rendered.container.querySelector('button[aria-label="Responder (0)"]') as HTMLButtonElement;
+        await act(async () => {
+            openThreadButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Hilo'));
+        const replyTextarea = rendered.container.querySelector('.nostr-following-feed-reply-box textarea') as HTMLTextAreaElement;
+        expect(replyTextarea).toBeDefined();
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+            valueSetter?.call(replyTextarea, 'respuesta optimista');
+            replyTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+            replyTextarea.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        const sendReplyButton = Array.from(rendered.container.querySelectorAll('.nostr-following-feed-reply-box button')).find((button) =>
+            (button.textContent || '').includes('Responder')
+        ) as HTMLButtonElement;
+        await waitFor(() => !sendReplyButton.disabled);
+
+        await act(async () => {
+            sendReplyButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('respuesta optimista'));
+
+        await act(async () => {
+            publishReplyDeferred.resolve({
+                id: 'reply-final',
+                pubkey: ownerPubkey,
+                kind: 1,
+                created_at: 220,
+                tags: [['e', 'note-1', '', 'root'], ['e', 'note-1', '', 'reply']],
+                content: 'respuesta final',
+            });
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('respuesta final'));
+        expect(rendered.container.textContent || '').not.toContain('respuesta optimista');
+
+        expect(publishTextNote).toHaveBeenCalledWith(
+            'respuesta optimista',
+            expect.arrayContaining([
+                ['e', 'note-1', '', 'root'],
+                ['e', 'note-1', '', 'reply'],
+            ])
+        );
     });
 
     test('feed route hash entry keeps overlay renderable', async () => {
@@ -860,6 +1417,148 @@ describe('Nostr overlay App', () => {
         await waitFor(() => (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mock.calls.length > 0);
     });
 
+    test('uses lastReadAt semantics for agora unread state and clears on open', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+        const storageKey = buildFollowingFeedLastReadStorageKey(ownerPubkey, 'v1');
+        window.localStorage.setItem(storageKey, JSON.stringify({ lastReadAt: 1_700_000_005 }));
+
+        const socialFeed = createSocialFeedServiceMock();
+        (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mockResolvedValue({
+            items: [
+                {
+                    id: 'note-new',
+                    pubkey: followedPubkey,
+                    createdAt: 1_700_000_006,
+                    content: 'nueva nota',
+                    kind: 'note',
+                    rawEvent: {
+                        id: 'note-new',
+                        pubkey: followedPubkey,
+                        kind: 1,
+                        created_at: 1_700_000_006,
+                        tags: [],
+                        content: 'nueva nota',
+                    },
+                },
+            ],
+            hasMore: false,
+            nextUntil: undefined,
+        });
+
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [followedPubkey],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                    socialFeedService: socialFeed.service,
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        await loginWithNsec(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+        await waitFor(() => (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mock.calls.length > 0);
+        await waitFor(() => rendered.container.querySelector('.nostr-panel-toolbar .nostr-following-feed-unread-dot') !== null);
+
+        const feedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir Agora"]') as HTMLButtonElement;
+        await act(async () => {
+            feedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => rendered.container.querySelector('.nostr-panel-toolbar .nostr-following-feed-unread-dot') === null);
+        const storedPayload = JSON.parse(window.localStorage.getItem(storageKey) || '{}') as { lastReadAt?: number };
+        expect(typeof storedPayload.lastReadAt).toBe('number');
+        expect((storedPayload.lastReadAt || 0) >= 1_700_000_006).toBe(true);
+    });
+
+    test('does not mark agora as unread when feed items are older than lastReadAt', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+        const storageKey = buildFollowingFeedLastReadStorageKey(ownerPubkey, 'v1');
+        window.localStorage.setItem(storageKey, JSON.stringify({ lastReadAt: 1_700_000_005 }));
+
+        const socialFeed = createSocialFeedServiceMock();
+        (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mockResolvedValue({
+            items: [
+                {
+                    id: 'note-old',
+                    pubkey: followedPubkey,
+                    createdAt: 1_700_000_004,
+                    content: 'nota vieja',
+                    kind: 'note',
+                    rawEvent: {
+                        id: 'note-old',
+                        pubkey: followedPubkey,
+                        kind: 1,
+                        created_at: 1_700_000_004,
+                        tags: [],
+                        content: 'nota vieja',
+                    },
+                },
+            ],
+            hasMore: true,
+            nextUntil: 1_700_000_003,
+        });
+
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [followedPubkey],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                    socialFeedService: socialFeed.service,
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        await loginWithNsec(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+        await waitFor(() => (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mock.calls.length > 0);
+
+        await act(async () => {
+            await Promise.resolve();
+        });
+        expect(rendered.container.querySelector('.nostr-panel-toolbar .nostr-following-feed-unread-dot')).toBeNull();
+    });
+
     test('renders chat button in panel and compact toolbar and opens chat dialog in list view', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const socialFeed = createSocialNotificationsServiceMock();
@@ -990,6 +1689,69 @@ describe('Nostr overlay App', () => {
         expect(rendered.container.textContent || '').toContain('Notificaciones');
         expect(rendered.container.textContent || '').toContain('Reaccion');
         expect(rendered.container.querySelector('.nostr-panel-toolbar .nostr-notifications-unread-dot')).toBeNull();
+    });
+
+    test('uses lastReadAt semantics for realtime notifications unread state', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const storageKey = buildSocialLastReadStorageKey(ownerPubkey, 'v1');
+        window.localStorage.setItem(storageKey, JSON.stringify({ lastReadAt: 1_700_000_005 }));
+        const socialFeed = createSocialNotificationsServiceMock();
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                    socialNotificationsService: socialFeed.service,
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        await loginWithNsec(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        socialFeed.emit({
+            id: 'notif-old',
+            pubkey: 'a'.repeat(64),
+            kind: 7,
+            created_at: 1_700_000_004,
+            tags: [['p', ownerPubkey], ['e', 'b'.repeat(64)]],
+            content: '+',
+        });
+
+        await act(async () => {
+            await Promise.resolve();
+        });
+        expect(rendered.container.querySelector('.nostr-panel-toolbar .nostr-notifications-unread-dot')).toBeNull();
+
+        socialFeed.emit({
+            id: 'notif-new',
+            pubkey: 'a'.repeat(64),
+            kind: 7,
+            created_at: 1_700_000_006,
+            tags: [['p', ownerPubkey], ['e', 'b'.repeat(64)]],
+            content: '+',
+        });
+
+        await waitFor(() => rendered.container.querySelector('.nostr-panel-toolbar .nostr-notifications-unread-dot') !== null);
     });
 
     test('loads DM dialog data without explicit directMessagesService injection', async () => {
@@ -3350,6 +4112,107 @@ describe('Nostr overlay App', () => {
         expect(fetchProfileStatsFn).toHaveBeenCalledWith(expect.objectContaining({ pubkey: followedPubkey }));
     });
 
+    test('reuses active profile query cache when reopening the same occupant', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+        const { bridge, triggerOccupiedBuildingClick } = createMapBridgeStub();
+
+        const fetchLatestPostsByPubkeyFn = vi.fn().mockResolvedValue({
+            posts: [
+                {
+                    id: 'post-cache-1',
+                    pubkey: followedPubkey,
+                    createdAt: 1710000000,
+                    content: 'Cache profile post',
+                },
+            ],
+            nextUntil: 1709999999,
+            hasMore: true,
+        });
+        const fetchProfileStatsFn = vi.fn().mockResolvedValue({
+            followsCount: 12,
+            followersCount: 34,
+        });
+
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByNpubFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [followedPubkey],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockImplementation(async (pubkeys: string[]) => {
+                        const profiles: Record<string, { pubkey: string; displayName: string }> = {};
+                        for (const pubkey of pubkeys) {
+                            if (pubkey === ownerPubkey) {
+                                profiles[pubkey] = { pubkey, displayName: 'Owner' };
+                            }
+                            if (pubkey === followedPubkey) {
+                                profiles[pubkey] = { pubkey, displayName: 'Alice' };
+                            }
+                        }
+                        return profiles;
+                    }),
+                    fetchLatestPostsByPubkeyFn,
+                    fetchProfileStatsFn,
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+        const form = rendered.container.querySelector('form');
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
+            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        await act(async () => {
+            triggerOccupiedBuildingClick({
+                buildingIndex: 4,
+                pubkey: followedPubkey,
+            });
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Cache profile post'));
+
+        const closeButton = rendered.container.querySelector('button[aria-label="Cerrar perfil"]') as HTMLButtonElement;
+        expect(closeButton).toBeDefined();
+        await act(async () => {
+            closeButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => rendered.container.querySelector('button[aria-label="Cerrar perfil"]') === null);
+
+        await act(async () => {
+            triggerOccupiedBuildingClick({
+                buildingIndex: 4,
+                pubkey: followedPubkey,
+            });
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Cache profile post'));
+
+        expect(fetchLatestPostsByPubkeyFn).toHaveBeenCalledTimes(1);
+        expect(fetchProfileStatsFn).toHaveBeenCalledTimes(1);
+    });
+
     test('loads more active profile posts on demand', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const followedPubkey = 'a'.repeat(64);
@@ -3750,9 +4613,8 @@ describe('Nostr overlay App', () => {
             triggerOccupiedBuildingClick({ buildingIndex: 4, pubkey: followedPubkey });
         });
 
-        await waitFor(() => (rendered.container.textContent || '').includes('Sigue a'));
-        expect(rendered.container.textContent || '').toContain(`User-${followA.slice(0, 4)}`);
-        expect(rendered.container.textContent || '').toContain(`User-${followerA.slice(0, 4)}`);
+        await waitFor(() => (rendered.container.textContent || '').includes(`User-${followA.slice(0, 4)}`));
+        await waitFor(() => (rendered.container.textContent || '').includes(`User-${followerA.slice(0, 4)}`));
     });
 
     test('shows NIP-65 suggested relays in settings', async () => {
