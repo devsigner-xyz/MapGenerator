@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { DmMessage, SentIndexItem } from '../../nostr/dm-service';
 import { nostrOverlayQueryKeys } from './keys';
+import { createSocialQueryOptions } from './options';
 import {
     createDmReadStateStorage,
     fallbackStorage,
@@ -110,7 +111,7 @@ export function useDirectMessagesController(options: UseDirectMessagesController
         [options.ownerPubkey]
     );
 
-    const directMessagesListQuery = useQuery({
+    const directMessagesListQuery = useQuery(createSocialQueryOptions({
         queryKey: listQueryKey,
         queryFn: async (): Promise<DirectMessageItem[]> => {
             if (!options.ownerPubkey) {
@@ -125,7 +126,7 @@ export function useDirectMessagesController(options: UseDirectMessagesController
             return mergeMessages([], loaded.map(normalizeMessage));
         },
         enabled: Boolean(options.ownerPubkey),
-    });
+    }));
 
     useEffect(() => {
         setIsListOpen(false);
@@ -146,7 +147,7 @@ export function useDirectMessagesController(options: UseDirectMessagesController
         });
     }, [options.dmService, options.ownerPubkey, queryClient, listQueryKey]);
 
-    const activeConversationBackfillQuery = useQuery({
+    const activeConversationBackfillQuery = useQuery(createSocialQueryOptions({
         queryKey: nostrOverlayQueryKeys.directMessagesConversation({
             ownerPubkey: options.ownerPubkey || '',
             conversationId: activeConversationId || '__none__',
@@ -172,7 +173,7 @@ export function useDirectMessagesController(options: UseDirectMessagesController
             return mergeMessages([], loaded.map(normalizeMessage));
         },
         enabled: Boolean(options.ownerPubkey && activeConversationId && options.dmService.loadConversationMessages),
-    });
+    }));
 
     useEffect(() => {
         if (!activeConversationBackfillQuery.data || activeConversationBackfillQuery.data.length === 0) {

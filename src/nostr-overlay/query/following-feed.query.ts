@@ -6,6 +6,7 @@ import type {
     SocialThreadPage,
 } from '../../nostr/social-feed-service';
 import { nostrOverlayQueryKeys } from './keys';
+import { createSocialQueryOptions } from './options';
 import { normalizeEventIds } from './following-feed.selectors';
 
 const DEFAULT_FEED_PAGE_SIZE = 20;
@@ -36,7 +37,7 @@ export function useFollowingFeedInfiniteQuery(options: UseFollowingFeedInfiniteQ
     const follows = normalizeEventIds(options.follows);
     const pageSize = Math.max(1, options.pageSize ?? DEFAULT_FEED_PAGE_SIZE);
 
-    return useInfiniteQuery({
+    return useInfiniteQuery(createSocialQueryOptions({
         queryKey: nostrOverlayQueryKeys.followingFeed({
             ownerPubkey: options.ownerPubkey,
             follows,
@@ -50,14 +51,14 @@ export function useFollowingFeedInfiniteQuery(options: UseFollowingFeedInfiniteQ
         enabled: options.enabled && follows.length > 0,
         initialPageParam: undefined,
         getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextUntil : undefined),
-    });
+    }));
 }
 
 export function useThreadInfiniteQuery(options: UseThreadInfiniteQueryOptions) {
     const rootEventId = options.rootEventId;
     const pageSize = Math.max(1, options.pageSize ?? DEFAULT_THREAD_PAGE_SIZE);
 
-    return useInfiniteQuery({
+    return useInfiniteQuery(createSocialQueryOptions({
         queryKey: nostrOverlayQueryKeys.thread({
             rootEventId: rootEventId || '__none__',
             pageSize,
@@ -81,15 +82,15 @@ export function useThreadInfiniteQuery(options: UseThreadInfiniteQueryOptions) {
         enabled: options.enabled && Boolean(rootEventId),
         initialPageParam: undefined,
         getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextUntil : undefined),
-    });
+    }));
 }
 
 export function useFollowingFeedEngagementQuery(options: UseFollowingFeedEngagementQueryOptions) {
     const eventIds = normalizeEventIds(options.eventIds);
 
-    return useQuery<SocialEngagementByEventId, Error, SocialEngagementByEventId, ReturnType<typeof nostrOverlayQueryKeys.engagement>>({
+    return useQuery<SocialEngagementByEventId, Error, SocialEngagementByEventId, ReturnType<typeof nostrOverlayQueryKeys.engagement>>(createSocialQueryOptions({
         queryKey: nostrOverlayQueryKeys.engagement({ eventIds }),
         queryFn: () => options.service.loadEngagement({ eventIds }),
         enabled: options.enabled && eventIds.length > 0,
-    });
+    }));
 }

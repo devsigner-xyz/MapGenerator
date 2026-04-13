@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import type { NostrPostPreview } from '../../nostr/posts';
 import type { NostrProfile } from '../../nostr/types';
+import { createSocialQueryOptions } from './options';
 
 export interface ActiveProfilePostsPage {
     posts: NostrPostPreview[];
@@ -65,7 +66,7 @@ export function useActiveProfileQuery(input: UseActiveProfileQueryInput): Active
     const pubkey = input.pubkey;
     const pageSize = Math.max(1, input.pageSize ?? DEFAULT_PAGE_SIZE);
 
-    const postsQuery = useInfiniteQuery<ActiveProfilePostsPage>({
+    const postsQuery = useInfiniteQuery<ActiveProfilePostsPage>(createSocialQueryOptions({
         queryKey: ['nostr-overlay', 'social', 'active-profile', 'posts', { pubkey: pubkey || '__none__', pageSize }] as const,
         queryFn: ({ pageParam }) => {
             if (!pubkey) {
@@ -85,10 +86,9 @@ export function useActiveProfileQuery(input: UseActiveProfileQueryInput): Active
         enabled: Boolean(pubkey),
         initialPageParam: undefined,
         getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextUntil : undefined),
-        staleTime: 5 * 60_000,
-    });
+    }));
 
-    const statsQuery = useQuery({
+    const statsQuery = useQuery(createSocialQueryOptions({
         queryKey: ['nostr-overlay', 'social', 'active-profile', 'stats', { pubkey: pubkey || '__none__' }] as const,
         queryFn: () => {
             if (!pubkey) {
@@ -98,11 +98,9 @@ export function useActiveProfileQuery(input: UseActiveProfileQueryInput): Active
             return input.service.loadStats({ pubkey });
         },
         enabled: Boolean(pubkey),
-        retry: 0,
-        staleTime: 5 * 60_000,
-    });
+    }));
 
-    const networkQuery = useQuery({
+    const networkQuery = useQuery(createSocialQueryOptions({
         queryKey: ['nostr-overlay', 'social', 'active-profile', 'network', { pubkey: pubkey || '__none__' }] as const,
         queryFn: () => {
             if (!pubkey) {
@@ -112,8 +110,7 @@ export function useActiveProfileQuery(input: UseActiveProfileQueryInput): Active
             return input.service.loadNetwork({ pubkey });
         },
         enabled: Boolean(pubkey),
-        staleTime: 5 * 60_000,
-    });
+    }));
 
     const posts = useMemo(() => {
         const allPosts = postsQuery.data?.pages.flatMap((page) => page.posts) ?? [];

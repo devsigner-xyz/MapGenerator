@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import type { RelayInformationDocument, RelayInfoState } from '../components/settings-pages/types';
+import { createMetadataQueryOptions } from './options';
 
 interface UseRelayMetadataByUrlQueryInput {
     relayUrls: string[];
@@ -11,8 +12,6 @@ interface RelayQueryEntry {
     relayUrl: string;
     queryRelayUrl: string;
 }
-
-const RELAY_METADATA_STALE_TIME_MS = 5 * 60_000;
 
 function relayHttpEndpoint(relayUrl: string): string | null {
     try {
@@ -110,13 +109,10 @@ export function useRelayMetadataByUrlQuery(input: UseRelayMetadataByUrlQueryInpu
     const fetchAvailable = typeof window !== 'undefined' && typeof window.fetch === 'function';
 
     const queryResults = useQueries({
-        queries: relayEntries.map((entry) => ({
+        queries: relayEntries.map((entry) => createMetadataQueryOptions({
             queryKey: ['nostr-overlay', 'social', 'relay-metadata', { relayUrl: entry.queryRelayUrl }] as const,
             queryFn: () => fetchRelayInformation(entry.queryRelayUrl),
             enabled: input.enabled && fetchAvailable,
-            retry: 1,
-            retryDelay: 0,
-            staleTime: RELAY_METADATA_STALE_TIME_MS,
         })),
     });
 

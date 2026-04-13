@@ -17,6 +17,12 @@ import {
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const followingFeedControllerSourcePath = resolve(currentDir, '../hooks/useFollowingFeedController.ts');
+const followingFeedQuerySourcePath = resolve(currentDir, './following-feed.query.ts');
+const activeProfileQuerySourcePath = resolve(currentDir, './active-profile.query.ts');
+const directMessagesQuerySourcePath = resolve(currentDir, './direct-messages.query.ts');
+const socialNotificationsQuerySourcePath = resolve(currentDir, './social-notifications.query.ts');
+const relayMetadataQuerySourcePath = resolve(currentDir, './relay-metadata.query.ts');
+const nip05QuerySourcePath = resolve(currentDir, './nip05.query.ts');
 
 describe('nostr overlay query standards', () => {
     test('normalizes deterministic key shapes', () => {
@@ -142,5 +148,26 @@ describe('nostr overlay query standards', () => {
         if (typeof realtime.retry === 'function') {
             expect(realtime.retry(0, new Error('status 500'))).toBe(false);
         }
+    });
+
+    test('keeps contract consistency by using shared option factories in overlay queries', () => {
+        const followingFeedSource = readFileSync(followingFeedQuerySourcePath, 'utf8');
+        const activeProfileSource = readFileSync(activeProfileQuerySourcePath, 'utf8');
+        const directMessagesSource = readFileSync(directMessagesQuerySourcePath, 'utf8');
+        const socialNotificationsSource = readFileSync(socialNotificationsQuerySourcePath, 'utf8');
+        const relayMetadataSource = readFileSync(relayMetadataQuerySourcePath, 'utf8');
+        const nip05Source = readFileSync(nip05QuerySourcePath, 'utf8');
+
+        expect(followingFeedSource).toContain('createSocialQueryOptions');
+        expect(activeProfileSource).toContain('createSocialQueryOptions');
+        expect(directMessagesSource).toContain('createSocialQueryOptions');
+        expect(socialNotificationsSource).toContain('createSocialQueryOptions');
+        expect(relayMetadataSource).toContain('createMetadataQueryOptions');
+        expect(nip05Source).toContain('createIdentityQueryOptions');
+
+        expect(activeProfileSource).not.toContain('staleTime: 5 * 60_000');
+        expect(relayMetadataSource).not.toContain('retry: 1');
+        expect(relayMetadataSource).not.toContain('staleTime: RELAY_METADATA_STALE_TIME_MS');
+        expect(nip05Source).not.toContain('staleTime: NIP05_STALE_TIME_MS');
     });
 });

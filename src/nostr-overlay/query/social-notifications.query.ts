@@ -16,6 +16,7 @@ import {
     normalizeToEpochSeconds,
     type SocialReadStateStorage,
 } from './read-state';
+import { createSocialQueryOptions } from './options';
 
 const SOCIAL_KINDS = new Set<number>([1, 6, 7, 9735]);
 const SOCIAL_NOTIFICATIONS_MAX_ITEMS = 200;
@@ -149,7 +150,7 @@ export function useSocialNotificationsController(
         since: undefined,
     }), [maxItems, options.ownerPubkey]);
 
-    const notificationsQuery = useQuery({
+    const notificationsQuery = useQuery(createSocialQueryOptions({
         queryKey,
         queryFn: async (): Promise<SocialNotificationItem[]> => {
             if (!options.ownerPubkey) {
@@ -178,7 +179,7 @@ export function useSocialNotificationsController(
             return sortItems(items).slice(0, maxItems);
         },
         enabled: Boolean(options.ownerPubkey),
-    });
+    }));
 
     useEffect(() => {
         if (!options.ownerPubkey) {
