@@ -2,7 +2,7 @@ import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { MemoryRouter } from 'react-router';
-import { QueryClientProvider, useQueryClient } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { RELAY_SETTINGS_STORAGE_KEY } from '../nostr/relay-settings';
 import { UI_SETTINGS_STORAGE_KEY } from '../nostr/ui-settings';
 import { getBootstrapRelays } from '../nostr/relay-policy';
@@ -15,12 +15,14 @@ import type { NostrClient } from '../nostr/types';
 import type { SocialNotificationEvent, SocialNotificationsService } from '../nostr/social-notifications-service';
 import type { SocialFeedService } from '../nostr/social-feed-service';
 import { createNostrOverlayQueryClient } from './query/query-client';
+import { nostrOverlayQueryKeys } from './query/keys';
 import { buildSocialLastReadStorageKey } from './query/read-state';
 import { buildFollowingFeedLastReadStorageKey } from './query/following-feed-read-state';
 
 interface RenderResult {
     container: HTMLDivElement;
     root: Root;
+    queryClient: QueryClient;
 }
 
 interface RenderOptions {
@@ -294,7 +296,7 @@ async function renderApp(element: ReactElement, options: RenderOptions = {}): Pr
         );
     });
 
-    return { container, root };
+    return { container, root, queryClient };
 }
 
 async function waitFor(condition: () => boolean): Promise<void> {
@@ -4807,6 +4809,172 @@ describe('Nostr overlay App', () => {
         expect(rendered.container.querySelector('.nostr-error')).toBeNull();
 
         delete (window as any).nostr;
+    });
+
+    test('clears logout session cache for active profile agora dm notifications before next account login', async () => {
+        const ownerPubkeyA = 'f'.repeat(64);
+        const ownerPubkeyB = 'e'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+        const npubA = encodeHexToNpub(ownerPubkeyA);
+        const npubB = encodeHexToNpub(ownerPubkeyB);
+        const { bridge } = createMapBridgeStub(1);
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByNpubFn: vi.fn().mockImplementation(async (npub: string) => {
+                        if (npub === npubA) {
+                            return {
+                                ownerPubkey: ownerPubkeyA,
+                                follows: [followedPubkey],
+                                relayHints: [],
+                            };
+                        }
+
+                        return {
+                            ownerPubkey: ownerPubkeyB,
+                            follows: [followedPubkey],
+                            relayHints: [],
+                        };
+                    }),
+                    fetchProfilesFn: vi.fn().mockImplementation(async (pubkeys: string[]) => {
+                        const profiles: Record<string, { pubkey: string; displayName: string }> = {};
+                        for (const pubkey of pubkeys) {
+                            if (pubkey === ownerPubkeyA) {
+                                profiles[pubkey] = { pubkey, displayName: 'Owner-A' };
+                            }
+                            if (pubkey === ownerPubkeyB) {
+                                profiles[pubkey] = { pubkey, displayName: 'Owner-B' };
+                            }
+                            if (pubkey === followedPubkey) {
+                                profiles[pubkey] = { pubkey, displayName: 'Alice' };
+                            }
+                        }
+
+                        return profiles;
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        const submitNpub = async (npub: string): Promise<void> => {
+            const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+            const form = rendered.container.querySelector('form');
+
+            await act(async () => {
+                const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+                valueSetter?.call(npubInput, npub);
+                npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+                npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+
+            await act(async () => {
+                form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            });
+        };
+
+        await submitNpub(npubA);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner-A'));
+
+        const followingFeedKey = nostrOverlayQueryKeys.followingFeed({
+            ownerPubkey: ownerPubkeyA,
+            follows: [followedPubkey],
+            pageSize: 20,
+        });
+        const notificationsKey = nostrOverlayQueryKeys.notifications({
+            ownerPubkey: ownerPubkeyA,
+            limit: 200,
+            since: undefined,
+        });
+        const directMessagesKey = nostrOverlayQueryKeys.directMessagesList({ ownerPubkey: ownerPubkeyA });
+        const activeProfilePostsKey = ['nostr-overlay', 'social', 'active-profile', 'posts', {
+            pubkey: followedPubkey,
+            pageSize: 10,
+        }] as const;
+
+        rendered.queryClient.setQueryData(followingFeedKey, {
+            pages: [{
+                items: [{
+                    id: 'feed-a',
+                    pubkey: followedPubkey,
+                    createdAt: 1_700_000_001,
+                    content: 'feed-a',
+                    kind: 'note',
+                    rawEvent: {
+                        id: 'feed-a',
+                        pubkey: followedPubkey,
+                        kind: 1,
+                        created_at: 1_700_000_001,
+                        tags: [],
+                        content: 'feed-a',
+                    },
+                }],
+                hasMore: false,
+            }],
+            pageParams: [undefined],
+        });
+        rendered.queryClient.setQueryData(notificationsKey, [{
+            id: 'notif-a',
+            kind: 1,
+            actorPubkey: followedPubkey,
+            createdAt: 1_700_000_002,
+            content: 'notif-a',
+            targetEventId: 'feed-a',
+            targetPubkey: ownerPubkeyA,
+            rawEvent: {
+                id: 'notif-a',
+                pubkey: followedPubkey,
+                kind: 1,
+                created_at: 1_700_000_002,
+                tags: [['p', ownerPubkeyA], ['e', 'feed-a']],
+                content: 'notif-a',
+            },
+        }]);
+        rendered.queryClient.setQueryData(directMessagesKey, [{
+            id: 'dm-a',
+            conversationId: followedPubkey,
+            peerPubkey: followedPubkey,
+            direction: 'incoming',
+            createdAt: 1_700_000_003,
+            plaintext: 'dm-a',
+            deliveryState: 'sent',
+        }]);
+        rendered.queryClient.setQueryData(activeProfilePostsKey, {
+            pages: [{ posts: [{ id: 'profile-a' }], hasMore: false }],
+            pageParams: [undefined],
+        });
+
+        expect(rendered.queryClient.getQueryData(followingFeedKey)).toBeDefined();
+        expect(rendered.queryClient.getQueryData(notificationsKey)).toBeDefined();
+        expect(rendered.queryClient.getQueryData(directMessagesKey)).toBeDefined();
+        expect(rendered.queryClient.getQueryData(activeProfilePostsKey)).toBeDefined();
+
+        await selectSettingsContextAction(rendered.container, 'Cerrar sesión');
+        await waitFor(() => (rendered.container.textContent || '').includes('Accede o explora'));
+
+        expect(rendered.queryClient.getQueryData(followingFeedKey)).toBeUndefined();
+        expect(rendered.queryClient.getQueryData(notificationsKey)).toBeUndefined();
+        expect(rendered.queryClient.getQueryData(directMessagesKey)).toBeUndefined();
+        expect(rendered.queryClient.getQueryData(activeProfilePostsKey)).toBeUndefined();
+
+        await submitNpub(npubB);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner-B'));
+
+        expect(rendered.queryClient.getQueryData(followingFeedKey)).toBeUndefined();
+        expect(rendered.queryClient.getQueryData(notificationsKey)).toBeUndefined();
+        expect(rendered.queryClient.getQueryData(directMessagesKey)).toBeUndefined();
+        expect(rendered.queryClient.getQueryData(activeProfilePostsKey)).toBeUndefined();
     });
 
     test('allows logout from settings context menu', async () => {

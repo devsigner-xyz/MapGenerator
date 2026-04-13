@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { createAuthService } from '../../nostr/auth/auth-service';
 import type { ProviderResolveInput } from '../../nostr/auth/providers/types';
 import {
@@ -35,6 +36,7 @@ import { FEATURED_OCCUPANT_PUBKEYS } from '../domain/featured-occupants';
 import { createFollowerBatcher } from './follower-batcher';
 import type { DirectMessagesService } from '../query/direct-messages.query';
 import type { ActiveProfileQueryService } from '../query/active-profile.query';
+import { nostrOverlayQueryKeys } from '../query/keys';
 
 export type OverlayStatus =
     | 'idle'
@@ -223,6 +225,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
     const fetchLatestPostsByPubkeyFn = services?.fetchLatestPostsByPubkeyFn || fetchLatestPostsByPubkey;
     const fetchProfileStatsFn = services?.fetchProfileStatsFn || fetchProfileStats;
     const authService = useMemo(() => createAuthService(), []);
+    const queryClient = useQueryClient();
     const writeGateway = useMemo(
         () =>
             createWriteGateway({
@@ -298,6 +301,23 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
     const cancelOccupancyAnimation = (): number => {
         occupancyAnimationTokenRef.current += 1;
         return occupancyAnimationTokenRef.current;
+    };
+
+    const clearSocialServerState = async (): Promise<void> => {
+        const scopes = [
+            nostrOverlayQueryKeys.invalidation.followingFeed(),
+            nostrOverlayQueryKeys.invalidation.notifications(),
+            nostrOverlayQueryKeys.invalidation.directMessages(),
+            nostrOverlayQueryKeys.invalidation.userSearch(),
+            nostrOverlayQueryKeys.invalidation.nip05(),
+            nostrOverlayQueryKeys.invalidation.relayMetadata(),
+            nostrOverlayQueryKeys.invalidation.activeProfile(),
+        ] as const;
+
+        await Promise.all(scopes.map((queryKey) => queryClient.cancelQueries({ queryKey })));
+        for (const queryKey of scopes) {
+            queryClient.removeQueries({ queryKey });
+        }
     };
 
     const applyOccupancyProgressively = async (input: {
@@ -813,6 +833,10 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
     const startSession = async (method: LoginMethod, input: ProviderResolveInput): Promise<void> => {
         try {
             const session = await authService.startSession(method, input);
+            const previousOwnerPubkey = latestStateRef.current.data.ownerPubkey;
+            if (previousOwnerPubkey && previousOwnerPubkey !== session.pubkey) {
+                await clearSocialServerState();
+            }
             setState((current) => ({
                 ...current,
                 data: {
@@ -871,6 +895,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
 
     const logoutSession = async (): Promise<void> => {
         await authService.logout();
+        await clearSocialServerState();
         cancelOccupancyAnimation();
         setMapLoaderStage(null);
 
