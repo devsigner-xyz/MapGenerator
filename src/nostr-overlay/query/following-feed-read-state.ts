@@ -34,6 +34,21 @@ function toEpochSeconds(value: number): number {
     return Math.floor(value);
 }
 
+function parseTimestamp(value: unknown): number {
+    if (typeof value === 'number') {
+        return toEpochSeconds(value);
+    }
+
+    if (typeof value === 'string') {
+        const parsed = Number(value.trim());
+        if (Number.isFinite(parsed)) {
+            return toEpochSeconds(parsed);
+        }
+    }
+
+    return 0;
+}
+
 export function buildFollowingFeedLastReadStorageKey(ownerPubkey: string, version: StorageVersion = 'v1'): string {
     return `nostr-overlay:following-feed:${version}:last-read:${ownerPubkey}`;
 }
@@ -44,12 +59,12 @@ export function createFollowingFeedReadStateStorage(
     return {
         getLastReadAt(ownerPubkey) {
             const key = buildFollowingFeedLastReadStorageKey(ownerPubkey, options.version);
-            const parsed = safeJsonParse<{ lastReadAt?: number }>(options.storage.getItem(key));
-            if (!parsed || typeof parsed.lastReadAt !== 'number') {
+            const parsed = safeJsonParse<{ lastReadAt?: number | string }>(options.storage.getItem(key));
+            if (!parsed || !('lastReadAt' in parsed)) {
                 return 0;
             }
 
-            return toEpochSeconds(parsed.lastReadAt);
+            return parseTimestamp(parsed.lastReadAt);
         },
 
         setLastReadAt(ownerPubkey, timestampSec) {

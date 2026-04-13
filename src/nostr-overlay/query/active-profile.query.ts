@@ -98,6 +98,7 @@ export function useActiveProfileQuery(input: UseActiveProfileQueryInput): Active
             return input.service.loadStats({ pubkey });
         },
         enabled: Boolean(pubkey),
+        retry: 0,
         staleTime: 5 * 60_000,
     });
 

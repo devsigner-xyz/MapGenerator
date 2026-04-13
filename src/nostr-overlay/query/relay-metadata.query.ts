@@ -7,6 +7,11 @@ interface UseRelayMetadataByUrlQueryInput {
     enabled: boolean;
 }
 
+interface RelayQueryEntry {
+    relayUrl: string;
+    queryRelayUrl: string;
+}
+
 const RELAY_METADATA_STALE_TIME_MS = 5 * 60_000;
 
 function relayHttpEndpoint(relayUrl: string): string | null {
@@ -67,37 +72,69 @@ async function fetchRelayInformation(relayUrl: string): Promise<RelayInformation
 }
 
 function normalizeRelayUrls(relayUrls: string[]): string[] {
-    return [...new Set(relayUrls.filter((relayUrl) => relayUrl.length > 0))].sort((left, right) => left.localeCompare(right));
+    return [...new Set(relayUrls.map((relayUrl) => relayUrl.trim()).filter((relayUrl) => relayUrl.length > 0))].sort((left, right) => left.localeCompare(right));
+}
+
+function toDeterministicRelayKey(relayUrl: string): string {
+    const trimmed = relayUrl.trim();
+    if (!trimmed) {
+        return trimmed;
+    }
+
+    try {
+        return new URL(trimmed).toString();
+    } catch {
+        return trimmed;
+    }
+}
+
+function buildRelayQueryEntries(relayUrls: string[]): RelayQueryEntry[] {
+    const dedupedByKey = new Map<string, RelayQueryEntry>();
+    for (const relayUrl of normalizeRelayUrls(relayUrls)) {
+        const queryRelayUrl = toDeterministicRelayKey(relayUrl);
+        if (dedupedByKey.has(queryRelayUrl)) {
+            continue;
+        }
+
+        dedupedByKey.set(queryRelayUrl, {
+            relayUrl,
+            queryRelayUrl,
+        });
+    }
+
+    return [...dedupedByKey.values()].sort((left, right) => left.relayUrl.localeCompare(right.relayUrl));
 }
 
 export function useRelayMetadataByUrlQuery(input: UseRelayMetadataByUrlQueryInput): Record<string, RelayInfoState> {
-    const relayUrls = useMemo(() => normalizeRelayUrls(input.relayUrls), [input.relayUrls]);
+    const relayEntries = useMemo(() => buildRelayQueryEntries(input.relayUrls), [input.relayUrls]);
     const fetchAvailable = typeof window !== 'undefined' && typeof window.fetch === 'function';
 
     const queryResults = useQueries({
-        queries: relayUrls.map((relayUrl) => ({
-            queryKey: ['nostr-overlay', 'social', 'relay-metadata', { relayUrl }] as const,
-            queryFn: () => fetchRelayInformation(relayUrl),
+        queries: relayEntries.map((entry) => ({
+            queryKey: ['nostr-overlay', 'social', 'relay-metadata', { relayUrl: entry.queryRelayUrl }] as const,
+            queryFn: () => fetchRelayInformation(entry.queryRelayUrl),
             enabled: input.enabled && fetchAvailable,
+            retry: 1,
+            retryDelay: 0,
             staleTime: RELAY_METADATA_STALE_TIME_MS,
         })),
     });
 
     return useMemo(() => {
         const relayInfoByUrl: Record<string, RelayInfoState> = {};
-        for (const [index, relayUrl] of relayUrls.entries()) {
+        for (const [index, entry] of relayEntries.entries()) {
             const query = queryResults[index];
             if (!query) {
                 continue;
             }
 
             if (query.error) {
-                relayInfoByUrl[relayUrl] = { status: 'error' };
+                relayInfoByUrl[entry.relayUrl] = { status: 'error' };
                 continue;
             }
 
             if (query.data) {
-                relayInfoByUrl[relayUrl] = {
+                relayInfoByUrl[entry.relayUrl] = {
                     status: 'ready',
                     data: query.data,
                 };
@@ -105,10 +142,10 @@ export function useRelayMetadataByUrlQuery(input: UseRelayMetadataByUrlQueryInpu
             }
 
             if (query.isPending || query.isFetching) {
-                relayInfoByUrl[relayUrl] = { status: 'loading' };
+                relayInfoByUrl[entry.relayUrl] = { status: 'loading' };
             }
         }
 
         return relayInfoByUrl;
-    }, [relayUrls, queryResults]);
+    }, [relayEntries, queryResults]);
 }
