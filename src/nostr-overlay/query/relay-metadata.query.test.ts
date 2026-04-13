@@ -196,4 +196,39 @@ describe('useRelayMetadataByUrlQuery', () => {
         expect(fetchMock).toHaveBeenCalledTimes(1);
         expect(Object.keys(latest)).toEqual(['wss://relay.example']);
     });
+
+    test('keeps stable output references for equivalent input after ready state', async () => {
+        fetchMock.mockResolvedValue({
+            ok: true,
+            status: 200,
+            json: async () => ({ name: 'Stable Relay' }),
+        } as Response);
+
+        const snapshots: Record<string, RelayInfoState>[] = [];
+        const rendered = await renderElement(createElement(RelayMetadataProbe, {
+            relayUrls: ['wss://stable.relay/'],
+            enabled: true,
+            onUpdate: (next: Record<string, RelayInfoState>) => {
+                snapshots.push(next);
+            },
+        }));
+        mounted.push(rendered);
+
+        await waitFor(() => Object.values(snapshots.at(-1) ?? {}).some((entry) => entry.status === 'ready'));
+        const readySnapshot = snapshots.at(-1);
+
+        expect(readySnapshot).toBeDefined();
+        expect(Object.keys(readySnapshot ?? {})).toEqual(['wss://stable.relay']);
+
+        await rendered.rerender(createElement(RelayMetadataProbe, {
+            relayUrls: [' wss://stable.relay '],
+            enabled: true,
+            onUpdate: (next: Record<string, RelayInfoState>) => {
+                snapshots.push(next);
+            },
+        }));
+
+        await waitFor(() => snapshots.length >= 2);
+        expect(snapshots.at(-1)).toBe(readySnapshot);
+    });
 });

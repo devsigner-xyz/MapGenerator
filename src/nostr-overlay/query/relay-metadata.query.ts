@@ -81,7 +81,13 @@ function toDeterministicRelayKey(relayUrl: string): string {
     }
 
     try {
-        return new URL(trimmed).toString();
+        const parsed = new URL(trimmed);
+        const serialized = parsed.toString();
+        if (parsed.pathname === '/' && !parsed.search && !parsed.hash) {
+            return serialized.replace(/\/$/, '');
+        }
+
+        return serialized;
     } catch {
         return trimmed;
     }
@@ -91,12 +97,16 @@ function buildRelayQueryEntries(relayUrls: string[]): RelayQueryEntry[] {
     const dedupedByKey = new Map<string, RelayQueryEntry>();
     for (const relayUrl of normalizeRelayUrls(relayUrls)) {
         const queryRelayUrl = toDeterministicRelayKey(relayUrl);
+        if (!queryRelayUrl) {
+            continue;
+        }
+
         if (dedupedByKey.has(queryRelayUrl)) {
             continue;
         }
 
         dedupedByKey.set(queryRelayUrl, {
-            relayUrl,
+            relayUrl: queryRelayUrl,
             queryRelayUrl,
         });
     }
@@ -108,40 +118,39 @@ export function useRelayMetadataByUrlQuery(input: UseRelayMetadataByUrlQueryInpu
     const relayEntries = useMemo(() => buildRelayQueryEntries(input.relayUrls), [input.relayUrls]);
     const fetchAvailable = typeof window !== 'undefined' && typeof window.fetch === 'function';
 
-    const queryResults = useQueries({
+    return useQueries({
         queries: relayEntries.map((entry) => createMetadataQueryOptions({
             queryKey: ['nostr-overlay', 'social', 'relay-metadata', { relayUrl: entry.queryRelayUrl }] as const,
             queryFn: () => fetchRelayInformation(entry.queryRelayUrl),
             enabled: input.enabled && fetchAvailable,
         })),
+        combine: (queryResults) => {
+            const relayInfoByUrl: Record<string, RelayInfoState> = {};
+            for (const [index, entry] of relayEntries.entries()) {
+                const query = queryResults[index];
+                if (!query) {
+                    continue;
+                }
+
+                if (query.error) {
+                    relayInfoByUrl[entry.relayUrl] = { status: 'error' };
+                    continue;
+                }
+
+                if (query.data) {
+                    relayInfoByUrl[entry.relayUrl] = {
+                        status: 'ready',
+                        data: query.data,
+                    };
+                    continue;
+                }
+
+                if (query.isPending || query.isFetching) {
+                    relayInfoByUrl[entry.relayUrl] = { status: 'loading' };
+                }
+            }
+
+            return relayInfoByUrl;
+        },
     });
-
-    return useMemo(() => {
-        const relayInfoByUrl: Record<string, RelayInfoState> = {};
-        for (const [index, entry] of relayEntries.entries()) {
-            const query = queryResults[index];
-            if (!query) {
-                continue;
-            }
-
-            if (query.error) {
-                relayInfoByUrl[entry.relayUrl] = { status: 'error' };
-                continue;
-            }
-
-            if (query.data) {
-                relayInfoByUrl[entry.relayUrl] = {
-                    status: 'ready',
-                    data: query.data,
-                };
-                continue;
-            }
-
-            if (query.isPending || query.isFetching) {
-                relayInfoByUrl[entry.relayUrl] = { status: 'loading' };
-            }
-        }
-
-        return relayInfoByUrl;
-    }, [relayEntries, queryResults]);
 }
