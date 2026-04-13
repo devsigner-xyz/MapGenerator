@@ -1,8 +1,23 @@
-import type { ComponentProps } from 'react';
-import { MapSettingsPage } from './MapSettingsPage';
+import type { RelaySettingsByType } from '../../nostr/relay-settings';
+import type { UiSettingsState } from '../../nostr/ui-settings';
+import type { ZapSettingsState } from '../../nostr/zap-settings';
+import type { RelayConnectionProbe } from '../hooks/useRelayConnectionSummary';
+import type { MapBridge } from '../map-bridge';
+import { OverlaySettingsLayout } from './settings-routes/OverlaySettingsLayout';
 
-type SettingsPageProps = Omit<ComponentProps<typeof MapSettingsPage>, 'variant'>;
+export interface SettingsPageProps {
+    ownerPubkey?: string;
+    mapBridge: MapBridge | null;
+    suggestedRelays?: string[];
+    suggestedRelaysByType?: Partial<RelaySettingsByType>;
+    relayConnectionProbe?: RelayConnectionProbe;
+    relayConnectionRefreshIntervalMs?: number;
+    onUiSettingsChange?: (nextState: UiSettingsState) => void;
+    zapSettings?: ZapSettingsState;
+    onZapSettingsChange?: (nextState: ZapSettingsState) => void;
+    onClose: () => void;
+}
 
 export function SettingsPage(props: SettingsPageProps) {
-    return <MapSettingsPage {...props} variant="surface" />;
+    return <OverlaySettingsLayout {...props} />;
 }

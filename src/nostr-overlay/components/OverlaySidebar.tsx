@@ -17,7 +17,7 @@ import {
 import { encodeHexToNpub } from '../../nostr/npub';
 import type { AuthSessionState } from '../../nostr/auth/session';
 import type { NostrProfile } from '../../nostr/types';
-import type { SettingsView } from './settings-pages/types';
+import { settingsViewFromPathname, type SettingsRouteView } from '../settings/settings-routing';
 import { useLocation } from 'react-router';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -71,7 +71,7 @@ interface OverlaySidebarProps {
     onOpenFollowingFeed: () => void;
     onOpenGlobalSearch: () => void;
     onRegenerateMap: () => void | Promise<void>;
-    onOpenSettings: (view: SettingsView) => void;
+    onOpenSettings: (view: SettingsRouteView) => void;
     onLogout?: () => void | Promise<void>;
     onCopyOwnerNpub?: (value: string) => void | Promise<void>;
     onLocateOwner?: () => void;
@@ -117,25 +117,7 @@ function SidebarActionsMenu({
     const collapsed = state === 'collapsed';
     const activePath = location.pathname;
 
-    const activeSettingsView = useMemo<SettingsView | null>(() => {
-        if (!activePath.startsWith('/settings/')) {
-            return null;
-        }
-
-        const segment = activePath.slice('/settings/'.length);
-        if (
-            segment === 'ui'
-            || segment === 'shortcuts'
-            || segment === 'relays'
-            || segment === 'about'
-            || segment === 'zaps'
-            || segment === 'advanced'
-        ) {
-            return segment;
-        }
-
-        return null;
-    }, [activePath]);
+    const activeSettingsView = useMemo<SettingsRouteView | null>(() => settingsViewFromPathname(activePath), [activePath]);
 
     const isSettingsActive = activeSettingsView !== null;
     const [settingsExpanded, setSettingsExpanded] = useState(isSettingsActive);

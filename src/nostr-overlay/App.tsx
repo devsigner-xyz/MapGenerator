@@ -9,7 +9,6 @@ import {
 } from '../nostr/easter-egg-progress';
 import { encodeHexToNpub } from '../nostr/npub';
 import { MapPresenceLayer } from './components/MapPresenceLayer';
-import type { SettingsView } from './components/settings-pages/types';
 import { OccupantProfileDialog } from './components/OccupantProfileDialog';
 import { EasterEggDialog } from './components/EasterEggDialog';
 import { DiscoverPage } from './components/DiscoverPage';
@@ -27,6 +26,13 @@ import { NotificationsPage } from './components/NotificationsPage';
 import { FollowingFeedSurface } from './components/FollowingFeedSurface';
 import { SettingsPage } from './components/SettingsPage';
 import { UserSearchPage } from './components/UserSearchPage';
+import { SettingsAboutRoute } from './components/settings-routes/SettingsAboutRoute';
+import { SettingsAdvancedRoute } from './components/settings-routes/SettingsAdvancedRoute';
+import { SettingsRelayDetailRoute } from './components/settings-routes/SettingsRelayDetailRoute';
+import { SettingsRelaysRoute } from './components/settings-routes/SettingsRelaysRoute';
+import { SettingsShortcutsRoute } from './components/settings-routes/SettingsShortcutsRoute';
+import { SettingsUiRoute } from './components/settings-routes/SettingsUiRoute';
+import { SettingsZapsRoute } from './components/settings-routes/SettingsZapsRoute';
 import { PersonContextMenuItems } from './components/PersonContextMenuItems';
 import { useNostrOverlay, type MapLoaderStage, type NostrOverlayServices } from './hooks/useNostrOverlay';
 import { useNip05Verification } from './hooks/useNip05Verification';
@@ -41,6 +47,7 @@ import { getSpecialBuildingEntry } from './special-buildings/catalog';
 import { EASTER_EGG_MISSIONS } from './easter-eggs/missions';
 import { createRuntimeSocialNotificationsService } from '../nostr/social-notifications-runtime-service';
 import { createRuntimeSocialFeedService } from '../nostr/social-feed-runtime-service';
+import { buildSettingsPath, settingsViewFromPathname, type SettingsRouteView } from './settings/settings-routing';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Spinner } from '@/components/ui/spinner';
 import {
@@ -79,26 +86,6 @@ function mapLoaderStageLabel(stage: MapLoaderStage | null): string | null {
 
     if (stage === 'building_map') {
         return 'Construyendo mapa...';
-    }
-
-    return null;
-}
-
-function settingsViewFromPathname(pathname: string): SettingsView | null {
-    if (!pathname.startsWith('/settings/')) {
-        return null;
-    }
-
-    const segment = pathname.slice('/settings/'.length);
-    if (
-        segment === 'advanced'
-        || segment === 'ui'
-        || segment === 'shortcuts'
-        || segment === 'relays'
-        || segment === 'about'
-        || segment === 'zaps'
-    ) {
-        return segment;
     }
 
     return null;
@@ -691,8 +678,8 @@ export function App({ mapBridge, services }: AppProps) {
         });
     };
 
-    const openSettingsPage = (view: SettingsView = 'ui'): void => {
-        navigate(`/settings/${view}`);
+    const openSettingsPage = (view: SettingsRouteView = 'ui'): void => {
+        navigate(buildSettingsPath(view));
     };
 
     const openDmFromContextMenu = async (pubkey: string): Promise<void> => {
@@ -956,7 +943,7 @@ export function App({ mapBridge, services }: AppProps) {
                     )}
                 />
                 <Route
-                    path="/settings/:view"
+                    path="/settings"
                     element={(
                         <SettingsPage
                             mapBridge={mapBridge}
@@ -966,11 +953,21 @@ export function App({ mapBridge, services }: AppProps) {
                             ownerPubkey={overlay.ownerPubkey}
                             zapSettings={zapSettings}
                             onZapSettingsChange={setZapSettings}
-                            initialView={activeSettingsView ?? 'ui'}
                             onClose={() => navigate('/')}
                         />
                     )}
-                />
+                >
+                    <Route index element={<Navigate to="ui" replace />} />
+                    <Route path="ui" element={<SettingsUiRoute />} />
+                    <Route path="shortcuts" element={<SettingsShortcutsRoute />} />
+                    <Route path="relays" element={<SettingsRelaysRoute />} />
+                    <Route path="relays/detail" element={<SettingsRelayDetailRoute />} />
+                    <Route path="zaps" element={<SettingsZapsRoute />} />
+                    <Route path="about" element={<SettingsAboutRoute />} />
+                    <Route path="advanced" element={<SettingsAdvancedRoute />} />
+                    <Route path="*" element={<Navigate to="ui" replace />} />
+                </Route>
+                <Route path="/settings/:view" element={<Navigate to="/settings/ui" replace />} />
                 <Route path="/" element={null} />
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

@@ -1,0 +1,132 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { loadRelaySettings, type RelaySettingsByType } from '../../../../nostr/relay-settings';
+import { mergeRelaySets } from '../../../../nostr/relay-policy';
+import { useRelayConnectionSummary, type RelayConnectionProbe } from '../../../hooks/useRelayConnectionSummary';
+import { useRelayMetadataByUrlQuery } from '../../../query/relay-metadata.query';
+import type { RelayDetailRouteParams } from '../../../settings/relay-detail-routing';
+import {
+    describeRelay,
+    formatRelayFee,
+    hasNip11Metadata,
+    relayAvatarFallback,
+    relayConnectionBadge,
+    RELAY_TYPE_LABELS,
+    toAdminIdentity,
+} from './relays-shared';
+
+interface UseRelayDetailControllerInput {
+    ownerPubkey?: string;
+    suggestedRelays?: string[];
+    suggestedRelaysByType?: Partial<RelaySettingsByType>;
+    relayConnectionProbe?: RelayConnectionProbe;
+    relayConnectionRefreshIntervalMs?: number;
+    params: RelayDetailRouteParams;
+}
+
+export function useRelayDetailController(input: UseRelayDetailControllerInput) {
+    const {
+        ownerPubkey,
+        suggestedRelays = [],
+        suggestedRelaysByType,
+        relayConnectionProbe,
+        relayConnectionRefreshIntervalMs,
+        params,
+    } = input;
+    const [relaySettings, setRelaySettings] = useState(() => loadRelaySettings({ ownerPubkey }));
+    const [copiedRelayIdentityKey, setCopiedRelayIdentityKey] = useState<string | null>(null);
+    const relayCopyResetTimeoutRef = useRef<number | null>(null);
+
+    useEffect(() => {
+        setRelaySettings(loadRelaySettings({ ownerPubkey }));
+    }, [ownerPubkey]);
+
+    useEffect(() => {
+        return () => {
+            if (relayCopyResetTimeoutRef.current !== null) {
+                window.clearTimeout(relayCopyResetTimeoutRef.current);
+            }
+        };
+    }, []);
+
+    const normalizedSuggestedByType = useMemo<RelaySettingsByType>(() => {
+        return {
+            nip65Both: mergeRelaySets(suggestedRelaysByType?.nip65Both ?? [], suggestedRelays),
+            nip65Read: mergeRelaySets(suggestedRelaysByType?.nip65Read ?? []),
+            nip65Write: mergeRelaySets(suggestedRelaysByType?.nip65Write ?? []),
+            dmInbox: mergeRelaySets(suggestedRelaysByType?.dmInbox ?? []),
+        };
+    }, [suggestedRelaysByType, suggestedRelays]);
+
+    const relayInfoTargets = useMemo(() => {
+        return [...new Set([
+            ...relaySettings.relays,
+            ...normalizedSuggestedByType.nip65Both,
+            ...normalizedSuggestedByType.nip65Read,
+            ...normalizedSuggestedByType.nip65Write,
+            ...normalizedSuggestedByType.dmInbox,
+        ])];
+    }, [relaySettings.relays, normalizedSuggestedByType]);
+
+    const relayInfoByUrl = useRelayMetadataByUrlQuery({
+        relayUrls: relayInfoTargets,
+        enabled: true,
+    });
+
+    const { statusByRelay: relayConnectionStatusByRelay } = useRelayConnectionSummary([params.relayUrl], {
+        enabled: true,
+        probe: relayConnectionProbe,
+        refreshIntervalMs: relayConnectionRefreshIntervalMs,
+    });
+
+    const selectedRelay = params;
+    const selectedRelayDetails = describeRelay(selectedRelay.relayUrl, selectedRelay.source);
+    const selectedRelayInfo = relayInfoByUrl[selectedRelay.relayUrl];
+    const selectedRelayDocument = selectedRelayInfo?.status === 'ready' ? selectedRelayInfo.data : undefined;
+    const selectedRelayAdminIdentity = toAdminIdentity(selectedRelayDocument?.pubkey);
+    const selectedRelayConnectionStatus = relayConnectionStatusByRelay[selectedRelay.relayUrl];
+    const relayHasNip11Metadata = hasNip11Metadata(selectedRelayDocument);
+    const relayEventLimit = selectedRelayDocument?.limitation?.max_limit
+        ?? selectedRelayDocument?.limitation?.default_limit;
+    const relayHasFees = Boolean(
+        (selectedRelayDocument?.fees?.admission && selectedRelayDocument.fees.admission.length > 0)
+        || (selectedRelayDocument?.fees?.subscription && selectedRelayDocument.fees.subscription.length > 0)
+        || (selectedRelayDocument?.fees?.publication && selectedRelayDocument.fees.publication.length > 0)
+    );
+
+    const onCopyRelayIdentity = async (value: string, key: string): Promise<void> => {
+        if (!value || typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+            return;
+        }
+
+        try {
+            await navigator.clipboard.writeText(value);
+            setCopiedRelayIdentityKey(key);
+            if (relayCopyResetTimeoutRef.current !== null) {
+                window.clearTimeout(relayCopyResetTimeoutRef.current);
+            }
+            relayCopyResetTimeoutRef.current = window.setTimeout(() => {
+                setCopiedRelayIdentityKey((current) => (current === key ? null : current));
+            }, 1800);
+        } catch {
+            setCopiedRelayIdentityKey(null);
+        }
+    };
+
+    return {
+        selectedRelay,
+        selectedRelayDetails,
+        selectedRelayInfo,
+        selectedRelayDocument,
+        selectedRelayAdminIdentity,
+        selectedRelayConnectionStatus,
+        relayHasNip11Metadata,
+        relayEventLimit,
+        relayHasFees,
+        copiedRelayIdentityKey,
+        relayTypeLabels: RELAY_TYPE_LABELS,
+        relayAvatarFallback,
+        relayConnectionBadge,
+        formatRelayFee,
+        onCopyRelayIdentity,
+    };
+}
