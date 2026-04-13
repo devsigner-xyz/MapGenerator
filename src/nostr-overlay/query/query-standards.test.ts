@@ -8,6 +8,12 @@ import {
     getNostrOverlayQueryTimingProfile,
     nostrOverlayQueryTimingProfiles,
 } from './query-client';
+import {
+    createIdentityQueryOptions,
+    createMetadataQueryOptions,
+    createRealtimeQueryOptions,
+    createSocialQueryOptions,
+} from './options';
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const followingFeedControllerSourcePath = resolve(currentDir, '../hooks/useFollowingFeedController.ts');
@@ -80,6 +86,61 @@ describe('nostr overlay query standards', () => {
             expect(retry(0, new Error('status 500'))).toBe(true);
             expect(retry(1, new Error('status 500'))).toBe(false);
             expect(retry(0, new Error('relay timeout'))).toBe(false);
+        }
+    });
+
+    test('exposes options factories by domain', () => {
+        expect(typeof createSocialQueryOptions).toBe('function');
+        expect(typeof createMetadataQueryOptions).toBe('function');
+        expect(typeof createIdentityQueryOptions).toBe('function');
+        expect(typeof createRealtimeQueryOptions).toBe('function');
+    });
+
+    test('enforces domain timing contracts in options factories', () => {
+        const queryFn = async () => ({ ok: true as const });
+        const social = createSocialQueryOptions({
+            queryKey: ['nostr-overlay', 'social', 'contract'] as const,
+            queryFn,
+        });
+        const metadata = createMetadataQueryOptions({
+            queryKey: ['nostr-overlay', 'metadata', 'contract'] as const,
+            queryFn,
+        });
+        const identity = createIdentityQueryOptions({
+            queryKey: ['nostr-overlay', 'identity', 'contract'] as const,
+            queryFn,
+        });
+        const realtime = createRealtimeQueryOptions({
+            queryKey: ['nostr-overlay', 'realtime', 'contract'] as const,
+            queryFn,
+        });
+
+        expect(metadata.staleTime).toBeGreaterThan(social.staleTime ?? 0);
+        expect(realtime.staleTime).toBeLessThan(social.staleTime ?? Number.MAX_SAFE_INTEGER);
+        expect(identity.staleTime).toBeGreaterThan(metadata.staleTime ?? 0);
+
+        expect(typeof social.retry).toBe('function');
+        expect(typeof metadata.retry).toBe('function');
+        expect(typeof identity.retry).toBe('function');
+        expect(typeof realtime.retry).toBe('function');
+
+        if (typeof social.retry === 'function') {
+            expect(social.retry(0, new Error('status 500'))).toBe(true);
+            expect(social.retry(1, new Error('status 500'))).toBe(false);
+        }
+
+        if (typeof metadata.retry === 'function') {
+            expect(metadata.retry(0, new Error('status 500'))).toBe(true);
+            expect(metadata.retry(1, new Error('status 500'))).toBe(false);
+        }
+
+        if (typeof identity.retry === 'function') {
+            expect(identity.retry(0, new Error('status 404'))).toBe(false);
+            expect(identity.retry(0, new Error('invalid identifier'))).toBe(false);
+        }
+
+        if (typeof realtime.retry === 'function') {
+            expect(realtime.retry(0, new Error('status 500'))).toBe(false);
         }
     });
 });
