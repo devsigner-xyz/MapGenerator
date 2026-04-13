@@ -4,7 +4,7 @@ import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
 import { QueryClientProvider } from '@tanstack/react-query';
 import type { NostrProfile } from '../../nostr/types';
 import { createNostrOverlayQueryClient } from '../query/query-client';
-import { GlobalUserSearchDialog } from './GlobalUserSearchDialog';
+import { UserSearchPage } from './UserSearchPage';
 
 interface RenderResult {
     container: HTMLDivElement;
@@ -101,15 +101,14 @@ afterEach(async () => {
     mounted = [];
 });
 
-describe('GlobalUserSearchDialog', () => {
+describe('UserSearchPage', () => {
     test('debounces search calls by 300ms', async () => {
         vi.useFakeTimers();
         const onSearch = vi.fn(async () => ({ pubkeys: [], profiles: {} }));
 
         try {
             const rendered = await renderElement(
-                <GlobalUserSearchDialog
-                    open
+                <UserSearchPage
                     onClose={() => {}}
                     onSearch={onSearch}
                     onSelectUser={() => {}}
@@ -157,8 +156,7 @@ describe('GlobalUserSearchDialog', () => {
 
         try {
             const rendered = await renderElement(
-                <GlobalUserSearchDialog
-                    open
+                <UserSearchPage
                     onClose={() => {}}
                     onSearch={onSearch}
                     onSelectUser={() => {}}
@@ -192,8 +190,7 @@ describe('GlobalUserSearchDialog', () => {
 
         try {
             const rendered = await renderElement(
-                <GlobalUserSearchDialog
-                    open
+                <UserSearchPage
                     onClose={() => {}}
                     onSearch={onSearch}
                     onSelectUser={onSelectUser}
@@ -232,8 +229,7 @@ describe('GlobalUserSearchDialog', () => {
 
         try {
             const rendered = await renderElement(
-                <GlobalUserSearchDialog
-                    open
+                <UserSearchPage
                     onClose={() => {}}
                     onSearch={onSearch}
                     onSelectUser={() => {}}
@@ -285,8 +281,7 @@ describe('GlobalUserSearchDialog', () => {
 
         try {
             const rendered = await renderElement(
-                <GlobalUserSearchDialog
-                    open
+                <UserSearchPage
                     onClose={() => {}}
                     onSearch={onSearch}
                     onSelectUser={() => {}}
@@ -346,8 +341,7 @@ describe('GlobalUserSearchDialog', () => {
 
         try {
             const rendered = await renderElement(
-                <GlobalUserSearchDialog
-                    open
+                <UserSearchPage
                     onClose={() => {}}
                     onSearch={onSearch}
                     onSelectUser={() => {}}
@@ -398,8 +392,7 @@ describe('GlobalUserSearchDialog', () => {
 
         try {
             const rendered = await renderElement(
-                <GlobalUserSearchDialog
-                    open
+                <UserSearchPage
                     onClose={() => {}}
                     onSearch={onSearch}
                     onSelectUser={() => {}}

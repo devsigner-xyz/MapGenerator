@@ -1,4 +1,5 @@
 import { getBootstrapRelays, mergeRelaySets, normalizeRelayUrl } from './relay-policy';
+import { buildStorageScopeKeys } from './storage-scope';
 
 export const RELAY_SETTINGS_STORAGE_KEY = 'nostr.overlay.relays.v1';
 
@@ -28,6 +29,13 @@ interface StorageLike {
     setItem(key: string, value: string): void;
 }
 
+interface RelaySettingsOptions {
+    ownerPubkey?: string;
+    storage?: StorageLike | null;
+}
+
+type RelaySettingsInput = StorageLike | null | undefined | RelaySettingsOptions;
+
 export interface RelaySettingsState {
     relays: string[];
     byType: RelaySettingsByType;
@@ -49,6 +57,18 @@ function getDefaultStorage(): StorageLike | null {
     } catch {
         return null;
     }
+}
+
+function resolveOptions(input?: RelaySettingsInput): RelaySettingsOptions {
+    if (!input) {
+        return {};
+    }
+
+    if (typeof (input as StorageLike).getItem === 'function') {
+        return { storage: input as StorageLike | null };
+    }
+
+    return input as RelaySettingsOptions;
 }
 
 function normalizeRelayList(relays: string[]): string[] {
@@ -100,39 +120,15 @@ function isRelaySettingsPayload(value: unknown): value is RelaySettingsPayload {
     );
 }
 
-export function getDefaultRelaySettings(): RelaySettingsState {
-    const bootstrap = getBootstrapRelays();
-    const byType = normalizeByType({
-        nip65Both: bootstrap,
-        nip65Read: bootstrap,
-        nip65Write: bootstrap,
-        dmInbox: DEFAULT_DM_INBOX_RELAYS,
-    });
-
-    return {
-        relays: buildAllRelays(byType),
-        byType,
-    };
-}
-
-export function getRelaySetByType(state: RelaySettingsState, relayType: RelayType): string[] {
-    return state.byType[relayType] ?? [];
-}
-
-export function loadRelaySettings(storage: StorageLike | null = getDefaultStorage()): RelaySettingsState {
-    if (!storage) {
-        return getDefaultRelaySettings();
-    }
-
-    const raw = storage.getItem(RELAY_SETTINGS_STORAGE_KEY);
+function parseRelaySettings(raw: string | null): RelaySettingsState | null {
     if (!raw) {
-        return getDefaultRelaySettings();
+        return null;
     }
 
     try {
         const parsed = JSON.parse(raw) as unknown;
         if (!isRelaySettingsPayload(parsed)) {
-            return getDefaultRelaySettings();
+            return null;
         }
 
         const payload = parsed as RelaySettingsPayload;
@@ -155,21 +151,88 @@ export function loadRelaySettings(storage: StorageLike | null = getDefaultStorag
             byType: legacyByType,
         };
     } catch {
+        return null;
+    }
+}
+
+export function getDefaultRelaySettings(): RelaySettingsState {
+    const bootstrap = getBootstrapRelays();
+    const byType = normalizeByType({
+        nip65Both: bootstrap,
+        nip65Read: bootstrap,
+        nip65Write: bootstrap,
+        dmInbox: DEFAULT_DM_INBOX_RELAYS,
+    });
+
+    return {
+        relays: buildAllRelays(byType),
+        byType,
+    };
+}
+
+export function getRelaySetByType(state: RelaySettingsState, relayType: RelayType): string[] {
+    return state.byType[relayType] ?? [];
+}
+
+export function loadRelaySettings(input?: RelaySettingsInput): RelaySettingsState {
+    const options = resolveOptions(input);
+    const storage = options.storage ?? getDefaultStorage();
+    if (!storage) {
         return getDefaultRelaySettings();
     }
+
+    const keys = buildStorageScopeKeys({
+        baseKey: RELAY_SETTINGS_STORAGE_KEY,
+        ownerPubkey: options.ownerPubkey,
+    });
+
+    if (!keys.normalizedOwnerPubkey) {
+        return parseRelaySettings(storage.getItem(RELAY_SETTINGS_STORAGE_KEY)) ?? getDefaultRelaySettings();
+    }
+
+    const scopedRaw = storage.getItem(keys.scopedKey);
+    if (scopedRaw !== null) {
+        return parseRelaySettings(scopedRaw) ?? getDefaultRelaySettings();
+    }
+
+    const migrationOwner = storage.getItem(keys.legacyMigrationMarkerKey);
+    if (migrationOwner) {
+        return getDefaultRelaySettings();
+    }
+
+    const legacy = parseRelaySettings(storage.getItem(RELAY_SETTINGS_STORAGE_KEY)) ?? getDefaultRelaySettings();
+    storage.setItem(keys.scopedKey, JSON.stringify({
+        relays: legacy.relays,
+        byType: legacy.byType,
+    }));
+    storage.setItem(keys.legacyMigrationMarkerKey, keys.normalizedOwnerPubkey);
+    return legacy;
 }
 
 export function saveRelaySettings(
     state: RelaySettingsState,
-    storage: StorageLike | null = getDefaultStorage()
+    input?: RelaySettingsInput
 ): RelaySettingsState {
+    const options = resolveOptions(input);
     const nextState = normalizeRelayState(state);
+    const storage = options.storage ?? getDefaultStorage();
+    if (!storage) {
+        return nextState;
+    }
 
-    if (storage) {
-        const payload: RelaySettingsPayload = {
-            relays: nextState.relays,
-            byType: nextState.byType,
-        };
+    const keys = buildStorageScopeKeys({
+        baseKey: RELAY_SETTINGS_STORAGE_KEY,
+        ownerPubkey: options.ownerPubkey,
+    });
+
+    const payload: RelaySettingsPayload = {
+        relays: nextState.relays,
+        byType: nextState.byType,
+    };
+
+    if (keys.normalizedOwnerPubkey) {
+        storage.setItem(keys.scopedKey, JSON.stringify(payload));
+    } else {
         storage.setItem(RELAY_SETTINGS_STORAGE_KEY, JSON.stringify(payload));
     }
 

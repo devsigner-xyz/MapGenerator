@@ -179,7 +179,7 @@ function SidebarActionsMenu({
 
                 {canAccessDirectMessages ? (
                     <SidebarMenuItem>
-                        <SidebarMenuButton asChild>
+                        <SidebarMenuButton asChild isActive={activePath === '/chats'}>
                             <button
                                 type="button"
                                 className="nostr-chat-icon-button"

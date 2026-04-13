@@ -245,8 +245,9 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
     const occupancyAnimationTokenRef = useRef(0);
     const skipNextMapGeneratedRef = useRef(false);
     const didRestoreSessionRef = useRef(false);
+    const scopedRelayOwnerPubkey = state.data.authSession?.pubkey;
     const runtimeDmRelays = useMemo(() => {
-        const loadedSettings = loadRelaySettings();
+        const loadedSettings = loadRelaySettings({ ownerPubkey: scopedRelayOwnerPubkey });
         const configuredDmInboxRelays = getRelaySetByType(loadedSettings, 'dmInbox');
         const configuredNip65ReadRelays = getRelaySetByType(loadedSettings, 'nip65Read');
         const configuredNip65BothRelays = getRelaySetByType(loadedSettings, 'nip65Both');
@@ -266,9 +267,9 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             state.data.suggestedRelaysByType.nip65Read,
             state.data.suggestedRelaysByType.dmInbox
         );
-    }, [state.data.relayHints, state.data.suggestedRelaysByType]);
+    }, [scopedRelayOwnerPubkey, state.data.relayHints, state.data.suggestedRelaysByType]);
     const runtimeDmOutboxRelays = useMemo(() => {
-        const loadedSettings = loadRelaySettings();
+        const loadedSettings = loadRelaySettings({ ownerPubkey: scopedRelayOwnerPubkey });
         const configuredNip65WriteRelays = getRelaySetByType(loadedSettings, 'nip65Write');
         const configuredNip65BothRelays = getRelaySetByType(loadedSettings, 'nip65Both');
         const configuredRelaysByProtocol = mergeRelaySets(configuredNip65WriteRelays, configuredNip65BothRelays);
@@ -283,7 +284,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             state.data.suggestedRelaysByType.nip65Both,
             state.data.suggestedRelaysByType.nip65Write
         );
-    }, [state.data.suggestedRelaysByType]);
+    }, [scopedRelayOwnerPubkey, state.data.suggestedRelaysByType]);
     const runtimeDmRelayKey = useMemo(
         () => `${runtimeDmRelays.join('|')}::${runtimeDmOutboxRelays.join('|')}`,
         [runtimeDmRelays, runtimeDmOutboxRelays]
@@ -382,7 +383,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
 
     const resolveOverlayRelays = (relayHints: string[]): string[] => {
         const configuredRelays = (() => {
-            const loaded = loadRelaySettings();
+            const loaded = loadRelaySettings({ ownerPubkey: scopedRelayOwnerPubkey });
             const protocolRelays = mergeRelaySets(
                 getRelaySetByType(loaded, 'nip65Write'),
                 getRelaySetByType(loaded, 'nip65Both'),
@@ -565,7 +566,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
 
         try {
             const configuredRelays = (() => {
-                const loaded = loadRelaySettings();
+                const loaded = loadRelaySettings({ ownerPubkey: input.session.pubkey });
                 const protocolRelays = mergeRelaySets(
                     getRelaySetByType(loaded, 'nip65Write'),
                     getRelaySetByType(loaded, 'nip65Both'),

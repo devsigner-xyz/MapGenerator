@@ -4,8 +4,6 @@ import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vi
 import { QueryClientProvider } from '@tanstack/react-query';
 import type { MapBridge } from '../map-bridge';
 import { MapSettingsPage } from './MapSettingsPage';
-
-const MapSettingsDialog = MapSettingsPage;
 import { encodeHexToNpub } from '../../nostr/npub';
 import { RELAY_SETTINGS_STORAGE_KEY } from '../../nostr/relay-settings';
 import { UI_SETTINGS_STORAGE_KEY } from '../../nostr/ui-settings';
@@ -114,12 +112,12 @@ afterEach(async () => {
     mounted = [];
 });
 
-describe('MapSettingsDialog UI settings', () => {
+describe('MapSettingsPage UI settings', () => {
     test('shows UI settings section and persists occupied label zoom level', async () => {
         const onUiSettingsChange = vi.fn();
         const bridge = createBridgeStub();
         const rendered = await renderElement(
-            <MapSettingsDialog
+            <MapSettingsPage
                 mapBridge={bridge}
                 initialView="ui"
                 onClose={() => {}}
@@ -219,7 +217,7 @@ describe('MapSettingsDialog UI settings', () => {
     test('shows about panel with supported nips and app features', async () => {
         const bridge = createBridgeStub();
         const rendered = await renderElement(
-            <MapSettingsDialog
+            <MapSettingsPage
                 mapBridge={bridge}
                 initialView="about"
                 onClose={() => {}}
@@ -237,7 +235,7 @@ describe('MapSettingsDialog UI settings', () => {
     test('opens advanced settings section and mounts MapGenerator settings host', async () => {
         const bridge = createBridgeStub();
         const rendered = await renderElement(
-            <MapSettingsDialog
+            <MapSettingsPage
                 mapBridge={bridge}
                 initialView="advanced"
                 onClose={() => {}}
@@ -257,7 +255,7 @@ describe('MapSettingsDialog UI settings', () => {
     test('shows zaps settings from main menu and persists edited amounts', async () => {
         const bridge = createBridgeStub();
         const rendered = await renderElement(
-            <MapSettingsDialog
+            <MapSettingsPage
                 mapBridge={bridge}
                 initialView="zaps"
                 onClose={() => {}}
@@ -301,7 +299,7 @@ describe('MapSettingsDialog UI settings', () => {
 
         const bridge = createBridgeStub();
         const rendered = await renderElement(
-            <MapSettingsDialog
+            <MapSettingsPage
                 mapBridge={bridge}
                 initialView="relays"
                 onClose={() => {}}
@@ -350,7 +348,7 @@ describe('MapSettingsDialog UI settings', () => {
 
         const bridge = createBridgeStub();
         const rendered = await renderElement(
-            <MapSettingsDialog
+            <MapSettingsPage
                 mapBridge={bridge}
                 initialView="relays"
                 onClose={() => {}}
@@ -387,7 +385,7 @@ describe('MapSettingsDialog UI settings', () => {
     test('separates relay categories in UI and stores relay additions by type', async () => {
         const bridge = createBridgeStub();
         const rendered = await renderElement(
-            <MapSettingsDialog
+            <MapSettingsPage
                 mapBridge={bridge}
                 initialView="relays"
                 onClose={() => {}}
@@ -468,7 +466,7 @@ describe('MapSettingsDialog UI settings', () => {
 
         const bridge = createBridgeStub();
         const rendered = await renderElement(
-            <MapSettingsDialog
+            <MapSettingsPage
                 mapBridge={bridge}
                 initialView="relays"
                 suggestedRelays={['wss://relay.suggested.example']}
@@ -556,7 +554,7 @@ describe('MapSettingsDialog UI settings', () => {
         const bridge = createBridgeStub();
         const probeRelayStatus = vi.fn(async (relayUrl: string) => relayUrl === 'wss://relay.one');
         const rendered = await renderElement(
-            <MapSettingsDialog
+            <MapSettingsPage
                 mapBridge={bridge}
                 initialView="relays"
                 onClose={() => {}}
@@ -638,7 +636,7 @@ describe('MapSettingsDialog UI settings', () => {
 
         const bridge = createBridgeStub();
         const rendered = await renderElement(
-            <MapSettingsDialog
+            <MapSettingsPage
                 mapBridge={bridge}
                 initialView="relays"
                 onClose={() => {}}
@@ -718,7 +716,7 @@ describe('MapSettingsDialog UI settings', () => {
 
         const bridge = createBridgeStub();
         const rendered = await renderElement(
-            <MapSettingsDialog
+            <MapSettingsPage
                 mapBridge={bridge}
                 initialView="relays"
                 onClose={() => {}}
@@ -774,7 +772,7 @@ describe('MapSettingsDialog UI settings', () => {
 
         const bridge = createBridgeStub();
         const rendered = await renderElement(
-            <MapSettingsDialog
+            <MapSettingsPage
                 mapBridge={bridge}
                 initialView="relays"
                 onClose={() => {}}
@@ -856,7 +854,7 @@ describe('MapSettingsDialog UI settings', () => {
 
         const bridge = createBridgeStub();
         const rendered = await renderElement(
-            <MapSettingsDialog
+            <MapSettingsPage
                 mapBridge={bridge}
                 initialView="relays"
                 onClose={() => {}}
@@ -900,7 +898,7 @@ describe('MapSettingsDialog UI settings', () => {
     test('does not show suggested relays empty-state hint text', async () => {
         const bridge = createBridgeStub();
         const rendered = await renderElement(
-            <MapSettingsDialog
+            <MapSettingsPage
                 mapBridge={bridge}
                 initialView="relays"
                 onClose={() => {}}
@@ -914,7 +912,7 @@ describe('MapSettingsDialog UI settings', () => {
     test('rejects invalid relay hostnames when adding relays', async () => {
         const bridge = createBridgeStub();
         const rendered = await renderElement(
-            <MapSettingsDialog
+            <MapSettingsPage
                 mapBridge={bridge}
                 initialView="relays"
                 onClose={() => {}}
@@ -951,7 +949,7 @@ describe('MapSettingsDialog UI settings', () => {
     test('keeps relay input enabled styling when add field is empty', async () => {
         const bridge = createBridgeStub();
         const rendered = await renderElement(
-            <MapSettingsDialog
+            <MapSettingsPage
                 mapBridge={bridge}
                 initialView="relays"
                 onClose={() => {}}
@@ -992,7 +990,7 @@ describe('MapSettingsDialog UI settings', () => {
         const bridge = createBridgeStub();
         const probeRelayStatus = vi.fn(async (relayUrl: string) => relayUrl === 'wss://relay.general.one');
         const rendered = await renderElement(
-            <MapSettingsDialog
+            <MapSettingsPage
                 mapBridge={bridge}
                 initialView="relays"
                 onClose={() => {}}
@@ -1055,7 +1053,7 @@ describe('MapSettingsDialog UI settings', () => {
 
         const bridge = createBridgeStub();
         const rendered = await renderElement(
-            <MapSettingsDialog
+            <MapSettingsPage
                 mapBridge={bridge}
                 initialView="relays"
                 onClose={() => {}}
@@ -1106,7 +1104,7 @@ describe('MapSettingsDialog UI settings', () => {
                 })
         );
         const rendered = await renderElement(
-            <MapSettingsDialog
+            <MapSettingsPage
                 mapBridge={bridge}
                 initialView="relays"
                 onClose={() => {}}

@@ -27,7 +27,7 @@ export function ProfileTab({
     ownerVerification,
     relayConnectionProbe,
 }: ProfileTabProps) {
-    const relaySettings = loadRelaySettings();
+    const relaySettings = loadRelaySettings({ ownerPubkey });
     const configuredRelayRows = [
         ...relaySettings.byType.nip65Both.map((relayUrl) => ({ relayUrl })),
         ...relaySettings.byType.nip65Read.map((relayUrl) => ({ relayUrl })),

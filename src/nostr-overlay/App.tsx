@@ -22,7 +22,7 @@ import {
 import { MapZoomControls } from './components/MapZoomControls';
 import { MapDisplayToggleControls } from './components/MapDisplayToggleControls';
 import { CityStatsPage } from './components/CityStatsPage';
-import { ChatDialog, type ChatConversationSummary, type ChatDetailMessage } from './components/ChatDialog';
+import { ChatsPage, type ChatConversationSummary, type ChatDetailMessage } from './components/ChatsPage';
 import { NotificationsPage } from './components/NotificationsPage';
 import { FollowingFeedSurface } from './components/FollowingFeedSurface';
 import { SettingsPage } from './components/SettingsPage';
@@ -118,9 +118,9 @@ export function App({ mapBridge, services }: AppProps) {
     const [easterEggProgress, setEasterEggProgress] = useState<EasterEggProgressState>(() => loadEasterEggProgress());
     const [buildingContextMenu, setBuildingContextMenu] = useState<OccupiedBuildingContextMenuState | null>(null);
     const [activeEasterEgg, setActiveEasterEgg] = useState<EasterEggDialogState | null>(null);
-    const [chatOpen, setChatOpen] = useState(false);
     const [chatComposerFocusKey, setChatComposerFocusKey] = useState('');
     const [chatPinnedConversationId, setChatPinnedConversationId] = useState<string | null>(null);
+    const chatRouteSyncKeyRef = useRef('');
     const isMobile = useIsMobile();
     const contextMenuTriggerRef = useRef<HTMLSpanElement | null>(null);
     const contextMenuNonceRef = useRef(0);
@@ -200,6 +200,14 @@ export function App({ mapBridge, services }: AppProps) {
         () => new Set(easterEggProgress.discoveredIds).size,
         [easterEggProgress.discoveredIds]
     );
+
+    useEffect(() => {
+        setEasterEggProgress(loadEasterEggProgress({ ownerPubkey: overlay.ownerPubkey }));
+    }, [overlay.ownerPubkey]);
+
+    useEffect(() => {
+        setZapSettings(loadZapSettings({ ownerPubkey: overlay.ownerPubkey }));
+    }, [overlay.ownerPubkey]);
 
     useEffect(() => {
         if (!mapBridge) {
@@ -295,6 +303,7 @@ export function App({ mapBridge, services }: AppProps) {
             setEasterEggProgress((currentProgress) => markEasterEggDiscovered({
                 easterEggId: payload.easterEggId,
                 currentState: currentProgress,
+                ownerPubkey: overlay.ownerPubkey,
             }));
             easterEggNonceRef.current += 1;
             setActiveEasterEgg({
@@ -302,7 +311,7 @@ export function App({ mapBridge, services }: AppProps) {
                 nonce: easterEggNonceRef.current,
             });
         });
-    }, [mapBridge]);
+    }, [mapBridge, overlay.ownerPubkey]);
 
     useEffect(() => {
         if (!mapBridge) {
@@ -350,6 +359,8 @@ export function App({ mapBridge, services }: AppProps) {
         dmService: overlay.directMessagesService,
     });
     const chatState = directMessages;
+    const openChatStateList = chatState.openList;
+    const openChatStateConversation = chatState.openConversation;
     const socialNotificationsService = useMemo(
         () => services?.socialNotificationsService ?? createRuntimeSocialNotificationsService(),
         [services?.socialNotificationsService]
@@ -443,44 +454,83 @@ export function App({ mapBridge, services }: AppProps) {
     );
     const isMapRoute = location.pathname === '/';
     const isAgoraRoute = location.pathname === '/agora';
+    const isChatsRoute = location.pathname === '/chats';
     const isNotificationsRoute = location.pathname === '/notificaciones';
-    const followingFeedHasUnread = !followingFeed.isDialogOpen && followingFeed.hasUnread;
+    const followingFeedHasUnread = !followingFeed.isOpen && followingFeed.hasUnread;
     const canSendChatMessages = canAccessDirectMessages;
 
     useEffect(() => {
-        if (canAccessDirectMessages || !chatOpen) {
-            return;
-        }
-
-        setChatOpen(false);
-    }, [canAccessDirectMessages, chatOpen]);
-
-    useEffect(() => {
         if (isAgoraRoute && canAccessFollowingFeed) {
-            void followingFeed.openDialog();
+            void followingFeed.open();
             return;
         }
 
-        followingFeed.closeDialog();
-    }, [isAgoraRoute, canAccessFollowingFeed, followingFeed.closeDialog, followingFeed.openDialog]);
+        followingFeed.close();
+    }, [isAgoraRoute, canAccessFollowingFeed, followingFeed.close, followingFeed.open]);
 
     useEffect(() => {
         if (isNotificationsRoute && canAccessSocialNotifications) {
-            if (!socialState.isDialogOpen) {
-                socialNotifications.openDialog();
+            if (!socialState.isOpen) {
+                socialNotifications.open();
             }
             return;
         }
 
-        if (socialState.isDialogOpen) {
-            socialNotifications.closeDialog();
+        if (socialState.isOpen) {
+            socialNotifications.close();
         }
     }, [
         isNotificationsRoute,
         canAccessSocialNotifications,
-        socialState.isDialogOpen,
-        socialNotifications.closeDialog,
-        socialNotifications.openDialog,
+        socialState.isOpen,
+        socialNotifications.close,
+        socialNotifications.open,
+    ]);
+
+    useEffect(() => {
+        if (!isChatsRoute) {
+            chatRouteSyncKeyRef.current = '';
+            return;
+        }
+
+        if (!overlay.ownerPubkey) {
+            return;
+        }
+
+        if (!canAccessDirectMessages) {
+            navigate('/', { replace: true });
+            return;
+        }
+
+        const syncKey = `${overlay.ownerPubkey}:${location.search}`;
+        if (chatRouteSyncKeyRef.current === syncKey) {
+            return;
+        }
+        chatRouteSyncKeyRef.current = syncKey;
+
+        const params = new URLSearchParams(location.search);
+        const peer = params.get('peer');
+        const compose = params.get('compose') === '1';
+
+        if (peer) {
+            openChatStateConversation(peer);
+            setChatPinnedConversationId(peer);
+            if (compose) {
+                setChatComposerFocusKey(`${peer}:${Date.now()}`);
+            }
+            return;
+        }
+
+        openChatStateList();
+        setChatPinnedConversationId(null);
+    }, [
+        canAccessDirectMessages,
+        isChatsRoute,
+        location.search,
+        navigate,
+        openChatStateConversation,
+        openChatStateList,
+        overlay.ownerPubkey,
     ]);
 
     useEffect(() => {
@@ -556,7 +606,7 @@ export function App({ mapBridge, services }: AppProps) {
 
         chatState.openList();
         setChatPinnedConversationId(null);
-        setChatOpen(true);
+        navigate('/chats');
     };
 
     const openChatConversation = (conversationId: string, focusComposer: boolean = false): void => {
@@ -566,14 +616,14 @@ export function App({ mapBridge, services }: AppProps) {
 
         chatState.openConversation(conversationId);
         setChatPinnedConversationId(conversationId);
-        setChatOpen(true);
+        const params = new URLSearchParams({ peer: conversationId });
+        if (focusComposer) {
+            params.set('compose', '1');
+        }
+        navigate(`/chats?${params.toString()}`);
         if (focusComposer) {
             setChatComposerFocusKey(`${conversationId}:${Date.now()}`);
         }
-    };
-
-    const closeChat = (): void => {
-        setChatOpen(false);
     };
 
     const openNotifications = (): void => {
@@ -641,7 +691,7 @@ export function App({ mapBridge, services }: AppProps) {
         });
     };
 
-    const openSettingsDialog = (view: SettingsView = 'ui'): void => {
+    const openSettingsPage = (view: SettingsView = 'ui'): void => {
         navigate(`/settings/${view}`);
     };
 
@@ -678,9 +728,12 @@ export function App({ mapBridge, services }: AppProps) {
                 onOpenFollowingFeed={openFollowingFeed}
                 onOpenGlobalSearch={openGlobalUserSearch}
                 onRegenerateMap={overlay.regenerateMap}
-                onOpenSettings={openSettingsDialog}
+                onOpenSettings={openSettingsPage}
                 onLogout={async () => {
                     await overlay.logoutSession?.();
+                    setEasterEggProgress({ discoveredIds: [] });
+                    setZapSettings(loadZapSettings());
+                    setActiveEasterEgg(null);
                     navigate('/');
                 }}
                 onCopyOwnerNpub={copyOwnerIdentifier}
@@ -708,7 +761,7 @@ export function App({ mapBridge, services }: AppProps) {
                     onMessagePerson={canAccessDirectMessages ? openDmFromContextMenu : undefined}
                     onViewPersonDetails={(pubkey) => overlay.openActiveProfile(pubkey)}
                     zapAmounts={zapSettings.amounts}
-                    onConfigureZapAmounts={() => openSettingsDialog('zaps')}
+                    onConfigureZapAmounts={() => openSettingsPage('zaps')}
                     onCopyOwnerNpub={copyOwnerIdentifier}
                     loginDisabled={loginDisabled}
                     authSession={overlay.authSession}
@@ -775,7 +828,7 @@ export function App({ mapBridge, services }: AppProps) {
                                         data-testid="context-zap-configure"
                                         onSelect={() => {
                                             closeOccupiedContextMenu();
-                                            openSettingsDialog('zaps');
+                                            openSettingsPage('zaps');
                                         }}
                                     >
                                         Configurar cantidades
@@ -797,32 +850,6 @@ export function App({ mapBridge, services }: AppProps) {
             ) : null}
 
             <Toaster richColors position="bottom-center" closeButton={false} />
-
-            <ChatDialog
-                open={chatOpen}
-                hasUnreadGlobal={chatState.hasUnreadGlobal}
-                isLoadingConversations={chatState.isBootstrapping}
-                conversations={chatConversations}
-                messages={chatMessages}
-                activeConversationId={chatActiveConversationId}
-                composerAutoFocusKey={chatComposerFocusKey}
-                canSend={canSendChatMessages}
-                disabledReason={!overlay.ownerPubkey
-                    ? 'Inicia sesión para enviar mensajes privados.'
-                    : !overlay.canDirectMessages
-                        ? 'Tu sesión no permite mensajería privada (requiere firma y NIP-44).'
-                            : undefined}
-                onClose={closeChat}
-                onOpenConversation={(conversationId) => openChatConversation(conversationId)}
-                onBackToList={openChatList}
-                onSendMessage={async (plaintext) => {
-                    if (!chatActiveConversationId || !canSendChatMessages) {
-                        return;
-                    }
-
-                    await chatState.sendMessage(chatActiveConversationId, plaintext);
-                }}
-            />
 
             <Routes>
                 <Route
@@ -866,7 +893,6 @@ export function App({ mapBridge, services }: AppProps) {
                             followersCount={overlay.followersCount}
                             parkCount={overlay.parkCount}
                             unhousedResidentsCount={overlay.unassignedCount}
-                            onClose={() => navigate('/')}
                         />
                     )}
                 />
@@ -874,7 +900,6 @@ export function App({ mapBridge, services }: AppProps) {
                     path="/notificaciones"
                     element={(
                         <NotificationsPage
-                            open={socialState.isDialogOpen}
                             hasUnread={socialState.hasUnread}
                             notifications={socialState.pendingSnapshot}
                             onClose={closeNotifications}
@@ -882,12 +907,38 @@ export function App({ mapBridge, services }: AppProps) {
                     )}
                 />
                 <Route
+                    path="/chats"
+                    element={(
+                        <ChatsPage
+                            hasUnreadGlobal={chatState.hasUnreadGlobal}
+                            isLoadingConversations={chatState.isBootstrapping}
+                            conversations={chatConversations}
+                            messages={chatMessages}
+                            activeConversationId={chatActiveConversationId}
+                            composerAutoFocusKey={chatComposerFocusKey}
+                            canSend={canSendChatMessages}
+                            disabledReason={!overlay.ownerPubkey
+                                ? 'Inicia sesión para enviar mensajes privados.'
+                                : !overlay.canDirectMessages
+                                    ? 'Tu sesión no permite mensajería privada (requiere firma y NIP-44).'
+                                        : undefined}
+                            onOpenConversation={(conversationId) => openChatConversation(conversationId)}
+                            onBackToList={openChatList}
+                            onSendMessage={async (plaintext) => {
+                                if (!chatActiveConversationId || !canSendChatMessages) {
+                                    return;
+                                }
+
+                                await chatState.sendMessage(chatActiveConversationId, plaintext);
+                            }}
+                        />
+                    )}
+                />
+                <Route
                     path="/descubre"
                     element={(
                         <DiscoverPage
-                            open
                             discoveredIds={easterEggProgress.discoveredIds}
-                            onClose={() => navigate('/')}
                         />
                     )}
                 />
@@ -895,7 +946,6 @@ export function App({ mapBridge, services }: AppProps) {
                     path="/buscar-usuarios"
                     element={(
                         <UserSearchPage
-                            open
                             onClose={closeGlobalUserSearch}
                             onSearch={overlay.searchUsers}
                             onSelectUser={(pubkey) => {
@@ -913,6 +963,7 @@ export function App({ mapBridge, services }: AppProps) {
                             suggestedRelays={overlay.suggestedRelays}
                             suggestedRelaysByType={overlay.suggestedRelaysByType}
                             onUiSettingsChange={setUiSettings}
+                            ownerPubkey={overlay.ownerPubkey}
                             zapSettings={zapSettings}
                             onZapSettingsChange={setZapSettings}
                             initialView={activeSettingsView ?? 'ui'}

@@ -107,4 +107,42 @@ describe('relay-settings', () => {
         expect(getRelaySetByType(state, 'nip65Read')).toEqual(['wss://relay.legacy.read.example']);
         expect(getRelaySetByType(state, 'nip65Write')).toEqual(['wss://relay.legacy.write.example']);
     });
+
+    test('keeps relay settings isolated per owner pubkey', () => {
+        const ownerA = 'a'.repeat(64);
+        const ownerB = 'b'.repeat(64);
+
+        const savedA = saveRelaySettings({
+            relays: ['wss://relay.owner-a.example'],
+            byType: {
+                nip65Both: ['wss://relay.owner-a.example'],
+                nip65Read: [],
+                nip65Write: [],
+                dmInbox: [],
+            },
+        }, { ownerPubkey: ownerA });
+
+        const loadedA = loadRelaySettings({ ownerPubkey: ownerA });
+        const loadedB = loadRelaySettings({ ownerPubkey: ownerB });
+
+        expect(savedA.relays).toEqual(['wss://relay.owner-a.example']);
+        expect(loadedA.relays).toEqual(['wss://relay.owner-a.example']);
+        expect(loadedB).toEqual(getDefaultRelaySettings());
+    });
+
+    test('migrates legacy global relay settings once to first owner', () => {
+        window.localStorage.setItem(
+            RELAY_SETTINGS_STORAGE_KEY,
+            JSON.stringify({ relays: ['wss://relay.legacy.example'] })
+        );
+
+        const ownerA = 'a'.repeat(64);
+        const ownerB = 'b'.repeat(64);
+
+        const loadedA = loadRelaySettings({ ownerPubkey: ownerA });
+        const loadedB = loadRelaySettings({ ownerPubkey: ownerB });
+
+        expect(loadedA.relays).toContain('wss://relay.legacy.example');
+        expect(loadedB.relays).not.toContain('wss://relay.legacy.example');
+    });
 });

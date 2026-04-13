@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ChatConversationSummary, ChatDetailMessage } from './ChatDialog';
+import type { ChatConversationSummary, ChatDetailMessage } from './ChatsPage';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Textarea } from '@/components/ui/textarea';

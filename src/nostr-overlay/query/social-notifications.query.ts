@@ -32,12 +32,12 @@ interface SocialNotificationsControllerState {
     items: SocialNotificationItem[];
     hasUnread: boolean;
     lastReadAt: number;
-    isDialogOpen: boolean;
+    isOpen: boolean;
     pendingSnapshot: SocialNotificationItem[];
     isBootstrapping: boolean;
     bootstrapError: string | null;
-    openDialog: () => void;
-    closeDialog: () => void;
+    open: () => void;
+    close: () => void;
     retry: () => Promise<void>;
 }
 
@@ -136,7 +136,7 @@ export function useSocialNotificationsController(
         });
     }, [options.storage]);
 
-    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [isOpen, setIsOpen] = useState(false);
     const [pendingSnapshot, setPendingSnapshot] = useState<SocialNotificationItem[]>([]);
     const [lastReadAt, setLastReadAt] = useState(() =>
         options.ownerPubkey ? storage.getLastReadAt(options.ownerPubkey) : 0
@@ -184,13 +184,13 @@ export function useSocialNotificationsController(
         if (!options.ownerPubkey) {
             setLastReadAt(0);
             setPendingSnapshot([]);
-            setIsDialogOpen(false);
+            setIsOpen(false);
             return;
         }
 
         setLastReadAt(storage.getLastReadAt(options.ownerPubkey));
         setPendingSnapshot([]);
-        setIsDialogOpen(false);
+        setIsOpen(false);
     }, [options.ownerPubkey, storage]);
 
     useEffect(() => {
@@ -217,9 +217,9 @@ export function useSocialNotificationsController(
     const items = notificationsQuery.data ?? [];
     const hasUnread = useMemo(() => computeHasUnread(items, lastReadAt), [items, lastReadAt]);
 
-    const openDialog = useCallback(() => {
+    const open = useCallback(() => {
         setPendingSnapshot(items.filter((item) => item.createdAt > lastReadAt));
-        setIsDialogOpen(true);
+        setIsOpen(true);
 
         if (options.ownerPubkey) {
             const nextLastReadAt = Math.max(lastReadAt, normalizeToEpochSeconds(now()));
@@ -228,8 +228,8 @@ export function useSocialNotificationsController(
         }
     }, [items, lastReadAt, now, options.ownerPubkey, storage]);
 
-    const closeDialog = useCallback(() => {
-        setIsDialogOpen(false);
+    const close = useCallback(() => {
+        setIsOpen(false);
         setPendingSnapshot([]);
     }, []);
 
@@ -241,7 +241,7 @@ export function useSocialNotificationsController(
         items,
         hasUnread,
         lastReadAt,
-        isDialogOpen,
+        isOpen,
         pendingSnapshot,
         isBootstrapping: notificationsQuery.isPending,
         bootstrapError: notificationsQuery.error instanceof Error
@@ -249,8 +249,8 @@ export function useSocialNotificationsController(
             : notificationsQuery.error
                 ? 'No se pudieron cargar las notificaciones'
                 : null,
-        openDialog,
-        closeDialog,
+        open,
+        close,
         retry,
     };
 }

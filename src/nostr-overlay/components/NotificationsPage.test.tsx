@@ -1,7 +1,7 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
-import { NotificationsDialog } from './NotificationsDialog';
+import { NotificationsPage } from './NotificationsPage';
 import type { SocialNotificationItem } from '../../nostr/social-notifications-service';
 
 interface RenderResult {
@@ -58,11 +58,10 @@ function buildItem(overrides: Partial<SocialNotificationItem> = {}): SocialNotif
     };
 }
 
-describe('NotificationsDialog', () => {
+describe('NotificationsPage', () => {
     test('shows unread indicator when hasUnread is true', async () => {
         const rendered = await renderElement(
-            <NotificationsDialog
-                open
+            <NotificationsPage
                 hasUnread
                 notifications={[buildItem()]}
                 onClose={() => {}}
@@ -75,8 +74,7 @@ describe('NotificationsDialog', () => {
 
     test('hides unread indicator when hasUnread is false', async () => {
         const rendered = await renderElement(
-            <NotificationsDialog
-                open
+            <NotificationsPage
                 hasUnread={false}
                 notifications={[buildItem()]}
                 onClose={() => {}}
@@ -89,8 +87,7 @@ describe('NotificationsDialog', () => {
 
     test('renders empty state when there are no pending notifications', async () => {
         const rendered = await renderElement(
-            <NotificationsDialog
-                open
+            <NotificationsPage
                 hasUnread={false}
                 notifications={[]}
                 onClose={() => {}}
@@ -104,8 +101,7 @@ describe('NotificationsDialog', () => {
 
     test('renders notifications list items', async () => {
         const rendered = await renderElement(
-            <NotificationsDialog
-                open
+            <NotificationsPage
                 hasUnread={false}
                 notifications={[
                     buildItem({ id: 'notif-1', kind: 1, content: 'hola' }),
@@ -123,8 +119,7 @@ describe('NotificationsDialog', () => {
     test('calls onClose when close button is clicked', async () => {
         const onClose = vi.fn();
         const rendered = await renderElement(
-            <NotificationsDialog
-                open
+            <NotificationsPage
                 hasUnread
                 notifications={[buildItem()]}
                 onClose={onClose}
@@ -132,9 +127,7 @@ describe('NotificationsDialog', () => {
         );
         mounted.push(rendered);
 
-        const closeButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
-            (button.textContent || '').includes('Close')
-        ) as HTMLButtonElement;
+        const closeButton = rendered.container.querySelector('button[aria-label="Cerrar notificaciones"]') as HTMLButtonElement;
         expect(closeButton).toBeDefined();
 
         await act(async () => {

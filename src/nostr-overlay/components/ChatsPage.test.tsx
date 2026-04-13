@@ -1,7 +1,7 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
-import { ChatDialog, type ChatConversationSummary, type ChatDetailMessage } from './ChatDialog';
+import { ChatsPage, type ChatConversationSummary, type ChatDetailMessage } from './ChatsPage';
 
 interface RenderResult {
     container: HTMLDivElement;
@@ -59,16 +59,14 @@ function buildMessage(overrides: Partial<ChatDetailMessage> = {}): ChatDetailMes
     };
 }
 
-describe('ChatDialog', () => {
+describe('ChatsPage', () => {
     test('query surface exposes data-chat-source marker', async () => {
         const rendered = await renderElement(
-            <ChatDialog
-                open
+            <ChatsPage
                 hasUnreadGlobal={false}
                 conversations={[buildConversation()]}
                 messages={[buildMessage()]}
                 activeConversationId="peer-1"
-                onClose={() => {}}
                 onOpenConversation={() => {}}
                 onBackToList={() => {}}
                 onSendMessage={async () => {}}
@@ -82,13 +80,11 @@ describe('ChatDialog', () => {
 
     test('renders unread red dot and empty state', async () => {
         const rendered = await renderElement(
-            <ChatDialog
-                open
+            <ChatsPage
                 hasUnreadGlobal
                 conversations={[]}
                 messages={[]}
                 activeConversationId={null}
-                onClose={() => {}}
                 onOpenConversation={() => {}}
                 onBackToList={() => {}}
                 onSendMessage={async () => {}}
@@ -102,14 +98,12 @@ describe('ChatDialog', () => {
 
     test('shows loader while bootstrapping conversations', async () => {
         const rendered = await renderElement(
-            <ChatDialog
-                open
+            <ChatsPage
                 hasUnreadGlobal={false}
                 isLoadingConversations
                 conversations={[]}
                 messages={[]}
                 activeConversationId={null}
-                onClose={() => {}}
                 onOpenConversation={() => {}}
                 onBackToList={() => {}}
                 onSendMessage={async () => {}}
@@ -130,13 +124,11 @@ describe('ChatDialog', () => {
         const onOpenConversation = vi.fn();
 
         const rendered = await renderElement(
-            <ChatDialog
-                open
+            <ChatsPage
                 hasUnreadGlobal={false}
                 conversations={[buildConversation()]}
                 messages={[buildMessage()]}
                 activeConversationId={null}
-                onClose={() => {}}
                 onOpenConversation={onOpenConversation}
                 onBackToList={() => {}}
                 onSendMessage={async () => {}}
@@ -156,13 +148,11 @@ describe('ChatDialog', () => {
 
     test('shows undecryptable placeholder in detail view', async () => {
         const rendered = await renderElement(
-            <ChatDialog
-                open
+            <ChatsPage
                 hasUnreadGlobal={false}
                 conversations={[buildConversation()]}
                 messages={[buildMessage({ isUndecryptable: true, plaintext: '' })]}
                 activeConversationId="peer-1"
-                onClose={() => {}}
                 onOpenConversation={() => {}}
                 onBackToList={() => {}}
                 onSendMessage={async () => {}}
@@ -173,15 +163,13 @@ describe('ChatDialog', () => {
         expect(rendered.container.textContent || '').toContain('No se pudo desencriptar este mensaje');
     });
 
-    test('opts out of dialog small-screen max-width cap for wide chat layout', async () => {
+    test('renders routed page container for wide chat layout', async () => {
         const rendered = await renderElement(
-            <ChatDialog
-                open
+            <ChatsPage
                 hasUnreadGlobal={false}
                 conversations={[buildConversation()]}
                 messages={[buildMessage()]}
                 activeConversationId="peer-1"
-                onClose={() => {}}
                 onOpenConversation={() => {}}
                 onBackToList={() => {}}
                 onSendMessage={async () => {}}
@@ -189,15 +177,14 @@ describe('ChatDialog', () => {
         );
         mounted.push(rendered);
 
-        const dialogContent = rendered.container.querySelector('[data-slot="dialog-content"]');
-        expect(dialogContent).not.toBeNull();
-        expect(dialogContent?.className).toContain('sm:max-w-none');
+        const pageContent = rendered.container.querySelector('.nostr-chats-page');
+        expect(pageContent).not.toBeNull();
+        expect(rendered.container.querySelector('[data-slot="dialog-content"]')).toBeNull();
     });
 
     test('renders outgoing delivery states in conversation detail', async () => {
         const rendered = await renderElement(
-            <ChatDialog
-                open
+            <ChatsPage
                 hasUnreadGlobal={false}
                 conversations={[buildConversation()]}
                 messages={[
@@ -206,7 +193,6 @@ describe('ChatDialog', () => {
                     buildMessage({ id: 'm-failed', direction: 'outgoing', deliveryState: 'failed', plaintext: 'tres' }),
                 ]}
                 activeConversationId="peer-1"
-                onClose={() => {}}
                 onOpenConversation={() => {}}
                 onBackToList={() => {}}
                 onSendMessage={async () => {}}

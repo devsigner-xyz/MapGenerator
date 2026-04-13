@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { RELAY_SETTINGS_STORAGE_KEY } from '../nostr/relay-settings';
 import { UI_SETTINGS_STORAGE_KEY } from '../nostr/ui-settings';
+import { EASTER_EGG_PROGRESS_STORAGE_KEY } from '../nostr/easter-egg-progress';
 import { getBootstrapRelays } from '../nostr/relay-policy';
 import { encodeHexToNpub } from '../nostr/npub';
 import * as ndkClientModule from '../nostr/ndk-client';
@@ -1417,6 +1418,42 @@ describe('Nostr overlay App', () => {
         await loginWithNsec(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
         await waitFor(() => (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mock.calls.length > 0);
+    });
+
+    test('chats route renders chats page when entering /chats directly', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />,
+            { initialEntries: ['/chats'] }
+        );
+        mounted.push(rendered);
+
+        await loginWithNsec(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+        await waitFor(() => (rendered.container.textContent || '').includes('Chats'));
     });
 
     test('uses lastReadAt semantics for agora unread state and clears on open', async () => {
@@ -3367,7 +3404,7 @@ describe('Nostr overlay App', () => {
 
         await selectSettingsContextAction(rendered.container, 'Cerrar sesión');
         await waitFor(() => !(rendered.container.textContent || '').includes('Chats'));
-        expect(rendered.container.querySelector('.nostr-chat-dialog')).toBeNull();
+        expect(rendered.container.querySelector('.nostr-chats-page')).toBeNull();
     });
 
     test('opens easter egg dialog with embedded pdf actions', async () => {
@@ -3427,6 +3464,7 @@ describe('Nostr overlay App', () => {
     });
 
     test('persists discovered easter eggs and shows persistent marker on map', async () => {
+        const ownerPubkey = 'f'.repeat(64);
         const { bridge, triggerEasterEggBuildingClick } = createMapBridgeStub(8);
         (bridge as any).listEasterEggBuildings.mockReturnValue([
             {
@@ -3435,8 +3473,35 @@ describe('Nostr overlay App', () => {
             },
         ]);
 
-        const rendered = await renderApp(<App mapBridge={bridge} />);
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />
+        );
         mounted.push(rendered);
+
+        await loginWithNsec(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
         await act(async () => {
             triggerEasterEggBuildingClick({
@@ -3447,7 +3512,7 @@ describe('Nostr overlay App', () => {
 
         await waitFor(() => (rendered.container.textContent || '').includes('The Crypto Anarchist Manifesto'));
 
-        const progressRaw = window.localStorage.getItem('nostr.overlay.easter-eggs.v1');
+        const progressRaw = window.localStorage.getItem(`nostr.overlay.easter-eggs.v1:user:${ownerPubkey}`);
         expect(progressRaw).toBeTruthy();
         expect(JSON.parse(progressRaw || '{}')).toEqual({
             discoveredIds: ['crypto_anarchist_manifesto'],
@@ -4975,6 +5040,148 @@ describe('Nostr overlay App', () => {
         expect(rendered.queryClient.getQueryData(notificationsKey)).toBeUndefined();
         expect(rendered.queryClient.getQueryData(directMessagesKey)).toBeUndefined();
         expect(rendered.queryClient.getQueryData(activeProfilePostsKey)).toBeUndefined();
+    });
+
+    test('resets discover progress in memory on logout while keeping user-scoped persistence', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const { bridge, triggerEasterEggBuildingClick } = createMapBridgeStub(1);
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        await loginWithNsec(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+        expect(rendered.container.textContent || '').toContain('0/3');
+
+        await act(async () => {
+            triggerEasterEggBuildingClick({
+                buildingIndex: 3,
+                easterEggId: 'crypto_anarchist_manifesto',
+            });
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('1/3'));
+
+        await selectSettingsContextAction(rendered.container, 'Cerrar sesión');
+        await waitFor(() => (rendered.container.textContent || '').includes('Accede o explora'));
+
+        expect(rendered.container.textContent || '').toContain('0/3');
+        const storedProgressRaw = window.localStorage.getItem(`${EASTER_EGG_PROGRESS_STORAGE_KEY}:user:${ownerPubkey}`);
+        expect(storedProgressRaw).not.toBeNull();
+        expect(JSON.parse(storedProgressRaw as string)).toMatchObject({
+            discoveredIds: ['crypto_anarchist_manifesto'],
+        });
+    });
+
+    test('restores discover progress when switching back to original account', async () => {
+        const ownerPubkeyA = 'f'.repeat(64);
+        const ownerPubkeyB = 'e'.repeat(64);
+        const npubA = encodeHexToNpub(ownerPubkeyA);
+        const npubB = encodeHexToNpub(ownerPubkeyB);
+        const { bridge, triggerEasterEggBuildingClick } = createMapBridgeStub(1);
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByNpubFn: vi.fn().mockImplementation(async (npub: string) => {
+                        if (npub === npubA) {
+                            return {
+                                ownerPubkey: ownerPubkeyA,
+                                follows: [],
+                                relayHints: [],
+                            };
+                        }
+
+                        return {
+                            ownerPubkey: ownerPubkeyB,
+                            follows: [],
+                            relayHints: [],
+                        };
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkeyA]: { pubkey: ownerPubkeyA, displayName: 'Owner-A' },
+                        [ownerPubkeyB]: { pubkey: ownerPubkeyB, displayName: 'Owner-B' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        const submitNpub = async (npub: string): Promise<void> => {
+            const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+            const form = rendered.container.querySelector('form');
+
+            await act(async () => {
+                const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+                valueSetter?.call(npubInput, npub);
+                npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+                npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+
+            await act(async () => {
+                form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            });
+        };
+
+        await submitNpub(npubA);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner-A'));
+        expect(rendered.container.textContent || '').toContain('0/3');
+
+        await act(async () => {
+            triggerEasterEggBuildingClick({
+                buildingIndex: 3,
+                easterEggId: 'crypto_anarchist_manifesto',
+            });
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('1/3'));
+
+        await selectSettingsContextAction(rendered.container, 'Cerrar sesión');
+        await waitFor(() => (rendered.container.textContent || '').includes('Accede o explora'));
+
+        await submitNpub(npubB);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner-B'));
+        expect(rendered.container.textContent || '').toContain('0/3');
+
+        await selectSettingsContextAction(rendered.container, 'Cerrar sesión');
+        await waitFor(() => (rendered.container.textContent || '').includes('Accede o explora'));
+
+        await submitNpub(npubA);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner-A'));
+        expect(rendered.container.textContent || '').toContain('1/3');
     });
 
     test('allows logout from settings context menu', async () => {

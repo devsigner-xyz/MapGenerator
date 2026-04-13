@@ -34,4 +34,17 @@ describe('zap settings', () => {
         const removed = removeZapAmount(updated, 0);
         expect(removed.amounts).toEqual([256, 333]);
     });
+
+    test('keeps zap settings isolated per owner pubkey', () => {
+        const ownerA = 'a'.repeat(64);
+        const ownerB = 'b'.repeat(64);
+
+        const savedA = saveZapSettings({ amounts: [34, 55, 89] }, { ownerPubkey: ownerA });
+        const loadedA = loadZapSettings({ ownerPubkey: ownerA });
+        const loadedB = loadZapSettings({ ownerPubkey: ownerB });
+
+        expect(savedA.amounts).toEqual([34, 55, 89]);
+        expect(loadedA.amounts).toEqual([34, 55, 89]);
+        expect(loadedB.amounts).toEqual([...DEFAULT_ZAP_AMOUNTS]);
+    });
 });

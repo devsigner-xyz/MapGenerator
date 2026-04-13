@@ -104,7 +104,7 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
             version: 'v1',
         });
     }, [options.storage]);
-    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [isOpen, setIsOpen] = useState(false);
     const [lastReadAt, setLastReadAt] = useState(() =>
         options.ownerPubkey ? storage.getLastReadAt(options.ownerPubkey) : 0
     );
@@ -136,7 +136,7 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
 
     useEffect(() => {
         if (!options.ownerPubkey) {
-            setIsDialogOpen(false);
+            setIsOpen(false);
             setLastReadAt(0);
             return;
         }
@@ -147,7 +147,7 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
     const threadQuery = useThreadInfiniteQuery({
         rootEventId: activeThreadRootEventId,
         service: options.service,
-        enabled: isDialogOpen && Boolean(activeThreadRootEventId),
+        enabled: isOpen && Boolean(activeThreadRootEventId),
         pageSize: threadPageSize,
     });
 
@@ -186,7 +186,7 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
     const engagementQuery = useFollowingFeedEngagementQuery({
         eventIds: engagementEventIds,
         service: options.service,
-        enabled: isDialogOpen,
+        enabled: isOpen,
     });
 
     const baseEngagementByEventId = useMemo(() => {
@@ -528,8 +528,8 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
         [items, lastReadAt]
     );
 
-    const openDialog = useCallback(() => {
-        setIsDialogOpen(true);
+    const open = useCallback(() => {
+        setIsOpen(true);
 
         if (!options.ownerPubkey) {
             return;
@@ -544,8 +544,8 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
         storage.setLastReadAt(options.ownerPubkey, nextLastReadAt);
     }, [items, lastReadAt, now, options.ownerPubkey, storage]);
 
-    const closeDialog = useCallback(() => {
-        setIsDialogOpen(false);
+    const close = useCallback(() => {
+        setIsOpen(false);
     }, []);
 
     const loadNextFeedPage = useCallback(async () => {
@@ -665,7 +665,7 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
     ]);
 
     return {
-        isDialogOpen,
+        isOpen,
         items,
         hasUnread,
         isLoadingFeed: feedQuery.isPending || feedQuery.isFetchingNextPage,
@@ -680,8 +680,8 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
         pendingReactionByEventId,
         pendingRepostByEventId,
         engagementByEventId,
-        openDialog,
-        closeDialog,
+        open,
+        close,
         loadNextFeedPage,
         openThread,
         closeThread,

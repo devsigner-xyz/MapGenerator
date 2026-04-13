@@ -1,3 +1,5 @@
+import { buildStorageScopeKeys } from './storage-scope';
+
 export const ZAP_SETTINGS_STORAGE_KEY = 'nostr.overlay.zaps.v1';
 export const DEFAULT_ZAP_AMOUNTS = [21, 128, 256] as const;
 
@@ -12,6 +14,11 @@ interface ZapSettingsPayload {
 
 export interface ZapSettingsState {
     amounts: number[];
+}
+
+interface ZapSettingsOptions {
+    ownerPubkey?: string;
+    storage?: StorageLike | null;
 }
 
 function getDefaultStorage(): StorageLike | null {
@@ -48,18 +55,11 @@ function normalizeAmounts(values: number[]): number[] {
     return deduped.length > 0 ? deduped : [...DEFAULT_ZAP_AMOUNTS];
 }
 
-export function getDefaultZapSettings(): ZapSettingsState {
-    return {
-        amounts: [...DEFAULT_ZAP_AMOUNTS],
-    };
+function resolveStorage(options: ZapSettingsOptions): StorageLike | null {
+    return options.storage ?? getDefaultStorage();
 }
 
-export function loadZapSettings(storage: StorageLike | null = getDefaultStorage()): ZapSettingsState {
-    if (!storage) {
-        return getDefaultZapSettings();
-    }
-
-    const raw = storage.getItem(ZAP_SETTINGS_STORAGE_KEY);
+function parseState(raw: string | null): ZapSettingsState {
     if (!raw) {
         return getDefaultZapSettings();
     }
@@ -78,18 +78,67 @@ export function loadZapSettings(storage: StorageLike | null = getDefaultStorage(
     }
 }
 
+export function getDefaultZapSettings(): ZapSettingsState {
+    return {
+        amounts: [...DEFAULT_ZAP_AMOUNTS],
+    };
+}
+
+export function loadZapSettings(options: ZapSettingsOptions = {}): ZapSettingsState {
+    const storage = resolveStorage(options);
+    if (!storage) {
+        return getDefaultZapSettings();
+    }
+
+    const keys = buildStorageScopeKeys({
+        baseKey: ZAP_SETTINGS_STORAGE_KEY,
+        ownerPubkey: options.ownerPubkey,
+    });
+
+    if (!keys.normalizedOwnerPubkey) {
+        return parseState(storage.getItem(ZAP_SETTINGS_STORAGE_KEY));
+    }
+
+    const scopedRaw = storage.getItem(keys.scopedKey);
+    if (scopedRaw !== null) {
+        return parseState(scopedRaw);
+    }
+
+    const migrationOwner = storage.getItem(keys.legacyMigrationMarkerKey);
+    if (migrationOwner) {
+        return getDefaultZapSettings();
+    }
+
+    const legacy = parseState(storage.getItem(ZAP_SETTINGS_STORAGE_KEY));
+    storage.setItem(keys.scopedKey, JSON.stringify(legacy));
+    storage.setItem(keys.legacyMigrationMarkerKey, keys.normalizedOwnerPubkey);
+    return legacy;
+}
+
 export function saveZapSettings(
     state: ZapSettingsState,
-    storage: StorageLike | null = getDefaultStorage()
+    options: ZapSettingsOptions = {}
 ): ZapSettingsState {
     const nextState: ZapSettingsState = {
         amounts: normalizeAmounts(state.amounts),
     };
 
-    if (storage) {
-        const payload: ZapSettingsPayload = {
-            amounts: nextState.amounts,
-        };
+    const storage = resolveStorage(options);
+    if (!storage) {
+        return nextState;
+    }
+
+    const keys = buildStorageScopeKeys({
+        baseKey: ZAP_SETTINGS_STORAGE_KEY,
+        ownerPubkey: options.ownerPubkey,
+    });
+    const payload: ZapSettingsPayload = {
+        amounts: nextState.amounts,
+    };
+
+    if (keys.normalizedOwnerPubkey) {
+        storage.setItem(keys.scopedKey, JSON.stringify(payload));
+    } else {
         storage.setItem(ZAP_SETTINGS_STORAGE_KEY, JSON.stringify(payload));
     }
 

@@ -1,8 +1,76 @@
-import type { ComponentProps } from 'react';
-import { NotificationsDialog } from './NotificationsDialog';
+import type { SocialNotificationItem } from '../../nostr/social-notifications-service';
+import { Button } from '@/components/ui/button';
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 
-type NotificationsPageProps = Omit<ComponentProps<typeof NotificationsDialog>, 'variant'>;
+interface NotificationsPageProps {
+    hasUnread: boolean;
+    notifications: SocialNotificationItem[];
+    onClose: () => void;
+}
 
-export function NotificationsPage(props: NotificationsPageProps) {
-    return <NotificationsDialog {...props} variant="surface" />;
+function notificationLabel(item: SocialNotificationItem): string {
+    if (item.kind === 1) {
+        return 'Mencion';
+    }
+
+    if (item.kind === 6) {
+        return 'Repost';
+    }
+
+    if (item.kind === 7) {
+        return 'Reaccion';
+    }
+
+    return 'Zap';
+}
+
+function shortPubkey(value: string): string {
+    if (!value || value.length < 16) {
+        return value || 'desconocido';
+    }
+
+    return `${value.slice(0, 8)}...${value.slice(-6)}`;
+}
+
+export function NotificationsPage({ hasUnread, notifications, onClose }: NotificationsPageProps) {
+    return (
+        <section className="nostr-routed-surface" aria-label="Notificaciones">
+            <div className="nostr-routed-surface-content">
+                <div className="nostr-notifications-page nostr-routed-surface-panel nostr-page-layout">
+                    <header className="nostr-page-header">
+                        <div className="flex items-center justify-between gap-2">
+                            <h3 className="nostr-page-header-inline-title">
+                                Notificaciones
+                                {hasUnread ? <span className="nostr-notifications-unread-dot" aria-hidden="true" /> : null}
+                            </h3>
+                            <Button type="button" variant="ghost" size="sm" onClick={onClose} aria-label="Cerrar notificaciones">
+                                Cerrar
+                            </Button>
+                        </div>
+                        <p>Actividad reciente de personas y contenido que sigues.</p>
+                    </header>
+
+                    <section className="nostr-page-content">
+                        {notifications.length === 0 ? (
+                            <Empty className="nostr-notifications-empty">
+                                <EmptyHeader>
+                                    <EmptyTitle>Sin notificaciones</EmptyTitle>
+                                    <EmptyDescription>No tienes notificaciones pendientes.</EmptyDescription>
+                                </EmptyHeader>
+                            </Empty>
+                        ) : (
+                            <ul className="nostr-notifications-list">
+                                {notifications.map((item) => (
+                                    <li key={item.id} className="nostr-notifications-item">
+                                        <p className="nostr-notifications-item-title">{notificationLabel(item)}</p>
+                                        <p className="nostr-notifications-item-meta">{shortPubkey(item.actorPubkey)}</p>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </section>
+                </div>
+            </div>
+        </section>
+    );
 }

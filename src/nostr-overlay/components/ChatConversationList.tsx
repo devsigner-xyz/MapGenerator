@@ -1,4 +1,4 @@
-import type { ChatConversationSummary } from './ChatDialog';
+import type { ChatConversationSummary } from './ChatsPage';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
 

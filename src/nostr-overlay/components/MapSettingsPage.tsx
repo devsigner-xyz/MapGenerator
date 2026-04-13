@@ -44,6 +44,7 @@ import { useRelayMetadataByUrlQuery } from '../query/relay-metadata.query';
 export type { SettingsView } from './settings-pages/types';
 
 export interface MapSettingsPageProps {
+    ownerPubkey?: string;
     mapBridge: MapBridge | null;
     suggestedRelays?: string[];
     suggestedRelaysByType?: Partial<RelaySettingsByType>;
@@ -193,6 +194,7 @@ function normalizeRelayInput(value: string): string | null {
 }
 
 export function MapSettingsPage({
+    ownerPubkey,
     mapBridge,
     suggestedRelays = EMPTY_RELAYS,
     suggestedRelaysByType,
@@ -206,9 +208,9 @@ export function MapSettingsPage({
     onClose,
 }: MapSettingsPageProps) {
     const [view, setView] = useState<SettingsView>(initialView);
-    const [relaySettings, setRelaySettings] = useState<RelaySettingsState>(() => loadRelaySettings());
+    const [relaySettings, setRelaySettings] = useState<RelaySettingsState>(() => loadRelaySettings({ ownerPubkey }));
     const [uiSettings, setUiSettings] = useState<UiSettingsState>(() => loadUiSettings());
-    const [zapSettingsState, setZapSettingsState] = useState<ZapSettingsState>(() => zapSettings ?? loadZapSettings());
+    const [zapSettingsState, setZapSettingsState] = useState<ZapSettingsState>(() => zapSettings ?? loadZapSettings({ ownerPubkey }));
     const [newRelayInput, setNewRelayInput] = useState('');
     const [newRelayType, setNewRelayType] = useState<RelayType>('nip65Both');
     const [newZapAmountInput, setNewZapAmountInput] = useState('');
@@ -219,7 +221,7 @@ export function MapSettingsPage({
     const relayCopyResetTimeoutRef = useRef<number | null>(null);
 
     const persistRelaySettings = (nextState: RelaySettingsState): void => {
-        const savedState = saveRelaySettings(nextState);
+        const savedState = saveRelaySettings(nextState, { ownerPubkey });
         setRelaySettings(savedState);
     };
 
@@ -230,10 +232,15 @@ export function MapSettingsPage({
     };
 
     const persistZapSettings = (nextState: ZapSettingsState): void => {
-        const savedState = saveZapSettings(nextState);
+        const savedState = saveZapSettings(nextState, { ownerPubkey });
         setZapSettingsState(savedState);
         onZapSettingsChange?.(savedState);
     };
+
+    useEffect(() => {
+        setRelaySettings(loadRelaySettings({ ownerPubkey }));
+        setZapSettingsState(zapSettings ?? loadZapSettings({ ownerPubkey }));
+    }, [ownerPubkey, zapSettings]);
 
     const normalizedSuggestedByType = useMemo<RelaySettingsByType>(() => {
         const byTypeFromProps: RelaySettingsByType = {
