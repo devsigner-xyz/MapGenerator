@@ -4,6 +4,14 @@ const DEFAULT_BOOTSTRAP_RELAYS = [
     'wss://relay.damus.io',
     'wss://relay.primal.net',
     'wss://nos.lol',
+    'wss://relay.nostr.band',
+    'wss://relay.snort.social',
+    'wss://relay.bitcoiner.social',
+    'wss://nostr.rocks',
+    'wss://relay.nostr.pub',
+    'wss://relay.nostr.info',
+    'wss://relay.wellorder.net',
+    'wss://nostr.mutinywallet.com',
 ] as const;
 
 export interface RelaySuggestionsByType {
