@@ -279,7 +279,7 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
             setPublishError(error instanceof Error ? error.message : 'No se pudo publicar la nota');
         },
         onSettled: () => {
-            void queryClient.invalidateQueries({ queryKey: nostrOverlayQueryKeys.social() });
+            void queryClient.invalidateQueries({ queryKey: nostrOverlayQueryKeys.invalidation.followingFeed() });
         },
     });
 
@@ -349,7 +349,7 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
             setPublishError(error instanceof Error ? error.message : 'No se pudo publicar la respuesta');
         },
         onSettled: () => {
-            void queryClient.invalidateQueries({ queryKey: nostrOverlayQueryKeys.social() });
+            void queryClient.invalidateQueries({ queryKey: nostrOverlayQueryKeys.invalidation.followingFeed() });
         },
     });
 
@@ -418,7 +418,7 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
             setPublishError(error instanceof Error ? error.message : 'No se pudo actualizar la reaccion');
         },
         onSettled: () => {
-            void queryClient.invalidateQueries({ queryKey: nostrOverlayQueryKeys.social() });
+            void queryClient.invalidateQueries({ queryKey: nostrOverlayQueryKeys.invalidation.followingFeed() });
         },
     });
 
@@ -487,7 +487,7 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
             setPublishError(error instanceof Error ? error.message : 'No se pudo actualizar el repost');
         },
         onSettled: () => {
-            void queryClient.invalidateQueries({ queryKey: nostrOverlayQueryKeys.social() });
+            void queryClient.invalidateQueries({ queryKey: nostrOverlayQueryKeys.invalidation.followingFeed() });
         },
     });
 

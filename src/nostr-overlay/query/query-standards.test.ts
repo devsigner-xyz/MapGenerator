@@ -1,10 +1,16 @@
 import { describe, expect, test } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { nostrOverlayQueryKeys } from './keys';
 import {
     createNostrOverlayQueryClient,
     getNostrOverlayQueryTimingProfile,
     nostrOverlayQueryTimingProfiles,
 } from './query-client';
+
+const currentDir = dirname(fileURLToPath(import.meta.url));
+const followingFeedControllerSourcePath = resolve(currentDir, '../hooks/useFollowingFeedController.ts');
 
 describe('nostr overlay query standards', () => {
     test('normalizes deterministic key shapes', () => {
@@ -44,6 +50,13 @@ describe('nostr overlay query standards', () => {
         expect(nostrOverlayQueryKeys.invalidation.nip05()).toEqual(['nostr-overlay', 'social', 'nip05']);
         expect(nostrOverlayQueryKeys.invalidation.relayMetadata()).toEqual(['nostr-overlay', 'social', 'relay-metadata']);
         expect(nostrOverlayQueryKeys.invalidation.activeProfile()).toEqual(['nostr-overlay', 'social', 'active-profile']);
+    });
+
+    test('enforces granular invalidation scopes in following feed mutations', () => {
+        const source = readFileSync(followingFeedControllerSourcePath, 'utf8');
+
+        expect(source).not.toContain('queryClient.invalidateQueries({ queryKey: nostrOverlayQueryKeys.social() })');
+        expect(source).toContain('queryClient.invalidateQueries({ queryKey: nostrOverlayQueryKeys.invalidation.followingFeed() })');
     });
 
     test('uses timing profiles and social defaults consistently', () => {
