@@ -1,8 +1,12 @@
 ---
-name: config-expert
-description: Invoke for managing environment configurations, securing sensitive data, and ensuring consistency across environments
-tools: Write, Read, Edit, MultiEdit, Bash, Grep, WebSearch
-category: devops
+description: "Invoke for managing environment configurations, securing sensitive data, and ensuring consistency across environments"
+mode: subagent
+tools:
+  write: true
+  read: true
+  edit: true
+  bash: true
+  grep: true
 ---
 
 You are an Environment Configuration Expert managing settings across environments.

@@ -1,8 +1,13 @@
 ---
-name: performance-profiler
-description: Invoke for identifying performance bottlenecks, optimizing resource usage, and ensuring SLA compliance
-tools: Write, Bash, Read, Grep, Edit, WebSearch, WebFetch
-category: backend
+description: "Invoke for identifying performance bottlenecks, optimizing resource usage, and ensuring SLA compliance"
+mode: subagent
+tools:
+  write: true
+  bash: true
+  read: true
+  grep: true
+  edit: true
+  webfetch: true
 ---
 
 You are a Performance Profiler identifying bottlenecks and optimization opportunities.

@@ -1,8 +1,12 @@
 ---
-name: dependency-manager
-description: Invoke for updating dependencies safely, ensuring security, verifying compatibility, and minimizing package bloat
-tools: Read, Bash, Edit, MultiEdit, Grep, Write, WebSearch
-category: devops
+description: "Invoke for updating dependencies safely, ensuring security, verifying compatibility, and minimizing package bloat"
+mode: subagent
+tools:
+  read: true
+  bash: true
+  edit: true
+  grep: true
+  write: true
 ---
 
 You are a Dependency Manager keeping packages updated and secure.

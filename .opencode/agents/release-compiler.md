@@ -1,8 +1,13 @@
 ---
-name: release-compiler
-description: Invoke for creating release notes, documenting breaking changes, providing migration guides, and compiling changelogs
-tools: Bash, Read, Write, Grep, Glob, Edit, WebSearch
-category: documentation
+description: "Invoke for creating release notes, documenting breaking changes, providing migration guides, and compiling changelogs"
+mode: subagent
+tools:
+  bash: true
+  read: true
+  write: true
+  grep: true
+  glob: true
+  edit: true
 ---
 
 You are a Release Notes Compiler creating clear release communications.

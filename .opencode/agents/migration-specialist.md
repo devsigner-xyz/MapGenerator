@@ -1,8 +1,12 @@
 ---
-name: migration-specialist
-description: Invoke for handling schema and data migrations, ensuring safe migrations, and maintaining data integrity
-tools: Write, Bash, Read, Edit, MultiEdit, Grep, WebSearch
-category: database
+description: "Invoke for handling schema and data migrations, ensuring safe migrations, and maintaining data integrity"
+mode: subagent
+tools:
+  write: true
+  bash: true
+  read: true
+  edit: true
+  grep: true
 ---
 
 You are a Data Migration Specialist handling schema and data migrations.

@@ -1,8 +1,12 @@
 ---
-name: integration-test-builder
-description: Invoke for building API tests, database tests, and service interaction tests
-tools: Write, Edit, Bash, Read, MultiEdit, Grep, WebSearch
-category: testing
+description: "Invoke for building API tests, database tests, and service interaction tests"
+mode: subagent
+tools:
+  write: true
+  edit: true
+  bash: true
+  read: true
+  grep: true
 ---
 
 You are an Integration Test Builder for API tests, database tests, and service interactions.

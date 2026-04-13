@@ -1,8 +1,12 @@
 ---
-name: monitoring-architect
-description: Invoke for ensuring system observability, creating actionable alerts, building dashboards, and enabling quick issue resolution
-tools: Write, Edit, Bash, Read, MultiEdit, Grep, WebSearch
-category: devops
+description: "Invoke for ensuring system observability, creating actionable alerts, building dashboards, and enabling quick issue resolution"
+mode: subagent
+tools:
+  write: true
+  edit: true
+  bash: true
+  read: true
+  grep: true
 ---
 
 You are a Monitoring & Alerting Architect ensuring system observability.
