@@ -183,13 +183,25 @@ export function createDmService(dependencies: DmServiceDependencies) {
             return null;
         }
 
-        const sealContent = await dependencies.writeGateway.decryptDm(giftWrapEvent.pubkey, giftWrapEvent.content);
+        let sealContent: string;
+        try {
+            sealContent = await dependencies.writeGateway.decryptDm(giftWrapEvent.pubkey, giftWrapEvent.content);
+        } catch {
+            return null;
+        }
+
         const sealEvent = parseEventFromJson(sealContent);
         if (!sealEvent || sealEvent.kind !== 13 || !verifyEvent(sealEvent)) {
             return null;
         }
 
-        const rumorContent = await dependencies.writeGateway.decryptDm(sealEvent.pubkey, sealEvent.content);
+        let rumorContent: string;
+        try {
+            rumorContent = await dependencies.writeGateway.decryptDm(sealEvent.pubkey, sealEvent.content);
+        } catch {
+            return null;
+        }
+
         const rumorEvent = parseEventFromJson(rumorContent);
         if (!rumorEvent || rumorEvent.kind !== 14) {
             return null;
@@ -469,7 +481,7 @@ export function createDmService(dependencies: DmServiceDependencies) {
                     if (message) {
                         onMessage(message);
                     }
-                })();
+                })().catch(() => {});
             }
         );
 

@@ -40,6 +40,7 @@ export interface DirectMessagesService {
 
 interface UseDirectMessagesControllerOptions {
     ownerPubkey?: string;
+    enabled?: boolean;
     dmService: DirectMessagesService;
     storage?: DmReadStateStorage;
     now?: () => number;
@@ -87,6 +88,7 @@ function buildClientMessageId(now: () => number): string {
 
 export function useDirectMessagesController(options: UseDirectMessagesControllerOptions) {
     const now = options.now ?? (() => Math.floor(Date.now() / 1000));
+    const isEnabled = options.enabled ?? true;
     const [isListOpen, setIsListOpen] = useState(false);
     const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
     const [openedConversationIds, setOpenedConversationIds] = useState<string[]>([]);
@@ -114,7 +116,7 @@ export function useDirectMessagesController(options: UseDirectMessagesController
     const directMessagesListQuery = useQuery(createSocialQueryOptions({
         queryKey: listQueryKey,
         queryFn: async (): Promise<DirectMessageItem[]> => {
-            if (!options.ownerPubkey) {
+            if (!options.ownerPubkey || !isEnabled) {
                 return [];
             }
 
@@ -125,7 +127,7 @@ export function useDirectMessagesController(options: UseDirectMessagesController
             }) ?? [];
             return mergeMessages([], loaded.map(normalizeMessage));
         },
-        enabled: Boolean(options.ownerPubkey),
+        enabled: Boolean(options.ownerPubkey && isEnabled),
     }));
 
     useEffect(() => {
@@ -136,7 +138,7 @@ export function useDirectMessagesController(options: UseDirectMessagesController
     }, [options.ownerPubkey]);
 
     useEffect(() => {
-        if (!options.ownerPubkey) {
+        if (!options.ownerPubkey || !isEnabled) {
             return;
         }
 
@@ -145,7 +147,7 @@ export function useDirectMessagesController(options: UseDirectMessagesController
                 mergeMessages(current, [normalizeMessage(message)])
             );
         });
-    }, [options.dmService, options.ownerPubkey, queryClient, listQueryKey]);
+    }, [isEnabled, options.dmService, options.ownerPubkey, queryClient, listQueryKey]);
 
     const activeConversationBackfillQuery = useQuery(createSocialQueryOptions({
         queryKey: nostrOverlayQueryKeys.directMessagesConversation({
@@ -172,7 +174,7 @@ export function useDirectMessagesController(options: UseDirectMessagesController
             }) ?? [];
             return mergeMessages([], loaded.map(normalizeMessage));
         },
-        enabled: Boolean(options.ownerPubkey && activeConversationId && options.dmService.loadConversationMessages),
+        enabled: Boolean(options.ownerPubkey && isEnabled && activeConversationId && options.dmService.loadConversationMessages),
     }));
 
     useEffect(() => {
@@ -360,7 +362,7 @@ export function useDirectMessagesController(options: UseDirectMessagesController
     }, [markConversationRead]);
 
     const sendMessage = useCallback(async (peerPubkey: string, plaintext: string): Promise<DirectMessageItem | null> => {
-        if (!options.ownerPubkey || !peerPubkey || !options.dmService.sendDm) {
+        if (!isEnabled || !options.ownerPubkey || !peerPubkey || !options.dmService.sendDm) {
             return null;
         }
 
@@ -380,7 +382,7 @@ export function useDirectMessagesController(options: UseDirectMessagesController
         } catch {
             return null;
         }
-    }, [now, options.dmService.sendDm, options.ownerPubkey, sendDmMutation]);
+    }, [isEnabled, now, options.dmService.sendDm, options.ownerPubkey, sendDmMutation]);
 
     return {
         isListOpen,

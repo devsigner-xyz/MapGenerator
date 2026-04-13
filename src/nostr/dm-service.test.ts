@@ -492,6 +492,30 @@ describe('dm-service parsing and validation', () => {
 
         expect(onMessage).not.toHaveBeenCalled();
     });
+
+    test('drops gift wrap events when decrypt fails without bubbling errors', async () => {
+        const onMessage = vi.fn();
+        const writeGateway = createWriteGatewayMock();
+        writeGateway.decryptDm.mockRejectedValueOnce(new Error('decrypt failed'));
+
+        const service = createDmService({
+            transport: createTransportMock(),
+            writeGateway,
+            verifyEvent: () => true,
+            now: () => 100,
+            wait: async () => {},
+        });
+
+        await expect(
+            service.consumeGiftWrapEvent(
+                event({ kind: 1059, tags: [['p', OWNER]], content: 'ciphertext' }),
+                { ownerPubkey: OWNER, peerPubkey: PEER },
+                onMessage
+            )
+        ).resolves.toBeNull();
+
+        expect(onMessage).not.toHaveBeenCalled();
+    });
 });
 
 describe('dm-service send, retries and tags', () => {

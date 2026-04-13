@@ -289,15 +289,34 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         () => `${runtimeDmRelays.join('|')}::${runtimeDmOutboxRelays.join('|')}`,
         [runtimeDmRelays, runtimeDmOutboxRelays]
     );
+    const canUseDirectMessagesService = Boolean(
+        state.data.ownerPubkey
+        && state.data.authSession
+        && state.data.authSession.pubkey === state.data.ownerPubkey
+        && isDirectMessagesEnabled(state.data.authSession)
+    );
     const directMessagesService = useMemo(
-        () => services?.directMessagesService ?? createRuntimeDirectMessagesService({
-            writeGateway,
-            resolveRelays: () => ({
-                inbox: runtimeDmRelays,
-                outbox: runtimeDmOutboxRelays,
-            }),
-        }),
-        [services?.directMessagesService, writeGateway, runtimeDmRelayKey]
+        () => {
+            const runtimeService = services?.directMessagesService ?? createRuntimeDirectMessagesService({
+                writeGateway,
+                resolveRelays: () => ({
+                    inbox: runtimeDmRelays,
+                    outbox: runtimeDmOutboxRelays,
+                }),
+            });
+
+            if (canUseDirectMessagesService) {
+                return runtimeService;
+            }
+
+            const disabledService: DirectMessagesService = {
+                subscribeInbox: () => {},
+                loadInitialConversations: async () => [],
+                loadConversationMessages: async () => [],
+            };
+            return disabledService;
+        },
+        [canUseDirectMessagesService, services?.directMessagesService, writeGateway, runtimeDmRelayKey]
     );
     const cancelOccupancyAnimation = (): number => {
         occupancyAnimationTokenRef.current += 1;
@@ -835,13 +854,14 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         try {
             const session = await authService.startSession(method, input);
             const previousOwnerPubkey = latestStateRef.current.data.ownerPubkey;
-            if (previousOwnerPubkey && previousOwnerPubkey !== session.pubkey) {
+            const shouldResetOverlayData = Boolean(previousOwnerPubkey && previousOwnerPubkey !== session.pubkey);
+            if (shouldResetOverlayData) {
                 await clearSocialServerState();
             }
             setState((current) => ({
                 ...current,
                 data: {
-                    ...current.data,
+                    ...(shouldResetOverlayData ? createInitialData() : current.data),
                     authSession: session,
                 },
             }));
