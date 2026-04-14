@@ -229,7 +229,9 @@ export function OccupantProfileDialog({
                 </Button>
 
                 <div className="nostr-profile-dialog-body">
-                    {profile?.banner ? <img className="nostr-profile-dialog-banner" src={profile.banner} alt="Banner del perfil" /> : null}
+                    <div className={`nostr-profile-dialog-banner-shell${profile?.banner ? '' : ' is-placeholder'}`}>
+                        {profile?.banner ? <img className="nostr-profile-dialog-banner" src={profile.banner} alt="Banner del perfil" /> : null}
+                    </div>
 
                     <div className="nostr-dialog-header">
                         {profile?.picture ? (
@@ -368,7 +370,15 @@ export function OccupantProfileDialog({
                                     ) : (
                                         <>
                                             {networkError ? <p className="nostr-error">{networkError}</p> : null}
-                                            {followers.length === 0 ? <p className="nostr-empty">Sin seguidores visibles.</p> : null}
+                                            {followers.length === 0 ? (
+                                                <div className="nostr-profile-network-empty-state">
+                                                    <Empty className="nostr-profile-network-empty">
+                                                        <EmptyHeader>
+                                                            <EmptyTitle>Sin seguidores visibles.</EmptyTitle>
+                                                        </EmptyHeader>
+                                                    </Empty>
+                                                </div>
+                                            ) : null}
                                             {followers.length > 0 ? (
                                                 <ul className="nostr-profile-network-list">
                                                     {visibleFollowers.map((followerPubkey) => (
@@ -403,7 +413,15 @@ export function OccupantProfileDialog({
                                     ) : (
                                         <>
                                             {networkError ? <p className="nostr-error">{networkError}</p> : null}
-                                            {follows.length === 0 ? <p className="nostr-empty">Sin seguidos visibles.</p> : null}
+                                            {follows.length === 0 ? (
+                                                <div className="nostr-profile-network-empty-state">
+                                                    <Empty className="nostr-profile-network-empty">
+                                                        <EmptyHeader>
+                                                            <EmptyTitle>Sin seguidos visibles.</EmptyTitle>
+                                                        </EmptyHeader>
+                                                    </Empty>
+                                                </div>
+                                            ) : null}
                                             {follows.length > 0 ? (
                                                 <ul className="nostr-profile-network-list">
                                                     {visibleFollows.map((followPubkey) => (

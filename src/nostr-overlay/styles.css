@@ -2254,10 +2254,21 @@
     overflow: hidden;
 }
 
+.nostr-profile-dialog-banner-shell {
+    width: 100%;
+    height: 200px;
+    overflow: hidden;
+}
+
+.nostr-profile-dialog-banner-shell.is-placeholder {
+    background: #e6ecef;
+}
+
 .nostr-profile-dialog-banner {
     width: 100%;
-    height: 132px;
+    height: 100%;
     object-fit: cover;
+    object-position: center center;
     border-radius: 0;
     border: none;
     display: block;
@@ -2305,6 +2316,17 @@
 }
 
 .nostr-profile-posts-empty-state {
+    min-height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.nostr-profile-network-tab {
+    min-height: 100%;
+}
+
+.nostr-profile-network-empty-state {
     min-height: 100%;
     display: flex;
     align-items: center;

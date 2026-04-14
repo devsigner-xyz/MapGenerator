@@ -96,6 +96,10 @@ describe('OccupantProfileDialog', () => {
         const rendered = await renderElement(<OccupantProfileDialog {...buildProps()} />);
         mounted.push(rendered);
 
+        const bannerShell = document.body.querySelector('.nostr-profile-dialog-banner-shell') as HTMLElement;
+        expect(bannerShell).toBeDefined();
+        expect(bannerShell.classList.contains('is-placeholder')).toBe(true);
+
         const tabLabels = Array.from(document.body.querySelectorAll('[data-slot="tabs-trigger"]'))
             .map((node) => (node.textContent || '').trim());
 
@@ -242,6 +246,39 @@ describe('OccupantProfileDialog', () => {
         const followingEmpty = document.body.querySelector('[data-slot="empty"]') as HTMLElement;
         expect(followingEmpty).toBeDefined();
         expect(followingEmpty.querySelector('[aria-label="Loading"]')).not.toBeNull();
+    });
+
+    test('uses centered shadcn empty state without spinner in followers/following tabs', async () => {
+        const rendered = await renderElement(
+            <OccupantProfileDialog
+                {...buildProps({
+                    follows: [],
+                    followers: [],
+                    networkLoading: false,
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        await selectTab('Seguidores');
+        await waitForCondition(() => (document.body.textContent || '').includes('Sin seguidores visibles.'));
+
+        const followersCenteredEmpty = document.body.querySelector('.nostr-profile-network-empty-state') as HTMLElement;
+        expect(followersCenteredEmpty).toBeDefined();
+
+        const followersEmpty = document.body.querySelector('.nostr-profile-network-empty[data-slot="empty"]') as HTMLElement;
+        expect(followersEmpty).toBeDefined();
+        expect(followersEmpty.querySelector('[aria-label="Loading"]')).toBeNull();
+
+        await selectTab('Siguiendo');
+        await waitForCondition(() => (document.body.textContent || '').includes('Sin seguidos visibles.'));
+
+        const followingCenteredEmpty = document.body.querySelector('.nostr-profile-network-empty-state') as HTMLElement;
+        expect(followingCenteredEmpty).toBeDefined();
+
+        const followingEmpty = document.body.querySelector('.nostr-profile-network-empty[data-slot="empty"]') as HTMLElement;
+        expect(followingEmpty).toBeDefined();
+        expect(followingEmpty.querySelector('[aria-label="Loading"]')).toBeNull();
     });
 
     test('shows followers and following lists under their own tabs', async () => {
