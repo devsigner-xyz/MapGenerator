@@ -298,7 +298,13 @@ export function OccupantProfileDialog({
                                     {postsError ? <p className="nostr-error">{postsError}</p> : null}
 
                                     {!postsError && posts.length === 0 && !postsLoading ? (
-                                        <p className="nostr-empty">No hay publicaciones recientes disponibles.</p>
+                                        <div className="nostr-profile-posts-empty-state">
+                                            <Empty className="nostr-profile-posts-empty">
+                                                <EmptyHeader>
+                                                    <EmptyTitle>No hay publicaciones recientes disponibles.</EmptyTitle>
+                                                </EmptyHeader>
+                                            </Empty>
+                                        </div>
                                     ) : null}
 
                                     {posts.length > 0 ? (

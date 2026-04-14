@@ -2300,6 +2300,17 @@
     gap: 0.45rem;
 }
 
+.nostr-profile-posts {
+    min-height: 100%;
+}
+
+.nostr-profile-posts-empty-state {
+    min-height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 .nostr-profile-info h4,
 .nostr-profile-posts h4 {
     margin: 0;

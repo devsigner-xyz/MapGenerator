@@ -195,6 +195,28 @@ describe('OccupantProfileDialog', () => {
         expect(feedEmpty.textContent || '').toContain('Cargando publicaciones');
     });
 
+    test('uses centered shadcn empty state without spinner when feed has no posts', async () => {
+        const rendered = await renderElement(
+            <OccupantProfileDialog
+                {...buildProps({
+                    posts: [],
+                    postsLoading: false,
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        await selectTab('Feed');
+        await waitForCondition(() => (document.body.textContent || '').includes('No hay publicaciones recientes disponibles.'));
+
+        const centeredEmpty = document.body.querySelector('.nostr-profile-posts-empty-state') as HTMLElement;
+        expect(centeredEmpty).toBeDefined();
+
+        const feedEmpty = document.body.querySelector('.nostr-profile-posts-empty[data-slot="empty"]') as HTMLElement;
+        expect(feedEmpty).toBeDefined();
+        expect(feedEmpty.querySelector('[aria-label="Loading"]')).toBeNull();
+    });
+
     test('uses shadcn empty loading state with spinner in followers/following tabs', async () => {
         const rendered = await renderElement(
             <OccupantProfileDialog
