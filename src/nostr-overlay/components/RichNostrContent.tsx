@@ -279,14 +279,6 @@ export function RichNostrContent({
                                     className="nostr-rich-media-video"
                                 />
                             )}
-                            <a
-                                href={attachment.url}
-                                target="_blank"
-                                rel="noreferrer noopener"
-                                className="nostr-rich-media-url"
-                            >
-                                {attachment.url}
-                            </a>
                         </div>
                     ))}
                 </div>

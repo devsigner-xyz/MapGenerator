@@ -748,7 +748,7 @@
 
 .nostr-dialog-pubkey-row {
     margin: 0.15rem 0 0;
-    display: inline-flex;
+    display: flex;
     align-items: center;
     gap: 0.12rem;
 }

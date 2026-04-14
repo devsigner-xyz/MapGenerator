@@ -375,7 +375,7 @@ describe('OccupantProfileDialog', () => {
 
         expect(image).toBeDefined();
         expect(video).toBeDefined();
-        expect(link).toBeDefined();
+        expect(link).toBeNull();
     });
 
     test('clicking a post hashtag emits callback to open agora hashtag feed', async () => {
