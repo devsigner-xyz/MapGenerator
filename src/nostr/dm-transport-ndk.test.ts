@@ -87,6 +87,35 @@ describe('createNdkDmTransport publish rules', () => {
             timeoutRelays: ['wss://relay.three', 'wss://relay.four', 'wss://relay.five', 'wss://relay.six'],
         });
     });
+
+    test('publishes across relays with bounded parallelism', async () => {
+        let inFlight = 0;
+        let maxInFlight = 0;
+        const publishRelay = vi.fn(async () => {
+            inFlight += 1;
+            maxInFlight = Math.max(maxInFlight, inFlight);
+
+            await new Promise<void>((resolve) => {
+                setTimeout(() => resolve(), 20);
+            });
+
+            inFlight -= 1;
+            return { status: 'ack' as const };
+        });
+
+        const transport = createNdkDmTransport({
+            publishRelay,
+            subscribe: () => () => {
+                return;
+            },
+            fetchBackfill: async () => [],
+        });
+
+        await transport.publishToRelays(buildEvent(), ['wss://relay.one', 'wss://relay.two', 'wss://relay.three']);
+
+        expect(publishRelay).toHaveBeenCalledTimes(3);
+        expect(maxInFlight).toBeGreaterThan(1);
+    });
 });
 
 describe('isPublishResultSuccessful', () => {
@@ -158,5 +187,46 @@ describe('createNdkDmTransport subscribe', () => {
         subscription.unsubscribe();
 
         expect(cleanup).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('createNdkDmTransport fetchBackfill retry policy', () => {
+    test('retries recoverable timeout/network errors and returns recovered events', async () => {
+        const event = buildEvent();
+        const fetchBackfill = vi
+            .fn()
+            .mockRejectedValueOnce(new Error('relay timeout'))
+            .mockRejectedValueOnce(new Error('network disconnected'))
+            .mockResolvedValueOnce([event]);
+
+        const transport = createNdkDmTransport({
+            dependencies: {
+                publishRelay: vi.fn(async () => ({ status: 'ack' as const })),
+                subscribe: () => () => {
+                    return;
+                },
+                fetchBackfill,
+            },
+        });
+
+        await expect(transport.fetchBackfill([{ kinds: [1059] }])).resolves.toEqual([event]);
+        expect(fetchBackfill).toHaveBeenCalledTimes(3);
+    });
+
+    test('does not retry non-recoverable fetchBackfill errors', async () => {
+        const fetchBackfill = vi.fn().mockRejectedValue(new Error('invalid filter shape'));
+
+        const transport = createNdkDmTransport({
+            dependencies: {
+                publishRelay: vi.fn(async () => ({ status: 'ack' as const })),
+                subscribe: () => () => {
+                    return;
+                },
+                fetchBackfill,
+            },
+        });
+
+        await expect(transport.fetchBackfill([{ kinds: [1059] }])).rejects.toThrow('invalid filter shape');
+        expect(fetchBackfill).toHaveBeenCalledTimes(1);
     });
 });

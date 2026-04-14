@@ -99,6 +99,18 @@ interface UseNostrOverlayOptions {
     services?: NostrOverlayServices;
 }
 
+const DM_INBOX_RELAY_CAP = 8;
+const DM_OUTBOX_RELAY_CAP = 8;
+
+function capRelayList(relays: string[], limit: number): string[] {
+    const normalizedLimit = Math.max(1, Math.floor(limit));
+    if (relays.length <= normalizedLimit) {
+        return relays;
+    }
+
+    return relays.slice(0, normalizedLimit);
+}
+
 function createEmptyActiveProfileState(): Pick<
     OverlayData,
     | 'activeProfilePubkey'
@@ -260,13 +272,13 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 ? loadedSettings.relays
                 : getBootstrapRelays();
 
-        return mergeRelaySets(
+        return capRelayList(mergeRelaySets(
             configuredRelays,
             state.data.relayHints,
             state.data.suggestedRelaysByType.nip65Both,
             state.data.suggestedRelaysByType.nip65Read,
             state.data.suggestedRelaysByType.dmInbox
-        );
+        ), DM_INBOX_RELAY_CAP);
     }, [scopedRelayOwnerPubkey, state.data.relayHints, state.data.suggestedRelaysByType]);
     const runtimeDmOutboxRelays = useMemo(() => {
         const loadedSettings = loadRelaySettings({ ownerPubkey: scopedRelayOwnerPubkey });
@@ -279,11 +291,11 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 ? loadedSettings.relays
                 : getBootstrapRelays();
 
-        return mergeRelaySets(
+        return capRelayList(mergeRelaySets(
             configuredRelays,
             state.data.suggestedRelaysByType.nip65Both,
             state.data.suggestedRelaysByType.nip65Write
-        );
+        ), DM_OUTBOX_RELAY_CAP);
     }, [scopedRelayOwnerPubkey, state.data.suggestedRelaysByType]);
     const runtimeDmRelayKey = useMemo(
         () => `${runtimeDmRelays.join('|')}::${runtimeDmOutboxRelays.join('|')}`,
@@ -297,16 +309,14 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
     );
     const directMessagesService = useMemo(
         () => {
-            const runtimeService = services?.directMessagesService ?? createRuntimeDirectMessagesService({
-                writeGateway,
-                resolveRelays: () => ({
-                    inbox: runtimeDmRelays,
-                    outbox: runtimeDmOutboxRelays,
-                }),
-            });
-
             if (canUseDirectMessagesService) {
-                return runtimeService;
+                return services?.directMessagesService ?? createRuntimeDirectMessagesService({
+                    writeGateway,
+                    resolveRelays: () => ({
+                        inbox: runtimeDmRelays,
+                        outbox: runtimeDmOutboxRelays,
+                    }),
+                });
             }
 
             const disabledService: DirectMessagesService = {

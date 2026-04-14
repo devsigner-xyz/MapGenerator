@@ -39,8 +39,15 @@ export interface NostrProfile {
     pubkey: string;
     name?: string;
     displayName?: string;
+    about?: string;
     picture?: string;
+    banner?: string;
+    website?: string;
     nip05?: string;
+    lud16?: string;
+    lud06?: string;
+    bot?: boolean;
+    externalIdentities?: string[];
 }
 
 export interface FollowGraphResult {

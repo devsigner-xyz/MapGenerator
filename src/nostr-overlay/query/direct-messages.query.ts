@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { DmMessage, SentIndexItem } from '../../nostr/dm-service';
 import { nostrOverlayQueryKeys } from './keys';
@@ -29,14 +29,21 @@ export interface DirectMessagesService {
         plaintext: string;
         clientMessageId: string;
     }) => Promise<DirectMessageItem>;
-    loadInitialConversations?: (input: { ownerPubkey: string; sentIndex?: SentIndexItem[] }) => Promise<DirectMessageItem[]>;
+    loadInitialConversations?: (input: {
+        ownerPubkey: string;
+        mode?: 'session_start' | 'reconnect';
+        sentIndex?: SentIndexItem[];
+    }) => Promise<DirectMessageItem[]>;
     loadConversationMessages?: (input: {
         ownerPubkey: string;
         peerPubkey: string;
+        mode?: 'session_start' | 'reconnect';
         since?: number;
         sentIndex?: SentIndexItem[];
     }) => Promise<DirectMessageItem[]>;
 }
+
+type DmBackfillMode = 'session_start' | 'reconnect';
 
 interface UseDirectMessagesControllerOptions {
     ownerPubkey?: string;
@@ -44,7 +51,12 @@ interface UseDirectMessagesControllerOptions {
     dmService: DirectMessagesService;
     storage?: DmReadStateStorage;
     now?: () => number;
+    failedRetryIntervalMs?: number;
 }
+
+const FAILED_DM_RETRY_INTERVAL_MS = 10_000;
+const MAX_FAILED_RETRIES_PER_TICK = 5;
+const defaultNowSeconds = (): number => Math.floor(Date.now() / 1000);
 
 function compareMessages(left: DirectMessageItem, right: DirectMessageItem): number {
     const leftTime = normalizeToEpochSeconds(left.createdAt);
@@ -87,12 +99,16 @@ function buildClientMessageId(now: () => number): string {
 }
 
 export function useDirectMessagesController(options: UseDirectMessagesControllerOptions) {
-    const now = options.now ?? (() => Math.floor(Date.now() / 1000));
+    const now = options.now ?? defaultNowSeconds;
     const isEnabled = options.enabled ?? true;
+    const failedRetryIntervalMs = Math.max(1, Math.floor(options.failedRetryIntervalMs ?? FAILED_DM_RETRY_INTERVAL_MS));
     const [isListOpen, setIsListOpen] = useState(false);
     const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
     const [openedConversationIds, setOpenedConversationIds] = useState<string[]>([]);
     const [lastReadAtByConversation, setLastReadAtByConversation] = useState<Record<string, number>>({});
+    const hasLoadedInitialConversationsRef = useRef(false);
+    const conversationBackfillCountRef = useRef<Record<string, number>>({});
+    const retryingFailedClientMessageIdsRef = useRef(new Set<string>());
     const queryClient = useQueryClient();
 
     const storage = useMemo(() => {
@@ -121,10 +137,13 @@ export function useDirectMessagesController(options: UseDirectMessagesController
             }
 
             const sentIndex = storage.getSentIndex(options.ownerPubkey);
+            const mode: DmBackfillMode = hasLoadedInitialConversationsRef.current ? 'reconnect' : 'session_start';
             const loaded = await options.dmService.loadInitialConversations?.({
                 ownerPubkey: options.ownerPubkey,
+                mode,
                 sentIndex,
             }) ?? [];
+            hasLoadedInitialConversationsRef.current = true;
             return mergeMessages([], loaded.map(normalizeMessage));
         },
         enabled: Boolean(options.ownerPubkey && isEnabled),
@@ -135,6 +154,8 @@ export function useDirectMessagesController(options: UseDirectMessagesController
         setActiveConversationId(null);
         setOpenedConversationIds([]);
         setLastReadAtByConversation({});
+        hasLoadedInitialConversationsRef.current = false;
+        conversationBackfillCountRef.current = {};
     }, [options.ownerPubkey]);
 
     useEffect(() => {
@@ -165,13 +186,20 @@ export function useDirectMessagesController(options: UseDirectMessagesController
                 ? normalizeToEpochSeconds(currentConversationMessages[0].createdAt)
                 : 0;
             const sentIndex = storage.getSentIndex(options.ownerPubkey);
+            const existingCount = conversationBackfillCountRef.current[activeConversationId] ?? 0;
+            const mode: DmBackfillMode = existingCount > 0 ? 'reconnect' : 'session_start';
 
             const loaded = await options.dmService.loadConversationMessages?.({
                 ownerPubkey: options.ownerPubkey,
                 peerPubkey: activeConversationId,
+                mode,
                 since: oldestCreatedAt > 0 ? Math.max(0, oldestCreatedAt - 1) : 0,
                 sentIndex,
             }) ?? [];
+            conversationBackfillCountRef.current = {
+                ...conversationBackfillCountRef.current,
+                [activeConversationId]: existingCount + 1,
+            };
             return mergeMessages([], loaded.map(normalizeMessage));
         },
         enabled: Boolean(options.ownerPubkey && isEnabled && activeConversationId && options.dmService.loadConversationMessages),
@@ -269,7 +297,9 @@ export function useDirectMessagesController(options: UseDirectMessagesController
             });
 
             if (options.ownerPubkey) {
-                const sentIndex = storage.getSentIndex(options.ownerPubkey);
+                const sentIndex = storage
+                    .getSentIndex(options.ownerPubkey)
+                    .filter((item) => item.clientMessageId !== (normalized.clientMessageId || context.clientMessageId));
                 const nextIndex: SentIndexItem = {
                     clientMessageId: normalized.clientMessageId || context.clientMessageId,
                     conversationId: normalized.conversationId,
@@ -284,7 +314,7 @@ export function useDirectMessagesController(options: UseDirectMessagesController
                 storage.setSentIndex(options.ownerPubkey, [nextIndex, ...sentIndex]);
             }
         },
-        onError: (_error, _input, context) => {
+        onError: (_error, input, context) => {
             queryClient.setQueryData<DirectMessageItem[]>(listQueryKey, (current = []) =>
                 current.map((message) => {
                     if (message.id !== context.optimisticId) {
@@ -297,8 +327,90 @@ export function useDirectMessagesController(options: UseDirectMessagesController
                     };
                 })
             );
+
+            if (options.ownerPubkey) {
+                const sentIndex = storage
+                    .getSentIndex(options.ownerPubkey)
+                    .filter((item) => item.clientMessageId !== context.clientMessageId);
+                storage.setSentIndex(options.ownerPubkey, [
+                    {
+                        clientMessageId: context.clientMessageId,
+                        conversationId: input.peerPubkey,
+                        createdAtSec: normalizeToEpochSeconds(now()),
+                        deliveryState: 'failed',
+                        targetRelays: [],
+                        plaintext: input.plaintext,
+                    },
+                    ...sentIndex,
+                ]);
+            }
         },
     });
+
+    const retryMutateAsyncRef = useRef(sendDmMutation.mutateAsync);
+    useEffect(() => {
+        retryMutateAsyncRef.current = sendDmMutation.mutateAsync;
+    }, [sendDmMutation.mutateAsync]);
+
+    useEffect(() => {
+        if (!isEnabled || !options.ownerPubkey || !options.dmService.sendDm) {
+            return;
+        }
+
+        let cancelled = false;
+        let running = false;
+
+        const retryFailedDeliveries = async (): Promise<void> => {
+            if (cancelled || running) {
+                return;
+            }
+
+            running = true;
+            try {
+                const sentIndex = storage.getSentIndex(options.ownerPubkey!);
+                const failedItems = sentIndex
+                    .filter((item) => item.deliveryState === 'failed' && typeof item.plaintext === 'string' && item.plaintext.trim().length > 0)
+                    .slice(0, MAX_FAILED_RETRIES_PER_TICK);
+
+                for (const item of failedItems) {
+                    if (cancelled) {
+                        break;
+                    }
+
+                    if (retryingFailedClientMessageIdsRef.current.has(item.clientMessageId)) {
+                        continue;
+                    }
+
+                    retryingFailedClientMessageIdsRef.current.add(item.clientMessageId);
+                    try {
+                        await retryMutateAsyncRef.current({
+                            ownerPubkey: options.ownerPubkey!,
+                            peerPubkey: item.conversationId,
+                            plaintext: item.plaintext!,
+                            clientMessageId: item.clientMessageId,
+                        });
+                    } catch {
+                        // Keep failed entry for later retry tick.
+                    } finally {
+                        retryingFailedClientMessageIdsRef.current.delete(item.clientMessageId);
+                    }
+                }
+            } finally {
+                running = false;
+            }
+        };
+
+        void retryFailedDeliveries();
+        const timer = window.setInterval(() => {
+            void retryFailedDeliveries();
+        }, failedRetryIntervalMs);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(timer);
+            retryingFailedClientMessageIdsRef.current.clear();
+        };
+    }, [failedRetryIntervalMs, isEnabled, now, options.dmService.sendDm, options.ownerPubkey, storage]);
 
     const conversations = useMemo<Record<string, DirectMessageConversationState>>(() => {
         const grouped: Record<string, DirectMessageConversationState> = {};

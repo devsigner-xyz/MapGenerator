@@ -99,7 +99,7 @@ describe('OccupantProfileDialog', () => {
         const tabLabels = Array.from(document.body.querySelectorAll('[data-slot="tabs-trigger"]'))
             .map((node) => (node.textContent || '').trim());
 
-        expect(tabLabels).toContain('Información');
+        expect(tabLabels).toContain('Sobre mi');
         expect(tabLabels).toContain('Feed');
         expect(tabLabels).toContain('Seguidores (1)');
         expect(tabLabels).toContain('Siguiendo (2)');
@@ -113,6 +113,65 @@ describe('OccupantProfileDialog', () => {
         const subheadings = Array.from(document.body.querySelectorAll('h5')).map((node) => (node.textContent || '').trim());
         expect(subheadings).not.toContain('Sigue a');
         expect(subheadings).not.toContain('Le siguen');
+    });
+
+    test('renders enriched about tab without avatar url row and opens avatar lightbox on click', async () => {
+        const rendered = await renderElement(
+            <OccupantProfileDialog
+                {...buildProps({
+                    profile: {
+                        pubkey: 'a'.repeat(64),
+                        displayName: 'Alice',
+                        picture: 'https://example.com/avatar.png',
+                        banner: 'https://example.com/banner.png',
+                        nip05: 'alice@example.com',
+                        about: 'Construyendo sobre Nostr.',
+                        website: 'https://alice.dev',
+                        lud16: 'alice@getalby.com',
+                        lud06: 'lnurl1dp68gurn8ghj7mmsw3skccnwv4uxzmtsd3jjucm0d5hkgct5v9cx7mmsxqex2atwv9ujuetcv9khqmr9xqcnqve5xqersv3nxg6ryv3h',
+                        bot: true,
+                        externalIdentities: ['github:alice', 'mastodon:nostr.example/@alice'],
+                    },
+                    verification: {
+                        status: 'verified',
+                        identifier: 'alice@example.com',
+                        displayIdentifier: 'alice@example.com',
+                        checkedAt: Date.now(),
+                    },
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const banner = document.body.querySelector('.nostr-profile-dialog-banner') as HTMLImageElement;
+        const header = document.body.querySelector('.nostr-dialog-header') as HTMLElement;
+        expect(banner).toBeDefined();
+        expect(header).toBeDefined();
+        expect((banner.compareDocumentPosition(header) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(true);
+
+        await selectTab('Sobre mi');
+        await waitForCondition(() => (document.body.textContent || '').includes('Construyendo sobre Nostr.'));
+
+        const text = document.body.textContent || '';
+        expect(text).toContain('NIP-05');
+        expect(text).toContain('Descripcion');
+        expect(text).toContain('Sitio web');
+        expect(text).toContain('LUD16');
+        expect(text).toContain('LUD06');
+        expect(text).toContain('Bot');
+        expect(text).toContain('Identidades externas');
+        expect(text).not.toContain('Avatar');
+        expect(text).not.toContain('https://example.com/avatar.png');
+
+        const avatarTrigger = document.body.querySelector('.nostr-dialog-avatar-trigger') as HTMLButtonElement;
+        expect(avatarTrigger).toBeDefined();
+
+        await act(async () => {
+            avatarTrigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const lightboxRoot = document.body.querySelector('.yarl__root');
+        expect(lightboxRoot).toBeDefined();
     });
 
     test('uses shadcn empty loading state with spinner in feed tab', async () => {

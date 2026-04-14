@@ -2,6 +2,25 @@ import { describe, expect, test } from 'vitest';
 import { resolveConservativeSocialRelaySets } from './relay-runtime';
 
 describe('resolveConservativeSocialRelaySets', () => {
+    test('uses read and both relays as primary for social consumption before write-only relays', () => {
+        const resolved = resolveConservativeSocialRelaySets({
+            ownerPubkey: '1'.repeat(64),
+            loadSettings: () => ({
+                relays: ['wss://fallback.user-relay'],
+                byType: {
+                    nip65Both: ['wss://relay.both'],
+                    nip65Read: ['wss://relay.read'],
+                    nip65Write: ['wss://relay.write'],
+                    dmInbox: [],
+                },
+            }),
+            bootstrapRelays: ['wss://bootstrap.one'],
+        });
+
+        expect(resolved.primary).toEqual(['wss://relay.both', 'wss://relay.read']);
+        expect(resolved.fallback).toEqual(['wss://bootstrap.one']);
+    });
+
     test('uses owner-scoped relays as primary and bootstrap as fallback', () => {
         const resolved = resolveConservativeSocialRelaySets({
             ownerPubkey: 'f'.repeat(64),

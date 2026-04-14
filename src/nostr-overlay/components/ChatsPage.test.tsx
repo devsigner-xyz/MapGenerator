@@ -94,6 +94,7 @@ describe('ChatsPage', () => {
 
         expect(rendered.container.querySelector('.nostr-chat-unread-dot')).not.toBeNull();
         expect(rendered.container.textContent || '').toContain('Sin conversaciones');
+        expect(rendered.container.querySelector('.nostr-chat-empty-state')).not.toBeNull();
     });
 
     test('shows full-page shadcn empty loading state while bootstrapping conversations', async () => {

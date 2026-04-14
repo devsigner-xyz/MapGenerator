@@ -97,6 +97,7 @@ describe('NotificationsPage', () => {
 
         expect(rendered.container.textContent || '').toContain('Sin notificaciones');
         expect(rendered.container.textContent || '').toContain('No tienes notificaciones pendientes.');
+        expect(rendered.container.querySelector('.nostr-notifications-empty-state')).not.toBeNull();
     });
 
     test('renders notifications list items', async () => {

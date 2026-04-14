@@ -2395,6 +2395,155 @@ describe('Nostr overlay App', () => {
         });
     });
 
+    test('caps runtime dm relay fanout to avoid oversized target relay lists', async () => {
+        const ownerPubkey = SAMPLE_NSEC_PUBKEY;
+        const followedPubkey = 'a'.repeat(64);
+        const { bridge, triggerOccupiedBuildingContextMenu } = createMapBridgeStub();
+        const transportCreations: Array<{
+            relays: string[];
+            publishToRelays: ReturnType<typeof vi.fn>;
+        }> = [];
+
+        window.localStorage.setItem(
+            RELAY_SETTINGS_STORAGE_KEY,
+            JSON.stringify({
+                relays: Array.from({ length: 12 }, (_, index) => `wss://relay.config-${index}.example`),
+                byType: {
+                    nip65Both: Array.from({ length: 6 }, (_, index) => `wss://relay.both-${index}.example`),
+                    nip65Read: Array.from({ length: 6 }, (_, index) => `wss://relay.read-${index}.example`),
+                    nip65Write: Array.from({ length: 6 }, (_, index) => `wss://relay.write-${index}.example`),
+                    dmInbox: Array.from({ length: 6 }, (_, index) => `wss://relay.inbox-${index}.example`),
+                },
+            })
+        );
+
+        createNdkDmTransportClientSpy!.mockImplementation((relays: string[] = []) => {
+            const publishToRelays = vi.fn(async () => ({
+                ackedRelays: ['wss://relay.ack.example'],
+                failedRelays: [],
+                timeoutRelays: [],
+            }));
+            transportCreations.push({
+                relays,
+                publishToRelays,
+            });
+
+            return {
+                publishToRelays,
+                subscribe: vi.fn(() => ({
+                    unsubscribe() {
+                        return;
+                    },
+                })),
+                fetchBackfill: vi.fn(async () => []),
+            } as any;
+        });
+
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async (_pubkey: string, kind: number) => {
+                            if (kind === 10002) {
+                                return {
+                                    id: 'relay-list-owner',
+                                    pubkey: ownerPubkey,
+                                    kind: 10002,
+                                    created_at: 1700001500,
+                                    tags: [
+                                        ...Array.from({ length: 6 }, (_, index) => ['r', `wss://relay.owner-both-${index}.example`] as string[]),
+                                        ...Array.from({ length: 6 }, (_, index) => ['r', `wss://relay.owner-write-${index}.example`, 'write'] as string[]),
+                                    ],
+                                    content: '',
+                                    sig: '4'.repeat(128),
+                                } as any;
+                            }
+
+                            if (kind === 10050) {
+                                return {
+                                    id: 'relay-dm-owner',
+                                    pubkey: ownerPubkey,
+                                    kind: 10050,
+                                    created_at: 1700001600,
+                                    tags: Array.from({ length: 6 }, (_, index) => ['relay', `wss://relay.owner-dm-${index}.example`]),
+                                    content: '',
+                                    sig: '5'.repeat(128),
+                                } as any;
+                            }
+
+                            return null;
+                        },
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [followedPubkey],
+                        relayHints: Array.from({ length: 6 }, (_, index) => `wss://relay.hint-${index}.example`),
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                        [followedPubkey]: { pubkey: followedPubkey, displayName: 'Alice' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        await loginWithNsec(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        await act(async () => {
+            triggerOccupiedBuildingContextMenu({
+                buildingIndex: 2,
+                pubkey: followedPubkey,
+                clientX: 320,
+                clientY: 240,
+            });
+        });
+
+        await waitFor(() => (document.body.textContent || '').includes('Enviar mensaje'));
+
+        const dmItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((node) =>
+            (node.textContent || '').includes('Enviar mensaje')
+        ) as HTMLElement;
+
+        await act(async () => {
+            dmItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Chats'));
+
+        const composer = rendered.container.querySelector('.nostr-chat-composer-input') as HTMLTextAreaElement;
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+            valueSetter?.call(composer, 'mensaje capped');
+            composer.dispatchEvent(new Event('input', { bubbles: true }));
+            composer.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        const sendButton = rendered.container.querySelector('.nostr-chat-send') as HTMLButtonElement;
+        await act(async () => {
+            sendButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => transportCreations.some((entry) => entry.publishToRelays.mock.calls.length > 0));
+
+        const sendingTransport = transportCreations.find((entry) => entry.publishToRelays.mock.calls.length > 0);
+        expect(sendingTransport).toBeDefined();
+        expect(sendingTransport!.relays.length).toBeLessThanOrEqual(8);
+
+        const firstRelayTargets = sendingTransport!.publishToRelays.mock.calls[0]?.[1] as string[];
+        expect(Array.isArray(firstRelayTargets)).toBe(true);
+        expect(firstRelayTargets.length).toBeLessThanOrEqual(8);
+    });
+
     test('updates chat list when historical bootstrap resolves after dialog is already open', async () => {
         const ownerPubkey = SAMPLE_NSEC_PUBKEY;
         const peerPubkey = 'a'.repeat(64);

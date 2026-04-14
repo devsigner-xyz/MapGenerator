@@ -54,13 +54,42 @@ function toEpochSeconds(value: number): number {
     return Math.floor(value);
 }
 
+function sentIndexIdentity(item: SentIndexItem, fallbackIndex: number): string {
+    if (item.clientMessageId) {
+        return `client:${item.clientMessageId}`;
+    }
+
+    if (item.rumorEventId) {
+        return `rumor:${item.rumorEventId}`;
+    }
+
+    if (item.giftWrapEventId) {
+        return `gift:${item.giftWrapEventId}`;
+    }
+
+    return `fallback:${item.conversationId}:${toEpochSeconds(item.createdAtSec)}:${fallbackIndex}`;
+}
+
 function normalizeSentIndex(items: SentIndexItem[], nowSec: number): SentIndexItem[] {
     const minCreatedAt = nowSec - DM_SENT_INDEX_MAX_AGE_SECONDS;
 
-    return items
+    const filteredSorted = items
         .filter((item) => toEpochSeconds(item.createdAtSec) >= minCreatedAt)
-        .sort((left, right) => toEpochSeconds(right.createdAtSec) - toEpochSeconds(left.createdAtSec))
-        .slice(0, DM_SENT_INDEX_MAX_ITEMS);
+        .sort((left, right) => toEpochSeconds(right.createdAtSec) - toEpochSeconds(left.createdAtSec));
+
+    const seen = new Set<string>();
+    const deduped: SentIndexItem[] = [];
+    for (const [index, item] of filteredSorted.entries()) {
+        const identity = sentIndexIdentity(item, index);
+        if (seen.has(identity)) {
+            continue;
+        }
+
+        seen.add(identity);
+        deduped.push(item);
+    }
+
+    return deduped.slice(0, DM_SENT_INDEX_MAX_ITEMS);
 }
 
 export function buildSeenStorageKey(ownerPubkey: string, conversationId: string, version: StorageVersion = 'v1'): string {

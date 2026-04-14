@@ -463,14 +463,12 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 1.1rem;
-    height: 1.1rem;
-    min-width: 1.1rem;
+    width: 1.3rem;
+    height: 1.3rem;
+    min-width: 1.3rem;
     padding: 0;
     border-radius: 999px;
     color: #1f6130;
-    background: rgba(224, 246, 231, 0.95);
-    border: 1px solid rgba(89, 154, 105, 0.9);
 }
 
 .nostr-profile-pubkey {
@@ -693,6 +691,7 @@
     position: absolute;
     top: 8px;
     right: 8px;
+    z-index: 3;
     border: 1px solid rgba(185, 197, 206, 0.95);
     background: rgba(248, 251, 253, 0.98);
     color: #304e5d;
@@ -714,6 +713,14 @@
     border-radius: 999px;
     object-fit: cover;
     border: 1px solid rgba(122, 146, 160, 0.52);
+}
+
+.nostr-dialog-avatar-trigger {
+    border: none;
+    background: transparent;
+    padding: 0;
+    border-radius: 999px;
+    cursor: zoom-in;
 }
 
 .nostr-dialog-avatar-fallback {
@@ -1403,7 +1410,7 @@
 .nostr-profile-dialog {
     width: min(640px, calc(100vw - 32px));
     max-height: min(82vh, 760px);
-    padding: 0.85rem;
+    padding: 0;
     overflow: hidden;
 }
 
@@ -1445,6 +1452,18 @@
 
 .nostr-notifications-page {
     min-height: 100%;
+    grid-template-rows: auto minmax(0, 1fr);
+}
+
+.nostr-notifications-page .nostr-page-content {
+    min-height: 0;
+}
+
+.nostr-notifications-empty-state {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .nostr-notifications-list {
@@ -1481,8 +1500,6 @@
 
 .nostr-notifications-empty {
     margin: 0;
-    color: #5d6f79;
-    font-size: 0.82rem;
 }
 
 .nostr-following-feed-icon-button {
@@ -2201,6 +2218,17 @@
 
 .nostr-chat-empty {
     margin: 0;
+}
+
+.nostr-chat-empty-state {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.nostr-chat-disabled-note {
+    margin: 0;
     color: #5a6d78;
     font-size: 0.82rem;
 }
@@ -2218,12 +2246,30 @@
 }
 
 .nostr-profile-dialog-body {
-    height: calc(82vh - 1.8rem);
-    max-height: calc(82vh - 1.8rem);
+    height: min(82vh, 760px);
+    max-height: min(82vh, 760px);
     display: flex;
     flex-direction: column;
     gap: 0.8rem;
     overflow: hidden;
+}
+
+.nostr-profile-dialog-banner {
+    width: 100%;
+    height: 132px;
+    object-fit: cover;
+    border-radius: 0;
+    border: none;
+    display: block;
+}
+
+.nostr-profile-dialog .nostr-dialog-header,
+.nostr-profile-dialog .nostr-profile-dialog-tabs {
+    padding-inline: 0.85rem;
+}
+
+.nostr-profile-dialog .nostr-profile-dialog-tabs {
+    padding-bottom: 0.85rem;
 }
 
 .nostr-profile-dialog-tabs {
@@ -2278,6 +2324,19 @@
     font-size: 0.82rem;
     color: #1f3340;
     word-break: break-word;
+}
+
+.nostr-profile-info-link {
+    color: #235b73;
+    text-decoration: underline;
+}
+
+.nostr-profile-identities {
+    list-style: disc;
+    margin: 0;
+    padding-left: 1rem;
+    display: grid;
+    gap: 0.2rem;
 }
 
 .nostr-profile-network-list {

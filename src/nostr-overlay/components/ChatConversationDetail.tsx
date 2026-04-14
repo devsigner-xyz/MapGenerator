@@ -48,12 +48,14 @@ export function ChatConversationDetail({
 
     if (!conversation) {
         return (
-            <Empty className="nostr-chat-empty">
-                <EmptyHeader>
-                    <EmptyTitle>Sin conversacion activa</EmptyTitle>
-                    <EmptyDescription>Selecciona una conversación para empezar.</EmptyDescription>
-                </EmptyHeader>
-            </Empty>
+            <div className="nostr-chat-empty-state">
+                <Empty className="nostr-chat-empty">
+                    <EmptyHeader>
+                        <EmptyTitle>Sin conversacion activa</EmptyTitle>
+                        <EmptyDescription>Selecciona una conversación para empezar.</EmptyDescription>
+                    </EmptyHeader>
+                </Empty>
+            </div>
         );
     }
 
@@ -120,7 +122,7 @@ export function ChatConversationDetail({
                     Enviar
                 </Button>
             </form>
-            {!canSend ? <p className="nostr-chat-empty">{disabledReason || 'El envío de mensajes está deshabilitado para esta sesión.'}</p> : null}
+            {!canSend ? <p className="nostr-chat-disabled-note">{disabledReason || 'El envío de mensajes está deshabilitado para esta sesión.'}</p> : null}
         </div>
     );
 }

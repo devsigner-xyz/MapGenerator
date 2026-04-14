@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode, type UIEvent } from 'react';
+import Lightbox from 'yet-another-react-lightbox';
 import type { Nip05ValidationResult } from '../../nostr/nip05';
 import { encodeHexToNpub } from '../../nostr/npub';
 import type { NostrProfile } from '../../nostr/types';
@@ -68,6 +69,7 @@ export function OccupantProfileDialog({
     const [followsLoadingMore, setFollowsLoadingMore] = useState(false);
     const [followersLoadingMore, setFollowersLoadingMore] = useState(false);
     const [activeTab, setActiveTab] = useState<OccupantProfileTab>('info');
+    const [isAvatarLightboxOpen, setIsAvatarLightboxOpen] = useState(false);
     const isNip05Verified = verification?.status === 'verified';
 
     let npubLabel = `${pubkey.slice(0, 10)}...${pubkey.slice(-6)}`;
@@ -158,13 +160,52 @@ export function OccupantProfileDialog({
         }
     };
 
-    const infoRows: Array<{ label: string; value: ReactNode } | null> = [
-        profile?.name ? { label: 'Nombre', value: profile.name } : null,
-        profile?.displayName ? { label: 'Alias', value: profile.displayName } : null,
-        profile?.nip05 ? { label: 'NIP-05', value: <Nip05Identifier profile={profile} verification={verification} /> } : null,
-        profile?.picture ? { label: 'Avatar', value: profile.picture } : null,
+    const infoRows: Array<{ label: string; value: ReactNode }> = [
+        {
+            label: 'Descripcion',
+            value: profile?.about || 'No declarada',
+        },
+        {
+            label: 'NIP-05',
+            value: profile?.nip05
+                ? <Nip05Identifier profile={profile} verification={verification} />
+                : 'No declarado',
+        },
+        {
+            label: 'Sitio web',
+            value: profile?.website
+                ? (
+                    <a href={profile.website} target="_blank" rel="noreferrer noopener" className="nostr-profile-info-link">
+                        {profile.website}
+                    </a>
+                )
+                : 'No declarado',
+        },
+        {
+            label: 'LUD16',
+            value: profile?.lud16 || 'No declarado',
+        },
+        {
+            label: 'LUD06',
+            value: profile?.lud06 || 'No declarado',
+        },
+        {
+            label: 'Bot',
+            value: profile?.bot ? 'Si' : 'No',
+        },
+        {
+            label: 'Identidades externas',
+            value: profile?.externalIdentities?.length
+                ? (
+                    <ul className="nostr-profile-identities">
+                        {profile.externalIdentities.map((identity) => (
+                            <li key={identity}>{identity}</li>
+                        ))}
+                    </ul>
+                )
+                : 'No declaradas',
+        },
     ];
-    const visibleInfoRows = infoRows.filter((row): row is { label: string; value: ReactNode } => row !== null);
 
     return (
         <Dialog open onOpenChange={(open) => {
@@ -188,9 +229,18 @@ export function OccupantProfileDialog({
                 </Button>
 
                 <div className="nostr-profile-dialog-body">
+                    {profile?.banner ? <img className="nostr-profile-dialog-banner" src={profile.banner} alt="Banner del perfil" /> : null}
+
                     <div className="nostr-dialog-header">
                         {profile?.picture ? (
-                            <img className="nostr-dialog-avatar" src={profile.picture} alt="Avatar del ocupante" />
+                            <button
+                                type="button"
+                                className="nostr-dialog-avatar-trigger"
+                                aria-label="Ver avatar en grande"
+                                onClick={() => setIsAvatarLightboxOpen(true)}
+                            >
+                                <img className="nostr-dialog-avatar" src={profile.picture} alt="Avatar del ocupante" />
+                            </button>
                         ) : (
                             <div className="nostr-dialog-avatar nostr-dialog-avatar-fallback" aria-hidden="true">
                                 {resolveName(pubkey, profile).slice(0, 2).toUpperCase()}
@@ -217,7 +267,7 @@ export function OccupantProfileDialog({
                         aria-label="Secciones del perfil"
                     >
                         <TabsList variant="line" className="grid h-auto w-full grid-cols-4" aria-label="Secciones del perfil">
-                            <TabsTrigger value="info">Información</TabsTrigger>
+                            <TabsTrigger value="info">Sobre mi</TabsTrigger>
                             <TabsTrigger value="feed">Feed</TabsTrigger>
                             <TabsTrigger value="followers">{`Seguidores (${followers.length})`}</TabsTrigger>
                             <TabsTrigger value="following">{`Siguiendo (${follows.length})`}</TabsTrigger>
@@ -226,19 +276,14 @@ export function OccupantProfileDialog({
                         <TabsContent value="info" className="nostr-profile-tab-panel">
                             <div className="nostr-profile-tab-panel-scroll" style={{ scrollbarGutter: 'stable', height: '100%' }}>
                                 <section className="nostr-profile-info">
-                                    <h4>Información</h4>
-                                    {visibleInfoRows.length === 0 ? (
-                                        <p className="nostr-empty">Sin informacion adicional disponible.</p>
-                                    ) : (
-                                        <dl className="nostr-profile-info-list">
-                                            {visibleInfoRows.map((row) => (
-                                                <div key={row.label}>
-                                                    <dt>{row.label}</dt>
-                                                    <dd>{row.value}</dd>
-                                                </div>
-                                            ))}
-                                        </dl>
-                                    )}
+                                    <dl className="nostr-profile-info-list">
+                                        {infoRows.map((row) => (
+                                            <div key={row.label}>
+                                                <dt>{row.label}</dt>
+                                                <dd>{row.value}</dd>
+                                            </div>
+                                        ))}
+                                    </dl>
                                 </section>
                             </div>
                         </TabsContent>
@@ -368,6 +413,24 @@ export function OccupantProfileDialog({
                         </TabsContent>
                     </Tabs>
                 </div>
+
+                <Lightbox
+                    open={isAvatarLightboxOpen && Boolean(profile?.picture)}
+                    close={() => setIsAvatarLightboxOpen(false)}
+                    index={0}
+                    slides={profile?.picture ? [{ src: profile.picture, alt: `Avatar de ${resolveName(pubkey, profile)}` }] : []}
+                    portal={{
+                        root: typeof document === 'undefined' ? null : document.body,
+                    }}
+                    controller={{
+                        closeOnBackdropClick: true,
+                    }}
+                    styles={{
+                        root: {
+                            zIndex: 2147483000,
+                        },
+                    }}
+                />
             </DialogContent>
         </Dialog>
     );

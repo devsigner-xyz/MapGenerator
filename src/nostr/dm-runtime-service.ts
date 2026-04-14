@@ -35,6 +35,20 @@ interface CreateRuntimeDirectMessagesServiceOptions {
     resolveRelays?: () => string[] | { inbox: string[]; outbox: string[] };
 }
 
+type DmBackfillMode = 'session_start' | 'reconnect';
+
+const RUNTIME_DM_INBOX_RELAY_CAP = 8;
+const RUNTIME_DM_OUTBOX_RELAY_CAP = 8;
+
+function capRuntimeRelays(relays: string[], limit: number): string[] {
+    const normalized = mergeRelaySets(relays);
+    if (normalized.length <= limit) {
+        return normalized;
+    }
+
+    return normalized.slice(0, limit);
+}
+
 function resolveRuntimeDirectMessageRelays(): { inbox: string[]; outbox: string[] } {
     const settings = loadRelaySettings();
     const fallback = settings.relays.length > 0 ? settings.relays : getBootstrapRelays();
@@ -53,15 +67,16 @@ function resolveRuntimeDirectMessageRelays(): { inbox: string[]; outbox: string[
 
 function normalizeRuntimeRelays(value: string[] | { inbox: string[]; outbox: string[] }): { inbox: string[]; outbox: string[] } {
     if (Array.isArray(value)) {
+        const capped = capRuntimeRelays(value, RUNTIME_DM_INBOX_RELAY_CAP);
         return {
-            inbox: value,
-            outbox: value,
+            inbox: capped,
+            outbox: capRuntimeRelays(value, RUNTIME_DM_OUTBOX_RELAY_CAP),
         };
     }
 
     return {
-        inbox: value.inbox,
-        outbox: value.outbox,
+        inbox: capRuntimeRelays(value.inbox, RUNTIME_DM_INBOX_RELAY_CAP),
+        outbox: capRuntimeRelays(value.outbox, RUNTIME_DM_OUTBOX_RELAY_CAP),
     };
 }
 
@@ -102,14 +117,18 @@ export function createRuntimeDirectMessagesService(options: CreateRuntimeDirectM
                 targetRelays: relaySelection.relays,
             });
         },
-        async loadInitialConversations(input: { ownerPubkey: string; sentIndex?: SentIndexItem[] }) {
+        async loadInitialConversations(input: {
+            ownerPubkey: string;
+            sentIndex?: SentIndexItem[];
+            mode?: DmBackfillMode;
+        }) {
             if (!dmService.fetchGlobalBackfill) {
                 return [];
             }
 
             return dmService.fetchGlobalBackfill({
                 ownerPubkey: input.ownerPubkey,
-                mode: 'session_start',
+                mode: input.mode ?? 'session_start',
                 sentIndex: input.sentIndex ?? [],
             });
         },
@@ -118,6 +137,7 @@ export function createRuntimeDirectMessagesService(options: CreateRuntimeDirectM
             peerPubkey: string;
             since?: number;
             sentIndex?: SentIndexItem[];
+            mode?: DmBackfillMode;
         }) {
             if (!dmService.fetchConversationBackfill) {
                 return [];
@@ -126,7 +146,7 @@ export function createRuntimeDirectMessagesService(options: CreateRuntimeDirectM
             return dmService.fetchConversationBackfill({
                 ownerPubkey: input.ownerPubkey,
                 peerPubkey: input.peerPubkey,
-                mode: 'session_start',
+                mode: input.mode ?? 'session_start',
                 since: input.since,
                 sentIndex: input.sentIndex ?? [],
             });

@@ -30,7 +30,6 @@ export function hasSameRelaySet(left: string[], right: string[]): boolean {
 
 function resolvePrimarySocialRelays(state: RelaySettingsState): string[] {
     const protocolRelays = mergeRelaySets(
-        getRelaySetByType(state, 'nip65Write'),
         getRelaySetByType(state, 'nip65Both'),
         getRelaySetByType(state, 'nip65Read')
     );

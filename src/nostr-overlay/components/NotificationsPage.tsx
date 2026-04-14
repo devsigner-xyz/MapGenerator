@@ -52,12 +52,14 @@ export function NotificationsPage({ hasUnread, notifications, onClose }: Notific
 
                     <section className="nostr-page-content">
                         {notifications.length === 0 ? (
-                            <Empty className="nostr-notifications-empty">
-                                <EmptyHeader>
-                                    <EmptyTitle>Sin notificaciones</EmptyTitle>
-                                    <EmptyDescription>No tienes notificaciones pendientes.</EmptyDescription>
-                                </EmptyHeader>
-                            </Empty>
+                            <div className="nostr-notifications-empty-state">
+                                <Empty className="nostr-notifications-empty">
+                                    <EmptyHeader>
+                                        <EmptyTitle>Sin notificaciones</EmptyTitle>
+                                        <EmptyDescription>No tienes notificaciones pendientes.</EmptyDescription>
+                                    </EmptyHeader>
+                                </Empty>
+                            </div>
                         ) : (
                             <ul className="nostr-notifications-list">
                                 {notifications.map((item) => (

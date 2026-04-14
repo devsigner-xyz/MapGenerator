@@ -1,38 +1,46 @@
 /** @vitest-environment jsdom */
 
-import { act, createElement, useEffect, type ReactElement } from 'react';
+import { act, createElement, useEffect, useMemo, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
 import { createNostrOverlayQueryClient } from './query-client';
 import { createDmReadStateStorage, fallbackStorage } from './dm-storage';
 import { useDirectMessagesController, type DirectMessagesService } from './direct-messages.query';
+import { nostrOverlayQueryKeys } from './keys';
 
 const OWNER = 'a'.repeat(64);
+const FIXED_NOW = () => 100;
 
 interface RenderResult {
     container: HTMLDivElement;
     root: Root;
+    queryClient: QueryClient;
 }
 
 interface ProbeProps {
     ownerPubkey?: string;
     enabled?: boolean;
+    failedRetryIntervalMs?: number;
+    storageBackend?: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
     dmService: DirectMessagesService;
     onUpdate: (next: ReturnType<typeof useDirectMessagesController>) => void;
 }
 
-function DirectMessagesProbe({ ownerPubkey, enabled, dmService, onUpdate }: ProbeProps): null {
+function DirectMessagesProbe({ ownerPubkey, enabled, failedRetryIntervalMs, storageBackend, dmService, onUpdate }: ProbeProps): null {
+    const readStateStorage = useMemo(() => createDmReadStateStorage({
+        storage: storageBackend ?? fallbackStorage,
+        now: FIXED_NOW,
+        version: 'v1',
+    }), [storageBackend]);
+
     const state = useDirectMessagesController({
         ownerPubkey,
         enabled,
+        failedRetryIntervalMs,
         dmService,
-        storage: createDmReadStateStorage({
-            storage: fallbackStorage,
-            now: () => 100,
-            version: 'v1',
-        }),
-        now: () => 100,
+        storage: readStateStorage,
+        now: FIXED_NOW,
     });
 
     useEffect(() => {
@@ -55,6 +63,7 @@ async function renderElement(element: ReactElement): Promise<RenderResult> {
     return {
         container,
         root,
+        queryClient,
     };
 }
 
@@ -132,8 +141,132 @@ describe('useDirectMessagesController', () => {
 
         expect(dmService.loadInitialConversations).toHaveBeenCalledWith({
             ownerPubkey: OWNER,
+            mode: 'session_start',
             sentIndex: [],
         });
         expect(dmService.subscribeInbox).toHaveBeenCalledWith({ ownerPubkey: OWNER }, expect.any(Function));
+    });
+
+    test('uses reconnect mode for later bootstrap refetches', async () => {
+        const dmService: DirectMessagesService = {
+            subscribeInbox: vi.fn(() => () => {}),
+            loadInitialConversations: vi.fn(async () => []),
+        };
+
+        const rendered = await renderElement(createElement(DirectMessagesProbe, {
+            ownerPubkey: OWNER,
+            enabled: true,
+            dmService,
+            onUpdate: () => {},
+        }));
+        mounted.push(rendered);
+
+        await waitFor(() =>
+            (dmService.loadInitialConversations as ReturnType<typeof vi.fn>).mock.calls.length > 0
+        );
+
+        expect(dmService.loadInitialConversations).toHaveBeenNthCalledWith(1, {
+            ownerPubkey: OWNER,
+            mode: 'session_start',
+            sentIndex: [],
+        });
+
+        await act(async () => {
+            await rendered.queryClient.invalidateQueries({
+                queryKey: nostrOverlayQueryKeys.invalidation.directMessages(),
+            });
+        });
+
+        await waitFor(() =>
+            (dmService.loadInitialConversations as ReturnType<typeof vi.fn>).mock.calls.length > 1
+        );
+
+        expect(dmService.loadInitialConversations).toHaveBeenNthCalledWith(2, {
+            ownerPubkey: OWNER,
+            mode: 'reconnect',
+            sentIndex: [],
+        });
+    });
+
+    test('retries failed outgoing dm deliveries from persisted sent index', async () => {
+        const memory = new Map<string, string>();
+        const storageBackend: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> = {
+            getItem(key: string) {
+                return memory.get(key) ?? null;
+            },
+            setItem(key: string, value: string) {
+                memory.set(key, value);
+            },
+            removeItem(key: string) {
+                memory.delete(key);
+            },
+        };
+
+        const peerPubkey = 'b'.repeat(64);
+        const sendDm = vi
+            .fn()
+            .mockRejectedValueOnce(new Error('relay timeout'))
+            .mockImplementationOnce(async (input: {
+                ownerPubkey: string;
+                peerPubkey: string;
+                plaintext: string;
+                clientMessageId: string;
+            }) => ({
+                id: 'sent-1',
+                clientMessageId: input.clientMessageId,
+                conversationId: input.peerPubkey,
+                peerPubkey: input.peerPubkey,
+                direction: 'outgoing' as const,
+                createdAt: 101,
+                plaintext: input.plaintext,
+                deliveryState: 'sent' as const,
+            }));
+
+        const dmService: DirectMessagesService = {
+            subscribeInbox: vi.fn(() => () => {}),
+            loadInitialConversations: vi.fn(async () => []),
+            sendDm,
+        };
+
+        let latestState: ReturnType<typeof useDirectMessagesController> | undefined;
+
+        const rendered = await renderElement(createElement(DirectMessagesProbe, {
+            ownerPubkey: OWNER,
+            enabled: true,
+            failedRetryIntervalMs: 1,
+            storageBackend,
+            dmService,
+            onUpdate: (next) => {
+                latestState = next;
+            },
+        }));
+        mounted.push(rendered);
+
+        await waitFor(() => typeof latestState?.sendMessage === 'function');
+
+        await act(async () => {
+            await latestState?.sendMessage(peerPubkey, 'hola retry');
+        });
+
+        expect(sendDm.mock.calls.length).toBeGreaterThanOrEqual(1);
+
+        await waitFor(() => sendDm.mock.calls.length >= 2);
+        const firstCallInput = sendDm.mock.calls[0]?.[0] as {
+            ownerPubkey: string;
+            peerPubkey: string;
+            plaintext: string;
+            clientMessageId: string;
+        };
+        const secondCallInput = sendDm.mock.calls[1]?.[0] as {
+            ownerPubkey: string;
+            peerPubkey: string;
+            plaintext: string;
+            clientMessageId: string;
+        };
+
+        expect(secondCallInput.ownerPubkey).toBe(OWNER);
+        expect(secondCallInput.peerPubkey).toBe(peerPubkey);
+        expect(secondCallInput.plaintext).toBe('hola retry');
+        expect(secondCallInput.clientMessageId).toBe(firstCallInput.clientMessageId);
     });
 });

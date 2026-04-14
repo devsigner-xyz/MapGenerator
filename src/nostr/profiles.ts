@@ -13,8 +13,33 @@ export function __resetProfileCacheForTests(): void {
 interface MetadataContent {
     name?: string;
     display_name?: string;
+    about?: string;
     picture?: string;
+    banner?: string;
+    website?: string;
     nip05?: string;
+    lud16?: string;
+    lud06?: string;
+    bot?: boolean;
+    github?: string;
+    twitter?: string;
+    mastodon?: string;
+    telegram?: string;
+}
+
+function extractExternalIdentities(parsed: MetadataContent): string[] | undefined {
+    const identities = [
+        parsed.github ? `github:${parsed.github}` : null,
+        parsed.twitter ? `twitter:${parsed.twitter}` : null,
+        parsed.mastodon ? `mastodon:${parsed.mastodon}` : null,
+        parsed.telegram ? `telegram:${parsed.telegram}` : null,
+    ].filter((value): value is string => Boolean(value));
+
+    if (identities.length === 0) {
+        return undefined;
+    }
+
+    return [...new Set(identities)];
 }
 
 export function parseProfileMetadata(event: NostrEvent): NostrProfile {
@@ -30,8 +55,15 @@ export function parseProfileMetadata(event: NostrEvent): NostrProfile {
         pubkey: event.pubkey,
         name: parsed.name,
         displayName: parsed.display_name,
+        about: parsed.about,
         picture: parsed.picture,
+        banner: parsed.banner,
+        website: parsed.website,
         nip05: parsed.nip05,
+        lud16: parsed.lud16,
+        lud06: parsed.lud06,
+        bot: parsed.bot,
+        externalIdentities: extractExternalIdentities(parsed),
     };
 }
 

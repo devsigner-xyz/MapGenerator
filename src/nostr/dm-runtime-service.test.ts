@@ -82,6 +82,33 @@ describe('dm-runtime-service', () => {
         });
     });
 
+    test('loadInitialConversations forwards reconnect mode when requested', async () => {
+        const fetchGlobalBackfill = vi.fn(async () => []);
+        const createDmService = vi.fn(() => ({
+            subscribeInbox: vi.fn(() => () => {}),
+            sendDm: vi.fn(async () => null),
+            fetchGlobalBackfill,
+        }));
+
+        const service = createRuntimeDirectMessagesService({
+            writeGateway: createWriteGatewayMock() as any,
+            createDmService,
+            createTransport: () => createTransportMock() as any,
+            resolveRelays: () => ['wss://relay.one'],
+        });
+
+        await service.loadInitialConversations({
+            ownerPubkey: OWNER,
+            mode: 'reconnect',
+        } as any);
+
+        expect(fetchGlobalBackfill).toHaveBeenCalledWith({
+            ownerPubkey: OWNER,
+            mode: 'reconnect',
+            sentIndex: [],
+        });
+    });
+
     test('exposes conversation backfill loader and forwards owner/peer/since/sentIndex', async () => {
         const fetchConversationBackfill = vi.fn(async () => []);
         const createDmService = vi.fn(() => ({
@@ -124,6 +151,36 @@ describe('dm-runtime-service', () => {
             mode: 'session_start',
             since: 321,
             sentIndex,
+        });
+    });
+
+    test('loadConversationMessages forwards reconnect mode when requested', async () => {
+        const fetchConversationBackfill = vi.fn(async () => []);
+        const createDmService = vi.fn(() => ({
+            subscribeInbox: vi.fn(() => () => {}),
+            sendDm: vi.fn(async () => null),
+            fetchConversationBackfill,
+        }));
+
+        const service = createRuntimeDirectMessagesService({
+            writeGateway: createWriteGatewayMock() as any,
+            createDmService,
+            createTransport: () => createTransportMock() as any,
+            resolveRelays: () => ['wss://relay.one'],
+        });
+
+        await (service as any).loadConversationMessages({
+            ownerPubkey: OWNER,
+            peerPubkey: PEER,
+            mode: 'reconnect',
+        });
+
+        expect(fetchConversationBackfill).toHaveBeenCalledWith({
+            ownerPubkey: OWNER,
+            peerPubkey: PEER,
+            mode: 'reconnect',
+            since: undefined,
+            sentIndex: [],
         });
     });
 });

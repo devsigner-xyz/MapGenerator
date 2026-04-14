@@ -6,6 +6,7 @@ import type { NostrEvent, NostrFilter } from './types';
 const DEFAULT_CONNECT_TIMEOUT_MS = 4_000;
 const DEFAULT_PUBLISH_TIMEOUT_MS = 4_000;
 const DEFAULT_MAX_TARGET_RELAYS = 6;
+const DEFAULT_PUBLISH_CONCURRENCY = 2;
 const CONNECT_RETRY_ATTEMPTS = 3;
 const PUBLISH_RETRY_ATTEMPTS = 2;
 const BASE_RETRY_DELAY_MS = 200;
@@ -320,7 +321,7 @@ export function createNdkDmTransport(options: CreateNdkDmTransportOptions = {}):
                 timeoutRelays: [],
             };
 
-            for (const relay of targets) {
+            const publishOne = async (relay: string): Promise<void> => {
                 try {
                     const outcome = await dependencies.publishRelay(relay, event, publishTimeoutMs);
 
@@ -338,7 +339,20 @@ export function createNdkDmTransport(options: CreateNdkDmTransportOptions = {}):
                         result.failedRelays.push({ relay, reason: mapPublishFailureReason(error) });
                     }
                 }
-            }
+            };
+
+            let nextTargetIndex = 0;
+            const workerCount = Math.min(DEFAULT_PUBLISH_CONCURRENCY, targets.length);
+
+            const workers = Array.from({ length: workerCount }, async () => {
+                while (nextTargetIndex < targets.length) {
+                    const relay = targets[nextTargetIndex];
+                    nextTargetIndex += 1;
+                    await publishOne(relay);
+                }
+            });
+
+            await Promise.all(workers);
 
             return result;
         },
@@ -362,7 +376,11 @@ export function createNdkDmTransport(options: CreateNdkDmTransportOptions = {}):
         },
 
         async fetchBackfill(filters) {
-            return dependencies.fetchBackfill(filters);
+            return withRetry(
+                async () => dependencies.fetchBackfill(filters),
+                CONNECT_RETRY_ATTEMPTS,
+                isNetworkRecoverableError
+            );
         },
     };
 }
