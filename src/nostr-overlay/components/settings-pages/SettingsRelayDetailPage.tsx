@@ -48,8 +48,8 @@ export function SettingsRelayDetailPage({
     return (
         <>
             <header className="nostr-page-header">
-                <h3 className="nostr-page-header-inline-title">Relay details</h3>
-                <p>Metadata y capacidades tecnicas del relay seleccionado.</p>
+                <h4 className="scroll-m-20 text-xl font-semibold tracking-tight">Relay details</h4>
+                <p className="text-sm text-muted-foreground">Metadata y capacidades tecnicas del relay seleccionado.</p>
             </header>
             <div className="nostr-page-content nostr-settings-body">
                 <div className="nostr-relays-content">

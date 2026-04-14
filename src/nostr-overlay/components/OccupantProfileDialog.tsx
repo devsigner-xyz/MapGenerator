@@ -155,12 +155,13 @@ export function OccupantProfileDialog({
         }
     };
 
-    const infoRows: Array<{ label: string; value: ReactNode }> = [
+    const infoRows: Array<{ label: string; value: ReactNode } | null> = [
         profile?.name ? { label: 'Nombre', value: profile.name } : null,
         profile?.displayName ? { label: 'Alias', value: profile.displayName } : null,
         profile?.nip05 ? { label: 'NIP-05', value: <Nip05Identifier profile={profile} verification={verification} /> } : null,
         profile?.picture ? { label: 'Avatar', value: profile.picture } : null,
-    ].filter((row): row is { label: string; value: ReactNode } => row !== null);
+    ];
+    const visibleInfoRows = infoRows.filter((row): row is { label: string; value: ReactNode } => row !== null);
 
     return (
         <Dialog open onOpenChange={(open) => {
@@ -215,19 +216,19 @@ export function OccupantProfileDialog({
                         <TabsList className="grid h-auto w-full grid-cols-4" aria-label="Secciones del perfil">
                             <TabsTrigger value="info">Información</TabsTrigger>
                             <TabsTrigger value="feed">Feed</TabsTrigger>
-                            <TabsTrigger value="followers">Seguidores</TabsTrigger>
-                            <TabsTrigger value="following">Siguiendo</TabsTrigger>
+                            <TabsTrigger value="followers">{`Seguidores (${followers.length})`}</TabsTrigger>
+                            <TabsTrigger value="following">{`Siguiendo (${follows.length})`}</TabsTrigger>
                         </TabsList>
 
                         <TabsContent value="info" className="nostr-profile-tab-panel">
                             <div className="nostr-profile-tab-panel-scroll" style={{ scrollbarGutter: 'stable', height: '100%' }}>
                                 <section className="nostr-profile-info">
                                     <h4>Información</h4>
-                                    {infoRows.length === 0 ? (
+                                    {visibleInfoRows.length === 0 ? (
                                         <p className="nostr-empty">Sin informacion adicional disponible.</p>
                                     ) : (
                                         <dl className="nostr-profile-info-list">
-                                            {infoRows.map((row) => (
+                                            {visibleInfoRows.map((row) => (
                                                 <div key={row.label}>
                                                     <dt>{row.label}</dt>
                                                     <dd>{row.value}</dd>

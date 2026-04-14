@@ -2,8 +2,8 @@ export function SettingsShortcutsPage() {
     return (
         <>
             <header className="nostr-page-header">
-                <h3 className="nostr-page-header-inline-title">Shortcuts</h3>
-                <p>Atajos de teclado y navegacion rapida para el mapa.</p>
+                <h4 className="scroll-m-20 text-xl font-semibold tracking-tight">Shortcuts</h4>
+                <p className="text-sm text-muted-foreground">Atajos de teclado y navegacion rapida para el mapa.</p>
             </header>
             <div className="nostr-page-content nostr-settings-body">
                 <div className="nostr-shortcuts-content">

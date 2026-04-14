@@ -22,8 +22,6 @@ interface ProfileTabProps {
 export function ProfileTab({
     ownerPubkey,
     ownerProfile,
-    followsCount,
-    followersCount,
     ownerVerification,
     relayConnectionProbe,
 }: ProfileTabProps) {
@@ -65,17 +63,6 @@ export function ProfileTab({
     return (
         <div className="nostr-profile-tab">
             <Nip05Identifier profile={ownerProfile} verification={ownerVerification} />
-
-            <dl className="nostr-profile-stats">
-                <div>
-                    <dt>Sigues</dt>
-                    <dd>{followsCount}</dd>
-                </div>
-                <div>
-                    <dt>Seguidores</dt>
-                    <dd>{followersCount}</dd>
-                </div>
-            </dl>
 
             <dl className="nostr-profile-relay-stats">
                 <div>

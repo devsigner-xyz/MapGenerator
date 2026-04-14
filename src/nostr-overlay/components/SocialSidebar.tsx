@@ -105,7 +105,7 @@ export function SocialSidebar({
                     aria-label="Pestanas sociales"
                 >
                     <TabsList className="grid h-auto w-full grid-cols-3" aria-label="Pestanas sociales">
-                        <TabsTrigger value="profile">Información</TabsTrigger>
+                        <TabsTrigger value="profile">Sobre mi</TabsTrigger>
                         <TabsTrigger value="following">{`Sigues (${followingPeople.length})`}</TabsTrigger>
                         <TabsTrigger value="followers">{`Seguidores (${followerPeople.length})`}</TabsTrigger>
                     </TabsList>

@@ -17,8 +17,8 @@ export function DiscoverPage({ discoveredIds }: DiscoverPageProps) {
             <div className="nostr-routed-surface-content">
                 <div className="nostr-easter-egg-missions-page nostr-routed-surface-panel nostr-page-layout">
                     <header className="nostr-page-header">
-                        <h3 className="nostr-page-header-inline-title">Descubre</h3>
-                        <p>
+                        <h4 className="scroll-m-20 text-xl font-semibold tracking-tight">Descubre</h4>
+                        <p className="text-sm text-muted-foreground">
                             Has descubierto {discoveredCount} de {EASTER_EGG_MISSIONS.length} easter eggs.
                         </p>
                     </header>

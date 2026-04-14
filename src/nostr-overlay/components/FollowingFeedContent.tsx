@@ -354,8 +354,8 @@ export function FollowingFeedContent({
                 ) : null}
 
                 <header className="nostr-page-header nostr-following-feed-page-header">
-                    <h3 className="nostr-page-header-inline-title">{activeThread ? 'Hilo' : 'Agora'}</h3>
-                    <p>{resolvedSubtitle}</p>
+                    <h4 className="scroll-m-20 text-xl font-semibold tracking-tight">{activeThread ? 'Hilo' : 'Agora'}</h4>
+                    <p className="text-sm text-muted-foreground">{resolvedSubtitle}</p>
                 </header>
 
                 {headerActions ? (

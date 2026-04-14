@@ -39,15 +39,15 @@ export function NotificationsPage({ hasUnread, notifications, onClose }: Notific
                 <div className="nostr-notifications-page nostr-routed-surface-panel nostr-page-layout">
                     <header className="nostr-page-header">
                         <div className="flex items-center justify-between gap-2">
-                            <h3 className="nostr-page-header-inline-title">
+                            <h4 className="scroll-m-20 inline-flex items-center gap-1.5 text-xl font-semibold tracking-tight">
                                 Notificaciones
                                 {hasUnread ? <span className="nostr-notifications-unread-dot" aria-hidden="true" /> : null}
-                            </h3>
+                            </h4>
                             <Button type="button" variant="ghost" size="sm" onClick={onClose} aria-label="Cerrar notificaciones">
                                 Cerrar
                             </Button>
                         </div>
-                        <p>Actividad reciente de personas y contenido que sigues.</p>
+                        <p className="text-sm text-muted-foreground">Actividad reciente de personas y contenido que sigues.</p>
                     </header>
 
                     <section className="nostr-page-content">

@@ -93,8 +93,8 @@ export function SettingsRelaysPage({
     return (
         <>
             <header className="nostr-page-header">
-                <h3 className="nostr-page-header-inline-title">Relays</h3>
-                <p>Relays configurados, sugeridos y estado de conexion Nostr.</p>
+                <h4 className="scroll-m-20 text-xl font-semibold tracking-tight">Relays</h4>
+                <p className="text-sm text-muted-foreground">Relays configurados, sugeridos y estado de conexion Nostr.</p>
             </header>
             <div className="nostr-page-content nostr-settings-body">
                 <div className="nostr-relays-content">

@@ -2,8 +2,8 @@ export function SettingsAboutPage() {
     return (
         <>
             <header className="nostr-page-header">
-                <h3 className="nostr-page-header-inline-title">About</h3>
-                <p>Informacion general de protocolo y funcionalidades disponibles.</p>
+                <h4 className="scroll-m-20 text-xl font-semibold tracking-tight">About</h4>
+                <p className="text-sm text-muted-foreground">Informacion general de protocolo y funcionalidades disponibles.</p>
             </header>
             <div className="nostr-page-content nostr-settings-body">
                 <div className="nostr-shortcuts-content">

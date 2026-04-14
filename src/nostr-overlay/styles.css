@@ -927,29 +927,6 @@
     gap: 0.2rem;
 }
 
-.nostr-page-header h3 {
-    margin: 0;
-    color: #1f3340;
-    font-size: 1.02rem;
-    font-weight: 700;
-}
-
-.nostr-page-header p {
-    margin: 0;
-    color: #425764;
-    font-size: 0.84rem;
-}
-
-.nostr-page-header-inline-title {
-    margin: 0;
-    color: #1f3340;
-    font-size: 1.02rem;
-    font-weight: 700;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-}
-
 .nostr-page-layout {
     min-height: 100%;
     display: grid;

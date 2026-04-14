@@ -8,8 +8,8 @@ export function SettingsAdvancedPage({ settingsHostRef }: SettingsAdvancedPagePr
     return (
         <>
             <header className="nostr-page-header">
-                <h3 className="nostr-page-header-inline-title">Advanced settings</h3>
-                <p>Configuracion avanzada del mapa y parametros de simulacion.</p>
+                <h4 className="scroll-m-20 text-xl font-semibold tracking-tight">Advanced settings</h4>
+                <p className="text-sm text-muted-foreground">Configuracion avanzada del mapa y parametros de simulacion.</p>
             </header>
             <div className="nostr-page-content nostr-settings-body">
                 <div className="nostr-shortcuts-content">

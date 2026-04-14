@@ -156,6 +156,24 @@ function SidebarActionsMenu({
                     </SidebarMenuItem>
                 ) : null}
 
+                {canAccessDirectMessages ? (
+                    <SidebarMenuItem>
+                        <SidebarMenuButton asChild isActive={activePath === '/chats'}>
+                            <button
+                                type="button"
+                                className="nostr-chat-icon-button"
+                                aria-label="Abrir chats"
+                                title="Chats"
+                                onClick={onOpenChat}
+                            >
+                                <MessageCircleIcon />
+                                <span>Chats</span>
+                                {chatHasUnread ? <span className="nostr-chat-unread-dot" /> : null}
+                            </button>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                ) : null}
+
                 {canAccessSocialNotifications ? (
                     <SidebarMenuItem>
                         <SidebarMenuButton asChild isActive={activePath === '/notificaciones'}>
@@ -250,15 +268,8 @@ function SidebarActionsMenu({
                     <SidebarMenuSub>
                         <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={activeSettingsView === 'ui'}>
-                                <button type="button" aria-label="Abrir Mapa UI" onClick={() => onOpenSettings('ui')}>
-                                    <span>UI</span>
-                                </button>
-                            </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                        <SidebarMenuSubItem>
-                            <SidebarMenuSubButton asChild isActive={activeSettingsView === 'shortcuts'}>
-                                <button type="button" aria-label="Abrir ajustes de shortcuts" onClick={() => onOpenSettings('shortcuts')}>
-                                    <span>Shortcuts</span>
+                                <button type="button" aria-label="Abrir ajustes de interfaz" onClick={() => onOpenSettings('ui')}>
+                                    <span>Interfaz</span>
                                 </button>
                             </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
@@ -277,6 +288,13 @@ function SidebarActionsMenu({
                             </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                         <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={activeSettingsView === 'shortcuts'}>
+                                <button type="button" aria-label="Abrir ajustes de shortcuts" onClick={() => onOpenSettings('shortcuts')}>
+                                    <span>Shortcuts</span>
+                                </button>
+                            </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={activeSettingsView === 'about'}>
                                 <button type="button" aria-label="Abrir ajustes about" onClick={() => onOpenSettings('about')}>
                                     <span>About</span>
@@ -291,24 +309,6 @@ function SidebarActionsMenu({
                             </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                     </SidebarMenuSub>
-                ) : null}
-
-                {canAccessDirectMessages ? (
-                    <SidebarMenuItem>
-                        <SidebarMenuButton asChild isActive={activePath === '/chats'}>
-                            <button
-                                type="button"
-                                className="nostr-chat-icon-button"
-                                aria-label="Abrir chats"
-                                title="Chats"
-                                onClick={onOpenChat}
-                            >
-                                <MessageCircleIcon />
-                                <span>Chats</span>
-                                {chatHasUnread ? <span className="nostr-chat-unread-dot" /> : null}
-                            </button>
-                        </SidebarMenuButton>
-                    </SidebarMenuItem>
                 ) : null}
             </SidebarMenu>
         </SidebarGroup>

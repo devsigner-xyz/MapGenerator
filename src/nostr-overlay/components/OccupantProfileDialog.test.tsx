@@ -38,6 +38,7 @@ async function waitForCondition(check: () => boolean, timeoutMs: number = 2000):
 async function selectTab(label: string): Promise<void> {
     const tab = Array.from(document.body.querySelectorAll('[data-slot="tabs-trigger"]')).find((node) =>
         (node.textContent || '').trim() === label
+        || (node.textContent || '').trim().startsWith(`${label} (`)
     ) as HTMLElement;
     expect(tab).toBeDefined();
 
@@ -100,8 +101,8 @@ describe('OccupantProfileDialog', () => {
 
         expect(tabLabels).toContain('Información');
         expect(tabLabels).toContain('Feed');
-        expect(tabLabels).toContain('Seguidores');
-        expect(tabLabels).toContain('Siguiendo');
+        expect(tabLabels).toContain('Seguidores (1)');
+        expect(tabLabels).toContain('Siguiendo (2)');
 
         expect(document.body.textContent || '').not.toContain('Cargando estadisticas...');
 

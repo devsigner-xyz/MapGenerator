@@ -13,8 +13,8 @@ export function SettingsUiPage({ uiSettings, onPersistUiSettings }: SettingsUiPa
     return (
         <>
             <header className="nostr-page-header">
-                <h3 className="nostr-page-header-inline-title">UI</h3>
-                <p>Controles de visualizacion, etiquetas y trafico del mapa.</p>
+                <h4 className="scroll-m-20 text-xl font-semibold tracking-tight">Interfaz</h4>
+                <p className="text-sm text-muted-foreground">Controles de visualizacion, etiquetas y trafico del mapa.</p>
             </header>
             <div className="nostr-page-content nostr-settings-body">
                 <div className="nostr-shortcuts-content">

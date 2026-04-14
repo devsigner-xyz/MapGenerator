@@ -390,6 +390,7 @@ async function selectActiveProfileDialogTab(label: string): Promise<void> {
 
     const tab = Array.from(dialog.querySelectorAll('[data-slot="tabs-trigger"]')).find((node) =>
         (node.textContent || '').trim() === label
+        || (node.textContent || '').trim().startsWith(`${label} (`)
     ) as HTMLElement;
     expect(tab).toBeDefined();
 
@@ -477,7 +478,7 @@ describe('Nostr overlay App', () => {
         expect(content).toContain('Accede o explora');
         expect(content).toContain('npub (solo lectura)');
         expect(content).toContain('Metodo de acceso');
-        expect(content).not.toContain('Información');
+        expect(content).not.toContain('Sobre mi');
         expect(content).not.toContain('Sigues (0)');
         expect(content).not.toContain('Seguidores (0)');
         expect(content).toContain('Visualize');
@@ -1698,7 +1699,7 @@ describe('Nostr overlay App', () => {
         expect(compactNotificationsButton).not.toBeNull();
     });
 
-    test('orders main sidebar actions as mapa/agora/notificaciones/buscar/estadisticas/descubre/ajustes', async () => {
+    test('orders main sidebar actions as mapa/agora/chats/notificaciones/buscar/estadisticas/descubre/ajustes', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const socialFeed = createSocialFeedServiceMock();
         const socialNotifications = createSocialNotificationsServiceMock();
@@ -1738,6 +1739,7 @@ describe('Nostr overlay App', () => {
         const requiredOrder = [
             'Abrir mapa',
             'Abrir Agora',
+            'Abrir chats',
             'Abrir notificaciones',
             'Abrir buscador global de usuarios',
             'Abrir estadisticas de la ciudad',
@@ -3690,7 +3692,7 @@ describe('Nostr overlay App', () => {
         await waitFor(() => (rendered.container.textContent || '').includes('Advanced settings'));
 
         const uiButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
-            (button.textContent || '').trim() === 'UI'
+            (button.textContent || '').trim() === 'Interfaz'
         ) as HTMLButtonElement;
         expect(uiButton).toBeDefined();
 
@@ -3699,7 +3701,7 @@ describe('Nostr overlay App', () => {
         });
 
         await waitFor(() => (rendered.container.textContent || '').includes('Street labels'));
-        expect(rendered.container.querySelector('button[aria-label="Abrir Mapa UI"][data-active="true"]')).not.toBeNull();
+        expect(rendered.container.querySelector('button[aria-label="Abrir ajustes de interfaz"][data-active="true"]')).not.toBeNull();
     });
 
     test('applies traffic settings on mount and after UI slider updates', async () => {
@@ -3724,7 +3726,7 @@ describe('Nostr overlay App', () => {
         expect((bridge.setTrafficParticlesCount as any)).toHaveBeenCalledWith(20);
         expect((bridge.setTrafficParticlesSpeed as any)).toHaveBeenCalledWith(1.4);
 
-        await selectSettingsContextAction(rendered.container, 'UI');
+        await selectSettingsContextAction(rendered.container, 'Interfaz');
 
         const trafficCountThumb = rendered.container.querySelector('[aria-label="Cars in city"] [data-slot="slider-thumb"]') as HTMLElement;
         const trafficSpeedThumb = rendered.container.querySelector('[aria-label="Cars speed"] [data-slot="slider-thumb"]') as HTMLElement;
@@ -3774,7 +3776,7 @@ describe('Nostr overlay App', () => {
         expect(compactButtons[2].getAttribute('aria-label')).toBe('Abrir estadisticas de la ciudad');
         expect(compactButtons[3].getAttribute('aria-label')).toBe('Abrir descubre');
         expect(compactButtons[4].getAttribute('aria-label')).toBe('Abrir ajustes');
-        expect(rendered.container.textContent || '').not.toContain('Información');
+        expect(rendered.container.textContent || '').not.toContain('Sobre mi');
         expect(rendered.container.textContent || '').not.toContain('Sigues (');
         expect(rendered.container.textContent || '').not.toContain('Seguidores (');
         expect((bridge.setViewportInsetLeft as any).mock.calls[(bridge.setViewportInsetLeft as any).mock.calls.length - 1][0]).toBe(56);
@@ -3834,7 +3836,7 @@ describe('Nostr overlay App', () => {
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
         const infoTab = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
-            (button.textContent || '').trim() === 'Información'
+            (button.textContent || '').trim() === 'Sobre mi'
         ) as HTMLButtonElement;
         const cityStatsButton = rendered.container.querySelector('button[aria-label="Abrir estadisticas de la ciudad"]') as HTMLButtonElement | null;
 
@@ -3921,7 +3923,7 @@ describe('Nostr overlay App', () => {
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
         const infoTabBeforeCollapse = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
-            (button.textContent || '').trim() === 'Información'
+            (button.textContent || '').trim() === 'Sobre mi'
         );
         expect(infoTabBeforeCollapse).toBeDefined();
 
@@ -3933,7 +3935,7 @@ describe('Nostr overlay App', () => {
         });
 
         const infoTabCollapsed = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
-            (button.textContent || '').trim() === 'Información'
+            (button.textContent || '').trim() === 'Sobre mi'
         );
         expect(infoTabCollapsed).toBeUndefined();
     });
@@ -5364,7 +5366,7 @@ describe('Nostr overlay App', () => {
             form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
         });
 
-        await waitFor(() => (rendered.container.textContent || '').includes('Información'));
+        await waitFor(() => (rendered.container.textContent || '').includes('Sobre mi'));
 
         await openSettingsContextMenu(rendered.container);
 
@@ -5380,7 +5382,7 @@ describe('Nostr overlay App', () => {
         await waitFor(() => (rendered.container.textContent || '').includes('Accede o explora'));
 
         const content = rendered.container.textContent || '';
-        expect(content).not.toContain('Información');
+        expect(content).not.toContain('Sobre mi');
         expect(content).not.toContain('Sigues (1)');
         expect(content).not.toContain('Seguidores (0)');
     });

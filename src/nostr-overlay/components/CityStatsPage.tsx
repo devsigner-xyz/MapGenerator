@@ -65,8 +65,8 @@ export function CityStatsPage({
                 <div className="nostr-city-stats-page nostr-routed-surface-panel nostr-page-layout sm:max-w-none">
                     <div className="nostr-city-stats-body">
                         <header className="nostr-page-header nostr-city-stats-header">
-                            <h3 className="nostr-page-header-inline-title">Estadisticas de la ciudad</h3>
-                            <p>Panorama de vivienda y poblacion asignada en el mapa actual.</p>
+                            <h4 className="scroll-m-20 text-xl font-semibold tracking-tight">Estadisticas de la ciudad</h4>
+                            <p className="text-sm text-muted-foreground">Panorama de vivienda y poblacion asignada en el mapa actual.</p>
                         </header>
 
                         <section className="nostr-city-kpi-grid" aria-label="KPIs de la ciudad">

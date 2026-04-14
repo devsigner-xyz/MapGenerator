@@ -147,8 +147,8 @@ export function UserSearchPage({
             <div className="nostr-routed-surface-content">
                 <div className="nostr-global-search-page nostr-routed-surface-panel nostr-page-layout">
                     <header className="nostr-page-header">
-                        <h3 className="nostr-page-header-inline-title">Buscar usuarios globalmente</h3>
-                        <p>Filtra perfiles Nostr por nombre, npub o pubkey.</p>
+                        <h4 className="scroll-m-20 text-xl font-semibold tracking-tight">Buscar usuarios globalmente</h4>
+                        <p className="text-sm text-muted-foreground">Filtra perfiles Nostr por nombre, npub o pubkey.</p>
                     </header>
 
                     <section className="nostr-page-content">

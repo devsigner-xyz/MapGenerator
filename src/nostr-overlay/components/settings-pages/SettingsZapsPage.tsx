@@ -22,8 +22,8 @@ export function SettingsZapsPage({
     return (
         <>
             <header className="nostr-page-header">
-                <h3 className="nostr-page-header-inline-title">Zaps</h3>
-                <p>Define cantidades rapidas para enviar zaps.</p>
+                <h4 className="scroll-m-20 text-xl font-semibold tracking-tight">Zaps</h4>
+                <p className="text-sm text-muted-foreground">Define cantidades rapidas para enviar zaps.</p>
             </header>
             <div className="nostr-page-content nostr-settings-body">
                 <div className="nostr-shortcuts-content">
