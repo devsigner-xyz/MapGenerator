@@ -3,6 +3,16 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
 import { OccupantProfileDialog } from './OccupantProfileDialog';
 
+const { toastSuccessMock } = vi.hoisted(() => ({
+    toastSuccessMock: vi.fn(),
+}));
+
+vi.mock('sonner', () => ({
+    toast: {
+        success: toastSuccessMock,
+    },
+}));
+
 interface RenderResult {
     container: HTMLDivElement;
     root: Root;
@@ -139,6 +149,7 @@ describe('OccupantProfileDialog', () => {
 
         expect(clipboardWriteText).toHaveBeenCalledTimes(1);
         expect((clipboardWriteText.mock.calls[0][0] as string).startsWith('npub1')).toBe(true);
+        expect(toastSuccessMock).toHaveBeenCalledWith('npub copiada', { duration: 1600 });
     });
 
     test('renders enriched about tab without avatar url row and opens avatar lightbox on click', async () => {

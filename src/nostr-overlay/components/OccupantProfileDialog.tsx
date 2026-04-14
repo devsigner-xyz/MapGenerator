@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { toast } from 'sonner';
 
 interface OccupantProfileDialogProps {
     pubkey: string;
@@ -89,6 +90,7 @@ export function OccupantProfileDialog({
 
         try {
             await navigator.clipboard.writeText(npubValue);
+            toast.success('npub copiada', { duration: 1600 });
         } catch {
             return;
         }
