@@ -1,6 +1,7 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
+import { nip19 } from 'nostr-tools';
 import { FollowingFeedSurface } from './FollowingFeedSurface';
 
 interface RenderResult {
@@ -63,6 +64,11 @@ function buildProps(overrides: Partial<Parameters<typeof FollowingFeedSurface>[0
         onToggleReaction: async () => true,
         onToggleRepost: async () => true,
         onSelectHashtag: () => {},
+        onSelectProfile: () => {},
+        onResolveProfiles: async () => {},
+        onSelectEventReference: () => {},
+        onResolveEventReferences: async () => {},
+        eventReferencesById: {},
         onCopyNoteId: () => {},
         onClearHashtag: () => {},
         ...overrides,
@@ -415,6 +421,192 @@ describe('FollowingFeedSurface', () => {
         });
 
         expect(onSelectHashtag).toHaveBeenCalledWith('nostrcity');
+    });
+
+    test('renders nostr profile mentions with resolved names and opens profile on click', async () => {
+        const mentionPubkey = 'c'.repeat(64);
+        const mentionNprofile = nip19.nprofileEncode({ pubkey: mentionPubkey });
+        const onSelectProfile = vi.fn();
+
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    onSelectProfile,
+                    profilesByPubkey: {
+                        [mentionPubkey]: {
+                            pubkey: mentionPubkey,
+                            displayName: 'Carlos Mention',
+                        },
+                    },
+                    items: [
+                        {
+                            id: 'note-mention-1',
+                            pubkey: 'a'.repeat(64),
+                            createdAt: 100,
+                            content: `hola nostr:${mentionNprofile}`,
+                            kind: 'note',
+                            rawEvent: {
+                                id: 'note-mention-1',
+                                pubkey: 'a'.repeat(64),
+                                kind: 1,
+                                created_at: 100,
+                                tags: [],
+                                content: `hola nostr:${mentionNprofile}`,
+                            },
+                        },
+                    ],
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const mentionButton = rendered.container.querySelector('button[aria-label="Abrir perfil de Carlos Mention"]') as HTMLButtonElement;
+        expect(mentionButton).toBeDefined();
+        expect(mentionButton.textContent || '').toContain('@Carlos Mention');
+
+        await act(async () => {
+            mentionButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onSelectProfile).toHaveBeenCalledWith(mentionPubkey);
+    });
+
+    test('requests profile resolution for unresolved mention pubkeys', async () => {
+        const mentionPubkey = 'd'.repeat(64);
+        const mentionNprofile = nip19.nprofileEncode({ pubkey: mentionPubkey });
+        const onResolveProfiles = vi.fn(async () => {});
+
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    onResolveProfiles,
+                    items: [
+                        {
+                            id: 'note-mention-resolve',
+                            pubkey: 'a'.repeat(64),
+                            createdAt: 100,
+                            content: `mencion nostr:${mentionNprofile}`,
+                            kind: 'note',
+                            rawEvent: {
+                                id: 'note-mention-resolve',
+                                pubkey: 'a'.repeat(64),
+                                kind: 1,
+                                created_at: 100,
+                                tags: [],
+                                content: `mencion nostr:${mentionNprofile}`,
+                            },
+                        },
+                    ],
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        });
+
+        expect(onResolveProfiles).toHaveBeenCalledWith([mentionPubkey]);
+    });
+
+    test('renders nevent references as embedded quoted note cards and opens thread callback on click', async () => {
+        const referencedEventId = 'e'.repeat(64);
+        const referencedAuthorPubkey = 'f'.repeat(64);
+        const nevent = nip19.neventEncode({ id: referencedEventId, author: referencedAuthorPubkey });
+        const onSelectEventReference = vi.fn();
+
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    onSelectEventReference,
+                    profilesByPubkey: {
+                        [referencedAuthorPubkey]: {
+                            pubkey: referencedAuthorPubkey,
+                            displayName: 'Nora Referenced',
+                        },
+                    },
+                    eventReferencesById: {
+                        [referencedEventId]: {
+                            id: referencedEventId,
+                            pubkey: referencedAuthorPubkey,
+                            kind: 1,
+                            created_at: 1700000000,
+                            tags: [],
+                            content: 'contenido de la nota citada',
+                        },
+                    },
+                    items: [
+                        {
+                            id: 'note-ref-1',
+                            pubkey: 'a'.repeat(64),
+                            createdAt: 100,
+                            content: `mira esto nostr:${nevent}`,
+                            kind: 'note',
+                            rawEvent: {
+                                id: 'note-ref-1',
+                                pubkey: 'a'.repeat(64),
+                                kind: 1,
+                                created_at: 100,
+                                tags: [],
+                                content: `mira esto nostr:${nevent}`,
+                            },
+                        },
+                    ],
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        expect(rendered.container.textContent || '').toContain('Nota referenciada');
+        expect(rendered.container.textContent || '').toContain('@Nora Referenced');
+        expect(rendered.container.textContent || '').toContain('contenido de la nota citada');
+
+        const openReferenceButton = rendered.container.querySelector(`button[aria-label="Abrir nota referenciada ${referencedEventId}"]`) as HTMLButtonElement;
+        expect(openReferenceButton).toBeDefined();
+
+        await act(async () => {
+            openReferenceButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onSelectEventReference).toHaveBeenCalledWith(referencedEventId);
+    });
+
+    test('requests unresolved nevent references for lazy loading', async () => {
+        const referencedEventId = '1'.repeat(64);
+        const nevent = nip19.neventEncode({ id: referencedEventId });
+        const onResolveEventReferences = vi.fn(async () => {});
+
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    onResolveEventReferences,
+                    items: [
+                        {
+                            id: 'note-ref-resolve',
+                            pubkey: 'a'.repeat(64),
+                            createdAt: 100,
+                            content: `referencia nostr:${nevent}`,
+                            kind: 'note',
+                            rawEvent: {
+                                id: 'note-ref-resolve',
+                                pubkey: 'a'.repeat(64),
+                                kind: 1,
+                                created_at: 100,
+                                tags: [],
+                                content: `referencia nostr:${nevent}`,
+                            },
+                        },
+                    ],
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        });
+
+        expect(onResolveEventReferences).toHaveBeenCalledWith([referencedEventId]);
     });
 
     test('opens per-post media lightbox when clicking an image', async () => {

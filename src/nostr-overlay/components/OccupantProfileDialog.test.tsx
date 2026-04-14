@@ -1,6 +1,7 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
+import { nip19 } from 'nostr-tools';
 import { OccupantProfileDialog } from './OccupantProfileDialog';
 
 const { toastSuccessMock } = vi.hoisted(() => ({
@@ -78,8 +79,14 @@ function buildProps(overrides: Partial<Parameters<typeof OccupantProfileDialog>[
             ['c'.repeat(64)]: { pubkey: 'c'.repeat(64), displayName: 'Carol' },
             ['d'.repeat(64)]: { pubkey: 'd'.repeat(64), displayName: 'Dave' },
         },
+        profilesByPubkey: {},
         networkLoading: false,
         onLoadMorePosts: vi.fn(async () => {}),
+        onSelectProfile: vi.fn(),
+        onResolveProfiles: vi.fn(async () => {}),
+        onSelectEventReference: vi.fn(),
+        onResolveEventReferences: vi.fn(async () => {}),
+        eventReferencesById: {},
         onClose: vi.fn(),
         ...overrides,
     };
@@ -419,6 +426,93 @@ describe('OccupantProfileDialog', () => {
         });
 
         expect(onSelectHashtag).toHaveBeenCalledWith('nostrcity');
+    });
+
+    test('renders profile mentions with resolved names and opens profile callback on click', async () => {
+        const mentionPubkey = 'e'.repeat(64);
+        const mentionNprofile = nip19.nprofileEncode({ pubkey: mentionPubkey });
+        const onSelectProfile = vi.fn();
+
+        const rendered = await renderElement(
+            <OccupantProfileDialog
+                {...buildProps({
+                    onSelectProfile,
+                    profilesByPubkey: {
+                        [mentionPubkey]: {
+                            pubkey: mentionPubkey,
+                            displayName: 'Elena Mention',
+                        },
+                    },
+                    posts: [
+                        {
+                            id: 'post-mention-1',
+                            pubkey: 'a'.repeat(64),
+                            createdAt: 1_700_000_000,
+                            content: `hola nostr:${mentionNprofile}`,
+                        },
+                    ],
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        await selectTab('Feed');
+        await waitForCondition(() => document.body.querySelector('button[aria-label="Abrir perfil de Elena Mention"]') !== null);
+
+        const mentionButton = document.body.querySelector('button[aria-label="Abrir perfil de Elena Mention"]') as HTMLButtonElement;
+        expect(mentionButton).toBeDefined();
+
+        await act(async () => {
+            mentionButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onSelectProfile).toHaveBeenCalledWith(mentionPubkey);
+    });
+
+    test('renders nevent references as embedded quote cards inside profile posts', async () => {
+        const referencedEventId = '9'.repeat(64);
+        const referencedAuthorPubkey = '8'.repeat(64);
+        const nevent = nip19.neventEncode({ id: referencedEventId, author: referencedAuthorPubkey });
+
+        const rendered = await renderElement(
+            <OccupantProfileDialog
+                {...buildProps({
+                    profilesByPubkey: {
+                        [referencedAuthorPubkey]: {
+                            pubkey: referencedAuthorPubkey,
+                            displayName: 'Nina Referencia',
+                        },
+                    },
+                    eventReferencesById: {
+                        [referencedEventId]: {
+                            id: referencedEventId,
+                            pubkey: referencedAuthorPubkey,
+                            kind: 1,
+                            created_at: 1700001000,
+                            tags: [],
+                            content: 'nota citada desde perfil',
+                        },
+                    },
+                    posts: [
+                        {
+                            id: 'post-event-ref-1',
+                            pubkey: 'a'.repeat(64),
+                            createdAt: 1_700_000_000,
+                            content: `cita nostr:${nevent}`,
+                        },
+                    ],
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        await selectTab('Feed');
+        await waitForCondition(() => (document.body.textContent || '').includes('Nota referenciada'));
+
+        const text = document.body.textContent || '';
+        expect(text).toContain('Nota referenciada');
+        expect(text).toContain('@Nina Referencia');
+        expect(text).toContain('nota citada desde perfil');
     });
 
     test('moves full verification indicator to information tab and shows icon badge near name', async () => {

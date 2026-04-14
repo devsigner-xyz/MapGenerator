@@ -28,7 +28,7 @@ import {
     relaySuggestionsByTypeFromKind10002Event,
 } from '../../nostr/relay-policy';
 import type { SocialNotificationsService } from '../../nostr/social-notifications-service';
-import type { NostrClient, NostrProfile } from '../../nostr/types';
+import type { NostrClient, NostrEvent, NostrProfile } from '../../nostr/types';
 import { createWriteGateway } from '../../nostr/write-gateway';
 import { createRuntimeDirectMessagesService } from '../../nostr/dm-runtime-service';
 import type { MapBridge } from '../map-bridge';
@@ -1081,6 +1081,83 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         }));
     };
 
+    const loadProfilesByPubkeys = async (pubkeys: string[]): Promise<Record<string, NostrProfile>> => {
+        const uniquePubkeys = dedupe(pubkeys)
+            .filter((pubkey) => /^[a-f0-9]{64}$/.test(pubkey));
+
+        if (uniquePubkeys.length === 0) {
+            return {};
+        }
+
+        const current = latestStateRef.current;
+        const relays = resolveOverlayRelays(current.data.relayHints);
+        const client = createClient(relays);
+        const loadedProfiles = await fetchProfilesFn(uniquePubkeys, client);
+
+        if (Object.keys(loadedProfiles).length > 0) {
+            setState((nextState) => ({
+                ...nextState,
+                data: {
+                    ...nextState.data,
+                    profiles: {
+                        ...nextState.data.profiles,
+                        ...loadedProfiles,
+                    },
+                },
+            }));
+        }
+
+        return loadedProfiles;
+    };
+
+    const loadEventsByIds = async (eventIds: string[]): Promise<Record<string, NostrEvent>> => {
+        const uniqueEventIds = dedupe(eventIds)
+            .filter((eventId) => /^[a-f0-9]{64}$/.test(eventId));
+
+        if (uniqueEventIds.length === 0) {
+            return {};
+        }
+
+        const current = latestStateRef.current;
+        const relays = resolveOverlayRelays(current.data.relayHints);
+        const client = createClient(relays);
+        const events = await client.fetchEvents({
+            ids: uniqueEventIds,
+            limit: uniqueEventIds.length,
+        });
+
+        const byId: Record<string, NostrEvent> = {};
+        for (const event of events) {
+            if (!event?.id) {
+                continue;
+            }
+
+            byId[event.id] = event;
+        }
+
+        const eventAuthors = dedupe(Object.values(byId)
+            .map((event) => event.pubkey)
+            .filter((pubkey) => typeof pubkey === 'string' && pubkey.length > 0));
+
+        if (eventAuthors.length > 0) {
+            const loadedProfiles = await fetchProfilesFn(eventAuthors, client);
+            if (Object.keys(loadedProfiles).length > 0) {
+                setState((nextState) => ({
+                    ...nextState,
+                    data: {
+                        ...nextState.data,
+                        profiles: {
+                            ...nextState.data.profiles,
+                            ...loadedProfiles,
+                        },
+                    },
+                }));
+            }
+        }
+
+        return byId;
+    };
+
     const searchUsers = async (query: string): Promise<{ pubkeys: string[]; profiles: Record<string, NostrProfile> }> => {
         const normalizedQuery = query.trim();
         if (!normalizedQuery) {
@@ -1216,6 +1293,8 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         submitNpub,
         regenerateMap,
         searchUsers,
+        loadProfilesByPubkeys,
+        loadEventsByIds,
         selectFollowing,
         openActiveProfile,
         closeActiveProfileDialog,

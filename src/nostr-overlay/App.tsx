@@ -51,6 +51,7 @@ import { resolveConservativeSocialRelaySets } from '../nostr/relay-runtime';
 import { createTransportPool } from '../nostr/transport-pool';
 import type { DmTransport } from '../nostr/dm-transport';
 import { loadRelaySettings, type RelaySettingsState } from '../nostr/relay-settings';
+import type { NostrEvent } from '../nostr/types';
 import { buildSettingsPath, settingsViewFromPathname, type SettingsRouteView } from './settings/settings-routing';
 import { useRelayConnectionSummary } from './hooks/useRelayConnectionSummary';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -125,6 +126,7 @@ export function App({ mapBridge, services }: AppProps) {
     const [activeEasterEgg, setActiveEasterEgg] = useState<EasterEggDialogState | null>(null);
     const [chatComposerFocusKey, setChatComposerFocusKey] = useState('');
     const [chatPinnedConversationId, setChatPinnedConversationId] = useState<string | null>(null);
+    const [eventReferencesById, setEventReferencesById] = useState<Record<string, NostrEvent>>({});
     const chatRouteSyncKeyRef = useRef('');
     const isMobile = useIsMobile();
     const contextMenuTriggerRef = useRef<HTMLSpanElement | null>(null);
@@ -404,13 +406,25 @@ export function App({ mapBridge, services }: AppProps) {
         service: socialFeedService,
         writeGateway: overlay.writeGateway,
     });
-    const followingFeedProfilesByPubkey = useMemo(() => ({
+    const richContentProfilesByPubkey = useMemo(() => ({
         ...overlay.followerProfiles,
         ...overlay.profiles,
+        ...activeProfileData.networkProfiles,
         ...(overlay.ownerPubkey && overlay.ownerProfile
             ? { [overlay.ownerPubkey]: overlay.ownerProfile }
             : {}),
-    }), [overlay.followerProfiles, overlay.ownerProfile, overlay.ownerPubkey, overlay.profiles]);
+        ...(overlay.activeProfilePubkey && overlay.activeProfile
+            ? { [overlay.activeProfilePubkey]: overlay.activeProfile }
+            : {}),
+    }), [
+        activeProfileData.networkProfiles,
+        overlay.activeProfile,
+        overlay.activeProfilePubkey,
+        overlay.followerProfiles,
+        overlay.ownerProfile,
+        overlay.ownerPubkey,
+        overlay.profiles,
+    ]);
 
     const chatConversations = useMemo<ChatConversationSummary[]>(() => {
         const summaries = Object.values(chatState.conversations)
@@ -566,6 +580,10 @@ export function App({ mapBridge, services }: AppProps) {
     }, [relaySettingsOwnerPubkey]);
 
     useEffect(() => {
+        setEventReferencesById({});
+    }, [overlay.ownerPubkey]);
+
+    useEffect(() => {
         if (!location.pathname.startsWith('/settings/')) {
             return;
         }
@@ -711,6 +729,46 @@ export function App({ mapBridge, services }: AppProps) {
 
         overlay.closeActiveProfileDialog();
         navigate(`/agora?tag=${encodeURIComponent(normalized)}`);
+    };
+
+    const openMentionedProfile = (pubkey: string): void => {
+        if (!pubkey) {
+            return;
+        }
+
+        overlay.openActiveProfile(pubkey);
+    };
+
+    const resolveMentionProfiles = async (pubkeys: string[]): Promise<void> => {
+        if (!pubkeys || pubkeys.length === 0) {
+            return;
+        }
+
+        await overlay.loadProfilesByPubkeys(pubkeys);
+    };
+
+    const openReferencedEventFromFeed = (eventId: string): void => {
+        if (!eventId) {
+            return;
+        }
+
+        void followingFeed.openThread(eventId);
+    };
+
+    const resolveEventReferences = async (eventIds: string[]): Promise<void> => {
+        if (!eventIds || eventIds.length === 0) {
+            return;
+        }
+
+        const loadedEvents = await overlay.loadEventsByIds(eventIds);
+        if (Object.keys(loadedEvents).length === 0) {
+            return;
+        }
+
+        setEventReferencesById((current) => ({
+            ...current,
+            ...loadedEvents,
+        }));
     };
 
     const clearFollowingFeedHashtagFilter = (): void => {
@@ -947,11 +1005,16 @@ export function App({ mapBridge, services }: AppProps) {
                     element={(
                         <FollowingFeedSurface
                             items={followingFeed.items}
-                            profilesByPubkey={followingFeedProfilesByPubkey}
+                            profilesByPubkey={richContentProfilesByPubkey}
                             engagementByEventId={followingFeed.engagementByEventId}
                             activeHashtag={followingFeed.activeHashtag}
                             onClearHashtag={followingFeed.activeHashtag ? clearFollowingFeedHashtagFilter : undefined}
                             onSelectHashtag={selectFollowingFeedHashtag}
+                            onSelectProfile={openMentionedProfile}
+                            onResolveProfiles={resolveMentionProfiles}
+                            onSelectEventReference={openReferencedEventFromFeed}
+                            onResolveEventReferences={resolveEventReferences}
+                            eventReferencesById={eventReferencesById}
                             onCopyNoteId={(noteId) => {
                                 void copyNoteIdentifier(noteId);
                             }}
@@ -1130,11 +1193,16 @@ export function App({ mapBridge, services }: AppProps) {
                     follows={activeProfileData.follows}
                     followers={activeProfileData.followers}
                     networkProfiles={activeProfileData.networkProfiles}
+                    profilesByPubkey={richContentProfilesByPubkey}
                     networkLoading={activeProfileData.networkLoading}
                     networkError={activeProfileData.networkError}
                     verification={verificationByPubkey[overlay.activeProfilePubkey]}
                     onLoadMorePosts={activeProfileData.loadMorePosts}
                     onSelectHashtag={selectProfilePostHashtag}
+                    onSelectProfile={openMentionedProfile}
+                    onResolveProfiles={resolveMentionProfiles}
+                    onResolveEventReferences={resolveEventReferences}
+                    eventReferencesById={eventReferencesById}
                     onClose={overlay.closeActiveProfileDialog}
                 />
             ) : null}

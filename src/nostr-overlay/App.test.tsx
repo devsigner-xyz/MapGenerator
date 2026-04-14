@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
+import { nip19 } from 'nostr-tools';
 import { RELAY_SETTINGS_STORAGE_KEY } from '../nostr/relay-settings';
 import { UI_SETTINGS_STORAGE_KEY } from '../nostr/ui-settings';
 import { EASTER_EGG_PROGRESS_STORAGE_KEY } from '../nostr/easter-egg-progress';
@@ -1626,6 +1627,132 @@ describe('Nostr overlay App', () => {
             hashtag: 'nostrcity',
         });
         expect(rendered.container.textContent || '').toContain('Filtrando por #nostrcity');
+    });
+
+    test('resolves nostr nprofile mentions to names and chains profile dialogs from feed and dialog posts', async () => {
+        const ownerPubkey = SAMPLE_NSEC_PUBKEY;
+        const followedPubkey = 'a'.repeat(64);
+        const firstMentionPubkey = 'b'.repeat(64);
+        const secondMentionPubkey = 'c'.repeat(64);
+        const firstMentionNprofile = nip19.nprofileEncode({ pubkey: firstMentionPubkey });
+        const secondMentionNprofile = nip19.nprofileEncode({ pubkey: secondMentionPubkey });
+        const socialFeed = createSocialFeedServiceMock();
+        const { bridge } = createMapBridgeStub();
+
+        (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mockResolvedValue({
+            items: [
+                {
+                    id: 'note-mention-feed-1',
+                    pubkey: followedPubkey,
+                    createdAt: 100,
+                    content: `hola nostr:${firstMentionNprofile}`,
+                    kind: 'note',
+                    rawEvent: {
+                        id: 'note-mention-feed-1',
+                        pubkey: followedPubkey,
+                        kind: 1,
+                        created_at: 100,
+                        tags: [],
+                        content: `hola nostr:${firstMentionNprofile}`,
+                    },
+                },
+            ],
+            hasMore: false,
+        });
+
+        const fetchLatestPostsByPubkeyFn = vi.fn().mockImplementation(async ({ pubkey }: { pubkey: string }) => {
+            if (pubkey === firstMentionPubkey) {
+                return {
+                    posts: [
+                        {
+                            id: 'post-mention-chain-1',
+                            pubkey,
+                            createdAt: 1_710_000_000,
+                            content: `cadena nostr:${secondMentionNprofile}`,
+                        },
+                    ],
+                    hasMore: false,
+                };
+            }
+
+            return {
+                posts: [],
+                hasMore: false,
+            };
+        });
+
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [followedPubkey],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockImplementation(async (pubkeys: string[]) => {
+                        const profiles: Record<string, { pubkey: string; displayName: string }> = {};
+
+                        for (const pubkey of pubkeys) {
+                            if (pubkey === ownerPubkey) {
+                                profiles[pubkey] = { pubkey, displayName: 'Owner' };
+                            }
+                            if (pubkey === followedPubkey) {
+                                profiles[pubkey] = { pubkey, displayName: 'Alice' };
+                            }
+                            if (pubkey === firstMentionPubkey) {
+                                profiles[pubkey] = { pubkey, displayName: 'Bruno Mention' };
+                            }
+                            if (pubkey === secondMentionPubkey) {
+                                profiles[pubkey] = { pubkey, displayName: 'Carla Mention' };
+                            }
+                        }
+
+                        return profiles;
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                    fetchLatestPostsByPubkeyFn,
+                    socialFeedService: socialFeed.service,
+                }}
+            />,
+            { initialEntries: ['/agora'] }
+        );
+        mounted.push(rendered);
+
+        await loginWithNsec(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+        await waitFor(() => rendered.container.querySelector('button[aria-label="Abrir perfil de Bruno Mention"]') !== null);
+
+        const feedMentionButton = rendered.container.querySelector('button[aria-label="Abrir perfil de Bruno Mention"]') as HTMLButtonElement;
+        expect(feedMentionButton).toBeDefined();
+
+        await act(async () => {
+            feedMentionButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (document.body.textContent || '').includes('Bruno Mention'));
+        expect(rendered.container.querySelector('.nostr-following-feed-surface')).not.toBeNull();
+
+        await selectActiveProfileDialogTab('Feed');
+        await waitFor(() => document.body.querySelector('button[aria-label="Abrir perfil de Carla Mention"]') !== null);
+
+        const dialogMentionButton = document.body.querySelector('button[aria-label="Abrir perfil de Carla Mention"]') as HTMLButtonElement;
+        expect(dialogMentionButton).toBeDefined();
+
+        await act(async () => {
+            dialogMentionButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (document.body.textContent || '').includes('Carla Mention'));
     });
 
     test('chats route renders chats page when entering /chats directly', async () => {

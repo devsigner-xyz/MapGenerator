@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { HeartIcon, MessageCircleIcon, Repeat2Icon, ZapIcon } from 'lucide-react';
-import type { NostrProfile } from '../../nostr/types';
+import type { NostrEvent, NostrProfile } from '../../nostr/types';
 import type { SocialEngagementMetrics, SocialFeedItem, SocialThreadItem } from '../../nostr/social-feed-service';
 import type { FollowingFeedThreadView } from '../query/following-feed.selectors';
 import { ListLoadingFooter } from './ListLoadingFooter';
@@ -41,6 +41,11 @@ export interface FollowingFeedViewProps {
     onToggleReaction: (input: { eventId: string; targetPubkey?: string; emoji?: string }) => Promise<boolean>;
     onToggleRepost: (input: { eventId: string; targetPubkey?: string; repostContent?: string }) => Promise<boolean>;
     onSelectHashtag?: (hashtag: string) => void;
+    onSelectProfile?: (pubkey: string) => void;
+    onResolveProfiles?: (pubkeys: string[]) => Promise<void> | void;
+    onSelectEventReference?: (eventId: string) => void;
+    onResolveEventReferences?: (eventIds: string[]) => Promise<void> | void;
+    eventReferencesById?: Record<string, NostrEvent>;
     onCopyNoteId?: (noteId: string) => void;
 }
 
@@ -270,6 +275,11 @@ export function FollowingFeedContent({
     onToggleReaction,
     onToggleRepost,
     onSelectHashtag,
+    onSelectProfile,
+    onResolveProfiles,
+    onSelectEventReference,
+    onResolveEventReferences,
+    eventReferencesById,
     onCopyNoteId,
 }: FollowingFeedContentProps) {
     const [postDraft, setPostDraft] = useState('');
@@ -461,6 +471,12 @@ export function FollowingFeedContent({
                                             content={cardContent}
                                             tags={item.rawEvent.tags}
                                             onSelectHashtag={onSelectHashtag}
+                                            onSelectProfile={onSelectProfile}
+                                            onResolveProfiles={onResolveProfiles}
+                                            profilesByPubkey={profilesByPubkey}
+                                            onSelectEventReference={onSelectEventReference}
+                                            onResolveEventReferences={onResolveEventReferences}
+                                            eventReferencesById={eventReferencesById}
                                             textClassName="nostr-following-feed-card-content"
                                             emptyFallback={item.kind === 'note' ? <p className="nostr-following-feed-card-content">(sin contenido)</p> : null}
                                         />
@@ -489,6 +505,12 @@ export function FollowingFeedContent({
                                                     content={embeddedRepost.content}
                                                     tags={embeddedRepost.tags}
                                                     onSelectHashtag={onSelectHashtag}
+                                                    onSelectProfile={onSelectProfile}
+                                                    onResolveProfiles={onResolveProfiles}
+                                                    profilesByPubkey={profilesByPubkey}
+                                                    onSelectEventReference={onSelectEventReference}
+                                                    onResolveEventReferences={onResolveEventReferences}
+                                                    eventReferencesById={eventReferencesById}
                                                     textClassName="nostr-following-feed-card-content"
                                                     emptyFallback={<p className="nostr-following-feed-card-content">(sin contenido)</p>}
                                                 />
@@ -577,6 +599,12 @@ export function FollowingFeedContent({
                                     content={activeThread.root.content}
                                     tags={activeThread.root.rawEvent.tags}
                                     onSelectHashtag={onSelectHashtag}
+                                    onSelectProfile={onSelectProfile}
+                                    onResolveProfiles={onResolveProfiles}
+                                    profilesByPubkey={profilesByPubkey}
+                                    onSelectEventReference={onSelectEventReference}
+                                    onResolveEventReferences={onResolveEventReferences}
+                                    eventReferencesById={eventReferencesById}
                                     textClassName="nostr-following-feed-card-content"
                                     emptyFallback={<p className="nostr-following-feed-card-content">(sin contenido)</p>}
                                 />
@@ -642,6 +670,12 @@ export function FollowingFeedContent({
                                         content={reply.content}
                                         tags={reply.rawEvent.tags}
                                         onSelectHashtag={onSelectHashtag}
+                                        onSelectProfile={onSelectProfile}
+                                        onResolveProfiles={onResolveProfiles}
+                                        profilesByPubkey={profilesByPubkey}
+                                        onSelectEventReference={onSelectEventReference}
+                                        onResolveEventReferences={onResolveEventReferences}
+                                        eventReferencesById={eventReferencesById}
                                         textClassName="nostr-following-feed-card-content"
                                         emptyFallback={<p className="nostr-following-feed-card-content">(sin contenido)</p>}
                                     />

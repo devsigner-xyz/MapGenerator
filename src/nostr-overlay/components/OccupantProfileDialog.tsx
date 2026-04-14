@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode, type UIEvent } from 'react
 import Lightbox from 'yet-another-react-lightbox';
 import type { Nip05ValidationResult } from '../../nostr/nip05';
 import { encodeHexToNpub } from '../../nostr/npub';
-import type { NostrProfile } from '../../nostr/types';
+import type { NostrEvent, NostrProfile } from '../../nostr/types';
 import type { NostrPostPreview } from '../../nostr/posts';
 import { ListLoadingFooter } from './ListLoadingFooter';
 import { Nip05Identifier } from './Nip05Identifier';
@@ -30,11 +30,17 @@ interface OccupantProfileDialogProps {
     follows: string[];
     followers: string[];
     networkProfiles: Record<string, NostrProfile>;
+    profilesByPubkey?: Record<string, NostrProfile>;
     networkLoading: boolean;
     networkError?: string;
     verification?: Nip05ValidationResult;
     onLoadMorePosts: () => Promise<void>;
     onSelectHashtag?: (hashtag: string) => void;
+    onSelectProfile?: (pubkey: string) => void;
+    onResolveProfiles?: (pubkeys: string[]) => Promise<void> | void;
+    onSelectEventReference?: (eventId: string) => void;
+    onResolveEventReferences?: (eventIds: string[]) => Promise<void> | void;
+    eventReferencesById?: Record<string, NostrEvent>;
     onClose: () => void;
 }
 
@@ -56,11 +62,17 @@ export function OccupantProfileDialog({
     follows,
     followers,
     networkProfiles,
+    profilesByPubkey,
     networkLoading,
     networkError,
     verification,
     onLoadMorePosts,
     onSelectHashtag,
+    onSelectProfile,
+    onResolveProfiles,
+    onSelectEventReference,
+    onResolveEventReferences,
+    eventReferencesById,
     onClose,
 }: OccupantProfileDialogProps) {
     const followsTimerRef = useRef<number | null>(null);
@@ -347,8 +359,14 @@ export function OccupantProfileDialog({
                                                     <RichNostrContent
                                                         content={post.content || ''}
                                                         onSelectHashtag={onSelectHashtag}
+                                                        onSelectProfile={onSelectProfile}
+                                                        onResolveProfiles={onResolveProfiles}
+                                                        profilesByPubkey={profilesByPubkey}
+                                                        onSelectEventReference={onSelectEventReference}
+                                                        onResolveEventReferences={onResolveEventReferences}
+                                                        eventReferencesById={eventReferencesById}
                                                         textClassName="nostr-profile-post-content"
-                                                        emptyFallback={<p className="nostr-profile-post-content">(sin contenido textual)</p>}
+                                                        emptyFallback={null}
                                                     />
                                                     <time className="nostr-profile-post-date" dateTime={new Date(post.createdAt * 1000).toISOString()}>
                                                         {new Date(post.createdAt * 1000).toLocaleString()}

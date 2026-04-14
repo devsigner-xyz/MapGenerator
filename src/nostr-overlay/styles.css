@@ -1803,6 +1803,89 @@
     text-decoration: underline;
 }
 
+.nostr-rich-mention {
+    border: none;
+    background: transparent;
+    color: #1f546d;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+}
+
+.nostr-rich-mention:hover {
+    text-decoration: underline;
+}
+
+.nostr-rich-event-reference-list {
+    display: grid;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.nostr-rich-event-reference {
+    border: 1px solid rgba(23, 43, 77, 0.16);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.92);
+    padding: 10px 12px;
+    text-align: left;
+}
+
+.nostr-rich-event-reference-button {
+    width: 100%;
+    border: 1px solid rgba(23, 43, 77, 0.16);
+    cursor: pointer;
+}
+
+.nostr-rich-event-reference-button:hover {
+    border-color: rgba(31, 84, 109, 0.35);
+    background: rgba(247, 251, 255, 0.95);
+}
+
+.nostr-rich-event-reference-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.nostr-rich-event-reference-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #315368;
+    font-weight: 700;
+}
+
+.nostr-rich-event-reference-author {
+    font-size: 12px;
+    color: #1f546d;
+    font-weight: 600;
+}
+
+.nostr-rich-event-reference-content {
+    margin: 6px 0 8px;
+    color: #172b4d;
+    font-size: 13px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.nostr-rich-event-reference-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    color: rgba(23, 43, 77, 0.72);
+    font-size: 11px;
+}
+
+.nostr-rich-event-reference-id {
+    font-family: ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
 .nostr-rich-media-grid {
     display: grid;
     gap: 0.34rem;
