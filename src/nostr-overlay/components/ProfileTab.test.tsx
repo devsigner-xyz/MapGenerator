@@ -1,6 +1,6 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { ProfileTab } from './ProfileTab';
 
 interface RenderResult {
@@ -18,36 +18,6 @@ async function renderElement(element: ReactElement): Promise<RenderResult> {
     });
 
     return { container, root };
-}
-
-async function waitForCondition(check: () => boolean, timeoutMs: number = 2000): Promise<void> {
-    const startedAt = Date.now();
-    while (Date.now() - startedAt < timeoutMs) {
-        if (check()) {
-            return;
-        }
-
-        await act(async () => {
-            await new Promise((resolve) => setTimeout(resolve, 20));
-        });
-    }
-
-    throw new Error('Condition was not met in time');
-}
-
-function buildSession() {
-    return {
-        method: 'nsec' as const,
-        pubkey: 'a'.repeat(64),
-        readonly: false,
-        locked: false,
-        createdAt: 123,
-        capabilities: {
-            canSign: true,
-            canEncrypt: true,
-            encryptionSchemes: ['nip44' as const],
-        },
-    };
 }
 
 let mounted: RenderResult[] = [];
@@ -70,7 +40,7 @@ afterEach(async () => {
     mounted = [];
 });
 
-describe('ProfileTab relay stats', () => {
+describe('ProfileTab', () => {
     test('does not render redundant owner identity block in information tab', async () => {
         const rendered = await renderElement(
             <ProfileTab
@@ -80,9 +50,6 @@ describe('ProfileTab relay stats', () => {
                     displayName: 'Owner',
                     picture: 'https://example.com/avatar.png',
                 }}
-                followsCount={1}
-                followersCount={2}
-                authSession={buildSession() as any}
             />
         );
         mounted.push(rendered);
@@ -94,14 +61,7 @@ describe('ProfileTab relay stats', () => {
 
     test('does not render auth hint copy when owner pubkey is missing', async () => {
         const rendered = await renderElement(
-            <ProfileTab
-                followsCount={0}
-                followersCount={0}
-                authSession={{
-                    ...buildSession(),
-                    readonly: true,
-                } as any}
-            />
+            <ProfileTab />
         );
         mounted.push(rendered);
 
@@ -112,58 +72,24 @@ describe('ProfileTab relay stats', () => {
         expect(rendered.container.textContent || '').not.toContain('Elige un metodo de login para continuar.');
     });
 
-    test('shows relay totals and connection counts in profile information tab', async () => {
-        window.localStorage.setItem(
-            'nostr.overlay.relays.v1',
-            JSON.stringify({
-                relays: ['wss://relay.general.one', 'wss://relay.inbox.one', 'wss://relay.shared.one', 'wss://relay.outbox.one'],
-                byType: {
-                    nip65Both: ['wss://relay.general.one'],
-                    nip65Read: ['wss://relay.inbox.one', 'wss://relay.shared.one'],
-                    nip65Write: ['wss://relay.outbox.one', 'wss://relay.shared.one'],
-                    dmInbox: [],
-                },
-            })
-        );
-
-        const probeRelayStatus = vi.fn(async (relayUrl: string) => relayUrl === 'wss://relay.general.one');
+    test('does not render relay stats in about tab', async () => {
         const rendered = await renderElement(
             <ProfileTab
                 ownerPubkey={'a'.repeat(64)}
-                followsCount={4}
-                followersCount={1}
-                followersLoading={false}
-                authSession={buildSession() as any}
-                canWrite
-                canEncrypt
-                relayConnectionProbe={probeRelayStatus}
             />
         );
         mounted.push(rendered);
 
-        await waitForCondition(() => {
-            const metricValues = Array.from(rendered.container.querySelectorAll('.nostr-profile-relay-stats dd'))
-                .map((node) => node.textContent?.trim() || '');
-            return metricValues.length === 3 && metricValues[0] === '5' && metricValues[1] === '1' && metricValues[2] === '4';
-        });
-
-        const metricValues = Array.from(rendered.container.querySelectorAll('.nostr-profile-relay-stats dd'))
-            .map((node) => node.textContent?.trim() || '');
-        expect(metricValues).toEqual(['5', '1', '4']);
-
-        expect(probeRelayStatus).toHaveBeenCalledWith('wss://relay.general.one', expect.any(Number));
-        expect(probeRelayStatus).toHaveBeenCalledWith('wss://relay.inbox.one', expect.any(Number));
-        expect(probeRelayStatus).toHaveBeenCalledWith('wss://relay.shared.one', expect.any(Number));
-        expect(probeRelayStatus).toHaveBeenCalledWith('wss://relay.outbox.one', expect.any(Number));
+        expect(rendered.container.querySelector('.nostr-profile-relay-stats')).toBeNull();
+        expect(rendered.container.textContent || '').not.toContain('Relays');
+        expect(rendered.container.textContent || '').not.toContain('Conectados');
+        expect(rendered.container.textContent || '').not.toContain('Sin conexión');
     });
 
     test('does not render missions block in profile tab', async () => {
         const rendered = await renderElement(
             <ProfileTab
                 ownerPubkey={'f'.repeat(64)}
-                followsCount={1}
-                followersCount={2}
-                authSession={buildSession() as any}
             />
         );
         mounted.push(rendered);

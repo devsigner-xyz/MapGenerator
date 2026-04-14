@@ -316,12 +316,14 @@ export function PeopleListTab({
 
     const listContent = people.length === 0
         ? (
-            <Empty className="nostr-people-empty">
-                <EmptyHeader>
-                    <EmptyTitle>{loading && loadingText ? loadingText : 'Sin resultados'}</EmptyTitle>
-                    <EmptyDescription>{loading && loadingText ? 'Estamos cargando mas personas.' : emptyText}</EmptyDescription>
-                </EmptyHeader>
-            </Empty>
+            <div className="nostr-people-scroll-area nostr-people-scroll-empty">
+                <Empty className="nostr-people-empty">
+                    <EmptyHeader>
+                        <EmptyTitle>{loading && loadingText ? loadingText : 'Sin resultados'}</EmptyTitle>
+                        <EmptyDescription>{loading && loadingText ? 'Estamos cargando mas personas.' : emptyText}</EmptyDescription>
+                    </EmptyHeader>
+                </Empty>
+            </div>
         )
         : shouldVirtualize ? (
             <div

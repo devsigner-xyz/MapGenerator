@@ -801,8 +801,6 @@ export function App({ mapBridge, services }: AppProps) {
                     onCopyOwnerNpub={copyOwnerIdentifier}
                     loginDisabled={loginDisabled}
                     authSession={overlay.authSession}
-                    canWrite={overlay.canWrite}
-                    canEncrypt={overlay.canEncrypt}
                     onStartSession={overlay.startSession}
                     verificationByPubkey={verificationByPubkey}
                 />

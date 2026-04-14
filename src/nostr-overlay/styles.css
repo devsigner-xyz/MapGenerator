@@ -338,6 +338,10 @@
     gap: 0.7rem;
 }
 
+.nostr-social-sidebar-authless {
+    justify-content: center;
+}
+
 .nostr-social-tabs {
     display: flex;
     flex-direction: column;
@@ -505,33 +509,6 @@
     font-size: 0.92rem;
 }
 
-.nostr-profile-relay-stats {
-    margin: 0;
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.45rem;
-}
-
-.nostr-profile-relay-stats div {
-    background: rgba(245, 249, 252, 0.9);
-    border: 1px solid rgba(196, 210, 219, 0.95);
-    border-radius: 8px;
-    padding: 0.42rem 0.48rem;
-}
-
-.nostr-profile-relay-stats dt {
-    margin: 0;
-    font-size: 0.7rem;
-    color: #476170;
-}
-
-.nostr-profile-relay-stats dd {
-    margin: 0.16rem 0 0;
-    font-weight: 600;
-    font-size: 0.88rem;
-    color: #213b47;
-}
-
 .nostr-profile-missions {
     display: grid;
     gap: 0.5rem;
@@ -616,6 +593,12 @@
     overflow: auto;
 }
 
+.nostr-people-scroll-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 .nostr-people-scroll-virtual {
     overflow: auto;
     position: relative;
@@ -659,7 +642,6 @@
 
 
 .nostr-people-empty {
-    margin-top: 0.8rem;
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;

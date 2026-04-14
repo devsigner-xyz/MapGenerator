@@ -213,7 +213,7 @@ export function OccupantProfileDialog({
                         className="nostr-profile-dialog-tabs"
                         aria-label="Secciones del perfil"
                     >
-                        <TabsList className="grid h-auto w-full grid-cols-4" aria-label="Secciones del perfil">
+                        <TabsList variant="line" className="grid h-auto w-full grid-cols-4" aria-label="Secciones del perfil">
                             <TabsTrigger value="info">Información</TabsTrigger>
                             <TabsTrigger value="feed">Feed</TabsTrigger>
                             <TabsTrigger value="followers">{`Seguidores (${followers.length})`}</TabsTrigger>

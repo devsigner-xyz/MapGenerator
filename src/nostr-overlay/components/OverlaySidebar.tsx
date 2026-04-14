@@ -119,6 +119,8 @@ function SidebarActionsMenu({
 
     const activeSettingsView = useMemo<SettingsRouteView | null>(() => settingsViewFromPathname(activePath), [activePath]);
     const isRelaysRoute = activePath === '/relays' || activePath.startsWith('/relays/');
+    const disconnectedRelaysCount = Math.max(0, relaysTotal - relaysConnectedCount);
+    const relaysBadgeTitle = `${relaysTotal} relays, ${relaysConnectedCount} conectados, ${disconnectedRelaysCount} sin conexión.`;
 
     const isSettingsActive = activeSettingsView !== null;
     const [settingsExpanded, setSettingsExpanded] = useState(isSettingsActive);
@@ -187,7 +189,7 @@ function SidebarActionsMenu({
                         <button
                             type="button"
                             aria-label="Abrir relays"
-                            title="Relays"
+                            title={relaysBadgeTitle}
                             onClick={onOpenRelays}
                         >
                             <RadioTowerIcon />
@@ -195,7 +197,9 @@ function SidebarActionsMenu({
                         </button>
                     </SidebarMenuButton>
                     {!collapsed ? (
-                        <SidebarMenuBadge>{`${relaysConnectedCount}/${relaysTotal}`}</SidebarMenuBadge>
+                        <SidebarMenuBadge>
+                            {`${relaysConnectedCount}/${relaysTotal}`}
+                        </SidebarMenuBadge>
                     ) : null}
                 </SidebarMenuItem>
 

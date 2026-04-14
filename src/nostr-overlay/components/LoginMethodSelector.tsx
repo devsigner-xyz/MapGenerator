@@ -122,25 +122,23 @@ export function LoginMethodSelector({
                         Nostr npub
                     </Label>
 
-                    <div className="nostr-npub-row">
-                        <Input
-                            id="nostr-npub-input"
-                            name="npub"
-                            placeholder="npub1..."
-                            value={npub}
-                            disabled={isBusy}
-                            onChange={(event) => setNpub(event.target.value)}
-                        />
+                    <Input
+                        id="nostr-npub-input"
+                        name="npub"
+                        placeholder="npub1..."
+                        value={npub}
+                        disabled={isBusy}
+                        onChange={(event) => setNpub(event.target.value)}
+                    />
 
-                        <Button type="submit" disabled={isBusy || npub.trim().length === 0}>
-                            {isBusy ? (
-                                <>
-                                    <Spinner data-icon="inline-start" />
-                                    Cargando...
-                                </>
-                            ) : 'Visualize'}
-                        </Button>
-                    </div>
+                    <Button type="submit" className="w-full" disabled={isBusy || npub.trim().length === 0}>
+                        {isBusy ? (
+                            <>
+                                <Spinner data-icon="inline-start" />
+                                Cargando...
+                            </>
+                        ) : 'Visualize'}
+                    </Button>
                 </form>
             ) : null}
 
@@ -164,26 +162,24 @@ export function LoginMethodSelector({
                         Passphrase para cifrar (recomendado)
                     </Label>
 
-                    <div className="nostr-npub-row">
-                        <Input
-                            id="nostr-nsec-passphrase-input"
-                            name="nsec-passphrase"
-                            type="password"
-                            placeholder="Minimo 8 caracteres"
-                            value={nsecPassphrase}
-                            disabled={isBusy}
-                            onChange={(event) => setNsecPassphrase(event.target.value)}
-                        />
+                    <Input
+                        id="nostr-nsec-passphrase-input"
+                        name="nsec-passphrase"
+                        type="password"
+                        placeholder="Minimo 8 caracteres"
+                        value={nsecPassphrase}
+                        disabled={isBusy}
+                        onChange={(event) => setNsecPassphrase(event.target.value)}
+                    />
 
-                        <Button type="submit" disabled={isBusy || nsec.trim().length === 0}>
-                            {isBusy ? (
-                                <>
-                                    <Spinner data-icon="inline-start" />
-                                    Cargando...
-                                </>
-                            ) : 'Continuar'}
-                        </Button>
-                    </div>
+                    <Button type="submit" className="w-full" disabled={isBusy || nsec.trim().length === 0}>
+                        {isBusy ? (
+                            <>
+                                <Spinner data-icon="inline-start" />
+                                Cargando...
+                            </>
+                        ) : 'Continuar'}
+                    </Button>
                 </form>
             ) : null}
 
@@ -215,20 +211,18 @@ export function LoginMethodSelector({
                         URI de bunker
                     </Label>
 
-                    <div className="nostr-npub-row">
-                        <Input
-                            id="nostr-bunker-uri-input"
-                            name="bunker-uri"
-                            placeholder="bunker://... o nostrconnect://..."
-                            value={bunkerUri}
-                            disabled={isBusy}
-                            onChange={(event) => setBunkerUri(event.target.value)}
-                        />
+                    <Input
+                        id="nostr-bunker-uri-input"
+                        name="bunker-uri"
+                        placeholder="bunker://... o nostrconnect://..."
+                        value={bunkerUri}
+                        disabled={isBusy}
+                        onChange={(event) => setBunkerUri(event.target.value)}
+                    />
 
-                        <Button type="submit" disabled={isBusy || bunkerUri.trim().length === 0}>
-                            Conectar bunker
-                        </Button>
-                    </div>
+                    <Button type="submit" className="w-full" disabled={isBusy || bunkerUri.trim().length === 0}>
+                        Conectar bunker
+                    </Button>
                 </form>
             ) : null}
         </section>
