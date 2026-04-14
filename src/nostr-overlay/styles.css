@@ -741,9 +741,28 @@
 }
 
 .nostr-dialog-pubkey {
-    margin: 0.15rem 0 0;
+    margin: 0;
     font-size: 0.78rem;
     color: #5b6f7b;
+}
+
+.nostr-dialog-pubkey-row {
+    margin: 0.15rem 0 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.12rem;
+}
+
+.nostr-dialog-copy-npub {
+    min-width: 1.15rem;
+    width: 1.15rem;
+    height: 1.15rem;
+    padding: 0;
+}
+
+.nostr-dialog-copy-npub svg {
+    width: 0.72rem;
+    height: 0.72rem;
 }
 
 .nostr-settings-dialog {

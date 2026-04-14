@@ -7,7 +7,7 @@ import type { NostrPostPreview } from '../../nostr/posts';
 import { ListLoadingFooter } from './ListLoadingFooter';
 import { Nip05Identifier } from './Nip05Identifier';
 import { RichNostrContent } from './RichNostrContent';
-import { CircleCheckIcon } from 'lucide-react';
+import { CircleCheckIcon, CopyIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
@@ -72,13 +72,27 @@ export function OccupantProfileDialog({
     const [isAvatarLightboxOpen, setIsAvatarLightboxOpen] = useState(false);
     const isNip05Verified = verification?.status === 'verified';
 
+    let npubValue = pubkey;
     let npubLabel = `${pubkey.slice(0, 10)}...${pubkey.slice(-6)}`;
     try {
-        const npub = encodeHexToNpub(pubkey);
-        npubLabel = `${npub.slice(0, 14)}...${npub.slice(-6)}`;
+        npubValue = encodeHexToNpub(pubkey);
+        npubLabel = `${npubValue.slice(0, 14)}...${npubValue.slice(-6)}`;
     } catch {
+        npubValue = pubkey;
         npubLabel = `${pubkey.slice(0, 10)}...${pubkey.slice(-6)}`;
     }
+
+    const copyNpubToClipboard = async (): Promise<void> => {
+        if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+            return;
+        }
+
+        try {
+            await navigator.clipboard.writeText(npubValue);
+        } catch {
+            return;
+        }
+    };
 
     useEffect(() => {
         setVisibleFollowsCount(Math.min(NETWORK_PAGE_SIZE, follows.length));
@@ -258,7 +272,21 @@ export function OccupantProfileDialog({
                                     </Badge>
                                 ) : null}
                             </p>
-                            <p className="nostr-dialog-pubkey">{npubLabel}</p>
+                            <div className="nostr-dialog-pubkey-row">
+                                <p className="nostr-dialog-pubkey">{npubLabel}</p>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    className="nostr-dialog-copy-npub"
+                                    aria-label="Copiar npub"
+                                    title="Copiar npub"
+                                    onClick={() => {
+                                        void copyNpubToClipboard();
+                                    }}
+                                >
+                                    <CopyIcon aria-hidden="true" />
+                                </Button>
+                            </div>
                         </div>
                     </div>
 
@@ -269,7 +297,7 @@ export function OccupantProfileDialog({
                         aria-label="Secciones del perfil"
                     >
                         <TabsList variant="line" className="grid h-auto w-full grid-cols-4" aria-label="Secciones del perfil">
-                            <TabsTrigger value="info">Sobre mi</TabsTrigger>
+                            <TabsTrigger value="info">Información</TabsTrigger>
                             <TabsTrigger value="feed">Feed</TabsTrigger>
                             <TabsTrigger value="followers">{`Seguidores (${followers.length})`}</TabsTrigger>
                             <TabsTrigger value="following">{`Siguiendo (${follows.length})`}</TabsTrigger>
@@ -328,15 +356,17 @@ export function OccupantProfileDialog({
                                     ) : null}
 
                                     {postsLoading && posts.length === 0 ? (
-                                        <Empty className="nostr-profile-posts-empty">
-                                            <EmptyHeader>
-                                                <EmptyMedia variant="icon">
-                                                    <Spinner />
-                                                </EmptyMedia>
-                                                <EmptyTitle>Cargando publicaciones</EmptyTitle>
-                                                <EmptyDescription>Estamos consultando las notas del usuario.</EmptyDescription>
-                                            </EmptyHeader>
-                                        </Empty>
+                                        <div className="nostr-profile-posts-empty-state">
+                                            <Empty className="nostr-profile-posts-empty">
+                                                <EmptyHeader>
+                                                    <EmptyMedia variant="icon">
+                                                        <Spinner />
+                                                    </EmptyMedia>
+                                                    <EmptyTitle>Cargando publicaciones</EmptyTitle>
+                                                    <EmptyDescription>Estamos consultando las notas del usuario.</EmptyDescription>
+                                                </EmptyHeader>
+                                            </Empty>
+                                        </div>
                                     ) : null}
 
                                     {postsLoading && posts.length > 0 ? <ListLoadingFooter loading label="Cargando publicaciones..." /> : null}

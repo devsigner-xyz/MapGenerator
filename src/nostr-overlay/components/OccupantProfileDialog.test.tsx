@@ -103,7 +103,7 @@ describe('OccupantProfileDialog', () => {
         const tabLabels = Array.from(document.body.querySelectorAll('[data-slot="tabs-trigger"]'))
             .map((node) => (node.textContent || '').trim());
 
-        expect(tabLabels).toContain('Sobre mi');
+        expect(tabLabels).toContain('Información');
         expect(tabLabels).toContain('Feed');
         expect(tabLabels).toContain('Seguidores (1)');
         expect(tabLabels).toContain('Siguiendo (2)');
@@ -117,6 +117,28 @@ describe('OccupantProfileDialog', () => {
         const subheadings = Array.from(document.body.querySelectorAll('h5')).map((node) => (node.textContent || '').trim());
         expect(subheadings).not.toContain('Sigue a');
         expect(subheadings).not.toContain('Le siguen');
+    });
+
+    test('shows copy npub action next to npub and writes full npub to clipboard', async () => {
+        const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+        Object.assign(navigator, {
+            clipboard: {
+                writeText: clipboardWriteText,
+            },
+        });
+
+        const rendered = await renderElement(<OccupantProfileDialog {...buildProps()} />);
+        mounted.push(rendered);
+
+        const copyButton = document.body.querySelector('button[aria-label="Copiar npub"]') as HTMLButtonElement;
+        expect(copyButton).toBeDefined();
+
+        await act(async () => {
+            copyButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(clipboardWriteText).toHaveBeenCalledTimes(1);
+        expect((clipboardWriteText.mock.calls[0][0] as string).startsWith('npub1')).toBe(true);
     });
 
     test('renders enriched about tab without avatar url row and opens avatar lightbox on click', async () => {
@@ -153,7 +175,7 @@ describe('OccupantProfileDialog', () => {
         expect(header).toBeDefined();
         expect((banner.compareDocumentPosition(header) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(true);
 
-        await selectTab('Sobre mi');
+        await selectTab('Información');
         await waitForCondition(() => (document.body.textContent || '').includes('Construyendo sobre Nostr.'));
 
         const text = document.body.textContent || '';
@@ -193,10 +215,14 @@ describe('OccupantProfileDialog', () => {
         await waitForCondition(() => (document.body.textContent || '').includes('Cargando publicaciones'));
         expect(document.body.textContent || '').not.toContain('Notas');
 
-        const feedEmpty = document.body.querySelector('.nostr-profile-posts-empty[data-slot="empty"]') as HTMLElement;
-        expect(feedEmpty).toBeDefined();
+        const feedEmpty = document.body.querySelector('.nostr-profile-posts-empty[data-slot="empty"]') as HTMLElement | null;
+        expect(feedEmpty).not.toBeNull();
         expect(feedEmpty.querySelector('[aria-label="Loading"]')).not.toBeNull();
         expect(feedEmpty.textContent || '').toContain('Cargando publicaciones');
+
+        const centeredLoading = document.body.querySelector('.nostr-profile-posts-empty-state') as HTMLElement | null;
+        expect(centeredLoading).not.toBeNull();
+        expect(centeredLoading?.contains(feedEmpty)).toBe(true);
     });
 
     test('uses centered shadcn empty state without spinner when feed has no posts', async () => {
