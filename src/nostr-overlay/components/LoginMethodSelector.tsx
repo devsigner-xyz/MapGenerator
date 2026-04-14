@@ -97,8 +97,6 @@ export function LoginMethodSelector({
 
     return (
         <section className="nostr-login-selector" aria-label="Selector de login de Nostr">
-            <p className="nostr-kicker">Accede o explora</p>
-
             <div className="nostr-form">
                 <Label className="nostr-label" htmlFor="nostr-login-method-trigger">
                     Metodo de acceso
@@ -128,14 +126,13 @@ export function LoginMethodSelector({
                         <Input
                             id="nostr-npub-input"
                             name="npub"
-                            className="nostr-input"
                             placeholder="npub1..."
                             value={npub}
                             disabled={isBusy}
                             onChange={(event) => setNpub(event.target.value)}
                         />
 
-                        <Button className="nostr-submit" type="submit" disabled={isBusy || npub.trim().length === 0}>
+                        <Button type="submit" disabled={isBusy || npub.trim().length === 0}>
                             {isBusy ? (
                                 <>
                                     <Spinner data-icon="inline-start" />
@@ -156,7 +153,6 @@ export function LoginMethodSelector({
                     <Input
                         id="nostr-nsec-input"
                         name="nsec"
-                        className="nostr-input"
                         type="password"
                         placeholder="nsec1..."
                         value={nsec}
@@ -172,7 +168,6 @@ export function LoginMethodSelector({
                         <Input
                             id="nostr-nsec-passphrase-input"
                             name="nsec-passphrase"
-                            className="nostr-input"
                             type="password"
                             placeholder="Minimo 8 caracteres"
                             value={nsecPassphrase}
@@ -180,7 +175,7 @@ export function LoginMethodSelector({
                             onChange={(event) => setNsecPassphrase(event.target.value)}
                         />
 
-                        <Button className="nostr-submit" type="submit" disabled={isBusy || nsec.trim().length === 0}>
+                        <Button type="submit" disabled={isBusy || nsec.trim().length === 0}>
                             {isBusy ? (
                                 <>
                                     <Spinner data-icon="inline-start" />
@@ -197,7 +192,6 @@ export function LoginMethodSelector({
                     <p className="nostr-label">Usa tu extension Nostr para firmar sin exponer tu clave privada.</p>
                     <Button
                         type="button"
-                        className="nostr-submit"
                         onClick={() => {
                             void run(async () => {
                                 await onStartSession('nip07', {});
@@ -225,14 +219,13 @@ export function LoginMethodSelector({
                         <Input
                             id="nostr-bunker-uri-input"
                             name="bunker-uri"
-                            className="nostr-input"
                             placeholder="bunker://... o nostrconnect://..."
                             value={bunkerUri}
                             disabled={isBusy}
                             onChange={(event) => setBunkerUri(event.target.value)}
                         />
 
-                        <Button className="nostr-submit" type="submit" disabled={isBusy || bunkerUri.trim().length === 0}>
+                        <Button type="submit" disabled={isBusy || bunkerUri.trim().length === 0}>
                             Conectar bunker
                         </Button>
                     </div>

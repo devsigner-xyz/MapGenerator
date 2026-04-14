@@ -475,7 +475,7 @@ describe('Nostr overlay App', () => {
         const content = rendered.container.textContent || '';
 
         expect(npubInput).not.toBeNull();
-        expect(content).toContain('Accede o explora');
+        expect(content).not.toContain('Accede o explora');
         expect(content).toContain('npub (solo lectura)');
         expect(content).toContain('Metodo de acceso');
         expect(content).not.toContain('Sobre mi');
@@ -2413,6 +2413,7 @@ describe('Nostr overlay App', () => {
 
         const firstSaved = JSON.parse(window.localStorage.getItem(UI_SETTINGS_STORAGE_KEY) || '{}');
         expect(firstSaved.specialMarkersEnabled).toBe(false);
+        await waitFor(() => (document.body.textContent || '').includes('Iconos especiales desactivados'));
 
         await act(async () => {
             specialMarkersButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -2420,6 +2421,7 @@ describe('Nostr overlay App', () => {
 
         const secondSaved = JSON.parse(window.localStorage.getItem(UI_SETTINGS_STORAGE_KEY) || '{}');
         expect(secondSaved.specialMarkersEnabled).toBe(true);
+        await waitFor(() => (document.body.textContent || '').includes('Iconos especiales activados'));
     });
 
     test('toggles street labels from floating controls', async () => {
@@ -2451,6 +2453,10 @@ describe('Nostr overlay App', () => {
         });
 
         expect((bridge.setStreetLabelsEnabled as any).mock.calls.at(-1)?.[0]).toBe(true);
+        await waitFor(() => (document.body.textContent || '').includes('Etiquetas de calles activadas'));
+        const saved = JSON.parse(window.localStorage.getItem(UI_SETTINGS_STORAGE_KEY) || '{}');
+        expect(saved.streetLabelsZoomLevel).toBe(1);
+        expect((bridge.setStreetLabelsZoomLevel as any).mock.calls.at(-1)?.[0]).toBe(1);
     });
 
     test('toggles cars from floating controls restoring previous count', async () => {
@@ -2479,6 +2485,7 @@ describe('Nostr overlay App', () => {
         });
 
         expect((bridge.setTrafficParticlesCount as any).mock.calls.at(-1)?.[0]).toBe(0);
+        await waitFor(() => (document.body.textContent || '').includes('Coches desactivados'));
 
         await act(async () => {
             carsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -2490,6 +2497,7 @@ describe('Nostr overlay App', () => {
         });
 
         expect((bridge.setTrafficParticlesCount as any).mock.calls.at(-1)?.[0]).toBe(18);
+        await waitFor(() => (document.body.textContent || '').includes('Coches activados'));
     });
 
     test('shows owner profile actions menu and runs locate/copy actions', async () => {
@@ -2549,6 +2557,9 @@ describe('Nostr overlay App', () => {
 
         const actionsButton = rendered.container.querySelector('button[aria-label="Abrir menu de usuario"]') as HTMLButtonElement;
         expect(actionsButton).toBeDefined();
+        const userMenuSection = actionsButton.closest('[data-slot="sidebar-menu"]') as HTMLElement;
+        expect(userMenuSection).toBeDefined();
+        expect(userMenuSection.className).toContain('border-t');
 
         await openDropdownTrigger(actionsButton);
 
@@ -5162,7 +5173,7 @@ describe('Nostr overlay App', () => {
         expect(rendered.queryClient.getQueryData(activeProfilePostsKey)).toBeDefined();
 
         await selectUserMenuAction(rendered.container, 'Cerrar sesión');
-        await waitFor(() => (rendered.container.textContent || '').includes('Accede o explora'));
+        await waitFor(() => (rendered.container.textContent || '').includes('Metodo de acceso'));
 
         expect(rendered.queryClient.getQueryData(followingFeedKey)).toBeUndefined();
         expect(rendered.queryClient.getQueryData(notificationsKey)).toBeUndefined();
@@ -5222,7 +5233,7 @@ describe('Nostr overlay App', () => {
         await waitFor(() => (rendered.container.textContent || '').includes('1/3'));
 
         await selectUserMenuAction(rendered.container, 'Cerrar sesión');
-        await waitFor(() => (rendered.container.textContent || '').includes('Accede o explora'));
+        await waitFor(() => (rendered.container.textContent || '').includes('Metodo de acceso'));
 
         expect(rendered.container.textContent || '').toContain('0/3');
         const storedProgressRaw = window.localStorage.getItem(`${EASTER_EGG_PROGRESS_STORAGE_KEY}:user:${ownerPubkey}`);
@@ -5306,14 +5317,14 @@ describe('Nostr overlay App', () => {
         await waitFor(() => (rendered.container.textContent || '').includes('1/3'));
 
         await selectUserMenuAction(rendered.container, 'Cerrar sesión');
-        await waitFor(() => (rendered.container.textContent || '').includes('Accede o explora'));
+        await waitFor(() => (rendered.container.textContent || '').includes('Metodo de acceso'));
 
         await submitNpub(npubB);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner-B'));
         expect(rendered.container.textContent || '').toContain('0/3');
 
         await selectUserMenuAction(rendered.container, 'Cerrar sesión');
-        await waitFor(() => (rendered.container.textContent || '').includes('Accede o explora'));
+        await waitFor(() => (rendered.container.textContent || '').includes('Metodo de acceso'));
 
         await submitNpub(npubA);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner-A'));
@@ -5379,7 +5390,7 @@ describe('Nostr overlay App', () => {
 
         await selectUserMenuAction(rendered.container, 'Cerrar sesión');
 
-        await waitFor(() => (rendered.container.textContent || '').includes('Accede o explora'));
+        await waitFor(() => (rendered.container.textContent || '').includes('Metodo de acceso'));
 
         const content = rendered.container.textContent || '';
         expect(content).not.toContain('Sobre mi');

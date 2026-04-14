@@ -661,7 +661,14 @@ export function App({ mapBridge, services }: AppProps) {
         setUiSettings((currentSettings) => saveUiSettings({
             ...currentSettings,
             streetLabelsEnabled: enabled,
+            streetLabelsZoomLevel: enabled
+                ? Math.min(
+                    currentSettings.streetLabelsZoomLevel,
+                    Math.max(1, Math.min(20, Math.floor(mapBridge?.getZoom() ?? 1)))
+                )
+                : currentSettings.streetLabelsZoomLevel,
         }));
+        toast.success(enabled ? 'Etiquetas de calles activadas' : 'Etiquetas de calles desactivadas', { duration: 1800 });
     };
 
     const setSpecialMarkersQuickToggle = (enabled: boolean): void => {
@@ -669,6 +676,7 @@ export function App({ mapBridge, services }: AppProps) {
             ...currentSettings,
             specialMarkersEnabled: enabled,
         }));
+        toast.success(enabled ? 'Iconos especiales activados' : 'Iconos especiales desactivados', { duration: 1800 });
     };
 
     const setCarsQuickToggle = (enabled: boolean): void => {
@@ -692,6 +700,7 @@ export function App({ mapBridge, services }: AppProps) {
                 trafficParticlesCount: 0,
             });
         });
+        toast.success(enabled ? 'Coches activados' : 'Coches desactivados', { duration: 1800 });
     };
 
     const openSettingsPage = (view: SettingsRouteView = 'ui'): void => {

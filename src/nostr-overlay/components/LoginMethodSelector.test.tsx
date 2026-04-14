@@ -62,7 +62,7 @@ describe('LoginMethodSelector', () => {
         const npubInput = rendered.container.querySelector('input[name="npub"]');
         const methodSelectTrigger = rendered.container.querySelector('[data-slot="select-trigger"]');
 
-        expect(content).toContain('Accede o explora');
+        expect(content).not.toContain('Accede o explora');
         expect(content).toContain('npub (solo lectura)');
         expect(content).toContain('Metodo de acceso');
         expect(methodSelectTrigger).not.toBeNull();

@@ -373,7 +373,7 @@ function SidebarUserMenu({
         : shortPubkey;
 
     return (
-        <SidebarMenu>
+        <SidebarMenu className="mt-1 border-t border-sidebar-border/60 pt-2">
             <SidebarMenuItem>
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
