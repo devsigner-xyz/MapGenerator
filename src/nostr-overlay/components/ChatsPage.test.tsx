@@ -96,7 +96,7 @@ describe('ChatsPage', () => {
         expect(rendered.container.textContent || '').toContain('Sin conversaciones');
     });
 
-    test('shows loader while bootstrapping conversations', async () => {
+    test('shows full-page shadcn empty loading state while bootstrapping conversations', async () => {
         const rendered = await renderElement(
             <ChatsPage
                 hasUnreadGlobal={false}
@@ -111,13 +111,17 @@ describe('ChatsPage', () => {
         );
         mounted.push(rendered);
 
-        expect(rendered.container.textContent || '').toContain('Cargando conversaciones...');
+        expect(rendered.container.textContent || '').toContain('Cargando conversaciones');
 
-        const spinner = rendered.container.querySelector('.nostr-chat-loading [aria-label="Loading"]');
+        const loadingEmpty = rendered.container.querySelector('.nostr-chats-loading-empty[data-slot="empty"]') as HTMLElement;
+        expect(loadingEmpty).toBeDefined();
+
+        const spinner = loadingEmpty.querySelector('[aria-label="Loading"]');
         expect(spinner).not.toBeNull();
-        const spinnerClasses = spinner?.getAttribute('class') || '';
-        expect(spinnerClasses).toContain('size-4');
-        expect(spinnerClasses).not.toContain('nostr-list-loading-spinner');
+
+        expect(rendered.container.querySelector('.nostr-chat-layout')).toBeNull();
+        expect(rendered.container.querySelector('.nostr-chat-list-panel')).toBeNull();
+        expect(rendered.container.querySelector('.nostr-chat-detail-panel')).toBeNull();
     });
 
     test('supports list/detail navigation', async () => {

@@ -1,13 +1,17 @@
-import { useEffect, useRef, useState, type UIEvent } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type UIEvent } from 'react';
 import type { Nip05ValidationResult } from '../../nostr/nip05';
 import { encodeHexToNpub } from '../../nostr/npub';
 import type { NostrProfile } from '../../nostr/types';
 import type { NostrPostPreview } from '../../nostr/posts';
 import { ListLoadingFooter } from './ListLoadingFooter';
 import { Nip05Identifier } from './Nip05Identifier';
+import { CircleCheckIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface OccupantProfileDialogProps {
     pubkey: string;
@@ -36,14 +40,11 @@ function resolveName(pubkey: string, profile?: NostrProfile): string {
 
 const NETWORK_PAGE_SIZE = 20;
 const NETWORK_LOAD_DELAY_MS = 120;
+type OccupantProfileTab = 'info' | 'feed' | 'followers' | 'following';
 
 export function OccupantProfileDialog({
     pubkey,
     profile,
-    followsCount,
-    followersCount,
-    statsLoading,
-    statsError,
     posts,
     postsLoading,
     postsError,
@@ -63,6 +64,8 @@ export function OccupantProfileDialog({
     const [visibleFollowersCount, setVisibleFollowersCount] = useState(() => Math.min(NETWORK_PAGE_SIZE, followers.length));
     const [followsLoadingMore, setFollowsLoadingMore] = useState(false);
     const [followersLoadingMore, setFollowersLoadingMore] = useState(false);
+    const [activeTab, setActiveTab] = useState<OccupantProfileTab>('info');
+    const isNip05Verified = verification?.status === 'verified';
 
     let npubLabel = `${pubkey.slice(0, 10)}...${pubkey.slice(-6)}`;
     try {
@@ -132,25 +135,32 @@ export function OccupantProfileDialog({
         }, NETWORK_LOAD_DELAY_MS);
     };
 
-    const handleScroll = (event: UIEvent<HTMLDivElement>): void => {
+    const handleTabScroll = (tab: OccupantProfileTab, event: UIEvent<HTMLDivElement>): void => {
         const target = event.currentTarget;
         const nearBottom = target.scrollTop + target.clientHeight >= target.scrollHeight - 32;
         if (!nearBottom) {
             return;
         }
 
-        if (hasMorePosts && !postsLoading) {
+        if (tab === 'feed' && hasMorePosts && !postsLoading) {
             void onLoadMorePosts();
         }
 
-        if (hasMoreFollows) {
+        if (tab === 'following' && hasMoreFollows) {
             scheduleLoadMoreFollows();
         }
 
-        if (hasMoreFollowers) {
+        if (tab === 'followers' && hasMoreFollowers) {
             scheduleLoadMoreFollowers();
         }
     };
+
+    const infoRows: Array<{ label: string; value: ReactNode }> = [
+        profile?.name ? { label: 'Nombre', value: profile.name } : null,
+        profile?.displayName ? { label: 'Alias', value: profile.displayName } : null,
+        profile?.nip05 ? { label: 'NIP-05', value: <Nip05Identifier profile={profile} verification={verification} /> } : null,
+        profile?.picture ? { label: 'Avatar', value: profile.picture } : null,
+    ].filter((row): row is { label: string; value: ReactNode } => row !== null);
 
     return (
         <Dialog open onOpenChange={(open) => {
@@ -158,14 +168,22 @@ export function OccupantProfileDialog({
                 onClose();
             }
         }}>
-            <DialogContent className="nostr-dialog nostr-profile-dialog" showCloseButton={false} aria-label="Perfil del ocupante">
+            <DialogContent
+                className="nostr-dialog nostr-profile-dialog"
+                style={{
+                    width: '640px',
+                    maxWidth: 'calc(100vw - 32px)',
+                }}
+                showCloseButton={false}
+                aria-label="Perfil del ocupante"
+            >
                 <DialogTitle className="sr-only">Perfil del ocupante</DialogTitle>
                 <DialogDescription className="sr-only">Datos de red social y publicaciones del ocupante.</DialogDescription>
                 <Button type="button" variant="ghost" className="nostr-dialog-close" onClick={onClose} aria-label="Cerrar perfil">
                     ×
                 </Button>
 
-                <div className="nostr-profile-dialog-body" onScroll={handleScroll}>
+                <div className="nostr-profile-dialog-body">
                     <div className="nostr-dialog-header">
                         {profile?.picture ? (
                             <img className="nostr-dialog-avatar" src={profile.picture} alt="Avatar del ocupante" />
@@ -178,93 +196,168 @@ export function OccupantProfileDialog({
                         <div>
                             <p className="nostr-dialog-name nostr-identity-row">
                                 <span className="truncate">{resolveName(pubkey, profile)}</span>
-                                <Nip05Identifier profile={profile} verification={verification} />
+                                {isNip05Verified ? (
+                                    <Badge className="nostr-verified-badge" variant="secondary" title="NIP-05 verificado" aria-label="NIP-05 verificado">
+                                        <CircleCheckIcon aria-hidden="true" className="size-3" />
+                                    </Badge>
+                                ) : null}
                             </p>
                             <p className="nostr-dialog-pubkey">{npubLabel}</p>
                         </div>
                     </div>
 
-                    <section className="nostr-profile-metrics">
-                        <h4>Red social</h4>
-                        {statsLoading ? <p className="nostr-loading">Cargando estadisticas...</p> : null}
-                        {statsError ? <p className="nostr-error">{statsError}</p> : null}
-                        {networkLoading ? <p className="nostr-loading">Cargando seguidos y seguidores...</p> : null}
-                        {networkError ? <p className="nostr-error">{networkError}</p> : null}
-                        <dl>
-                            <div>
-                                <dt>Siguiendo</dt>
-                                <dd>{followsCount}</dd>
+                    <Tabs
+                        value={activeTab}
+                        onValueChange={(value) => setActiveTab(value as OccupantProfileTab)}
+                        className="nostr-profile-dialog-tabs"
+                        aria-label="Secciones del perfil"
+                    >
+                        <TabsList className="grid h-auto w-full grid-cols-4" aria-label="Secciones del perfil">
+                            <TabsTrigger value="info">Información</TabsTrigger>
+                            <TabsTrigger value="feed">Feed</TabsTrigger>
+                            <TabsTrigger value="followers">Seguidores</TabsTrigger>
+                            <TabsTrigger value="following">Siguiendo</TabsTrigger>
+                        </TabsList>
+
+                        <TabsContent value="info" className="nostr-profile-tab-panel">
+                            <div className="nostr-profile-tab-panel-scroll" style={{ scrollbarGutter: 'stable', height: '100%' }}>
+                                <section className="nostr-profile-info">
+                                    <h4>Información</h4>
+                                    {infoRows.length === 0 ? (
+                                        <p className="nostr-empty">Sin informacion adicional disponible.</p>
+                                    ) : (
+                                        <dl className="nostr-profile-info-list">
+                                            {infoRows.map((row) => (
+                                                <div key={row.label}>
+                                                    <dt>{row.label}</dt>
+                                                    <dd>{row.value}</dd>
+                                                </div>
+                                            ))}
+                                        </dl>
+                                    )}
+                                </section>
                             </div>
-                            <div>
-                                <dt>Seguidores</dt>
-                                <dd>{followersCount}</dd>
+                        </TabsContent>
+
+                        <TabsContent value="feed" className="nostr-profile-tab-panel">
+                            <div
+                                className="nostr-profile-tab-panel-scroll"
+                                style={{ scrollbarGutter: 'stable', height: '100%' }}
+                                onScroll={(event) => handleTabScroll('feed', event)}
+                            >
+                                <section className="nostr-profile-posts">
+                                    {postsError ? <p className="nostr-error">{postsError}</p> : null}
+
+                                    {!postsError && posts.length === 0 && !postsLoading ? (
+                                        <p className="nostr-empty">No hay publicaciones recientes disponibles.</p>
+                                    ) : null}
+
+                                    {posts.length > 0 ? (
+                                        <ul className="nostr-profile-post-list">
+                                            {posts.map((post) => (
+                                                <li key={post.id} className="nostr-profile-post-item">
+                                                    <p className="nostr-profile-post-content">{post.content || '(sin contenido textual)'}</p>
+                                                    <time className="nostr-profile-post-date" dateTime={new Date(post.createdAt * 1000).toISOString()}>
+                                                        {new Date(post.createdAt * 1000).toLocaleString()}
+                                                    </time>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    ) : null}
+
+                                    {postsLoading && posts.length === 0 ? (
+                                        <Empty className="nostr-profile-posts-empty">
+                                            <EmptyHeader>
+                                                <EmptyMedia variant="icon">
+                                                    <Spinner />
+                                                </EmptyMedia>
+                                                <EmptyTitle>Cargando publicaciones</EmptyTitle>
+                                                <EmptyDescription>Estamos consultando las notas del usuario.</EmptyDescription>
+                                            </EmptyHeader>
+                                        </Empty>
+                                    ) : null}
+
+                                    {postsLoading && posts.length > 0 ? <ListLoadingFooter loading label="Cargando publicaciones..." /> : null}
+
+                                    {hasMorePosts && !postsLoading ? (
+                                        <Button type="button" className="nostr-submit nostr-posts-load-more" onClick={() => void onLoadMorePosts()}>
+                                            Cargar mas
+                                        </Button>
+                                    ) : null}
+                                </section>
                             </div>
-                        </dl>
+                        </TabsContent>
 
-                        <div className="nostr-profile-network-columns">
-                            <div>
-                                <h5>Sigue a</h5>
-                                {follows.length === 0 ? <p className="nostr-empty">Sin seguidos visibles.</p> : null}
-                                {follows.length > 0 ? (
-                                    <ul className="nostr-profile-network-list">
-                                        {visibleFollows.map((followPubkey) => (
-                                            <li key={followPubkey}>{resolveName(followPubkey, networkProfiles[followPubkey])}</li>
-                                        ))}
-                                    </ul>
-                                ) : null}
-                                <ListLoadingFooter loading={followsLoadingMore} />
+                        <TabsContent value="followers" className="nostr-profile-tab-panel">
+                            <div
+                                className="nostr-profile-tab-panel-scroll"
+                                style={{ scrollbarGutter: 'stable', height: '100%' }}
+                                onScroll={(event) => handleTabScroll('followers', event)}
+                            >
+                                <section className="nostr-profile-network-tab">
+                                    {networkLoading && followers.length === 0 ? (
+                                        <Empty className="nostr-profile-network-empty">
+                                            <EmptyHeader>
+                                                <EmptyMedia variant="icon">
+                                                    <Spinner />
+                                                </EmptyMedia>
+                                                <EmptyTitle>Cargando seguidores</EmptyTitle>
+                                                <EmptyDescription>Estamos consultando la red del usuario.</EmptyDescription>
+                                            </EmptyHeader>
+                                        </Empty>
+                                    ) : (
+                                        <>
+                                            {networkError ? <p className="nostr-error">{networkError}</p> : null}
+                                            {followers.length === 0 ? <p className="nostr-empty">Sin seguidores visibles.</p> : null}
+                                            {followers.length > 0 ? (
+                                                <ul className="nostr-profile-network-list">
+                                                    {visibleFollowers.map((followerPubkey) => (
+                                                        <li key={followerPubkey}>{resolveName(followerPubkey, networkProfiles[followerPubkey])}</li>
+                                                    ))}
+                                                </ul>
+                                            ) : null}
+                                            <ListLoadingFooter loading={followersLoadingMore} />
+                                        </>
+                                    )}
+                                </section>
                             </div>
+                        </TabsContent>
 
-                            <div>
-                                <h5>Le siguen</h5>
-                                {followers.length === 0 ? <p className="nostr-empty">Sin seguidores visibles.</p> : null}
-                                {followers.length > 0 ? (
-                                    <ul className="nostr-profile-network-list">
-                                        {visibleFollowers.map((followerPubkey) => (
-                                            <li key={followerPubkey}>{resolveName(followerPubkey, networkProfiles[followerPubkey])}</li>
-                                        ))}
-                                    </ul>
-                                ) : null}
-                                <ListLoadingFooter loading={followersLoadingMore} />
+                        <TabsContent value="following" className="nostr-profile-tab-panel">
+                            <div
+                                className="nostr-profile-tab-panel-scroll"
+                                style={{ scrollbarGutter: 'stable', height: '100%' }}
+                                onScroll={(event) => handleTabScroll('following', event)}
+                            >
+                                <section className="nostr-profile-network-tab">
+                                    {networkLoading && follows.length === 0 ? (
+                                        <Empty className="nostr-profile-network-empty">
+                                            <EmptyHeader>
+                                                <EmptyMedia variant="icon">
+                                                    <Spinner />
+                                                </EmptyMedia>
+                                                <EmptyTitle>Cargando seguidos</EmptyTitle>
+                                                <EmptyDescription>Estamos consultando la red del usuario.</EmptyDescription>
+                                            </EmptyHeader>
+                                        </Empty>
+                                    ) : (
+                                        <>
+                                            {networkError ? <p className="nostr-error">{networkError}</p> : null}
+                                            {follows.length === 0 ? <p className="nostr-empty">Sin seguidos visibles.</p> : null}
+                                            {follows.length > 0 ? (
+                                                <ul className="nostr-profile-network-list">
+                                                    {visibleFollows.map((followPubkey) => (
+                                                        <li key={followPubkey}>{resolveName(followPubkey, networkProfiles[followPubkey])}</li>
+                                                    ))}
+                                                </ul>
+                                            ) : null}
+                                            <ListLoadingFooter loading={followsLoadingMore} />
+                                        </>
+                                    )}
+                                </section>
                             </div>
-                        </div>
-                    </section>
-
-                    <section className="nostr-profile-posts">
-                        <h4>Ultimas publicaciones</h4>
-
-                        {postsError ? <p className="nostr-error">{postsError}</p> : null}
-
-                        {!postsError && posts.length === 0 && !postsLoading ? (
-                            <p className="nostr-empty">No hay publicaciones recientes disponibles.</p>
-                        ) : null}
-
-                        {posts.length > 0 ? (
-                            <ul className="nostr-profile-post-list">
-                                {posts.map((post) => (
-                                    <li key={post.id} className="nostr-profile-post-item">
-                                        <p className="nostr-profile-post-content">{post.content || '(sin contenido textual)'}</p>
-                                        <time className="nostr-profile-post-date" dateTime={new Date(post.createdAt * 1000).toISOString()}>
-                                            {new Date(post.createdAt * 1000).toLocaleString()}
-                                        </time>
-                                    </li>
-                                ))}
-                            </ul>
-                        ) : null}
-
-                        {postsLoading ? (
-                            <div className="nostr-loading nostr-posts-loading" role="status" aria-live="polite">
-                                <Spinner />
-                                <span>Cargando publicaciones...</span>
-                            </div>
-                        ) : null}
-
-                        {hasMorePosts && !postsLoading ? (
-                            <Button type="button" className="nostr-submit nostr-posts-load-more" onClick={() => void onLoadMorePosts()}>
-                                Cargar mas
-                            </Button>
-                        ) : null}
-                    </section>
+                        </TabsContent>
+                    </Tabs>
                 </div>
             </DialogContent>
         </Dialog>

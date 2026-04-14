@@ -8,7 +8,6 @@ import {
     LogOutIcon,
     MapPinIcon,
     MessageCircleIcon,
-    RefreshCcwIcon,
     SearchIcon,
     Settings2Icon,
     UserRoundIcon,
@@ -63,14 +62,12 @@ interface OverlaySidebarProps {
     chatHasUnread: boolean;
     notificationsHasUnread: boolean;
     followingFeedHasUnread: boolean;
-    regenerateDisabled: boolean;
     onOpenMap: () => void;
     onOpenCityStats: () => void;
     onOpenChat: () => void;
     onOpenNotifications: () => void;
     onOpenFollowingFeed: () => void;
     onOpenGlobalSearch: () => void;
-    onRegenerateMap: () => void | Promise<void>;
     onOpenSettings: (view: SettingsRouteView) => void;
     onLogout?: () => void | Promise<void>;
     onCopyOwnerNpub?: (value: string) => void | Promise<void>;
@@ -91,27 +88,23 @@ function resolveInitials(profile: NostrProfile | undefined, fallback: string): s
 }
 
 function SidebarActionsMenu({
-    authSession,
     canAccessDirectMessages,
     canAccessSocialNotifications,
     canAccessFollowingFeed,
     chatHasUnread,
     notificationsHasUnread,
     followingFeedHasUnread,
-    regenerateDisabled,
     onOpenMap,
     onOpenCityStats,
     onOpenChat,
     onOpenNotifications,
     onOpenFollowingFeed,
     onOpenGlobalSearch,
-    onRegenerateMap,
     onOpenSettings,
-    onLogout,
     missionsDiscoveredCount,
     missionsTotal,
     onOpenMissions,
-}: Omit<OverlaySidebarProps, 'open' | 'onOpenChange' | 'ownerPubkey' | 'ownerProfile' | 'onCopyOwnerNpub' | 'onLocateOwner' | 'onViewOwnerDetails' | 'children'>) {
+}: Omit<OverlaySidebarProps, 'open' | 'onOpenChange' | 'authSession' | 'ownerPubkey' | 'ownerProfile' | 'onCopyOwnerNpub' | 'onLocateOwner' | 'onViewOwnerDetails' | 'onLogout' | 'children'>) {
     const { state } = useSidebar();
     const location = useLocation();
     const collapsed = state === 'collapsed';
@@ -145,33 +138,19 @@ function SidebarActionsMenu({
                     </SidebarMenuButton>
                 </SidebarMenuItem>
 
-                <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={activePath === '/estadisticas'}>
-                        <button
-                            type="button"
-                            aria-label="Abrir estadisticas de la ciudad"
-                            title="City stats"
-                            onClick={onOpenCityStats}
-                        >
-                            <ChartColumnIcon />
-                            <span>Estadisticas</span>
-                        </button>
-                    </SidebarMenuButton>
-                </SidebarMenuItem>
-
-                {canAccessDirectMessages ? (
+                {canAccessFollowingFeed ? (
                     <SidebarMenuItem>
-                        <SidebarMenuButton asChild isActive={activePath === '/chats'}>
+                        <SidebarMenuButton asChild isActive={activePath === '/agora'}>
                             <button
                                 type="button"
-                                className="nostr-chat-icon-button"
-                                aria-label="Abrir chats"
-                                title="Chats"
-                                onClick={onOpenChat}
+                                className="nostr-following-feed-icon-button"
+                                aria-label="Abrir Agora"
+                                title="Agora"
+                                onClick={onOpenFollowingFeed}
                             >
-                                <MessageCircleIcon />
-                                <span>Chats</span>
-                                {chatHasUnread ? <span className="nostr-chat-unread-dot" /> : null}
+                                <UsersIcon />
+                                <span>Agora</span>
+                                {followingFeedHasUnread ? <span className="nostr-following-feed-unread-dot" /> : null}
                             </button>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -195,23 +174,33 @@ function SidebarActionsMenu({
                     </SidebarMenuItem>
                 ) : null}
 
-                {canAccessFollowingFeed ? (
-                    <SidebarMenuItem>
-                        <SidebarMenuButton asChild isActive={activePath === '/agora'}>
-                            <button
-                                type="button"
-                                className="nostr-following-feed-icon-button"
-                                aria-label="Abrir Agora"
-                                title="Agora"
-                                onClick={onOpenFollowingFeed}
-                            >
-                                <UsersIcon />
-                                <span>Agora</span>
-                                {followingFeedHasUnread ? <span className="nostr-following-feed-unread-dot" /> : null}
-                            </button>
-                        </SidebarMenuButton>
-                    </SidebarMenuItem>
-                ) : null}
+                <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={activePath === '/buscar-usuarios'}>
+                        <button
+                            type="button"
+                            aria-label="Abrir buscador global de usuarios"
+                            title="Buscar usuarios"
+                            onClick={onOpenGlobalSearch}
+                        >
+                            <SearchIcon />
+                            <span>Buscar usuarios</span>
+                        </button>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
+
+                <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={activePath === '/estadisticas'}>
+                        <button
+                            type="button"
+                            aria-label="Abrir estadisticas de la ciudad"
+                            title="City stats"
+                            onClick={onOpenCityStats}
+                        >
+                            <ChartColumnIcon />
+                            <span>Estadisticas</span>
+                        </button>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
 
                 <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={activePath === '/descubre'}>
@@ -228,20 +217,6 @@ function SidebarActionsMenu({
                     {!collapsed ? (
                         <SidebarMenuBadge>{`${missionsDiscoveredCount}/${missionsTotal}`}</SidebarMenuBadge>
                     ) : null}
-                </SidebarMenuItem>
-
-                <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={activePath === '/buscar-usuarios'}>
-                        <button
-                            type="button"
-                            aria-label="Abrir buscador global de usuarios"
-                            title="Buscar usuarios"
-                            onClick={onOpenGlobalSearch}
-                        >
-                            <SearchIcon />
-                            <span>Buscar usuarios</span>
-                        </button>
-                    </SidebarMenuButton>
                 </SidebarMenuItem>
 
                 <SidebarMenuItem>
@@ -315,40 +290,26 @@ function SidebarActionsMenu({
                                 </button>
                             </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
-                        {authSession ? (
-                            <SidebarMenuSubItem>
-                                <SidebarMenuSubButton asChild>
-                                    <button
-                                        type="button"
-                                        aria-label="Cerrar sesión"
-                                        onClick={() => {
-                                            void onLogout?.();
-                                        }}
-                                    >
-                                        <span>Cerrar sesión</span>
-                                    </button>
-                                </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                        ) : null}
                     </SidebarMenuSub>
                 ) : null}
 
-                <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                        <button
-                            type="button"
-                            aria-label="Regenerar mapa"
-                            title="New map"
-                            onClick={() => {
-                                void onRegenerateMap();
-                            }}
-                            disabled={regenerateDisabled}
-                        >
-                            <RefreshCcwIcon />
-                            <span>Regenerar mapa</span>
-                        </button>
-                    </SidebarMenuButton>
-                </SidebarMenuItem>
+                {canAccessDirectMessages ? (
+                    <SidebarMenuItem>
+                        <SidebarMenuButton asChild isActive={activePath === '/chats'}>
+                            <button
+                                type="button"
+                                className="nostr-chat-icon-button"
+                                aria-label="Abrir chats"
+                                title="Chats"
+                                onClick={onOpenChat}
+                            >
+                                <MessageCircleIcon />
+                                <span>Chats</span>
+                                {chatHasUnread ? <span className="nostr-chat-unread-dot" /> : null}
+                            </button>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                ) : null}
             </SidebarMenu>
         </SidebarGroup>
     );
@@ -502,14 +463,12 @@ export function OverlaySidebar({
     chatHasUnread,
     notificationsHasUnread,
     followingFeedHasUnread,
-    regenerateDisabled,
     onOpenMap,
     onOpenCityStats,
     onOpenChat,
     onOpenNotifications,
     onOpenFollowingFeed,
     onOpenGlobalSearch,
-    onRegenerateMap,
     onOpenSettings,
     onLogout,
     onCopyOwnerNpub,
@@ -536,23 +495,19 @@ export function OverlaySidebar({
                 </SidebarContent>
                 <SidebarFooter className="pt-0">
                     <SidebarActionsMenu
-                        authSession={authSession}
                         canAccessDirectMessages={canAccessDirectMessages}
                         canAccessSocialNotifications={canAccessSocialNotifications}
                         canAccessFollowingFeed={canAccessFollowingFeed}
                         chatHasUnread={chatHasUnread}
                         notificationsHasUnread={notificationsHasUnread}
                         followingFeedHasUnread={followingFeedHasUnread}
-                        regenerateDisabled={regenerateDisabled}
                         onOpenMap={onOpenMap}
                         onOpenCityStats={onOpenCityStats}
                         onOpenChat={onOpenChat}
                         onOpenNotifications={onOpenNotifications}
                         onOpenFollowingFeed={onOpenFollowingFeed}
                         onOpenGlobalSearch={onOpenGlobalSearch}
-                        onRegenerateMap={onRegenerateMap}
                         onOpenSettings={onOpenSettings}
-                        onLogout={onLogout}
                         missionsDiscoveredCount={missionsDiscoveredCount}
                         missionsTotal={missionsTotal}
                         onOpenMissions={onOpenMissions}

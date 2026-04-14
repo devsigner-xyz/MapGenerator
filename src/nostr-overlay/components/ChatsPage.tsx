@@ -1,5 +1,7 @@
 import { ChatConversationList } from './ChatConversationList';
 import { ChatConversationDetail } from './ChatConversationDetail';
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
+import { Spinner } from '@/components/ui/spinner';
 
 export interface ChatConversationSummary {
     id: string;
@@ -46,6 +48,7 @@ export function ChatsPage({
     canSend = true,
     disabledReason,
 }: ChatsPageProps) {
+    const showBootstrappingState = isLoadingConversations && conversations.length === 0;
     const activeConversation = activeConversationId
         ? conversations.find((conversation) => conversation.id === activeConversationId)
         : undefined;
@@ -53,37 +56,51 @@ export function ChatsPage({
     return (
         <section className="nostr-routed-surface" aria-label="Chats">
             <div className="nostr-routed-surface-content">
-                <div className="nostr-chats-page nostr-routed-surface-panel nostr-page-layout" data-chat-source="query">
-                    <header className="nostr-chats-page-header">
-                        <p className="nostr-chats-page-title">
-                            Chats
-                            {hasUnreadGlobal ? <span className="nostr-chat-unread-dot" aria-hidden="true" /> : null}
-                        </p>
-                    </header>
+                {showBootstrappingState ? (
+                    <div className="nostr-chats-page nostr-routed-surface-panel nostr-page-layout nostr-chats-loading-page" data-chat-source="query">
+                        <Empty className="nostr-chats-loading-empty">
+                            <EmptyHeader>
+                                <EmptyMedia variant="icon">
+                                    <Spinner />
+                                </EmptyMedia>
+                                <EmptyTitle>Cargando conversaciones</EmptyTitle>
+                                <EmptyDescription>Estamos obteniendo tus chats.</EmptyDescription>
+                            </EmptyHeader>
+                        </Empty>
+                    </div>
+                ) : (
+                    <div className="nostr-chats-page nostr-routed-surface-panel nostr-page-layout" data-chat-source="query">
+                        <header className="nostr-chats-page-header">
+                            <p className="nostr-chats-page-title">
+                                Chats
+                                {hasUnreadGlobal ? <span className="nostr-chat-unread-dot" aria-hidden="true" /> : null}
+                            </p>
+                        </header>
 
-                    <div className="nostr-chat-layout">
-                        <div className="nostr-chat-list-panel">
-                            <ChatConversationList
-                                conversations={conversations}
-                                loading={isLoadingConversations}
-                                activeConversationId={activeConversationId}
-                                onOpenConversation={onOpenConversation}
-                            />
-                        </div>
+                        <div className="nostr-chat-layout">
+                            <div className="nostr-chat-list-panel">
+                                <ChatConversationList
+                                    conversations={conversations}
+                                    loading={isLoadingConversations}
+                                    activeConversationId={activeConversationId}
+                                    onOpenConversation={onOpenConversation}
+                                />
+                            </div>
 
-                        <div className="nostr-chat-detail-panel">
-                            <ChatConversationDetail
-                                conversation={activeConversation}
-                                messages={messages}
-                                onBackToList={onBackToList}
-                                onSendMessage={onSendMessage}
-                                composerAutoFocusKey={composerAutoFocusKey}
-                                canSend={canSend}
-                                disabledReason={disabledReason}
-                            />
+                            <div className="nostr-chat-detail-panel">
+                                <ChatConversationDetail
+                                    conversation={activeConversation}
+                                    messages={messages}
+                                    onBackToList={onBackToList}
+                                    onSendMessage={onSendMessage}
+                                    composerAutoFocusKey={composerAutoFocusKey}
+                                    canSend={canSend}
+                                    disabledReason={disabledReason}
+                                />
+                            </div>
                         </div>
                     </div>
-                </div>
+                )}
             </div>
         </section>
     );

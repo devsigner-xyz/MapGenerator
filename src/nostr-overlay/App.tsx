@@ -591,6 +591,10 @@ export function App({ mapBridge, services }: AppProps) {
             return;
         }
 
+        if (!isMapRoute) {
+            navigate('/');
+        }
+
         mapBridge.focusBuilding(buildingIndex);
     };
 
@@ -719,14 +723,12 @@ export function App({ mapBridge, services }: AppProps) {
                 chatHasUnread={chatState.hasUnreadGlobal}
                 notificationsHasUnread={socialState.hasUnread}
                 followingFeedHasUnread={followingFeedHasUnread}
-                regenerateDisabled={regenerateDisabled}
                 onOpenMap={() => navigate('/')}
                 onOpenCityStats={() => navigate('/estadisticas')}
                 onOpenChat={openChatList}
                 onOpenNotifications={openNotifications}
                 onOpenFollowingFeed={openFollowingFeed}
                 onOpenGlobalSearch={openGlobalUserSearch}
-                onRegenerateMap={overlay.regenerateMap}
                 onOpenSettings={openSettingsPage}
                 onLogout={async () => {
                     await overlay.logoutSession?.();
@@ -772,7 +774,10 @@ export function App({ mapBridge, services }: AppProps) {
             </OverlaySidebar>
 
             {isMapRoute ? (
-                <MapZoomControls mapBridge={mapBridge} />
+                <MapZoomControls
+                    mapBridge={mapBridge}
+                    onRegenerateMap={overlay.regenerateMap}
+                />
             ) : null}
             {isMapRoute ? (
                 <MapDisplayToggleControls

@@ -360,6 +360,45 @@ async function selectSettingsContextAction(container: HTMLDivElement, label: str
     });
 }
 
+async function selectUserMenuAction(container: HTMLDivElement, label: string): Promise<void> {
+    const userMenuButton = container.querySelector('button[aria-label="Abrir menu de usuario"]') as HTMLButtonElement;
+    expect(userMenuButton).toBeDefined();
+
+    await openDropdownTrigger(userMenuButton);
+
+    await waitFor(() => Array.from(document.body.querySelectorAll('[data-slot="dropdown-menu-item"]')).some((item) =>
+        (item.textContent || '').trim() === label
+    ));
+
+    const action = Array.from(document.body.querySelectorAll('[data-slot="dropdown-menu-item"]')).find((item) =>
+        (item.textContent || '').trim() === label
+    ) as HTMLElement;
+    expect(action).toBeDefined();
+
+    await act(async () => {
+        action.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+}
+
+function getActiveProfileDialog(): HTMLElement | null {
+    return document.body.querySelector('[data-slot="dialog-content"][aria-label="Perfil del ocupante"]') as HTMLElement | null;
+}
+
+async function selectActiveProfileDialogTab(label: string): Promise<void> {
+    await waitFor(() => getActiveProfileDialog() !== null);
+    const dialog = getActiveProfileDialog() as HTMLElement;
+
+    const tab = Array.from(dialog.querySelectorAll('[data-slot="tabs-trigger"]')).find((node) =>
+        (node.textContent || '').trim() === label
+    ) as HTMLElement;
+    expect(tab).toBeDefined();
+
+    await act(async () => {
+        tab.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+        tab.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+}
+
 let mounted: RenderResult[] = [];
 let createNdkDmTransportClientSpy: ReturnType<typeof vi.spyOn> | null = null;
 
@@ -504,7 +543,7 @@ describe('Nostr overlay App', () => {
         expect(rendered.container.querySelector('.nostr-profile-name')).toBeNull();
     });
 
-    test('renders city stats icon button before regenerate and opens stats dialog', async () => {
+    test('renders city stats button in sidebar and regenerate button on map controls', async () => {
         const { bridge } = createMapBridgeStub();
         const rendered = await renderApp(<App mapBridge={bridge} />);
         mounted.push(rendered);
@@ -514,11 +553,11 @@ describe('Nostr overlay App', () => {
         expect(toolbarButtons[0].getAttribute('aria-label')).toBe('Abrir mapa');
         expect(toolbarButtons.some((button) => button.getAttribute('aria-label') === 'Abrir estadisticas de la ciudad')).toBe(true);
         expect(toolbarButtons.some((button) => button.getAttribute('aria-label') === 'Abrir descubre')).toBe(true);
-        expect(toolbarButtons.some((button) => button.getAttribute('aria-label') === 'Regenerar mapa')).toBe(true);
+        expect(toolbarButtons.some((button) => button.getAttribute('aria-label') === 'Regenerar mapa')).toBe(false);
         expect(rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir chats"]')).toBeNull();
 
         const statsButton = rendered.container.querySelector('button[aria-label="Abrir estadisticas de la ciudad"]') as HTMLButtonElement;
-        const regenerateButton = rendered.container.querySelector('button[aria-label="Regenerar mapa"]') as HTMLButtonElement;
+        const regenerateButton = rendered.container.querySelector('.nostr-map-zoom-controls button[aria-label="Regenerar mapa"]') as HTMLButtonElement;
 
         expect(statsButton).toBeDefined();
         expect(regenerateButton).toBeDefined();
@@ -527,16 +566,17 @@ describe('Nostr overlay App', () => {
         expect(settingsButton.getAttribute('title')).toBe('Settings');
 
         await act(async () => {
+            regenerateButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (bridge.regenerateMap as any).mock.calls.length > 0);
+        expect(bridge.regenerateMap).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
             statsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
         expect(rendered.container.textContent || '').toContain('Estadisticas de la ciudad');
-
-        await act(async () => {
-            regenerateButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
-
-        expect(bridge.regenerateMap).toHaveBeenCalledTimes(1);
     });
 
     test('renders global user search button in panel and compact toolbar', async () => {
@@ -1658,6 +1698,61 @@ describe('Nostr overlay App', () => {
         expect(compactNotificationsButton).not.toBeNull();
     });
 
+    test('orders main sidebar actions as mapa/agora/notificaciones/buscar/estadisticas/descubre/ajustes', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const socialFeed = createSocialFeedServiceMock();
+        const socialNotifications = createSocialNotificationsServiceMock();
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                    socialFeedService: socialFeed.service,
+                    socialNotificationsService: socialNotifications.service,
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        await loginWithNsec(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const requiredOrder = [
+            'Abrir mapa',
+            'Abrir Agora',
+            'Abrir notificaciones',
+            'Abrir buscador global de usuarios',
+            'Abrir estadisticas de la ciudad',
+            'Abrir descubre',
+            'Abrir ajustes',
+        ];
+
+        const panelButtons = Array.from(rendered.container.querySelectorAll('.nostr-panel-toolbar > [data-slot="sidebar-menu-item"] button')) as HTMLButtonElement[];
+        const panelLabels = panelButtons.map((button) => button.getAttribute('aria-label') || '');
+        const orderedVisibleLabels = panelLabels.filter((label) => requiredOrder.includes(label));
+
+        expect(orderedVisibleLabels).toEqual(requiredOrder);
+        expect(panelLabels).not.toContain('Regenerar mapa');
+    });
+
     test('hides chat entry points when session is not dm-capable', async () => {
         const { bridge } = createMapBridgeStub();
         const rendered = await renderApp(<App mapBridge={bridge} />);
@@ -2220,7 +2315,7 @@ describe('Nostr overlay App', () => {
 
         await waitFor(() => fetchBackfill.mock.calls.length > 0);
 
-        await waitFor(() => (rendered.container.textContent || '').includes('Cargando conversaciones...'));
+        await waitFor(() => (rendered.container.textContent || '').includes('Cargando conversaciones'));
 
         await act(async () => {
             resolveInboxBackfill?.([historicalEvent as any]);
@@ -2272,12 +2367,16 @@ describe('Nostr overlay App', () => {
         const zoomGroup = rendered.container.querySelector('.nostr-map-zoom-controls [data-slot="button-group"]');
         expect(zoomGroup).toBeDefined();
 
-        const buttons = Array.from(rendered.container.querySelectorAll('.nostr-map-zoom-controls button')) as HTMLButtonElement[];
-        expect(buttons.length).toBe(2);
-        expect(buttons[0].getAttribute('aria-label')).toBe('Alejar mapa');
-        expect(buttons[1].getAttribute('aria-label')).toBe('Acercar mapa');
-        expect(buttons[0].className.includes('nostr-map-zoom-button-left')).toBe(true);
-        expect(buttons[1].className.includes('nostr-map-zoom-button-right')).toBe(true);
+        const zoomButtons = Array.from(rendered.container.querySelectorAll('.nostr-map-zoom-controls .nostr-map-zoom-button')) as HTMLButtonElement[];
+        expect(zoomButtons.length).toBe(2);
+        expect(zoomButtons[0].getAttribute('aria-label')).toBe('Alejar mapa');
+        expect(zoomButtons[1].getAttribute('aria-label')).toBe('Acercar mapa');
+        expect(zoomButtons[0].className.includes('nostr-map-zoom-button-left')).toBe(true);
+        expect(zoomButtons[1].className.includes('nostr-map-zoom-button-right')).toBe(true);
+
+        const regenerateButton = rendered.container.querySelector('.nostr-map-zoom-controls .nostr-map-regenerate-button') as HTMLButtonElement;
+        expect(regenerateButton).toBeDefined();
+        expect(regenerateButton.getAttribute('aria-label')).toBe('Regenerar mapa');
     });
 
     test('renders floating display toggle group with car, street and special marker toggles', async () => {
@@ -2496,7 +2595,7 @@ describe('Nostr overlay App', () => {
         expect((bridge.focusBuilding as any).mock.calls.some((call: unknown[]) => call[0] === 0)).toBe(true);
     });
 
-    test('shows locate/copy actions for following rows', async () => {
+    test('shows locate/copy actions for following rows and returns to map route when locating', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const followedPubkey = 'a'.repeat(64);
         const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
@@ -2539,9 +2638,14 @@ describe('Nostr overlay App', () => {
                         complete: true,
                     }),
                 }}
-            />
+            />,
+            {
+                initialEntries: ['/agora'],
+            }
         );
         mounted.push(rendered);
+
+        await waitFor(() => rendered.container.querySelector('.nostr-following-feed-surface') !== null);
 
         const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
         const form = rendered.container.querySelector('form');
@@ -2597,6 +2701,8 @@ describe('Nostr overlay App', () => {
             locateFollowingItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
         expect((bridge.focusBuilding as any).mock.calls.length).toBeGreaterThan(focusCallsBeforeLocate);
+        await waitFor(() => rendered.container.querySelector('.nostr-following-feed-surface') === null);
+        expect(rendered.container.querySelector('[aria-label="Controles de zoom"]')).not.toBeNull();
 
         await act(async () => {
             actionsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -3029,6 +3135,11 @@ describe('Nostr overlay App', () => {
             return highlightCalls.length > 0 && highlightCalls[highlightCalls.length - 1][0] === 4;
         });
 
+        const occupantDialog = document.body.querySelector('[data-slot="dialog-content"][aria-label="Perfil del ocupante"]') as HTMLElement;
+        expect(occupantDialog).toBeDefined();
+        expect(occupantDialog.style.width).toBe('640px');
+        expect(occupantDialog.style.maxWidth).toBe('calc(100vw - 32px)');
+
         const closeButton = rendered.container.querySelector('button[aria-label="Cerrar perfil"]') as HTMLButtonElement;
         expect(closeButton).toBeDefined();
 
@@ -3158,7 +3269,7 @@ describe('Nostr overlay App', () => {
             detailsItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
-        await waitFor(() => (rendered.container.textContent || '').includes('Ultimas publicaciones'));
+        await waitFor(() => getActiveProfileDialog() !== null);
 
         expect(document.body.textContent || '').not.toContain('Configurar cantidades');
     });
@@ -3419,7 +3530,7 @@ describe('Nostr overlay App', () => {
 
         await waitFor(() => (rendered.container.textContent || '').includes('Chats'));
 
-        await selectSettingsContextAction(rendered.container, 'Cerrar sesión');
+        await selectUserMenuAction(rendered.container, 'Cerrar sesión');
         await waitFor(() => !(rendered.container.textContent || '').includes('Chats'));
         expect(rendered.container.querySelector('.nostr-chats-page')).toBeNull();
     });
@@ -3657,13 +3768,12 @@ describe('Nostr overlay App', () => {
         expect(showPanelButton.getAttribute('title')).toBe('Show panel');
         expect(rendered.container.querySelector('button[aria-label="Abrir ajustes"]')).not.toBeNull();
         const compactButtons = Array.from(rendered.container.querySelectorAll('.nostr-compact-toolbar button')) as HTMLButtonElement[];
-        expect(compactButtons.length).toBe(6);
+        expect(compactButtons.length).toBe(5);
         expect(compactButtons[0].getAttribute('aria-label')).toBe('Abrir mapa');
-        expect(compactButtons[1].getAttribute('aria-label')).toBe('Abrir estadisticas de la ciudad');
-        expect(compactButtons[2].getAttribute('aria-label')).toBe('Abrir descubre');
-        expect(compactButtons[3].getAttribute('aria-label')).toBe('Abrir buscador global de usuarios');
+        expect(compactButtons[1].getAttribute('aria-label')).toBe('Abrir buscador global de usuarios');
+        expect(compactButtons[2].getAttribute('aria-label')).toBe('Abrir estadisticas de la ciudad');
+        expect(compactButtons[3].getAttribute('aria-label')).toBe('Abrir descubre');
         expect(compactButtons[4].getAttribute('aria-label')).toBe('Abrir ajustes');
-        expect(compactButtons[5].getAttribute('aria-label')).toBe('Regenerar mapa');
         expect(rendered.container.textContent || '').not.toContain('Información');
         expect(rendered.container.textContent || '').not.toContain('Sigues (');
         expect(rendered.container.textContent || '').not.toContain('Seguidores (');
@@ -4190,8 +4300,9 @@ describe('Nostr overlay App', () => {
             });
         });
 
+        await selectActiveProfileDialogTab('Feed');
         await waitFor(() => (rendered.container.textContent || '').includes('Hola mundo'));
-        expect(rendered.container.textContent || '').toContain('Ultimas publicaciones');
+        expect(rendered.container.textContent || '').toContain('Feed');
         expect(fetchLatestPostsByPubkeyFn).toHaveBeenCalledWith(expect.objectContaining({ pubkey: followedPubkey }));
         expect(fetchProfileStatsFn).toHaveBeenCalledWith(expect.objectContaining({ pubkey: followedPubkey }));
     });
@@ -4274,6 +4385,7 @@ describe('Nostr overlay App', () => {
             });
         });
 
+        await selectActiveProfileDialogTab('Feed');
         await waitFor(() => (rendered.container.textContent || '').includes('Cache profile post'));
 
         const closeButton = rendered.container.querySelector('button[aria-label="Cerrar perfil"]') as HTMLButtonElement;
@@ -4291,6 +4403,7 @@ describe('Nostr overlay App', () => {
             });
         });
 
+        await selectActiveProfileDialogTab('Feed');
         await waitFor(() => (rendered.container.textContent || '').includes('Cache profile post'));
 
         expect(fetchLatestPostsByPubkeyFn).toHaveBeenCalledTimes(1);
@@ -4385,6 +4498,7 @@ describe('Nostr overlay App', () => {
             });
         });
 
+        await selectActiveProfileDialogTab('Feed');
         await waitFor(() => (rendered.container.textContent || '').includes('Primer lote'));
 
         const loadMoreButton = Array.from(rendered.container.querySelectorAll('button')).find(button =>
@@ -4614,6 +4728,7 @@ describe('Nostr overlay App', () => {
             triggerOccupiedBuildingClick({ buildingIndex: 4, pubkey: followedPubkey });
         });
 
+        await selectActiveProfileDialogTab('Feed');
         await waitFor(() => (rendered.container.textContent || '').includes('post disponible'));
     });
 
@@ -4697,7 +4812,9 @@ describe('Nostr overlay App', () => {
             triggerOccupiedBuildingClick({ buildingIndex: 4, pubkey: followedPubkey });
         });
 
+        await selectActiveProfileDialogTab('Siguiendo');
         await waitFor(() => (rendered.container.textContent || '').includes(`User-${followA.slice(0, 4)}`));
+        await selectActiveProfileDialogTab('Seguidores');
         await waitFor(() => (rendered.container.textContent || '').includes(`User-${followerA.slice(0, 4)}`));
     });
 
@@ -5042,7 +5159,7 @@ describe('Nostr overlay App', () => {
         expect(rendered.queryClient.getQueryData(directMessagesKey)).toBeDefined();
         expect(rendered.queryClient.getQueryData(activeProfilePostsKey)).toBeDefined();
 
-        await selectSettingsContextAction(rendered.container, 'Cerrar sesión');
+        await selectUserMenuAction(rendered.container, 'Cerrar sesión');
         await waitFor(() => (rendered.container.textContent || '').includes('Accede o explora'));
 
         expect(rendered.queryClient.getQueryData(followingFeedKey)).toBeUndefined();
@@ -5102,7 +5219,7 @@ describe('Nostr overlay App', () => {
 
         await waitFor(() => (rendered.container.textContent || '').includes('1/3'));
 
-        await selectSettingsContextAction(rendered.container, 'Cerrar sesión');
+        await selectUserMenuAction(rendered.container, 'Cerrar sesión');
         await waitFor(() => (rendered.container.textContent || '').includes('Accede o explora'));
 
         expect(rendered.container.textContent || '').toContain('0/3');
@@ -5186,14 +5303,14 @@ describe('Nostr overlay App', () => {
 
         await waitFor(() => (rendered.container.textContent || '').includes('1/3'));
 
-        await selectSettingsContextAction(rendered.container, 'Cerrar sesión');
+        await selectUserMenuAction(rendered.container, 'Cerrar sesión');
         await waitFor(() => (rendered.container.textContent || '').includes('Accede o explora'));
 
         await submitNpub(npubB);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner-B'));
         expect(rendered.container.textContent || '').toContain('0/3');
 
-        await selectSettingsContextAction(rendered.container, 'Cerrar sesión');
+        await selectUserMenuAction(rendered.container, 'Cerrar sesión');
         await waitFor(() => (rendered.container.textContent || '').includes('Accede o explora'));
 
         await submitNpub(npubA);
@@ -5201,7 +5318,7 @@ describe('Nostr overlay App', () => {
         expect(rendered.container.textContent || '').toContain('1/3');
     });
 
-    test('allows logout from settings context menu', async () => {
+    test('hides logout from settings menu and keeps logout in user menu', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const followedPubkey = 'a'.repeat(64);
         const { bridge } = createMapBridgeStub(1);
@@ -5249,7 +5366,16 @@ describe('Nostr overlay App', () => {
 
         await waitFor(() => (rendered.container.textContent || '').includes('Información'));
 
-        await selectSettingsContextAction(rendered.container, 'Cerrar sesión');
+        await openSettingsContextMenu(rendered.container);
+
+        const settingsLogoutAction = Array.from(rendered.container.querySelectorAll('button, a')).find((item) =>
+            (item.textContent || '').trim() === 'Cerrar sesión'
+        ) ?? Array.from(document.body.querySelectorAll('[data-slot="dropdown-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Cerrar sesión'
+        );
+        expect(settingsLogoutAction).toBeUndefined();
+
+        await selectUserMenuAction(rendered.container, 'Cerrar sesión');
 
         await waitFor(() => (rendered.container.textContent || '').includes('Accede o explora'));
 

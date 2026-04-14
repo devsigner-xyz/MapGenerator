@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
+import { RefreshCcwIcon } from 'lucide-react';
 import type { MapBridge } from '../map-bridge';
 import { Button } from '@/components/ui/button';
 import { ButtonGroup, ButtonGroupText } from '@/components/ui/button-group';
 
 interface MapZoomControlsProps {
     mapBridge: MapBridge | null;
+    onRegenerateMap?: () => void | Promise<void>;
+    regenerateDisabled?: boolean;
 }
 
 function clampZoom(value: number): number {
@@ -30,7 +33,7 @@ function dispatchMapWheel(deltaY: number): void {
     canvas.dispatchEvent(event);
 }
 
-export function MapZoomControls({ mapBridge }: MapZoomControlsProps) {
+export function MapZoomControls({ mapBridge, onRegenerateMap, regenerateDisabled = false }: MapZoomControlsProps) {
     const [zoom, setZoom] = useState(1);
 
     useEffect(() => {
@@ -82,6 +85,21 @@ export function MapZoomControls({ mapBridge }: MapZoomControlsProps) {
                     +
                 </Button>
             </ButtonGroup>
+
+            <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                className="nostr-map-regenerate-button"
+                aria-label="Regenerar mapa"
+                title="New map"
+                disabled={regenerateDisabled || !onRegenerateMap}
+                onClick={() => {
+                    void onRegenerateMap?.();
+                }}
+            >
+                <RefreshCcwIcon />
+            </Button>
         </div>
     );
 }
