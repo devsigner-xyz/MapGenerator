@@ -47,6 +47,9 @@ import { getSpecialBuildingEntry } from './special-buildings/catalog';
 import { EASTER_EGG_MISSIONS } from './easter-eggs/missions';
 import { createRuntimeSocialNotificationsService } from '../nostr/social-notifications-runtime-service';
 import { createRuntimeSocialFeedService } from '../nostr/social-feed-runtime-service';
+import { resolveConservativeSocialRelaySets } from '../nostr/relay-runtime';
+import { createTransportPool } from '../nostr/transport-pool';
+import type { DmTransport } from '../nostr/dm-transport';
 import { buildSettingsPath, settingsViewFromPathname, type SettingsRouteView } from './settings/settings-routing';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Spinner } from '@/components/ui/spinner';
@@ -348,9 +351,14 @@ export function App({ mapBridge, services }: AppProps) {
     const chatState = directMessages;
     const openChatStateList = chatState.openList;
     const openChatStateConversation = chatState.openConversation;
+    const socialTransportPool = useMemo(() => createTransportPool<DmTransport>(), [overlay.ownerPubkey]);
     const socialNotificationsService = useMemo(
-        () => services?.socialNotificationsService ?? createRuntimeSocialNotificationsService(),
-        [services?.socialNotificationsService]
+        () => services?.socialNotificationsService ?? createRuntimeSocialNotificationsService({
+            resolveRelays: () => resolveConservativeSocialRelaySets({ ownerPubkey: overlay.ownerPubkey }).primary,
+            resolveFallbackRelays: () => resolveConservativeSocialRelaySets({ ownerPubkey: overlay.ownerPubkey }).fallback,
+            transportPool: socialTransportPool,
+        }),
+        [overlay.ownerPubkey, services?.socialNotificationsService, socialTransportPool]
     );
     const socialNotifications = useSocialNotificationsController({
         ownerPubkey: overlay.ownerPubkey,
@@ -358,8 +366,12 @@ export function App({ mapBridge, services }: AppProps) {
     });
     const socialState = socialNotifications;
     const socialFeedService = useMemo(
-        () => services?.socialFeedService ?? createRuntimeSocialFeedService(),
-        [services?.socialFeedService]
+        () => services?.socialFeedService ?? createRuntimeSocialFeedService({
+            resolveRelays: () => resolveConservativeSocialRelaySets({ ownerPubkey: overlay.ownerPubkey }).primary,
+            resolveFallbackRelays: () => resolveConservativeSocialRelaySets({ ownerPubkey: overlay.ownerPubkey }).fallback,
+            transportPool: socialTransportPool,
+        }),
+        [overlay.ownerPubkey, services?.socialFeedService, socialTransportPool]
     );
     const followingFeed = useFollowingFeedController({
         ownerPubkey: overlay.ownerPubkey,

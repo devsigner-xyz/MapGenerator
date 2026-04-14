@@ -1,11 +1,11 @@
 import { createLazyNdkDmTransport } from './lazy-ndk-client';
-import { getBootstrapRelays } from './relay-policy';
-import { loadRelaySettings } from './relay-settings';
+import { hasSameRelaySet, normalizeRelaySet, resolveConservativeSocialRelaySets } from './relay-runtime';
 import type {
     SocialNotificationEvent,
     SocialNotificationsService,
 } from './social-notifications-service';
 import type { DmTransport } from './dm-transport';
+import { createTransportPool, type TransportPool } from './transport-pool';
 
 const SOCIAL_NOTIFICATION_KINDS = [1, 6, 7, 9735] as const;
 const DEFAULT_INITIAL_LIMIT = 120;
@@ -13,28 +13,25 @@ const DEFAULT_INITIAL_LIMIT = 120;
 interface CreateRuntimeSocialNotificationsServiceOptions {
     createTransport?: (relays: string[]) => DmTransport;
     resolveRelays?: () => string[];
+    resolveFallbackRelays?: (primaryRelays: string[]) => string[];
+    transportPool?: TransportPool<DmTransport>;
 }
 
 function resolveRuntimeSocialRelays(): string[] {
-    const settings = loadRelaySettings();
-    if (settings.relays.length > 0) {
-        return settings.relays;
-    }
-
-    return getBootstrapRelays();
+    return resolveConservativeSocialRelaySets().primary;
 }
 
-function normalizeRelaySet(relays: string[]): string[] {
-    const set = new Set<string>();
-    for (const relay of relays) {
-        if (!relay || typeof relay !== 'string') {
-            continue;
-        }
+function resolveRuntimeSocialFallbackRelays(primaryRelays: string[]): string[] {
+    const fallback = resolveConservativeSocialRelaySets().fallback;
+    return hasSameRelaySet(primaryRelays, fallback) ? [] : fallback;
+}
 
-        set.add(relay);
+function isRelayTransportError(error: unknown): boolean {
+    if (!(error instanceof Error)) {
+        return false;
     }
 
-    return [...set];
+    return /relay|eose|timeout|network|websocket|disconnect/i.test(error.message);
 }
 
 function isValidSocialNotificationEvent(event: SocialNotificationEvent): boolean {
@@ -93,15 +90,38 @@ export function createRuntimeSocialNotificationsService(
 ): SocialNotificationsService {
     const createTransport = options.createTransport ?? ((relays: string[]) => createLazyNdkDmTransport({ relays }));
     const resolveRelays = options.resolveRelays ?? resolveRuntimeSocialRelays;
+    const resolveFallbackRelays = options.resolveFallbackRelays ?? resolveRuntimeSocialFallbackRelays;
+    const transportPool = options.transportPool ?? createTransportPool<DmTransport>();
 
-    const resolveTransport = (): DmTransport => {
-        const relays = normalizeRelaySet(resolveRelays());
-        return createTransport(relays);
+    const resolveTransport = (relays: string[]): DmTransport => {
+        return transportPool.getOrCreate(relays, createTransport);
+    };
+
+    const withRelayFallback = async <T>(operation: (transport: DmTransport) => Promise<T>): Promise<T> => {
+        const primaryRelays = normalizeRelaySet(resolveRelays());
+        const primaryTransport = resolveTransport(primaryRelays);
+
+        try {
+            return await operation(primaryTransport);
+        } catch (primaryError) {
+            if (!isRelayTransportError(primaryError)) {
+                throw primaryError;
+            }
+
+            const fallbackRelays = normalizeRelaySet(resolveFallbackRelays(primaryRelays));
+            if (fallbackRelays.length === 0 || hasSameRelaySet(primaryRelays, fallbackRelays)) {
+                throw primaryError;
+            }
+
+            const fallbackTransport = resolveTransport(fallbackRelays);
+            return operation(fallbackTransport);
+        }
     };
 
     return {
         subscribeSocial(input, onEvent) {
-            const transport = resolveTransport();
+            const relays = normalizeRelaySet(resolveRelays());
+            const transport = resolveTransport(relays);
             const subscription = transport.subscribe(
                 [{ kinds: [...SOCIAL_NOTIFICATION_KINDS], '#p': [input.ownerPubkey] }],
                 (event) => {
@@ -117,18 +137,19 @@ export function createRuntimeSocialNotificationsService(
         },
 
         async loadInitialSocial(input) {
-            const transport = resolveTransport();
-            const limit = Math.max(1, input.limit ?? DEFAULT_INITIAL_LIMIT);
-            const events = await transport.fetchBackfill([
-                {
-                    kinds: [...SOCIAL_NOTIFICATION_KINDS],
-                    '#p': [input.ownerPubkey],
-                    limit,
-                    since: input.since,
-                },
-            ]);
+            return withRelayFallback(async (transport) => {
+                const limit = Math.max(1, input.limit ?? DEFAULT_INITIAL_LIMIT);
+                const events = await transport.fetchBackfill([
+                    {
+                        kinds: [...SOCIAL_NOTIFICATION_KINDS],
+                        '#p': [input.ownerPubkey],
+                        limit,
+                        since: input.since,
+                    },
+                ]);
 
-            return sortAndDedupe(events as SocialNotificationEvent[]).slice(0, limit);
+                return sortAndDedupe(events as SocialNotificationEvent[]).slice(0, limit);
+            });
         },
     };
 }

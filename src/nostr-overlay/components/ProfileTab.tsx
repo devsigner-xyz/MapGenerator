@@ -44,6 +44,8 @@ export function ProfileTab({
 
     const { statusByRelay } = useRelayConnectionSummary(relayProbeTargets, {
         probe: relayConnectionProbe,
+        refreshIntervalMs: 0,
+        maxConcurrentProbes: 2,
     });
     const connectedRelays = configuredRelayRows.reduce(
         (count, { relayUrl }) => count + (statusByRelay[relayUrl] === 'connected' ? 1 : 0),

@@ -90,8 +90,9 @@ describe('nostr overlay query standards', () => {
         expect(typeof retry).toBe('function');
         if (typeof retry === 'function') {
             expect(retry(0, new Error('status 500'))).toBe(true);
-            expect(retry(1, new Error('status 500'))).toBe(false);
-            expect(retry(0, new Error('relay timeout'))).toBe(false);
+            expect(retry(1, new Error('status 500'))).toBe(true);
+            expect(retry(2, new Error('status 500'))).toBe(false);
+            expect(retry(0, new Error('relay timeout'))).toBe(true);
         }
     });
 
@@ -132,12 +133,14 @@ describe('nostr overlay query standards', () => {
 
         if (typeof social.retry === 'function') {
             expect(social.retry(0, new Error('status 500'))).toBe(true);
-            expect(social.retry(1, new Error('status 500'))).toBe(false);
+            expect(social.retry(1, new Error('status 500'))).toBe(true);
+            expect(social.retry(2, new Error('status 500'))).toBe(false);
         }
 
         if (typeof metadata.retry === 'function') {
             expect(metadata.retry(0, new Error('status 500'))).toBe(true);
-            expect(metadata.retry(1, new Error('status 500'))).toBe(false);
+            expect(metadata.retry(1, new Error('status 500'))).toBe(true);
+            expect(metadata.retry(2, new Error('status 500'))).toBe(false);
         }
 
         if (typeof identity.retry === 'function') {

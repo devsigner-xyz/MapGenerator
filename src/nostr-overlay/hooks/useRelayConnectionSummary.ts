@@ -9,6 +9,8 @@ interface UseRelayConnectionSummaryOptions {
     enabled?: boolean;
     timeoutMs?: number;
     refreshIntervalMs?: number;
+    maxConcurrentProbes?: number;
+    skipWhenHidden?: boolean;
     probe?: RelayConnectionProbe;
 }
 
@@ -22,6 +24,7 @@ interface RelayConnectionSummary {
 
 const DEFAULT_TIMEOUT_MS = 2200;
 const DEFAULT_REFRESH_INTERVAL_MS = 45_000;
+const DEFAULT_MAX_CONCURRENT_PROBES = 3;
 
 export async function probeRelayConnection(relayUrl: string, timeoutMs: number = DEFAULT_TIMEOUT_MS): Promise<boolean> {
     const normalized = normalizeRelayUrl(relayUrl);
@@ -45,7 +48,7 @@ export async function probeRelayConnection(relayUrl: string, timeoutMs: number =
 
             settled = true;
             window.clearTimeout(timer);
-            if (socket.readyState === WebSocket.OPEN) {
+            if (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN) {
                 try {
                     socket.close();
                 } catch {
@@ -88,6 +91,8 @@ export function useRelayConnectionSummary(
     const enabled = options.enabled ?? true;
     const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     const refreshIntervalMs = options.refreshIntervalMs ?? DEFAULT_REFRESH_INTERVAL_MS;
+    const maxConcurrentProbes = Math.max(1, Math.floor(options.maxConcurrentProbes ?? DEFAULT_MAX_CONCURRENT_PROBES));
+    const skipWhenHidden = options.skipWhenHidden ?? true;
     const probe = options.probe ?? probeRelayConnection;
 
     const relays = useMemo(
@@ -115,9 +120,30 @@ export function useRelayConnectionSummary(
 
         let cancelled = false;
 
-        const runProbe = async (): Promise<void> => {
-            await Promise.all(
-                relays.map(async (relayUrl) => {
+        const shouldSkipRun = (): boolean => {
+            if (!skipWhenHidden) {
+                return false;
+            }
+
+            return typeof document !== 'undefined' && document.visibilityState === 'hidden';
+        };
+
+        const runProbeQueue = async (relayQueue: string[]): Promise<void> => {
+            if (relayQueue.length === 0) {
+                return;
+            }
+
+            let index = 0;
+            const workerCount = Math.min(maxConcurrentProbes, relayQueue.length);
+            const workers = Array.from({ length: workerCount }, async () => {
+                while (!cancelled) {
+                    const nextIndex = index;
+                    index += 1;
+                    if (nextIndex >= relayQueue.length) {
+                        return;
+                    }
+
+                    const relayUrl = relayQueue[nextIndex];
                     const connected = await probe(relayUrl, timeoutMs).catch(() => false);
                     if (cancelled) {
                         return;
@@ -134,8 +160,18 @@ export function useRelayConnectionSummary(
                             [relayUrl]: nextStatus,
                         };
                     });
-                })
-            );
+                }
+            });
+
+            await Promise.all(workers);
+        };
+
+        const runProbe = async (): Promise<void> => {
+            if (shouldSkipRun()) {
+                return;
+            }
+
+            await runProbeQueue(relays);
         };
 
         void runProbe();
@@ -154,7 +190,7 @@ export function useRelayConnectionSummary(
             cancelled = true;
             window.clearInterval(timer);
         };
-    }, [enabled, relayKey, relays, probe, timeoutMs, refreshIntervalMs]);
+    }, [enabled, relayKey, relays, probe, timeoutMs, refreshIntervalMs, maxConcurrentProbes, skipWhenHidden]);
 
     const connectedRelays = relays.reduce((count, relayUrl) => count + (statusByRelay[relayUrl] === 'connected' ? 1 : 0), 0);
     const checkingRelays = relays.reduce((count, relayUrl) => count + (statusByRelay[relayUrl] === 'checking' ? 1 : 0), 0);

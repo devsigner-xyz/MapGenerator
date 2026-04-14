@@ -60,6 +60,7 @@ function createDeferred<T>(): Deferred<T> {
 }
 
 const SAMPLE_NSEC = 'nsec1vl029mgpspedva04g90vltkh6fvh240zqtv9k0t9af8935ke9laqsnlfe5';
+const SAMPLE_NSEC_PUBKEY = '7e7e9c42a91bfef19fa929e5fda1b72e0ebc1a4c1141673e2794234d86addf4e';
 
 async function loginWithNsec(container: HTMLDivElement): Promise<void> {
     const methodSelectTrigger = container.querySelector('[data-slot="select-trigger"]') as HTMLButtonElement;
@@ -1794,7 +1795,7 @@ describe('Nostr overlay App', () => {
     });
 
     test('loads DM dialog data without explicit directMessagesService injection', async () => {
-        const ownerPubkey = 'f'.repeat(64);
+        const ownerPubkey = SAMPLE_NSEC_PUBKEY;
         const peerPubkey = 'a'.repeat(64);
         const dmEvent = createWrappedDmEvent({
             ownerPubkey,
@@ -1803,7 +1804,7 @@ describe('Nostr overlay App', () => {
             rumorContent: 'hola runtime dm',
             rumorCreatedAt: 1700000100,
         });
-        const createTransportSpy = createNdkDmTransportClientSpy!.mockReturnValue({
+        const createTransportSpy = createNdkDmTransportClientSpy!.mockImplementation(() => ({
             publishToRelays: vi.fn(async () => ({
                 ackedRelays: ['wss://relay.one'],
                 failedRelays: [],
@@ -1814,10 +1815,17 @@ describe('Nostr overlay App', () => {
                     return;
                 },
             })),
-            fetchBackfill: vi.fn()
-                .mockResolvedValueOnce([dmEvent as any])
-                .mockResolvedValueOnce([]),
-        } as any);
+            fetchBackfill: vi.fn(async (filters: Array<Record<string, unknown>>) => {
+                const firstFilter = filters[0] || {};
+                const kinds = Array.isArray(firstFilter.kinds) ? firstFilter.kinds : [];
+                const isDmKinds = kinds.includes(1059) || kinds.includes(4);
+                if (isDmKinds) {
+                    return [dmEvent as any];
+                }
+
+                return [];
+            }),
+        } as any));
         const createWriteGatewaySpy = vi.spyOn(writeGatewayModule, 'createWriteGateway').mockReturnValue({
             publishEvent: vi.fn(async () => {
                 throw new Error('not-used');
@@ -1963,7 +1971,7 @@ describe('Nostr overlay App', () => {
     });
 
     test('opens chat dialog and shows existing conversations without waiting for new incoming events', async () => {
-        const ownerPubkey = 'f'.repeat(64);
+        const ownerPubkey = SAMPLE_NSEC_PUBKEY;
         const peerPubkey = 'a'.repeat(64);
         const historicalEvent = createWrappedDmEvent({
             ownerPubkey,
@@ -1972,7 +1980,7 @@ describe('Nostr overlay App', () => {
             rumorContent: 'historial visible',
             rumorCreatedAt: 1700000300,
         });
-        const createTransportSpy = createNdkDmTransportClientSpy!.mockReturnValue({
+        const createTransportSpy = createNdkDmTransportClientSpy!.mockImplementation(() => ({
             publishToRelays: vi.fn(async () => ({
                 ackedRelays: ['wss://relay.one'],
                 failedRelays: [],
@@ -1983,10 +1991,17 @@ describe('Nostr overlay App', () => {
                     return;
                 },
             })),
-            fetchBackfill: vi.fn()
-                .mockResolvedValueOnce([historicalEvent as any])
-                .mockResolvedValueOnce([]),
-        } as any);
+            fetchBackfill: vi.fn(async (filters: Array<Record<string, unknown>>) => {
+                const firstFilter = filters[0] || {};
+                const kinds = Array.isArray(firstFilter.kinds) ? firstFilter.kinds : [];
+                const isDmKinds = kinds.includes(1059) || kinds.includes(4);
+                if (isDmKinds) {
+                    return [historicalEvent as any];
+                }
+
+                return [];
+            }),
+        } as any));
         const createWriteGatewaySpy = vi.spyOn(writeGatewayModule, 'createWriteGateway').mockReturnValue({
             publishEvent: vi.fn(async () => {
                 throw new Error('not-used');
@@ -2040,7 +2055,7 @@ describe('Nostr overlay App', () => {
     });
 
     test('includes owner relay-list hints in runtime DM transport relays', async () => {
-        const ownerPubkey = 'f'.repeat(64);
+        const ownerPubkey = SAMPLE_NSEC_PUBKEY;
         const hintedRelay = 'wss://relay.hinted.example';
 
         createNdkDmTransportClientSpy!.mockReturnValue({
@@ -2117,7 +2132,7 @@ describe('Nostr overlay App', () => {
     });
 
     test('updates chat list when historical bootstrap resolves after dialog is already open', async () => {
-        const ownerPubkey = 'f'.repeat(64);
+        const ownerPubkey = SAMPLE_NSEC_PUBKEY;
         const peerPubkey = 'a'.repeat(64);
         const historicalEvent = createWrappedDmEvent({
             ownerPubkey,
@@ -2134,7 +2149,9 @@ describe('Nostr overlay App', () => {
 
         const fetchBackfill = vi.fn(async (filters: any[]) => {
             const firstFilter = filters[0] || {};
-            if (Array.isArray(firstFilter['#p']) && firstFilter['#p'][0] === ownerPubkey) {
+            const kinds = Array.isArray(firstFilter.kinds) ? firstFilter.kinds : [];
+            const isDmKinds = kinds.includes(1059) || kinds.includes(4);
+            if (isDmKinds && Array.isArray(firstFilter['#p']) && firstFilter['#p'][0] === ownerPubkey) {
                 return inboxBackfillPromise;
             }
 
@@ -3224,7 +3241,7 @@ describe('Nostr overlay App', () => {
     });
 
     test('shows pending message immediately while send is still in-flight', async () => {
-        const ownerPubkey = 'f'.repeat(64);
+        const ownerPubkey = SAMPLE_NSEC_PUBKEY;
         const followedPubkey = 'a'.repeat(64);
         const { bridge, triggerOccupiedBuildingContextMenu } = createMapBridgeStub();
         const sendDeferred = createDeferred<any>();

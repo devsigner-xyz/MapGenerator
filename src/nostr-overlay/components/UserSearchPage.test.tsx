@@ -366,6 +366,12 @@ describe('UserSearchPage', () => {
 
             await typeSearchValue(input, 'error');
             await flushDebounce();
+            await act(async () => {
+                for (let index = 0; index < 8; index += 1) {
+                    vi.runOnlyPendingTimers();
+                    await Promise.resolve();
+                }
+            });
             await waitForAssertion(() => {
                 expect(rendered.container.textContent || '').toContain('No se pudo buscar usuarios.');
             });

@@ -1,6 +1,6 @@
 import NDK from '@nostr-dev-kit/ndk';
 import { createNdkDmTransport } from './dm-transport-ndk';
-import { getBootstrapRelays, mergeRelaySets } from './relay-policy';
+import { resolveRelaySetWithBootstrapFallback } from './relay-policy';
 import type { DmTransport } from './dm-transport';
 import type { NostrClient, NostrEvent, NostrFilter } from './types';
 
@@ -32,7 +32,7 @@ export class NdkClient implements NostrClient {
     };
 
     constructor(relays: string[] = []) {
-        const relayUrls = mergeRelaySets(getBootstrapRelays(), relays);
+        const relayUrls = resolveRelaySetWithBootstrapFallback(relays);
         this.ndk = new NDK({ explicitRelayUrls: relayUrls }) as unknown as {
             connect: (timeout?: number) => Promise<void>;
             fetchEvents: (filter: Record<string, unknown>) => Promise<Set<unknown>>;

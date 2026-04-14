@@ -27,7 +27,24 @@ function isRelayError(error: unknown): boolean {
     }
 
     const message = error.message.toLowerCase();
-    return message.includes('relay') || message.includes('eose') || message.includes('timeout');
+    return message.includes('eose')
+        || message.includes('timeout')
+        || message.includes('network')
+        || message.includes('websocket')
+        || message.includes('disconnect');
+}
+
+function isRecoverableSocialError(error: unknown): boolean {
+    if (!hasMessage(error)) {
+        return false;
+    }
+
+    const message = error.message.toLowerCase();
+    if (message.includes('status 400') || message.includes('status 401') || message.includes('status 403') || message.includes('status 404') || message.includes('invalid')) {
+        return false;
+    }
+
+    return isRelayError(error) || message.includes('status 429') || message.includes('status 5');
 }
 
 function isRecoverableIdentityError(error: unknown): boolean {
@@ -57,6 +74,11 @@ function withDomainDefaults<T extends object>(
     };
 }
 
+function exponentialBackoffDelay(attempt: number): number {
+    const normalizedAttempt = Math.max(1, attempt);
+    return Math.min(1_500, 200 * 2 ** (normalizedAttempt - 1));
+}
+
 const socialProfile = getNostrOverlayQueryTimingProfile('social');
 const metadataProfile = getNostrOverlayQueryTimingProfile('metadata');
 const identityProfile = getNostrOverlayQueryTimingProfile('identity');
@@ -65,15 +87,15 @@ const realtimeProfile = getNostrOverlayQueryTimingProfile('realtime');
 const SOCIAL_DEFAULTS: QueryTimingDefaults = {
     staleTime: socialProfile.staleTime,
     gcTime: socialProfile.gcTime,
-    retry: (failureCount, error) => !isRelayError(error) && failureCount < socialProfile.maxRetries,
-    retryDelay: 0,
+    retry: (failureCount, error) => isRecoverableSocialError(error) && failureCount < socialProfile.maxRetries,
+    retryDelay: (attempt, error) => (isRecoverableSocialError(error) ? exponentialBackoffDelay(attempt) : 0),
 };
 
 const METADATA_DEFAULTS: QueryTimingDefaults = {
     staleTime: metadataProfile.staleTime,
     gcTime: metadataProfile.gcTime,
-    retry: (failureCount, error) => !isRelayError(error) && failureCount < metadataProfile.maxRetries,
-    retryDelay: 0,
+    retry: (failureCount, error) => isRecoverableSocialError(error) && failureCount < metadataProfile.maxRetries,
+    retryDelay: (attempt, error) => (isRecoverableSocialError(error) ? exponentialBackoffDelay(attempt) : 0),
 };
 
 const IDENTITY_DEFAULTS: QueryTimingDefaults = {

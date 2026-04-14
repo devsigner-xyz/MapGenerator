@@ -9,12 +9,12 @@ export const nostrOverlayQueryTimingProfiles = {
     social: {
         staleTime: 30_000,
         gcTime: 5 * 60_000,
-        maxRetries: 1,
+        maxRetries: 2,
     },
     metadata: {
         staleTime: 5 * 60_000,
         gcTime: 30 * 60_000,
-        maxRetries: 1,
+        maxRetries: 2,
     },
     identity: {
         staleTime: 15 * 60_000,
@@ -40,7 +40,13 @@ function isRelayError(error: unknown): boolean {
 
     const maybeMessage = 'message' in error ? error.message : undefined;
     const message = typeof maybeMessage === 'string' ? maybeMessage.toLowerCase() : '';
-    return message.includes('relay') || message.includes('eose') || message.includes('timeout');
+    return message.includes('eose')
+        || message.includes('timeout')
+        || message.includes('network')
+        || message.includes('websocket')
+        || message.includes('disconnect')
+        || message.includes('status 429')
+        || message.includes('status 5');
 }
 
 export function createNostrOverlayQueryClient(): QueryClient {
@@ -53,7 +59,7 @@ export function createNostrOverlayQueryClient(): QueryClient {
                 gcTime: profile.gcTime,
                 retry(failureCount, error) {
                     if (isRelayError(error)) {
-                        return false;
+                        return failureCount < profile.maxRetries;
                     }
 
                     return failureCount < profile.maxRetries;

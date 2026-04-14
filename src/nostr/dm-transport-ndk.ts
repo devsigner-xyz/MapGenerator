@@ -1,11 +1,14 @@
 import NDK, { NDKEvent, NDKRelaySet } from '@nostr-dev-kit/ndk';
-import { getBootstrapRelays, mergeRelaySets, normalizeRelayUrl } from './relay-policy';
+import { normalizeRelayUrl, resolveRelaySetWithBootstrapFallback } from './relay-policy';
 import type { DmTransport, PublishResult } from './dm-transport';
 import type { NostrEvent, NostrFilter } from './types';
 
 const DEFAULT_CONNECT_TIMEOUT_MS = 4_000;
 const DEFAULT_PUBLISH_TIMEOUT_MS = 4_000;
 const DEFAULT_MAX_TARGET_RELAYS = 6;
+const CONNECT_RETRY_ATTEMPTS = 3;
+const PUBLISH_RETRY_ATTEMPTS = 2;
+const BASE_RETRY_DELAY_MS = 200;
 
 type RelayTier = 'inboxWrite' | 'read' | 'session';
 
@@ -140,14 +143,61 @@ function isTimeoutReason(error: unknown): boolean {
     return /timeout|timed out/i.test(error.message);
 }
 
+function isNetworkRecoverableError(error: unknown): boolean {
+    if (!(error instanceof Error)) {
+        return false;
+    }
+
+    return /timeout|timed out|network|websocket|relay|eose|disconnected/i.test(error.message);
+}
+
+function retryDelayMs(attempt: number): number {
+    const baseDelay = BASE_RETRY_DELAY_MS * 2 ** Math.max(0, attempt - 1);
+    const jitter = Math.round(baseDelay * 0.25);
+    return Math.min(1_500, baseDelay + jitter);
+}
+
+function sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+        setTimeout(resolve, ms);
+    });
+}
+
+async function withRetry<T>(
+    operation: () => Promise<T>,
+    maxAttempts: number,
+    shouldRetry: (error: unknown) => boolean
+): Promise<T> {
+    let attempt = 0;
+
+    while (attempt < maxAttempts) {
+        attempt += 1;
+        try {
+            return await operation();
+        } catch (error) {
+            if (attempt >= maxAttempts || !shouldRetry(error)) {
+                throw error;
+            }
+
+            await sleep(retryDelayMs(attempt));
+        }
+    }
+
+    throw new Error('retry-exhausted');
+}
+
 function createNdkDependencies(relays: string[] = []): NdkDmTransportDependencies {
-    const relayUrls = mergeRelaySets(getBootstrapRelays(), relays);
+    const relayUrls = resolveRelaySetWithBootstrapFallback(relays);
     const ndk = new NDK({ explicitRelayUrls: relayUrls });
     let connectPromise: Promise<void> | null = null;
 
     async function connect(): Promise<void> {
         if (!connectPromise) {
-            connectPromise = ndk.connect(DEFAULT_CONNECT_TIMEOUT_MS).catch((error) => {
+            connectPromise = withRetry(
+                async () => ndk.connect(DEFAULT_CONNECT_TIMEOUT_MS),
+                CONNECT_RETRY_ATTEMPTS,
+                isNetworkRecoverableError
+            ).catch((error) => {
                 connectPromise = null;
                 throw error;
             });
@@ -163,7 +213,11 @@ function createNdkDependencies(relays: string[] = []): NdkDmTransportDependencie
             const ndkEvent = new NDKEvent(ndk, event as any);
 
             try {
-                const publishedTo = await ndkEvent.publish(relaySet, timeoutMs, 1);
+                const publishedTo = await withRetry(
+                    async () => ndkEvent.publish(relaySet, timeoutMs, 1),
+                    PUBLISH_RETRY_ATTEMPTS,
+                    isNetworkRecoverableError
+                );
                 if (publishedTo.size > 0) {
                     return { status: 'ack' };
                 }

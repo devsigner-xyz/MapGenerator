@@ -126,6 +126,7 @@ export function useRelaysSettingsController(input: UseRelaysSettingsControllerIn
         enabled: true,
         probe: relayConnectionProbe,
         refreshIntervalMs: relayConnectionRefreshIntervalMs,
+        maxConcurrentProbes: 3,
     });
 
     const checkingConfiguredRelays = useMemo(() => {
@@ -139,6 +140,7 @@ export function useRelaysSettingsController(input: UseRelaysSettingsControllerIn
         enabled: checkingConfiguredRelays === 0,
         probe: relayConnectionProbe,
         refreshIntervalMs: 0,
+        maxConcurrentProbes: 2,
     });
 
     const relayConnectionStatusByRelay = useMemo(() => {

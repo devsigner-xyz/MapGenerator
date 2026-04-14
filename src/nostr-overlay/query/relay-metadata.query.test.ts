@@ -51,14 +51,15 @@ async function renderElement(element: ReactElement): Promise<RenderResult> {
     };
 }
 
-async function waitFor(condition: () => boolean): Promise<void> {
-    for (let index = 0; index < 50; index += 1) {
+async function waitFor(condition: () => boolean, timeoutMs: number = 3_000): Promise<void> {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMs) {
         if (condition()) {
             return;
         }
 
         await act(async () => {
-            await new Promise((resolve) => setTimeout(resolve, 0));
+            await new Promise((resolve) => setTimeout(resolve, 20));
         });
     }
 

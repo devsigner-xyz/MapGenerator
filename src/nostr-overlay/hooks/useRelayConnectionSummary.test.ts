@@ -47,7 +47,7 @@ describe('probeRelayConnection', () => {
         (globalThis as { WebSocket: typeof WebSocket }).WebSocket = originalWebSocket;
     });
 
-    test('does not close a socket that never reached open state', async () => {
+    test('closes a socket after error even if it never reached open state', async () => {
         const probe = probeRelayConnection('wss://relay.example', 250);
         const socket = MockWebSocket.instances[0];
 
@@ -55,7 +55,7 @@ describe('probeRelayConnection', () => {
         socket.onerror?.(new Event('error'));
 
         await expect(probe).resolves.toBe(false);
-        expect(socket.close).not.toHaveBeenCalled();
+        expect(socket.close).toHaveBeenCalledTimes(1);
     });
 
     test('closes socket after successful open probe', async () => {
@@ -68,5 +68,21 @@ describe('probeRelayConnection', () => {
 
         await expect(probe).resolves.toBe(true);
         expect(socket.close).toHaveBeenCalledTimes(1);
+    });
+
+    test('closes half-open socket when probe times out', async () => {
+        vi.useFakeTimers();
+        try {
+            const probe = probeRelayConnection('wss://relay.example', 250);
+            const socket = MockWebSocket.instances[0];
+
+            expect(socket).toBeDefined();
+            vi.advanceTimersByTime(300);
+
+            await expect(probe).resolves.toBe(false);
+            expect(socket.close).toHaveBeenCalledTimes(1);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });

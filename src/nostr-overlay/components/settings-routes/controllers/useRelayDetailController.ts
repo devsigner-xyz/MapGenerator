@@ -76,6 +76,7 @@ export function useRelayDetailController(input: UseRelayDetailControllerInput) {
         enabled: true,
         probe: relayConnectionProbe,
         refreshIntervalMs: relayConnectionRefreshIntervalMs,
+        maxConcurrentProbes: 1,
     });
 
     const selectedRelay = params;

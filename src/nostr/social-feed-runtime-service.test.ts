@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from 'vitest';
 import { createRuntimeSocialFeedService } from './social-feed-runtime-service';
 import type { NostrEvent } from './types';
+import { createTransportPool } from './transport-pool';
 
 const FOLLOW_A = 'a'.repeat(64);
 const FOLLOW_B = 'b'.repeat(64);
@@ -46,6 +47,68 @@ function buildReply(id: string, pubkey: string, createdAt: number, rootEventId: 
 }
 
 describe('social-feed-runtime-service', () => {
+    test('reuses a single transport instance across feed operations for the same relay set', async () => {
+        const transport = createTransportMock([]);
+        const createTransport = vi.fn(() => transport as any);
+        const service = createRuntimeSocialFeedService({
+            createTransport,
+            resolveRelays: () => ['wss://relay.one'],
+            transportPool: createTransportPool(),
+        });
+
+        await service.loadFollowingFeed({
+            follows: [FOLLOW_A],
+            limit: 1,
+        });
+
+        await service.loadThread({
+            rootEventId: 'root-1',
+            limit: 1,
+        });
+
+        await service.loadEngagement({
+            eventIds: ['note-1'],
+            limit: 10,
+        });
+
+        expect(createTransport).toHaveBeenCalledTimes(1);
+    });
+
+    test('falls back to secondary relay set when primary feed request fails', async () => {
+        const primaryTransport = {
+            publishToRelays: vi.fn(async () => ({ ackedRelays: [], failedRelays: [], timeoutRelays: [] })),
+            subscribe: vi.fn(() => ({ unsubscribe() { return; } })),
+            fetchBackfill: vi.fn(async () => {
+                throw new Error('relay timeout');
+            }),
+        };
+        const fallbackTransport = createTransportMock([
+            noteEvent({ id: 'note-fallback', pubkey: FOLLOW_A, createdAt: 500, content: 'fallback' }),
+        ]);
+        const createTransport = vi.fn((relays: string[]) => {
+            if (relays.includes('wss://primary.relay')) {
+                return primaryTransport as any;
+            }
+
+            return fallbackTransport as any;
+        });
+
+        const service = createRuntimeSocialFeedService({
+            createTransport,
+            resolveRelays: () => ['wss://primary.relay'],
+            resolveFallbackRelays: () => ['wss://fallback.relay'],
+            transportPool: createTransportPool(),
+        });
+
+        const page = await service.loadFollowingFeed({
+            follows: [FOLLOW_A],
+            limit: 10,
+        });
+
+        expect(page.items.map((item) => item.id)).toEqual(['note-fallback']);
+        expect(createTransport).toHaveBeenCalledTimes(2);
+    });
+
     test('loads following feed, excludes replies and keeps notes/reposts sorted', async () => {
         const transport = createTransportMock([
             noteEvent({

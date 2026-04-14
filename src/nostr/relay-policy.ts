@@ -46,6 +46,15 @@ export function getBootstrapRelays(): string[] {
     return [...DEFAULT_BOOTSTRAP_RELAYS];
 }
 
+export function resolveRelaySetWithBootstrapFallback(relays: string[]): string[] {
+    const normalized = mergeRelaySets(relays);
+    if (normalized.length > 0) {
+        return normalized;
+    }
+
+    return mergeRelaySets(getBootstrapRelays());
+}
+
 export function mergeRelaySets(...relaySets: string[][]): string[] {
     const merged = new Set<string>();
     for (const relaySet of relaySets) {

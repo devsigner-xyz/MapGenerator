@@ -1,6 +1,6 @@
 import { createLazyNdkDmTransport } from './lazy-ndk-client';
-import { getBootstrapRelays } from './relay-policy';
-import { loadRelaySettings } from './relay-settings';
+import { resolveConservativeSocialRelaySets, hasSameRelaySet, normalizeRelaySet } from './relay-runtime';
+import { createTransportPool, type TransportPool } from './transport-pool';
 import type { DmTransport } from './dm-transport';
 import {
     extractTargetEventId,
@@ -36,28 +36,17 @@ const MAX_AUTHORS_PER_FILTER = 120;
 interface CreateRuntimeSocialFeedServiceOptions {
     createTransport?: (relays: string[]) => DmTransport;
     resolveRelays?: () => string[];
+    resolveFallbackRelays?: (primaryRelays: string[]) => string[];
+    transportPool?: TransportPool<DmTransport>;
 }
 
 function resolveRuntimeSocialRelays(): string[] {
-    const settings = loadRelaySettings();
-    if (settings.relays.length > 0) {
-        return settings.relays;
-    }
-
-    return getBootstrapRelays();
+    return resolveConservativeSocialRelaySets().primary;
 }
 
-function normalizeRelaySet(relays: string[]): string[] {
-    const set = new Set<string>();
-    for (const relay of relays) {
-        if (!relay || typeof relay !== 'string') {
-            continue;
-        }
-
-        set.add(relay);
-    }
-
-    return [...set];
+function resolveRuntimeSocialFallbackRelays(primaryRelays: string[]): string[] {
+    const fallback = resolveConservativeSocialRelaySets().fallback;
+    return hasSameRelaySet(primaryRelays, fallback) ? [] : fallback;
 }
 
 function clampLimit(limit: number | undefined, fallback: number): number {
@@ -152,15 +141,45 @@ function normalizeTargetEventIds(eventIds: string[]): string[] {
     return [...new Set(eventIds.filter((eventId) => typeof eventId === 'string' && eventId.length > 0))];
 }
 
+function isRelayTransportError(error: unknown): boolean {
+    if (!(error instanceof Error)) {
+        return false;
+    }
+
+    return /relay|eose|timeout|network|websocket|disconnect/i.test(error.message);
+}
+
 export function createRuntimeSocialFeedService(
     options: CreateRuntimeSocialFeedServiceOptions = {}
 ): SocialFeedService {
     const createTransport = options.createTransport ?? ((relays: string[]) => createLazyNdkDmTransport({ relays }));
     const resolveRelays = options.resolveRelays ?? resolveRuntimeSocialRelays;
+    const resolveFallbackRelays = options.resolveFallbackRelays ?? resolveRuntimeSocialFallbackRelays;
+    const transportPool = options.transportPool ?? createTransportPool<DmTransport>();
 
-    const resolveTransport = (): DmTransport => {
-        const relays = normalizeRelaySet(resolveRelays());
-        return createTransport(relays);
+    const resolveTransport = (relays: string[]): DmTransport => {
+        return transportPool.getOrCreate(relays, createTransport);
+    };
+
+    const withRelayFallback = async <T>(operation: (transport: DmTransport) => Promise<T>): Promise<T> => {
+        const primaryRelays = normalizeRelaySet(resolveRelays());
+        const primaryTransport = resolveTransport(primaryRelays);
+
+        try {
+            return await operation(primaryTransport);
+        } catch (primaryError) {
+            if (!isRelayTransportError(primaryError)) {
+                throw primaryError;
+            }
+
+            const fallbackRelays = normalizeRelaySet(resolveFallbackRelays(primaryRelays));
+            if (fallbackRelays.length === 0 || hasSameRelaySet(primaryRelays, fallbackRelays)) {
+                throw primaryError;
+            }
+
+            const fallbackTransport = resolveTransport(fallbackRelays);
+            return operation(fallbackTransport);
+        }
     };
 
     return {
@@ -173,110 +192,111 @@ export function createRuntimeSocialFeedService(
                 };
             }
 
-            const transport = resolveTransport();
-            const limit = clampLimit(input.limit, DEFAULT_FEED_LIMIT);
-            const queryLimit = resolveQueryLimit(limit);
-            const authorChunks = chunkAuthors(follows);
-            const collected = new Map<string, ReturnType<typeof toSocialFeedItem>>();
+            return withRelayFallback(async (transport) => {
+                const limit = clampLimit(input.limit, DEFAULT_FEED_LIMIT);
+                const queryLimit = resolveQueryLimit(limit);
+                const authorChunks = chunkAuthors(follows);
+                const collected = new Map<string, ReturnType<typeof toSocialFeedItem>>();
 
-            let cursorUntil = input.until;
-            let reachedSourceEnd = false;
-            let pass = 0;
+                let cursorUntil = input.until;
+                let reachedSourceEnd = false;
+                let pass = 0;
 
-            while (collected.size < limit + 1 && pass < MAX_MAIN_FEED_PASSES) {
-                pass += 1;
-                const batchEvents: NostrEvent[] = [];
-                let allChunksExhausted = true;
-                let maxChunkOldest: number | null = null;
+                while (collected.size < limit + 1 && pass < MAX_MAIN_FEED_PASSES) {
+                    pass += 1;
+                    const batchEvents: NostrEvent[] = [];
+                    let allChunksExhausted = true;
+                    let maxChunkOldest: number | null = null;
 
-                for (const authorChunk of authorChunks) {
-                    const events = await transport.fetchBackfill([{
-                        authors: authorChunk,
-                        kinds: [...MAIN_FEED_KINDS],
-                        limit: queryLimit,
-                        until: cursorUntil,
-                    }]);
+                    for (const authorChunk of authorChunks) {
+                        const events = await transport.fetchBackfill([{
+                            authors: authorChunk,
+                            kinds: [...MAIN_FEED_KINDS],
+                            limit: queryLimit,
+                            until: cursorUntil,
+                        }]);
 
-                    const chunkEvents = sortAndDedupe(events as NostrEvent[]);
-                    if (chunkEvents.length >= queryLimit) {
-                        allChunksExhausted = false;
-                    }
+                        const chunkEvents = sortAndDedupe(events as NostrEvent[]);
+                        if (chunkEvents.length >= queryLimit) {
+                            allChunksExhausted = false;
+                        }
 
-                    if (chunkEvents.length === 0) {
-                        continue;
-                    }
+                        if (chunkEvents.length === 0) {
+                            continue;
+                        }
 
-                    batchEvents.push(...chunkEvents);
+                        batchEvents.push(...chunkEvents);
 
-                    const chunkOldest = chunkEvents[chunkEvents.length - 1]?.created_at;
-                    if (Number.isFinite(chunkOldest)) {
-                        if (maxChunkOldest === null || chunkOldest > maxChunkOldest) {
-                            maxChunkOldest = chunkOldest;
+                        const chunkOldest = chunkEvents[chunkEvents.length - 1]?.created_at;
+                        if (Number.isFinite(chunkOldest)) {
+                            if (maxChunkOldest === null || chunkOldest > maxChunkOldest) {
+                                maxChunkOldest = chunkOldest;
+                            }
                         }
                     }
-                }
 
-                const sorted = sortAndDedupe(batchEvents);
-                if (sorted.length === 0) {
-                    reachedSourceEnd = true;
-                    break;
-                }
-
-                for (const event of sorted) {
-                    if (!isMainFeedEvent(event)) {
-                        continue;
+                    const sorted = sortAndDedupe(batchEvents);
+                    if (sorted.length === 0) {
+                        reachedSourceEnd = true;
+                        break;
                     }
 
-                    const item = toSocialFeedItem(event);
-                    if (!item || collected.has(item.id)) {
-                        continue;
+                    for (const event of sorted) {
+                        if (!isMainFeedEvent(event)) {
+                            continue;
+                        }
+
+                        const item = toSocialFeedItem(event);
+                        if (!item || collected.has(item.id)) {
+                            continue;
+                        }
+
+                        collected.set(item.id, item);
+                        if (collected.size >= limit + 1) {
+                            break;
+                        }
                     }
 
-                    collected.set(item.id, item);
-                    if (collected.size >= limit + 1) {
+                    if (!Number.isFinite(maxChunkOldest)) {
+                        reachedSourceEnd = true;
+                        break;
+                    }
+
+                    cursorUntil = maxChunkOldest - 1;
+
+                    if (allChunksExhausted) {
+                        reachedSourceEnd = true;
                         break;
                     }
                 }
 
-                if (!Number.isFinite(maxChunkOldest)) {
-                    reachedSourceEnd = true;
-                    break;
-                }
+                const sortedItems = [...collected.values()]
+                    .filter((item): item is NonNullable<typeof item> => item !== null)
+                    .sort((left, right) => {
+                        if (left.createdAt !== right.createdAt) {
+                            return right.createdAt - left.createdAt;
+                        }
 
-                cursorUntil = maxChunkOldest - 1;
+                        return left.id.localeCompare(right.id);
+                    });
 
-                if (allChunksExhausted) {
-                    reachedSourceEnd = true;
-                    break;
-                }
-            }
+                const pageItems = sortedItems.slice(0, limit);
+                const endedByPassCap = !reachedSourceEnd
+                    && pass >= MAX_MAIN_FEED_PASSES
+                    && collected.size < limit + 1;
+                const hasMore = sortedItems.length > limit || endedByPassCap;
+                const nextUntil = !hasMore
+                    ? undefined
+                    : sortedItems.length > limit
+                        ? nextUntilFromItems(pageItems)
+                        : cursorUntil;
 
-            const sortedItems = [...collected.values()]
-                .filter((item): item is NonNullable<typeof item> => item !== null)
-                .sort((left, right) => {
-                    if (left.createdAt !== right.createdAt) {
-                        return right.createdAt - left.createdAt;
-                    }
-
-                    return left.id.localeCompare(right.id);
-                });
-
-            const pageItems = sortedItems.slice(0, limit);
-            const endedByPassCap = !reachedSourceEnd
-                && pass >= MAX_MAIN_FEED_PASSES
-                && collected.size < limit + 1;
-            const hasMore = sortedItems.length > limit || endedByPassCap;
-            const nextUntil = !hasMore
-                ? undefined
-                : sortedItems.length > limit
-                    ? nextUntilFromItems(pageItems)
-                    : cursorUntil;
-
-            return {
-                items: pageItems,
-                hasMore,
-                nextUntil,
-            };
+                return {
+                    items: pageItems,
+                    hasMore,
+                    nextUntil,
+                };
+            });
         },
 
         async loadThread(input: LoadThreadInput): Promise<SocialThreadPage> {
@@ -289,53 +309,54 @@ export function createRuntimeSocialFeedService(
                 };
             }
 
-            const transport = resolveTransport();
-            const limit = clampLimit(input.limit, DEFAULT_THREAD_LIMIT);
-            const queryLimit = resolveQueryLimit(limit);
+            return withRelayFallback(async (transport) => {
+                const limit = clampLimit(input.limit, DEFAULT_THREAD_LIMIT);
+                const queryLimit = resolveQueryLimit(limit);
 
-            const events = await transport.fetchBackfill([
-                {
-                    ids: [rootEventId],
-                    limit: 1,
-                },
-                {
-                    kinds: [...THREAD_REPLY_KINDS],
-                    '#e': [rootEventId],
-                    limit: queryLimit,
-                    until: input.until,
-                },
-            ]);
+                const events = await transport.fetchBackfill([
+                    {
+                        ids: [rootEventId],
+                        limit: 1,
+                    },
+                    {
+                        kinds: [...THREAD_REPLY_KINDS],
+                        '#e': [rootEventId],
+                        limit: queryLimit,
+                        until: input.until,
+                    },
+                ]);
 
-            const sorted = sortAndDedupe(events as NostrEvent[]);
-            let root: SocialThreadItem | null = null;
-            const replies: SocialThreadItem[] = [];
+                const sorted = sortAndDedupe(events as NostrEvent[]);
+                let root: SocialThreadItem | null = null;
+                const replies: SocialThreadItem[] = [];
 
-            for (const event of sorted) {
-                if (event.id === rootEventId && !root) {
-                    root = toSocialThreadItem(event);
-                    continue;
+                for (const event of sorted) {
+                    if (event.id === rootEventId && !root) {
+                        root = toSocialThreadItem(event);
+                        continue;
+                    }
+
+                    if (event.kind !== 1) {
+                        continue;
+                    }
+
+                    if (!hasRootTag(event, rootEventId)) {
+                        continue;
+                    }
+
+                    replies.push(toSocialThreadItem(event));
                 }
 
-                if (event.kind !== 1) {
-                    continue;
-                }
+                const pagedReplies = replies.slice(0, limit);
+                const hasMore = replies.length > limit;
 
-                if (!hasRootTag(event, rootEventId)) {
-                    continue;
-                }
-
-                replies.push(toSocialThreadItem(event));
-            }
-
-            const pagedReplies = replies.slice(0, limit);
-            const hasMore = replies.length > limit;
-
-            return {
-                root,
-                replies: pagedReplies,
-                hasMore,
-                nextUntil: hasMore ? nextUntilFromItems(pagedReplies) : undefined,
-            };
+                return {
+                    root,
+                    replies: pagedReplies,
+                    hasMore,
+                    nextUntil: hasMore ? nextUntilFromItems(pagedReplies) : undefined,
+                };
+            });
         },
 
         async loadEngagement(input: LoadEngagementInput): Promise<SocialEngagementByEventId> {
@@ -350,44 +371,45 @@ export function createRuntimeSocialFeedService(
                 return engagementByEventId;
             }
 
-            const transport = resolveTransport();
-            const limit = clampLimit(input.limit, Math.max(DEFAULT_ENGAGEMENT_LIMIT, targetEventIds.length));
-            const events = await transport.fetchBackfill([
-                {
-                    kinds: [...ENGAGEMENT_KINDS],
-                    '#e': targetEventIds,
-                    limit,
-                    until: input.until,
-                },
-            ]);
+            return withRelayFallback(async (transport) => {
+                const limit = clampLimit(input.limit, Math.max(DEFAULT_ENGAGEMENT_LIMIT, targetEventIds.length));
+                const events = await transport.fetchBackfill([
+                    {
+                        kinds: [...ENGAGEMENT_KINDS],
+                        '#e': targetEventIds,
+                        limit,
+                        until: input.until,
+                    },
+                ]);
 
-            for (const event of sortAndDedupe(events as NostrEvent[])) {
-                const targetEventId = extractTargetEventId(event);
-                if (!targetEventId || !engagementByEventId[targetEventId]) {
-                    continue;
+                for (const event of sortAndDedupe(events as NostrEvent[])) {
+                    const targetEventId = extractTargetEventId(event);
+                    if (!targetEventId || !engagementByEventId[targetEventId]) {
+                        continue;
+                    }
+
+                    if (event.kind === 7) {
+                        engagementByEventId[targetEventId].reactions += 1;
+                        continue;
+                    }
+
+                    if (event.kind === 6 || event.kind === 16) {
+                        engagementByEventId[targetEventId].reposts += 1;
+                        continue;
+                    }
+
+                    if (event.kind === 9735) {
+                        engagementByEventId[targetEventId].zaps += 1;
+                        continue;
+                    }
+
+                    if (event.kind === 1 && isReplyEvent(event)) {
+                        engagementByEventId[targetEventId].replies += 1;
+                    }
                 }
 
-                if (event.kind === 7) {
-                    engagementByEventId[targetEventId].reactions += 1;
-                    continue;
-                }
-
-                if (event.kind === 6 || event.kind === 16) {
-                    engagementByEventId[targetEventId].reposts += 1;
-                    continue;
-                }
-
-                if (event.kind === 9735) {
-                    engagementByEventId[targetEventId].zaps += 1;
-                    continue;
-                }
-
-                if (event.kind === 1 && isReplyEvent(event)) {
-                    engagementByEventId[targetEventId].replies += 1;
-                }
-            }
-
-            return engagementByEventId;
+                return engagementByEventId;
+            });
         },
     };
 }
