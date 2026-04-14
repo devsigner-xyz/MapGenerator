@@ -72,6 +72,7 @@ export function OccupantProfileDialog({
     const [activeTab, setActiveTab] = useState<OccupantProfileTab>('info');
     const [isAvatarLightboxOpen, setIsAvatarLightboxOpen] = useState(false);
     const isNip05Verified = verification?.status === 'verified';
+    const displayName = resolveName(pubkey, profile);
 
     let npubValue = pubkey;
     let npubLabel = `${pubkey.slice(0, 10)}...${pubkey.slice(-6)}`;
@@ -365,7 +366,7 @@ export function OccupantProfileDialog({
                                                         <Spinner />
                                                     </EmptyMedia>
                                                     <EmptyTitle>Cargando publicaciones</EmptyTitle>
-                                                    <EmptyDescription>Estamos consultando las notas del usuario.</EmptyDescription>
+                                                    <EmptyDescription>{`Recuperando notas de ${displayName}.`}</EmptyDescription>
                                                 </EmptyHeader>
                                             </Empty>
                                         </div>
@@ -396,7 +397,7 @@ export function OccupantProfileDialog({
                                                     <Spinner />
                                                 </EmptyMedia>
                                                 <EmptyTitle>Cargando seguidores</EmptyTitle>
-                                                <EmptyDescription>Estamos consultando la red del usuario.</EmptyDescription>
+                                                <EmptyDescription>{`Recuperando seguidores de ${displayName}.`}</EmptyDescription>
                                             </EmptyHeader>
                                         </Empty>
                                     ) : (
@@ -439,7 +440,7 @@ export function OccupantProfileDialog({
                                                     <Spinner />
                                                 </EmptyMedia>
                                                 <EmptyTitle>Cargando seguidos</EmptyTitle>
-                                                <EmptyDescription>Estamos consultando la red del usuario.</EmptyDescription>
+                                                <EmptyDescription>{`Recuperando personas a las que sigue ${displayName}.`}</EmptyDescription>
                                             </EmptyHeader>
                                         </Empty>
                                     ) : (
@@ -474,7 +475,7 @@ export function OccupantProfileDialog({
                     open={isAvatarLightboxOpen && Boolean(profile?.picture)}
                     close={() => setIsAvatarLightboxOpen(false)}
                     index={0}
-                    slides={profile?.picture ? [{ src: profile.picture, alt: `Avatar de ${resolveName(pubkey, profile)}` }] : []}
+                    slides={profile?.picture ? [{ src: profile.picture, alt: `Avatar de ${displayName}` }] : []}
                     portal={{
                         root: typeof document === 'undefined' ? null : document.body,
                     }}
