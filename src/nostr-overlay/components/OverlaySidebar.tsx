@@ -8,6 +8,7 @@ import {
     LogOutIcon,
     MapPinIcon,
     MessageCircleIcon,
+    RadioTowerIcon,
     SearchIcon,
     Settings2Icon,
     UserRoundIcon,
@@ -65,6 +66,7 @@ interface OverlaySidebarProps {
     onOpenMap: () => void;
     onOpenCityStats: () => void;
     onOpenChat: () => void;
+    onOpenRelays: () => void;
     onOpenNotifications: () => void;
     onOpenFollowingFeed: () => void;
     onOpenGlobalSearch: () => void;
@@ -75,6 +77,8 @@ interface OverlaySidebarProps {
     onViewOwnerDetails?: () => void;
     missionsDiscoveredCount: number;
     missionsTotal: number;
+    relaysConnectedCount: number;
+    relaysTotal: number;
     onOpenMissions: () => void;
     children: ReactNode;
 }
@@ -97,12 +101,15 @@ function SidebarActionsMenu({
     onOpenMap,
     onOpenCityStats,
     onOpenChat,
+    onOpenRelays,
     onOpenNotifications,
     onOpenFollowingFeed,
     onOpenGlobalSearch,
     onOpenSettings,
     missionsDiscoveredCount,
     missionsTotal,
+    relaysConnectedCount,
+    relaysTotal,
     onOpenMissions,
 }: Omit<OverlaySidebarProps, 'open' | 'onOpenChange' | 'authSession' | 'ownerPubkey' | 'ownerProfile' | 'onCopyOwnerNpub' | 'onLocateOwner' | 'onViewOwnerDetails' | 'onLogout' | 'children'>) {
     const { state } = useSidebar();
@@ -111,6 +118,7 @@ function SidebarActionsMenu({
     const activePath = location.pathname;
 
     const activeSettingsView = useMemo<SettingsRouteView | null>(() => settingsViewFromPathname(activePath), [activePath]);
+    const isRelaysRoute = activePath === '/relays' || activePath.startsWith('/relays/');
 
     const isSettingsActive = activeSettingsView !== null;
     const [settingsExpanded, setSettingsExpanded] = useState(isSettingsActive);
@@ -173,6 +181,23 @@ function SidebarActionsMenu({
                         </SidebarMenuButton>
                     </SidebarMenuItem>
                 ) : null}
+
+                <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={isRelaysRoute}>
+                        <button
+                            type="button"
+                            aria-label="Abrir relays"
+                            title="Relays"
+                            onClick={onOpenRelays}
+                        >
+                            <RadioTowerIcon />
+                            <span>Relays</span>
+                        </button>
+                    </SidebarMenuButton>
+                    {!collapsed ? (
+                        <SidebarMenuBadge>{`${relaysConnectedCount}/${relaysTotal}`}</SidebarMenuBadge>
+                    ) : null}
+                </SidebarMenuItem>
 
                 {canAccessSocialNotifications ? (
                     <SidebarMenuItem>
@@ -270,13 +295,6 @@ function SidebarActionsMenu({
                             <SidebarMenuSubButton asChild isActive={activeSettingsView === 'ui'}>
                                 <button type="button" aria-label="Abrir ajustes de interfaz" onClick={() => onOpenSettings('ui')}>
                                     <span>Interfaz</span>
-                                </button>
-                            </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                        <SidebarMenuSubItem>
-                            <SidebarMenuSubButton asChild isActive={activeSettingsView === 'relays'}>
-                                <button type="button" aria-label="Abrir ajustes de relays" onClick={() => onOpenSettings('relays')}>
-                                    <span>Relays</span>
                                 </button>
                             </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
@@ -466,6 +484,7 @@ export function OverlaySidebar({
     onOpenMap,
     onOpenCityStats,
     onOpenChat,
+    onOpenRelays,
     onOpenNotifications,
     onOpenFollowingFeed,
     onOpenGlobalSearch,
@@ -476,6 +495,8 @@ export function OverlaySidebar({
     onViewOwnerDetails,
     missionsDiscoveredCount,
     missionsTotal,
+    relaysConnectedCount,
+    relaysTotal,
     onOpenMissions,
     children,
 }: OverlaySidebarProps) {
@@ -504,12 +525,15 @@ export function OverlaySidebar({
                         onOpenMap={onOpenMap}
                         onOpenCityStats={onOpenCityStats}
                         onOpenChat={onOpenChat}
+                        onOpenRelays={onOpenRelays}
                         onOpenNotifications={onOpenNotifications}
                         onOpenFollowingFeed={onOpenFollowingFeed}
                         onOpenGlobalSearch={onOpenGlobalSearch}
                         onOpenSettings={onOpenSettings}
                         missionsDiscoveredCount={missionsDiscoveredCount}
                         missionsTotal={missionsTotal}
+                        relaysConnectedCount={relaysConnectedCount}
+                        relaysTotal={relaysTotal}
                         onOpenMissions={onOpenMissions}
                     />
                     <SidebarUserMenu

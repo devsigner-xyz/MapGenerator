@@ -32,7 +32,7 @@ export function SettingsRelayDetailRoute() {
     });
 
     if (!params) {
-        return <Navigate to="/settings/relays" replace />;
+        return <Navigate to="/relays" replace />;
     }
 
     return (
@@ -56,7 +56,7 @@ export function SettingsRelayDetailRoute() {
             />
 
             <DialogFooter className="sm:justify-start">
-                <Button type="button" variant="outline" onClick={() => navigate('/settings/relays')}>
+                <Button type="button" variant="outline" onClick={() => navigate('/relays')}>
                     Volver
                 </Button>
             </DialogFooter>

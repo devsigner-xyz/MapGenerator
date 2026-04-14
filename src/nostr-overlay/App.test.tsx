@@ -1699,7 +1699,7 @@ describe('Nostr overlay App', () => {
         expect(compactNotificationsButton).not.toBeNull();
     });
 
-    test('orders main sidebar actions as mapa/agora/chats/notificaciones/buscar/estadisticas/descubre/ajustes', async () => {
+    test('orders main sidebar actions as mapa/agora/chats/relays/notificaciones/buscar/estadisticas/descubre/ajustes', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const socialFeed = createSocialFeedServiceMock();
         const socialNotifications = createSocialNotificationsServiceMock();
@@ -1740,6 +1740,7 @@ describe('Nostr overlay App', () => {
             'Abrir mapa',
             'Abrir Agora',
             'Abrir chats',
+            'Abrir relays',
             'Abrir notificaciones',
             'Abrir buscador global de usuarios',
             'Abrir estadisticas de la ciudad',
@@ -3781,12 +3782,13 @@ describe('Nostr overlay App', () => {
         expect(showPanelButton.getAttribute('title')).toBe('Show panel');
         expect(rendered.container.querySelector('button[aria-label="Abrir ajustes"]')).not.toBeNull();
         const compactButtons = Array.from(rendered.container.querySelectorAll('.nostr-compact-toolbar button')) as HTMLButtonElement[];
-        expect(compactButtons.length).toBe(5);
+        expect(compactButtons.length).toBe(6);
         expect(compactButtons[0].getAttribute('aria-label')).toBe('Abrir mapa');
-        expect(compactButtons[1].getAttribute('aria-label')).toBe('Abrir buscador global de usuarios');
-        expect(compactButtons[2].getAttribute('aria-label')).toBe('Abrir estadisticas de la ciudad');
-        expect(compactButtons[3].getAttribute('aria-label')).toBe('Abrir descubre');
-        expect(compactButtons[4].getAttribute('aria-label')).toBe('Abrir ajustes');
+        expect(compactButtons[1].getAttribute('aria-label')).toBe('Abrir relays');
+        expect(compactButtons[2].getAttribute('aria-label')).toBe('Abrir buscador global de usuarios');
+        expect(compactButtons[3].getAttribute('aria-label')).toBe('Abrir estadisticas de la ciudad');
+        expect(compactButtons[4].getAttribute('aria-label')).toBe('Abrir descubre');
+        expect(compactButtons[5].getAttribute('aria-label')).toBe('Abrir ajustes');
         expect(rendered.container.textContent || '').not.toContain('Sobre mi');
         expect(rendered.container.textContent || '').not.toContain('Sigues (');
         expect(rendered.container.textContent || '').not.toContain('Seguidores (');
@@ -4891,7 +4893,12 @@ describe('Nostr overlay App', () => {
 
         await waitFor(() => (rendered.container.textContent || '').includes('User-ffff'));
 
-        await selectSettingsContextAction(rendered.container, 'Relays');
+        const relaysButton = rendered.container.querySelector('button[aria-label="Abrir relays"]') as HTMLButtonElement;
+        expect(relaysButton).toBeDefined();
+
+        await act(async () => {
+            relaysButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
 
         await waitFor(() => (rendered.container.textContent || '').includes('relay.suggested.example'));
     });
@@ -4968,7 +4975,12 @@ describe('Nostr overlay App', () => {
 
         await waitFor(() => (rendered.container.textContent || '').includes('User-ffff'));
 
-        await selectSettingsContextAction(rendered.container, 'Relays');
+        const relaysButton = rendered.container.querySelector('button[aria-label="Abrir relays"]') as HTMLButtonElement;
+        expect(relaysButton).toBeDefined();
+
+        await act(async () => {
+            relaysButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
 
         await waitFor(() =>
             !rendered.container.querySelector('button[aria-label="Abrir acciones sugeridas para wss://relay.suggested.example (NIP-65 read+write)"]')

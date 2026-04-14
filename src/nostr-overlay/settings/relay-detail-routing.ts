@@ -15,7 +15,7 @@ export function buildRelayDetailPath(params: RelayDetailRouteParams): string {
     searchParams.set('url', params.relayUrl);
     searchParams.set('source', params.source);
     searchParams.set('type', params.relayType);
-    return `/settings/relays/detail?${searchParams.toString()}`;
+    return `/relays/detail?${searchParams.toString()}`;
 }
 
 export function parseRelayDetailSearch(search: string): RelayDetailRouteParams | null {

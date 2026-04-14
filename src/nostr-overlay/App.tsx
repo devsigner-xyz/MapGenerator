@@ -26,10 +26,10 @@ import { NotificationsPage } from './components/NotificationsPage';
 import { FollowingFeedSurface } from './components/FollowingFeedSurface';
 import { SettingsPage } from './components/SettingsPage';
 import { UserSearchPage } from './components/UserSearchPage';
+import { RelayDetailRoute } from './components/RelayDetailRoute';
+import { RelaysRoute } from './components/RelaysRoute';
 import { SettingsAboutRoute } from './components/settings-routes/SettingsAboutRoute';
 import { SettingsAdvancedRoute } from './components/settings-routes/SettingsAdvancedRoute';
-import { SettingsRelayDetailRoute } from './components/settings-routes/SettingsRelayDetailRoute';
-import { SettingsRelaysRoute } from './components/settings-routes/SettingsRelaysRoute';
 import { SettingsShortcutsRoute } from './components/settings-routes/SettingsShortcutsRoute';
 import { SettingsUiRoute } from './components/settings-routes/SettingsUiRoute';
 import { SettingsZapsRoute } from './components/settings-routes/SettingsZapsRoute';
@@ -50,7 +50,9 @@ import { createRuntimeSocialFeedService } from '../nostr/social-feed-runtime-ser
 import { resolveConservativeSocialRelaySets } from '../nostr/relay-runtime';
 import { createTransportPool } from '../nostr/transport-pool';
 import type { DmTransport } from '../nostr/dm-transport';
+import { loadRelaySettings, type RelaySettingsState } from '../nostr/relay-settings';
 import { buildSettingsPath, settingsViewFromPathname, type SettingsRouteView } from './settings/settings-routing';
+import { useRelayConnectionSummary } from './hooks/useRelayConnectionSummary';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Spinner } from '@/components/ui/spinner';
 import {
@@ -102,7 +104,11 @@ export function App({ mapBridge, services }: AppProps) {
         pubkey: overlay.activeProfilePubkey,
         service: overlay.activeProfileService,
     });
+    const relaySettingsOwnerPubkey = overlay.authSession?.pubkey;
     const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [relaySettingsSnapshot, setRelaySettingsSnapshot] = useState<RelaySettingsState>(() => loadRelaySettings({
+        ownerPubkey: relaySettingsOwnerPubkey,
+    }));
     const [uiSettings, setUiSettings] = useState<UiSettingsState>(() => loadUiSettings());
     const [zapSettings, setZapSettings] = useState<ZapSettingsState>(() => loadZapSettings());
     const [easterEggProgress, setEasterEggProgress] = useState<EasterEggProgressState>(() => loadEasterEggProgress());
@@ -447,6 +453,11 @@ export function App({ mapBridge, services }: AppProps) {
     const canAccessDirectMessages = Boolean(overlay.ownerPubkey && overlay.canDirectMessages && overlay.directMessagesService);
     const canAccessSocialNotifications = Boolean(overlay.ownerPubkey);
     const canAccessFollowingFeed = Boolean(overlay.ownerPubkey);
+    const relayStatusTargets = relaySettingsSnapshot.relays;
+    const relayConnectionSummary = useRelayConnectionSummary(relayStatusTargets, {
+        enabled: relayStatusTargets.length > 0,
+        maxConcurrentProbes: 3,
+    });
     const activeSettingsView = useMemo(
         () => settingsViewFromPathname(location.pathname),
         [location.pathname]
@@ -533,7 +544,15 @@ export function App({ mapBridge, services }: AppProps) {
     ]);
 
     useEffect(() => {
+        setRelaySettingsSnapshot(loadRelaySettings({ ownerPubkey: relaySettingsOwnerPubkey }));
+    }, [relaySettingsOwnerPubkey]);
+
+    useEffect(() => {
         if (!location.pathname.startsWith('/settings/')) {
+            return;
+        }
+
+        if (location.pathname.startsWith('/settings/relays')) {
             return;
         }
 
@@ -649,6 +668,10 @@ export function App({ mapBridge, services }: AppProps) {
         navigate('/agora');
     };
 
+    const openRelaysPage = (): void => {
+        navigate('/relays');
+    };
+
     const openGlobalUserSearch = (): void => {
         navigate('/buscar-usuarios');
     };
@@ -735,6 +758,7 @@ export function App({ mapBridge, services }: AppProps) {
                 onOpenMap={() => navigate('/')}
                 onOpenCityStats={() => navigate('/estadisticas')}
                 onOpenChat={openChatList}
+                onOpenRelays={openRelaysPage}
                 onOpenNotifications={openNotifications}
                 onOpenFollowingFeed={openFollowingFeed}
                 onOpenGlobalSearch={openGlobalUserSearch}
@@ -755,6 +779,8 @@ export function App({ mapBridge, services }: AppProps) {
                 }}
                 missionsDiscoveredCount={discoveredMissionsCount}
                 missionsTotal={EASTER_EGG_MISSIONS.length}
+                relaysConnectedCount={relayConnectionSummary.connectedRelays}
+                relaysTotal={relayConnectionSummary.totalRelays}
                 onOpenMissions={() => navigate('/descubre')}
             >
                 <SocialSidebar
@@ -948,6 +974,27 @@ export function App({ mapBridge, services }: AppProps) {
                     )}
                 />
                 <Route
+                    path="/relays"
+                    element={(
+                        <RelaysRoute
+                            ownerPubkey={overlay.ownerPubkey}
+                            suggestedRelays={overlay.suggestedRelays}
+                            suggestedRelaysByType={overlay.suggestedRelaysByType}
+                            onRelaySettingsChange={setRelaySettingsSnapshot}
+                        />
+                    )}
+                />
+                <Route
+                    path="/relays/detail"
+                    element={(
+                        <RelayDetailRoute
+                            ownerPubkey={overlay.ownerPubkey}
+                            suggestedRelays={overlay.suggestedRelays}
+                            suggestedRelaysByType={overlay.suggestedRelaysByType}
+                        />
+                    )}
+                />
+                <Route
                     path="/descubre"
                     element={(
                         <DiscoverPage
@@ -982,20 +1029,20 @@ export function App({ mapBridge, services }: AppProps) {
                             onClose={() => navigate('/')}
                         />
                     )}
-                >
-                    <Route index element={<Navigate to="ui" replace />} />
-                    <Route path="ui" element={<SettingsUiRoute />} />
-                    <Route path="shortcuts" element={<SettingsShortcutsRoute />} />
-                    <Route path="relays" element={<SettingsRelaysRoute />} />
-                    <Route path="relays/detail" element={<SettingsRelayDetailRoute />} />
-                    <Route path="zaps" element={<SettingsZapsRoute />} />
-                    <Route path="about" element={<SettingsAboutRoute />} />
-                    <Route path="advanced" element={<SettingsAdvancedRoute />} />
-                    <Route path="*" element={<Navigate to="ui" replace />} />
-                </Route>
-                <Route path="/settings/:view" element={<Navigate to="/settings/ui" replace />} />
-                <Route path="/" element={null} />
-                <Route path="*" element={<Navigate to="/" replace />} />
+                    >
+                        <Route index element={<Navigate to="ui" replace />} />
+                        <Route path="ui" element={<SettingsUiRoute />} />
+                        <Route path="shortcuts" element={<SettingsShortcutsRoute />} />
+                        <Route path="zaps" element={<SettingsZapsRoute />} />
+                        <Route path="about" element={<SettingsAboutRoute />} />
+                        <Route path="advanced" element={<SettingsAdvancedRoute />} />
+                        <Route path="*" element={<Navigate to="ui" replace />} />
+                    </Route>
+                    <Route path="/settings/relays" element={<Navigate to="/relays" replace />} />
+                    <Route path="/settings/relays/detail" element={<Navigate to={`/relays/detail${location.search}`} replace />} />
+                    <Route path="/settings/:view" element={<Navigate to="/settings/ui" replace />} />
+                    <Route path="/" element={null} />
+                    <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
 
             <MapPresenceLayer

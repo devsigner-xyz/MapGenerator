@@ -7,11 +7,11 @@ import { RELAY_SETTINGS_STORAGE_KEY } from '../../../nostr/relay-settings';
 import { UI_SETTINGS_STORAGE_KEY } from '../../../nostr/ui-settings';
 import { createNostrOverlayQueryClient } from '../../query/query-client';
 import type { MapBridge } from '../../map-bridge';
+import { RelayDetailRoute } from '../RelayDetailRoute';
+import { RelaysRoute } from '../RelaysRoute';
 import { SettingsPage, type SettingsPageProps } from '../SettingsPage';
 import { SettingsAboutRoute } from './SettingsAboutRoute';
 import { SettingsAdvancedRoute } from './SettingsAdvancedRoute';
-import { SettingsRelayDetailRoute } from './SettingsRelayDetailRoute';
-import { SettingsRelaysRoute } from './SettingsRelaysRoute';
 import { SettingsShortcutsRoute } from './SettingsShortcutsRoute';
 import { SettingsUiRoute } from './SettingsUiRoute';
 import { SettingsZapsRoute } from './SettingsZapsRoute';
@@ -59,13 +59,29 @@ function buildSettingsRoutes(props: SettingsPageProps): ReactElement {
                 <Route index element={<Navigate to="ui" replace />} />
                 <Route path="ui" element={<SettingsUiRoute />} />
                 <Route path="shortcuts" element={<SettingsShortcutsRoute />} />
-                <Route path="relays" element={<SettingsRelaysRoute />} />
-                <Route path="relays/detail" element={<SettingsRelayDetailRoute />} />
                 <Route path="zaps" element={<SettingsZapsRoute />} />
                 <Route path="about" element={<SettingsAboutRoute />} />
                 <Route path="advanced" element={<SettingsAdvancedRoute />} />
                 <Route path="*" element={<Navigate to="ui" replace />} />
             </Route>
+            <Route path="/relays" element={<RelaysRoute
+                ownerPubkey={props.ownerPubkey}
+                suggestedRelays={props.suggestedRelays}
+                suggestedRelaysByType={props.suggestedRelaysByType}
+                relayConnectionProbe={props.relayConnectionProbe}
+                relayConnectionRefreshIntervalMs={props.relayConnectionRefreshIntervalMs}
+            />}
+            />
+            <Route path="/relays/detail" element={<RelayDetailRoute
+                ownerPubkey={props.ownerPubkey}
+                suggestedRelays={props.suggestedRelays}
+                suggestedRelaysByType={props.suggestedRelaysByType}
+                relayConnectionProbe={props.relayConnectionProbe}
+                relayConnectionRefreshIntervalMs={props.relayConnectionRefreshIntervalMs}
+            />}
+            />
+            <Route path="/settings/relays" element={<Navigate to="/relays" replace />} />
+            <Route path="/settings/relays/detail" element={<Navigate to="/relays/detail" replace />} />
         </Routes>
     );
 }
@@ -182,7 +198,7 @@ describe('Overlay settings routes', () => {
             })
         );
 
-        const rendered = await renderSettingsRoute('/settings/relays/detail?url=wss%3A%2F%2Frelay.one&source=configured&type=nip65Both');
+        const rendered = await renderSettingsRoute('/relays/detail?url=wss%3A%2F%2Frelay.one&source=configured&type=nip65Both');
         mounted.push(rendered);
 
         expect(rendered.container.textContent || '').toContain('Relay details');
@@ -201,7 +217,7 @@ describe('Overlay settings routes', () => {
     });
 
     test('redirects invalid relay detail query params back to relays', async () => {
-        const rendered = await renderSettingsRoute('/settings/relays/detail?foo=bar');
+        const rendered = await renderSettingsRoute('/relays/detail?foo=bar');
         mounted.push(rendered);
 
         expect(rendered.container.textContent || '').toContain('Relays configurados');

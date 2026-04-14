@@ -30,6 +30,7 @@ interface UseRelaysSettingsControllerInput {
     suggestedRelaysByType?: Partial<RelaySettingsByType>;
     relayConnectionProbe?: RelayConnectionProbe;
     relayConnectionRefreshIntervalMs?: number;
+    onRelaySettingsChange?: (nextState: RelaySettingsState) => void;
 }
 
 export interface RelaysSettingsController {
@@ -64,6 +65,7 @@ export function useRelaysSettingsController(input: UseRelaysSettingsControllerIn
         suggestedRelaysByType,
         relayConnectionProbe,
         relayConnectionRefreshIntervalMs,
+        onRelaySettingsChange,
     } = input;
     const [relaySettings, setRelaySettings] = useState<RelaySettingsState>(() => loadRelaySettings({ ownerPubkey }));
     const [newRelayInput, setNewRelayInput] = useState('');
@@ -73,6 +75,7 @@ export function useRelaysSettingsController(input: UseRelaysSettingsControllerIn
     const persistRelaySettings = (nextState: RelaySettingsState): void => {
         const savedState = saveRelaySettings(nextState, { ownerPubkey });
         setRelaySettings(savedState);
+        onRelaySettingsChange?.(savedState);
     };
 
     useEffect(() => {

@@ -9,7 +9,7 @@ describe('relay-detail-routing', () => {
             relayType: 'nip65Both',
         });
 
-        expect(path).toContain('/settings/relays/detail?');
+        expect(path).toContain('/relays/detail?');
         expect(path).toContain('url=wss%3A%2F%2Frelay.example%2Fpath');
         expect(path).toContain('source=configured');
         expect(path).toContain('type=nip65Both');

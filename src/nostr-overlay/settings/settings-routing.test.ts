@@ -18,8 +18,6 @@ describe('settings-routing', () => {
 
     test('extracts first settings segment from pathname', () => {
         expect(settingsViewFromPathname('/settings/ui')).toBe('ui');
-        expect(settingsViewFromPathname('/settings/relays')).toBe('relays');
-        expect(settingsViewFromPathname('/settings/relays/detail')).toBe('relays');
         expect(settingsViewFromPathname('/settings/zaps/anything')).toBe('zaps');
     });
 
@@ -33,6 +31,5 @@ describe('settings-routing', () => {
     test('builds canonical settings paths', () => {
         expect(buildSettingsPath('ui')).toBe('/settings/ui');
         expect(buildSettingsPath('advanced')).toBe('/settings/advanced');
-        expect(buildSettingsPath('relays')).toBe('/settings/relays');
     });
 });
