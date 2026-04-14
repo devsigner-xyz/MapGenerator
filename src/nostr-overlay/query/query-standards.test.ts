@@ -51,6 +51,33 @@ describe('nostr overlay query standards', () => {
         ).toEqual(
             ['nostr-overlay', 'social', 'search', { term: 'alice' }]
         );
+
+        expect(
+            nostrOverlayQueryKeys.followingFeed({
+                ownerPubkey: 'owner',
+                follows: ['a'],
+                pageSize: 20,
+                hashtag: ' #NostrCity ',
+            })
+        ).toEqual(
+            nostrOverlayQueryKeys.followingFeed({
+                ownerPubkey: 'owner',
+                follows: ['a'],
+                pageSize: 20,
+                hashtag: 'nostrcity',
+            })
+        );
+
+        expect(
+            nostrOverlayQueryKeys.followingFeed({
+                ownerPubkey: 'owner',
+                follows: ['a'],
+                pageSize: 20,
+                hashtag: '   ',
+            })
+        ).toEqual(
+            ['nostr-overlay', 'social', 'following-feed', { ownerPubkey: 'owner', follows: ['a'], pageSize: 20, hashtag: undefined }]
+        );
     });
 
     test('exposes explicit invalidation scopes by domain', () => {

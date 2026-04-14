@@ -5,6 +5,7 @@ import type { NostrProfile } from '../../nostr/types';
 import type { NostrPostPreview } from '../../nostr/posts';
 import { ListLoadingFooter } from './ListLoadingFooter';
 import { Nip05Identifier } from './Nip05Identifier';
+import { RichNostrContent } from './RichNostrContent';
 import { CircleCheckIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -31,6 +32,7 @@ interface OccupantProfileDialogProps {
     networkError?: string;
     verification?: Nip05ValidationResult;
     onLoadMorePosts: () => Promise<void>;
+    onSelectHashtag?: (hashtag: string) => void;
     onClose: () => void;
 }
 
@@ -56,6 +58,7 @@ export function OccupantProfileDialog({
     networkError,
     verification,
     onLoadMorePosts,
+    onSelectHashtag,
     onClose,
 }: OccupantProfileDialogProps) {
     const followsTimerRef = useRef<number | null>(null);
@@ -257,7 +260,12 @@ export function OccupantProfileDialog({
                                         <ul className="nostr-profile-post-list">
                                             {posts.map((post) => (
                                                 <li key={post.id} className="nostr-profile-post-item">
-                                                    <p className="nostr-profile-post-content">{post.content || '(sin contenido textual)'}</p>
+                                                    <RichNostrContent
+                                                        content={post.content || ''}
+                                                        onSelectHashtag={onSelectHashtag}
+                                                        textClassName="nostr-profile-post-content"
+                                                        emptyFallback={<p className="nostr-profile-post-content">(sin contenido textual)</p>}
+                                                    />
                                                     <time className="nostr-profile-post-date" dateTime={new Date(post.createdAt * 1000).toISOString()}>
                                                         {new Date(post.createdAt * 1000).toLocaleString()}
                                                     </time>

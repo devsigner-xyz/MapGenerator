@@ -12,6 +12,7 @@ const EMPTY_ENGAGEMENT_METRICS: SocialEngagementMetrics = {
     reposts: 0,
     reactions: 0,
     zaps: 0,
+    zapSats: 0,
 };
 
 export interface FollowingFeedThreadView {
@@ -134,6 +135,7 @@ export function applyEngagementDeltas(input: {
             reposts: Math.max(0, (base.reposts || 0) + (delta.reposts || 0)),
             reactions: Math.max(0, (base.reactions || 0) + (delta.reactions || 0)),
             zaps: Math.max(0, (base.zaps || 0) + (delta.zaps || 0)),
+            zapSats: Math.max(0, (base.zapSats || 0) + (delta.zapSats || 0)),
         };
     }
 

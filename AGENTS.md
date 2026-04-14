@@ -1,3 +1,6 @@
+# General rules 
+- Avoid custom styles if shadcn defaults can be applied.
+
 # Project Agents And Skills
 
 ## Custom Agents

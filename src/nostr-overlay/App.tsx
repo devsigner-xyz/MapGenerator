@@ -96,6 +96,15 @@ function mapLoaderStageLabel(stage: MapLoaderStage | null): string | null {
     return null;
 }
 
+function normalizeHashtag(value: string | null): string | undefined {
+    if (typeof value !== 'string') {
+        return undefined;
+    }
+
+    const normalized = value.trim().replace(/^#+/, '').toLowerCase();
+    return normalized.length > 0 ? normalized : undefined;
+}
+
 export function App({ mapBridge, services }: AppProps) {
     const navigate = useNavigate();
     const location = useLocation();
@@ -379,9 +388,18 @@ export function App({ mapBridge, services }: AppProps) {
         }),
         [overlay.ownerPubkey, services?.socialFeedService, socialTransportPool]
     );
+    const activeAgoraHashtag = useMemo(() => {
+        if (location.pathname !== '/agora') {
+            return undefined;
+        }
+
+        const search = new URLSearchParams(location.search);
+        return normalizeHashtag(search.get('tag'));
+    }, [location.pathname, location.search]);
     const followingFeed = useFollowingFeedController({
         ownerPubkey: overlay.ownerPubkey,
         follows: overlay.follows,
+        hashtag: activeAgoraHashtag,
         canWrite: overlay.canWrite,
         service: socialFeedService,
         writeGateway: overlay.writeGateway,
@@ -561,14 +579,14 @@ export function App({ mapBridge, services }: AppProps) {
         }
     }, [location.pathname, activeSettingsView, navigate]);
 
-    const copyOwnerIdentifier = async (value: string): Promise<void> => {
+    const copyText = async (value: string, successMessage: string): Promise<void> => {
         if (!value) {
             return;
         }
 
         if (navigator.clipboard?.writeText) {
             await navigator.clipboard.writeText(value);
-            toast.success('npub copiada', { duration: 1600 });
+            toast.success(successMessage, { duration: 1600 });
             return;
         }
 
@@ -581,10 +599,18 @@ export function App({ mapBridge, services }: AppProps) {
         textarea.select();
         try {
             document.execCommand('copy');
-            toast.success('npub copiada', { duration: 1600 });
+            toast.success(successMessage, { duration: 1600 });
         } finally {
             textarea.remove();
         }
+    };
+
+    const copyOwnerIdentifier = async (value: string): Promise<void> => {
+        await copyText(value, 'npub copiada');
+    };
+
+    const copyNoteIdentifier = async (value: string): Promise<void> => {
+        await copyText(value, 'ID de nota copiado');
     };
 
     const locateOwnerOnMap = (): void => {
@@ -662,6 +688,33 @@ export function App({ mapBridge, services }: AppProps) {
 
     const openFollowingFeed = (): void => {
         if (!canAccessFollowingFeed) {
+            return;
+        }
+
+        navigate('/agora');
+    };
+
+    const selectFollowingFeedHashtag = (hashtag: string): void => {
+        const normalized = normalizeHashtag(hashtag);
+        if (!normalized) {
+            return;
+        }
+
+        navigate(`/agora?tag=${encodeURIComponent(normalized)}`);
+    };
+
+    const selectProfilePostHashtag = (hashtag: string): void => {
+        const normalized = normalizeHashtag(hashtag);
+        if (!normalized) {
+            return;
+        }
+
+        overlay.closeActiveProfileDialog();
+        navigate(`/agora?tag=${encodeURIComponent(normalized)}`);
+    };
+
+    const clearFollowingFeedHashtagFilter = (): void => {
+        if (!activeAgoraHashtag) {
             return;
         }
 
@@ -896,6 +949,12 @@ export function App({ mapBridge, services }: AppProps) {
                             items={followingFeed.items}
                             profilesByPubkey={followingFeedProfilesByPubkey}
                             engagementByEventId={followingFeed.engagementByEventId}
+                            activeHashtag={followingFeed.activeHashtag}
+                            onClearHashtag={followingFeed.activeHashtag ? clearFollowingFeedHashtagFilter : undefined}
+                            onSelectHashtag={selectFollowingFeedHashtag}
+                            onCopyNoteId={(noteId) => {
+                                void copyNoteIdentifier(noteId);
+                            }}
                             isLoadingFeed={followingFeed.isLoadingFeed}
                             feedError={followingFeed.feedError}
                             hasMoreFeed={followingFeed.hasMoreFeed}
@@ -1075,6 +1134,7 @@ export function App({ mapBridge, services }: AppProps) {
                     networkError={activeProfileData.networkError}
                     verification={verificationByPubkey[overlay.activeProfilePubkey]}
                     onLoadMorePosts={activeProfileData.loadMorePosts}
+                    onSelectHashtag={selectProfilePostHashtag}
                     onClose={overlay.closeActiveProfileDialog}
                 />
             ) : null}

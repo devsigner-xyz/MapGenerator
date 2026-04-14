@@ -1672,6 +1672,19 @@
     gap: 0.14rem;
 }
 
+.nostr-following-feed-card-head-main {
+    min-width: 0;
+    flex: 1;
+    display: grid;
+    gap: 0.14rem;
+}
+
+.nostr-following-feed-card-head-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+}
+
 .nostr-following-feed-card-author {
     margin: 0;
     color: #1d3340;
@@ -1693,6 +1706,32 @@
     flex-wrap: wrap;
 }
 
+.nostr-following-feed-card-time {
+    margin-left: auto;
+    color: #5f7380;
+    font-size: 0.69rem;
+    white-space: nowrap;
+}
+
+.nostr-following-feed-card-id {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    letter-spacing: 0.01em;
+}
+
+.nostr-following-feed-copy-id {
+    border: none;
+    background: transparent;
+    color: #2f5e7a;
+    font-size: 0.7rem;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+}
+
+.nostr-following-feed-copy-id:hover {
+    text-decoration: underline;
+}
+
 .nostr-following-feed-card-kind {
     font-weight: 700;
     color: #274a5b;
@@ -1707,6 +1746,61 @@
     line-height: 1.35;
     white-space: pre-wrap;
     word-break: break-word;
+}
+
+.nostr-rich-inline-link {
+    color: #2b5972;
+    text-decoration: underline;
+    text-underline-offset: 0.08em;
+}
+
+.nostr-rich-hashtag {
+    border: none;
+    background: transparent;
+    color: #1e637f;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+}
+
+.nostr-rich-hashtag:hover {
+    text-decoration: underline;
+}
+
+.nostr-rich-media-grid {
+    display: grid;
+    gap: 0.34rem;
+}
+
+.nostr-rich-media-item {
+    display: grid;
+    gap: 0.2rem;
+}
+
+.nostr-rich-media-trigger {
+    display: block;
+    border: none;
+    background: transparent;
+    padding: 0;
+    cursor: zoom-in;
+}
+
+.nostr-rich-media-image,
+.nostr-rich-media-video {
+    width: 100%;
+    max-height: 320px;
+    border-radius: 8px;
+    border: none;
+    background: #f5f9fc;
+    object-fit: contain;
+}
+
+.nostr-rich-media-url {
+    font-size: 0.72rem;
+    color: #4b6170;
+    text-decoration: underline;
+    text-underline-offset: 0.08em;
+    word-break: break-all;
 }
 
 .nostr-following-feed-card-embedded {

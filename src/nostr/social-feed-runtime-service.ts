@@ -6,6 +6,7 @@ import {
     extractTargetEventId,
     isReplyEvent,
     isMainFeedEvent,
+    type LoadHashtagFeedInput,
     toSocialFeedItem,
     toSocialThreadItem,
     type LoadEngagementInput,
@@ -18,7 +19,7 @@ import {
     type SocialThreadItem,
     type SocialThreadPage,
 } from './social-feed-service';
-import type { NostrEvent } from './types';
+import type { NostrEvent, NostrFilter } from './types';
 
 const MAIN_FEED_KINDS = [1, 6, 16] as const;
 const THREAD_REPLY_KINDS = [1] as const;
@@ -32,6 +33,7 @@ const MIN_QUERY_LIMIT = 24;
 const MAX_QUERY_LIMIT = 180;
 const MAX_MAIN_FEED_PASSES = 4;
 const MAX_AUTHORS_PER_FILTER = 120;
+const MAX_EVENT_IDS_PER_FILTER = 120;
 
 interface CreateRuntimeSocialFeedServiceOptions {
     createTransport?: (relays: string[]) => DmTransport;
@@ -68,6 +70,20 @@ function chunkAuthors(authors: string[]): string[][] {
     const chunks: string[][] = [];
     for (let index = 0; index < normalized.length; index += MAX_AUTHORS_PER_FILTER) {
         chunks.push(normalized.slice(index, index + MAX_AUTHORS_PER_FILTER));
+    }
+
+    return chunks;
+}
+
+function chunkEventIds(eventIds: string[]): string[][] {
+    const normalized = normalizeTargetEventIds(eventIds);
+    if (normalized.length === 0) {
+        return [];
+    }
+
+    const chunks: string[][] = [];
+    for (let index = 0; index < normalized.length; index += MAX_EVENT_IDS_PER_FILTER) {
+        chunks.push(normalized.slice(index, index + MAX_EVENT_IDS_PER_FILTER));
     }
 
     return chunks;
@@ -134,11 +150,119 @@ function createEmptyEngagementMetrics(): SocialEngagementMetrics {
         reposts: 0,
         reactions: 0,
         zaps: 0,
+        zapSats: 0,
     };
 }
 
 function normalizeTargetEventIds(eventIds: string[]): string[] {
     return [...new Set(eventIds.filter((eventId) => typeof eventId === 'string' && eventId.length > 0))];
+}
+
+function normalizeHashtag(hashtag: string): string {
+    return hashtag.trim().replace(/^#+/, '').toLowerCase();
+}
+
+function getTagValues(event: NostrEvent, key: string): string[] {
+    return event.tags
+        .filter((tag) => Array.isArray(tag) && tag[0] === key && typeof tag[1] === 'string' && tag[1].length > 0)
+        .map((tag) => tag[1]);
+}
+
+function getTargetByMarkers(event: NostrEvent, targetSet: Set<string>): string | undefined {
+    const eTags = event.tags.filter((tag) => Array.isArray(tag) && tag[0] === 'e' && typeof tag[1] === 'string' && tag[1].length > 0);
+
+    for (const tag of eTags) {
+        if (tag[3] === 'reply' && targetSet.has(tag[1])) {
+            return tag[1];
+        }
+    }
+
+    for (const tag of eTags) {
+        if (tag[3] === 'root' && targetSet.has(tag[1])) {
+            return tag[1];
+        }
+    }
+
+    for (let index = eTags.length - 1; index >= 0; index -= 1) {
+        const candidate = eTags[index][1];
+        if (targetSet.has(candidate)) {
+            return candidate;
+        }
+    }
+
+    return undefined;
+}
+
+function resolveEngagementTargetEventId(event: NostrEvent, targetSet: Set<string>): string | undefined {
+    if (event.kind === 6 || event.kind === 16) {
+        const qTags = getTagValues(event, 'q');
+        for (let index = qTags.length - 1; index >= 0; index -= 1) {
+            if (targetSet.has(qTags[index])) {
+                return qTags[index];
+            }
+        }
+    }
+
+    if (event.kind === 1 && isReplyEvent(event)) {
+        const markerTarget = getTargetByMarkers(event, targetSet);
+        if (markerTarget) {
+            return markerTarget;
+        }
+    }
+
+    const extracted = extractTargetEventId(event);
+    if (extracted && targetSet.has(extracted)) {
+        return extracted;
+    }
+
+    return undefined;
+}
+
+function parseZapMsatsFromDescription(event: NostrEvent): number {
+    const descriptionValues = getTagValues(event, 'description');
+    if (descriptionValues.length === 0) {
+        return 0;
+    }
+
+    const latest = descriptionValues[descriptionValues.length - 1];
+    try {
+        const parsed = JSON.parse(latest) as { tags?: unknown };
+        if (!parsed || !Array.isArray(parsed.tags)) {
+            return 0;
+        }
+
+        for (const rawTag of parsed.tags) {
+            if (!Array.isArray(rawTag) || rawTag[0] !== 'amount' || typeof rawTag[1] !== 'string') {
+                continue;
+            }
+
+            const msats = Number(rawTag[1]);
+            if (Number.isFinite(msats) && msats > 0) {
+                return msats;
+            }
+        }
+    } catch {
+        return 0;
+    }
+
+    return 0;
+}
+
+function parseZapSats(event: NostrEvent): number {
+    const fromDescriptionMsats = parseZapMsatsFromDescription(event);
+    if (fromDescriptionMsats > 0) {
+        return Math.max(0, Math.floor(fromDescriptionMsats / 1000));
+    }
+
+    const amountValues = getTagValues(event, 'amount');
+    if (amountValues.length > 0) {
+        const latestAmount = Number(amountValues[amountValues.length - 1]);
+        if (Number.isFinite(latestAmount) && latestAmount > 0) {
+            return Math.max(0, Math.floor(latestAmount / 1000));
+        }
+    }
+
+    return 0;
 }
 
 function isRelayTransportError(error: unknown): boolean {
@@ -299,6 +423,98 @@ export function createRuntimeSocialFeedService(
             });
         },
 
+        async loadHashtagFeed(input: LoadHashtagFeedInput): Promise<SocialFeedPage> {
+            const hashtag = normalizeHashtag(input.hashtag);
+            if (!hashtag) {
+                return {
+                    items: [],
+                    hasMore: false,
+                };
+            }
+
+            return withRelayFallback(async (transport) => {
+                const limit = clampLimit(input.limit, DEFAULT_FEED_LIMIT);
+                const queryLimit = resolveQueryLimit(limit);
+                const collected = new Map<string, ReturnType<typeof toSocialFeedItem>>();
+
+                let cursorUntil = input.until;
+                let reachedSourceEnd = false;
+                let pass = 0;
+
+                while (collected.size < limit + 1 && pass < MAX_MAIN_FEED_PASSES) {
+                    pass += 1;
+
+                    const events = await transport.fetchBackfill([{
+                        kinds: [...MAIN_FEED_KINDS],
+                        '#t': [hashtag],
+                        limit: queryLimit,
+                        until: cursorUntil,
+                    }]);
+
+                    const sorted = sortAndDedupe(events as NostrEvent[]);
+                    if (sorted.length === 0) {
+                        reachedSourceEnd = true;
+                        break;
+                    }
+
+                    for (const event of sorted) {
+                        if (!isMainFeedEvent(event)) {
+                            continue;
+                        }
+
+                        const item = toSocialFeedItem(event);
+                        if (!item || collected.has(item.id)) {
+                            continue;
+                        }
+
+                        collected.set(item.id, item);
+                        if (collected.size >= limit + 1) {
+                            break;
+                        }
+                    }
+
+                    const oldest = sorted[sorted.length - 1]?.created_at;
+                    if (!Number.isFinite(oldest)) {
+                        reachedSourceEnd = true;
+                        break;
+                    }
+
+                    cursorUntil = oldest - 1;
+                    if (sorted.length < queryLimit) {
+                        reachedSourceEnd = true;
+                        break;
+                    }
+                }
+
+                const sortedItems = [...collected.values()]
+                    .filter((item): item is NonNullable<typeof item> => item !== null)
+                    .sort((left, right) => {
+                        if (left.createdAt !== right.createdAt) {
+                            return right.createdAt - left.createdAt;
+                        }
+
+                        return left.id.localeCompare(right.id);
+                    });
+
+                const pageItems = sortedItems.slice(0, limit);
+                const endedByPassCap = !reachedSourceEnd
+                    && pass >= MAX_MAIN_FEED_PASSES
+                    && collected.size < limit + 1;
+                const hasMore = sortedItems.length > limit || endedByPassCap;
+                const nextUntil = !hasMore
+                    ? undefined
+                    : sortedItems.length > limit
+                        ? nextUntilFromItems(pageItems)
+                        : cursorUntil;
+
+                return {
+                    items: pageItems,
+                    hasMore,
+                    nextUntil,
+                };
+            });
+        },
+
         async loadThread(input: LoadThreadInput): Promise<SocialThreadPage> {
             const rootEventId = input.rootEventId;
             if (!rootEventId || typeof rootEventId !== 'string') {
@@ -362,6 +578,7 @@ export function createRuntimeSocialFeedService(
         async loadEngagement(input: LoadEngagementInput): Promise<SocialEngagementByEventId> {
             const targetEventIds = normalizeTargetEventIds(input.eventIds);
             const engagementByEventId: SocialEngagementByEventId = {};
+            const targetSet = new Set(targetEventIds);
 
             for (const eventId of targetEventIds) {
                 engagementByEventId[eventId] = createEmptyEngagementMetrics();
@@ -373,17 +590,28 @@ export function createRuntimeSocialFeedService(
 
             return withRelayFallback(async (transport) => {
                 const limit = clampLimit(input.limit, Math.max(DEFAULT_ENGAGEMENT_LIMIT, targetEventIds.length));
-                const events = await transport.fetchBackfill([
-                    {
+                const eventIdChunks = chunkEventIds(targetEventIds);
+                const filters: NostrFilter[] = [];
+
+                for (const chunk of eventIdChunks) {
+                    filters.push({
                         kinds: [...ENGAGEMENT_KINDS],
-                        '#e': targetEventIds,
+                        '#e': chunk,
                         limit,
                         until: input.until,
-                    },
-                ]);
+                    });
+                    filters.push({
+                        kinds: [6, 16],
+                        '#q': chunk,
+                        limit,
+                        until: input.until,
+                    });
+                }
+
+                const events = await transport.fetchBackfill(filters);
 
                 for (const event of sortAndDedupe(events as NostrEvent[])) {
-                    const targetEventId = extractTargetEventId(event);
+                    const targetEventId = resolveEngagementTargetEventId(event, targetSet);
                     if (!targetEventId || !engagementByEventId[targetEventId]) {
                         continue;
                     }
@@ -400,6 +628,7 @@ export function createRuntimeSocialFeedService(
 
                     if (event.kind === 9735) {
                         engagementByEventId[targetEventId].zaps += 1;
+                        engagementByEventId[targetEventId].zapSats += parseZapSats(event);
                         continue;
                     }
 

@@ -4,6 +4,7 @@ import type { NostrProfile } from '../../nostr/types';
 import type { SocialEngagementMetrics, SocialFeedItem, SocialThreadItem } from '../../nostr/social-feed-service';
 import type { FollowingFeedThreadView } from '../query/following-feed.selectors';
 import { ListLoadingFooter } from './ListLoadingFooter';
+import { RichNostrContent } from './RichNostrContent';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
@@ -39,6 +40,8 @@ export interface FollowingFeedViewProps {
     }) => Promise<boolean>;
     onToggleReaction: (input: { eventId: string; targetPubkey?: string; emoji?: string }) => Promise<boolean>;
     onToggleRepost: (input: { eventId: string; targetPubkey?: string; repostContent?: string }) => Promise<boolean>;
+    onSelectHashtag?: (hashtag: string) => void;
+    onCopyNoteId?: (noteId: string) => void;
 }
 
 interface FollowingFeedContentProps extends FollowingFeedViewProps {
@@ -52,6 +55,7 @@ const EMPTY_ENGAGEMENT_METRICS: SocialEngagementMetrics = {
     reposts: 0,
     reactions: 0,
     zaps: 0,
+    zapSats: 0,
 };
 
 function shortPubkey(pubkey: string): string {
@@ -95,21 +99,13 @@ function formatCreatedAt(createdAt: number): { iso: string; label: string } {
     };
 }
 
-function previewContent(content: string): string {
-    const normalized = content.replace(/\s+/g, ' ').trim();
-    if (normalized.length <= 180) {
-        return normalized;
-    }
-
-    return `${normalized.slice(0, 177)}...`;
-}
-
 interface ParsedEmbeddedRepost {
     id: string;
     pubkey: string;
     createdAt: number;
     kind: number;
     content: string;
+    tags: string[][];
 }
 
 function parseEmbeddedRepostEvent(content: string): ParsedEmbeddedRepost | null {
@@ -141,26 +137,14 @@ function parseEmbeddedRepostEvent(content: string): ParsedEmbeddedRepost | null 
             createdAt: Number(eventRecord.created_at),
             kind: Number(eventRecord.kind),
             content: eventRecord.content,
+            tags: Array.isArray(eventRecord.tags)
+                ? eventRecord.tags
+                    .filter((tag): tag is string[] => Array.isArray(tag) && tag.every((entry) => typeof entry === 'string'))
+                : [],
         };
     } catch {
         return null;
     }
-}
-
-function cardLabel(item: SocialFeedItem | SocialThreadItem): string {
-    if ('kind' in item) {
-        return item.kind === 'repost' ? 'Repost' : 'Nota';
-    }
-
-    if (item.eventKind === 1) {
-        return 'Reply';
-    }
-
-    if (item.eventKind === 6 || item.eventKind === 16) {
-        return 'Repost';
-    }
-
-    return `Kind ${item.eventKind}`;
 }
 
 function shouldLoadMore(container: HTMLDivElement): boolean {
@@ -248,9 +232,11 @@ function FeedActionBar({
                 <span className="nostr-following-feed-action-count">{metrics.reposts}</span>
             </Button>
 
-            <span className="nostr-following-feed-action-indicator" aria-label={`Zaps recibidos: ${metrics.zaps}`}>
+            <span className="nostr-following-feed-action-indicator" aria-label={`Sats recibidos: ${metrics.zapSats}`}>
                 <ZapIcon className="nostr-following-feed-action-icon" aria-hidden="true" />
-                <span className="nostr-following-feed-action-count">{metrics.zaps}</span>
+                <span className="nostr-following-feed-action-count" aria-label={`Sats recibidos: ${metrics.zapSats}`}>
+                    {metrics.zapSats}
+                </span>
             </span>
         </div>
     );
@@ -283,6 +269,8 @@ export function FollowingFeedContent({
     onPublishReply,
     onToggleReaction,
     onToggleRepost,
+    onSelectHashtag,
+    onCopyNoteId,
 }: FollowingFeedContentProps) {
     const [postDraft, setPostDraft] = useState('');
     const [replyDraft, setReplyDraft] = useState('');
@@ -429,12 +417,13 @@ export function FollowingFeedContent({
                                 const embeddedRepost = item.kind === 'repost' ? parseEmbeddedRepostEvent(item.content) : null;
                                 const cardContent = item.kind === 'repost' && embeddedRepost
                                     ? ''
-                                    : previewContent(item.content);
+                                    : item.content.trim();
                                 const embeddedProfile = embeddedRepost ? profilesByPubkey[embeddedRepost.pubkey] : undefined;
                                 const embeddedAuthorName = embeddedRepost
                                     ? profileDisplayName(embeddedRepost.pubkey, embeddedProfile)
                                     : '';
                                 const embeddedPublishedAt = formatCreatedAt(embeddedRepost?.createdAt ?? 0);
+                                const shortNoteId = shortPubkey(item.id);
 
                                 return (
                                     <article key={item.id} className="nostr-following-feed-card">
@@ -443,20 +432,40 @@ export function FollowingFeedContent({
                                                 {profile?.picture ? <AvatarImage src={profile.picture} alt={authorName} /> : null}
                                                 <AvatarFallback>{profileInitials(item.pubkey, profile)}</AvatarFallback>
                                             </Avatar>
-                                            <div className="nostr-following-feed-card-head-copy">
-                                                <p className="nostr-following-feed-card-author">{authorName}</p>
+                                            <div className="nostr-following-feed-card-head-main">
+                                                <div className="nostr-following-feed-card-head-top">
+                                                    <p className="nostr-following-feed-card-author">{authorName}</p>
+                                                    <time className="nostr-following-feed-card-time" dateTime={publishedAt.iso}>{publishedAt.label}</time>
+                                                </div>
                                                 <p className="nostr-following-feed-card-meta">
-                                                    <span className="nostr-following-feed-card-kind">{cardLabel(item)}</span>
+                                                    {item.kind === 'repost' ? <span className="nostr-following-feed-card-kind">Repost</span> : null}
                                                     <span>{shortPubkey(item.pubkey)}</span>
                                                     <span>·</span>
-                                                    <time dateTime={publishedAt.iso}>{publishedAt.label}</time>
+                                                    <span className="nostr-following-feed-card-id">{shortNoteId}</span>
+                                                    {onCopyNoteId ? (
+                                                        <button
+                                                            type="button"
+                                                            className="nostr-following-feed-copy-id"
+                                                            aria-label={`Copiar identificador de nota ${item.id}`}
+                                                            onClick={() => onCopyNoteId(item.id)}
+                                                        >
+                                                            Copiar
+                                                        </button>
+                                                    ) : null}
+                                                    <span>·</span>
+                                                    <span>ID</span>
                                                 </p>
                                             </div>
                                         </div>
-                                        <p className="nostr-following-feed-card-content">{cardContent || (item.kind === 'repost' ? 'Repost sin comentario' : '(sin contenido)')}</p>
+                                        <RichNostrContent
+                                            content={cardContent}
+                                            tags={item.rawEvent.tags}
+                                            onSelectHashtag={onSelectHashtag}
+                                            textClassName="nostr-following-feed-card-content"
+                                            emptyFallback={item.kind === 'note' ? <p className="nostr-following-feed-card-content">(sin contenido)</p> : null}
+                                        />
                                         {embeddedRepost ? (
                                             <article className="nostr-following-feed-card-embedded" aria-label={`Nota original de ${embeddedAuthorName}`}>
-                                                <p className="nostr-following-feed-card-embedded-label">Nota original</p>
                                                 <div className="nostr-following-feed-card-head">
                                                     <Avatar className="nostr-following-feed-card-avatar nostr-following-feed-card-embedded-avatar">
                                                         {embeddedProfile?.picture
@@ -464,17 +473,25 @@ export function FollowingFeedContent({
                                                             : null}
                                                         <AvatarFallback>{profileInitials(embeddedRepost.pubkey, embeddedProfile)}</AvatarFallback>
                                                     </Avatar>
-                                                    <div className="nostr-following-feed-card-head-copy">
-                                                        <p className="nostr-following-feed-card-author">{embeddedAuthorName}</p>
+                                                    <div className="nostr-following-feed-card-head-main">
+                                                        <div className="nostr-following-feed-card-head-top">
+                                                            <p className="nostr-following-feed-card-author">{embeddedAuthorName}</p>
+                                                            <time className="nostr-following-feed-card-time" dateTime={embeddedPublishedAt.iso}>{embeddedPublishedAt.label}</time>
+                                                        </div>
                                                         <p className="nostr-following-feed-card-meta">
-                                                            <span className="nostr-following-feed-card-kind">Nota</span>
                                                             <span>{shortPubkey(embeddedRepost.pubkey)}</span>
                                                             <span>·</span>
-                                                            <time dateTime={embeddedPublishedAt.iso}>{embeddedPublishedAt.label}</time>
+                                                            <span className="nostr-following-feed-card-id">{shortPubkey(embeddedRepost.id)}</span>
                                                         </p>
                                                     </div>
                                                 </div>
-                                                <p className="nostr-following-feed-card-content">{previewContent(embeddedRepost.content) || '(sin contenido)'}</p>
+                                                <RichNostrContent
+                                                    content={embeddedRepost.content}
+                                                    tags={embeddedRepost.tags}
+                                                    onSelectHashtag={onSelectHashtag}
+                                                    textClassName="nostr-following-feed-card-content"
+                                                    emptyFallback={<p className="nostr-following-feed-card-content">(sin contenido)</p>}
+                                                />
                                             </article>
                                         ) : null}
                                         <FeedActionBar
@@ -533,17 +550,36 @@ export function FollowingFeedContent({
                                             : null}
                                         <AvatarFallback>{profileInitials(activeThread.root.pubkey, profilesByPubkey[activeThread.root.pubkey])}</AvatarFallback>
                                     </Avatar>
-                                    <div className="nostr-following-feed-card-head-copy">
-                                        <p className="nostr-following-feed-card-author">{profileDisplayName(activeThread.root.pubkey, profilesByPubkey[activeThread.root.pubkey])}</p>
+                                    <div className="nostr-following-feed-card-head-main">
+                                        <div className="nostr-following-feed-card-head-top">
+                                            <p className="nostr-following-feed-card-author">{profileDisplayName(activeThread.root.pubkey, profilesByPubkey[activeThread.root.pubkey])}</p>
+                                            <time className="nostr-following-feed-card-time" dateTime={formatCreatedAt(activeThread.root.createdAt).iso}>{formatCreatedAt(activeThread.root.createdAt).label}</time>
+                                        </div>
                                         <p className="nostr-following-feed-card-meta">
                                             <span className="nostr-following-feed-card-kind">Raiz</span>
                                             <span>{shortPubkey(activeThread.root.pubkey)}</span>
                                             <span>·</span>
-                                            <time dateTime={formatCreatedAt(activeThread.root.createdAt).iso}>{formatCreatedAt(activeThread.root.createdAt).label}</time>
+                                            <span className="nostr-following-feed-card-id">{shortPubkey(activeThread.root.id)}</span>
+                                            {onCopyNoteId ? (
+                                                <button
+                                                    type="button"
+                                                    className="nostr-following-feed-copy-id"
+                                                    aria-label={`Copiar identificador de nota ${activeThread.root.id}`}
+                                                    onClick={() => onCopyNoteId(activeThread.root.id)}
+                                                >
+                                                    Copiar
+                                                </button>
+                                            ) : null}
                                         </p>
                                     </div>
                                 </div>
-                                <p className="nostr-following-feed-card-content">{previewContent(activeThread.root.content) || '(sin contenido)'}</p>
+                                <RichNostrContent
+                                    content={activeThread.root.content}
+                                    tags={activeThread.root.rawEvent.tags}
+                                    onSelectHashtag={onSelectHashtag}
+                                    textClassName="nostr-following-feed-card-content"
+                                    emptyFallback={<p className="nostr-following-feed-card-content">(sin contenido)</p>}
+                                />
                                 <FeedActionBar
                                     eventId={activeThread.root.id}
                                     pubkey={activeThread.root.pubkey}
@@ -579,17 +615,36 @@ export function FollowingFeedContent({
                                                 : null}
                                             <AvatarFallback>{profileInitials(reply.pubkey, profilesByPubkey[reply.pubkey])}</AvatarFallback>
                                         </Avatar>
-                                        <div className="nostr-following-feed-card-head-copy">
-                                            <p className="nostr-following-feed-card-author">{profileDisplayName(reply.pubkey, profilesByPubkey[reply.pubkey])}</p>
+                                        <div className="nostr-following-feed-card-head-main">
+                                            <div className="nostr-following-feed-card-head-top">
+                                                <p className="nostr-following-feed-card-author">{profileDisplayName(reply.pubkey, profilesByPubkey[reply.pubkey])}</p>
+                                                <time className="nostr-following-feed-card-time" dateTime={formatCreatedAt(reply.createdAt).iso}>{formatCreatedAt(reply.createdAt).label}</time>
+                                            </div>
                                             <p className="nostr-following-feed-card-meta">
                                                 <span className="nostr-following-feed-card-kind">Reply</span>
                                                 <span>{shortPubkey(reply.pubkey)}</span>
                                                 <span>·</span>
-                                                <time dateTime={formatCreatedAt(reply.createdAt).iso}>{formatCreatedAt(reply.createdAt).label}</time>
+                                                <span className="nostr-following-feed-card-id">{shortPubkey(reply.id)}</span>
+                                                {onCopyNoteId ? (
+                                                    <button
+                                                        type="button"
+                                                        className="nostr-following-feed-copy-id"
+                                                        aria-label={`Copiar identificador de nota ${reply.id}`}
+                                                        onClick={() => onCopyNoteId(reply.id)}
+                                                    >
+                                                        Copiar
+                                                    </button>
+                                                ) : null}
                                             </p>
                                         </div>
                                     </div>
-                                    <p className="nostr-following-feed-card-content">{previewContent(reply.content) || '(sin contenido)'}</p>
+                                    <RichNostrContent
+                                        content={reply.content}
+                                        tags={reply.rawEvent.tags}
+                                        onSelectHashtag={onSelectHashtag}
+                                        textClassName="nostr-following-feed-card-content"
+                                        emptyFallback={<p className="nostr-following-feed-card-content">(sin contenido)</p>}
+                                    />
                                     <FeedActionBar
                                         eventId={reply.id}
                                         pubkey={reply.pubkey}

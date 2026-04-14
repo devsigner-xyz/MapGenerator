@@ -1,9 +1,11 @@
-import { describe, expect, test } from 'vitest';
-import type { NostrEvent } from './types';
+import { describe, expect, expectTypeOf, test } from 'vitest';
+import type { NostrEvent, NostrFilter } from './types';
 import {
     extractTargetEventId,
     isMainFeedEvent,
     isReplyEvent,
+    type SocialEngagementMetrics,
+    type SocialFeedService,
     toSocialFeedItem,
 } from './social-feed-service';
 
@@ -93,6 +95,23 @@ describe('social-feed-service domain helpers', () => {
         });
     });
 
+    test('prefers q tag as target event id for generic reposts', () => {
+        const genericRepost = event({
+            id: 'generic-repost-1',
+            kind: 16,
+            tags: [
+                ['q', 'quoted-target-event'],
+                ['e', 'legacy-fallback-target'],
+            ],
+        });
+
+        expect(extractTargetEventId(genericRepost)).toBe('quoted-target-event');
+        expect(toSocialFeedItem(genericRepost)).toMatchObject({
+            kind: 'repost',
+            targetEventId: 'quoted-target-event',
+        });
+    });
+
     test('ignores non timeline events', () => {
         const reaction = event({
             id: 'reaction-1',
@@ -103,5 +122,42 @@ describe('social-feed-service domain helpers', () => {
 
         expect(isMainFeedEvent(reaction)).toBe(false);
         expect(toSocialFeedItem(reaction)).toBeNull();
+    });
+});
+
+describe('social-feed-service contracts', () => {
+    test('includes zapSats in social engagement metrics', () => {
+        expectTypeOf<SocialEngagementMetrics>().toEqualTypeOf<{
+            replies: number;
+            reposts: number;
+            reactions: number;
+            zaps: number;
+            zapSats: number;
+        }>();
+    });
+
+    test('supports hashtag and quote filters in nostr filter', () => {
+        expectTypeOf<NostrFilter>().toEqualTypeOf<{
+            ids?: string[];
+            authors?: string[];
+            kinds?: number[];
+            search?: string;
+            '#e'?: string[];
+            '#p'?: string[];
+            '#t'?: string[];
+            '#q'?: string[];
+            since?: number;
+            until?: number;
+            limit?: number;
+        }>();
+    });
+
+    test('exposes hashtag feed loading on social feed service', () => {
+        expectTypeOf<SocialFeedService>().toEqualTypeOf<{
+            loadFollowingFeed: SocialFeedService['loadFollowingFeed'];
+            loadThread: SocialFeedService['loadThread'];
+            loadEngagement: SocialFeedService['loadEngagement'];
+            loadHashtagFeed: SocialFeedService['loadHashtagFeed'];
+        }>();
     });
 });

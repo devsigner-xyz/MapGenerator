@@ -46,6 +46,22 @@ function buildReply(id: string, pubkey: string, createdAt: number, rootEventId: 
     });
 }
 
+function buildZapReceipt(id: string, targetEventId: string, msats: number): NostrEvent {
+    return noteEvent({
+        id,
+        pubkey: FOLLOW_A,
+        kind: 9735,
+        createdAt: 800,
+        tags: [
+            ['e', targetEventId],
+            ['description', JSON.stringify({
+                kind: 9734,
+                tags: [['amount', String(msats)]],
+            })],
+        ],
+    });
+}
+
 describe('social-feed-runtime-service', () => {
     test('reuses a single transport instance across feed operations for the same relay set', async () => {
         const transport = createTransportMock([]);
@@ -214,6 +230,60 @@ describe('social-feed-runtime-service', () => {
         ]);
     });
 
+    test('loads hashtag feed and excludes reply events', async () => {
+        const transport = createTransportMock([
+            noteEvent({
+                id: 'reply-hashtag-1',
+                pubkey: FOLLOW_A,
+                createdAt: 470,
+                tags: [
+                    ['e', 'root-1', '', 'reply'],
+                    ['t', 'nostrcity'],
+                ],
+                content: 'reply',
+            }),
+            noteEvent({
+                id: 'note-hashtag-1',
+                pubkey: FOLLOW_A,
+                createdAt: 500,
+                tags: [['t', 'nostrcity']],
+                content: 'hola #nostrcity',
+            }),
+            noteEvent({
+                id: 'repost-hashtag-1',
+                pubkey: FOLLOW_B,
+                kind: 16,
+                createdAt: 490,
+                tags: [
+                    ['q', 'note-hashtag-1'],
+                    ['t', 'nostrcity'],
+                ],
+                content: '',
+            }),
+        ]);
+
+        const service = createRuntimeSocialFeedService({
+            createTransport: () => transport as any,
+            resolveRelays: () => ['wss://relay.one'],
+        });
+
+        const page = await service.loadHashtagFeed({
+            hashtag: 'NostrCity',
+            limit: 10,
+            until: 600,
+        });
+
+        expect(page.items.map((item) => item.id)).toEqual(['note-hashtag-1', 'repost-hashtag-1']);
+        expect(page.items.map((item) => item.kind)).toEqual(['note', 'repost']);
+        expect(transport.fetchBackfill).toHaveBeenCalledWith([
+            expect.objectContaining({
+                '#t': ['nostrcity'],
+                kinds: [1, 6, 16],
+                until: 600,
+            }),
+        ]);
+    });
+
     test('keeps feed pagination window aligned when author filters are chunked', async () => {
         const highAuthor = 'd'.repeat(64);
         const lowAuthor = 'e'.repeat(64);
@@ -349,16 +419,18 @@ describe('social-feed-runtime-service', () => {
             reposts: 1,
             reactions: 2,
             zaps: 1,
+            zapSats: 0,
         });
         expect(engagement['note-2']).toEqual({
             replies: 0,
             reposts: 0,
             reactions: 1,
             zaps: 0,
+            zapSats: 0,
         });
-        expect(transport.fetchBackfill).toHaveBeenCalledWith([
-            expect.objectContaining({ '#e': ['note-1', 'note-2'], kinds: [1, 6, 7, 16, 9735], until: 999 }),
-        ]);
+        const filters = (transport.fetchBackfill as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as Array<Record<string, unknown>>;
+        expect(filters.some((filter) => Array.isArray(filter['#e']))).toBe(true);
+        expect(filters.some((filter) => Array.isArray(filter['#q']))).toBe(true);
     });
 
     test('dedupes engagement events and ignores unsupported note kinds', async () => {
@@ -394,7 +466,104 @@ describe('social-feed-runtime-service', () => {
                 reposts: 0,
                 reactions: 1,
                 zaps: 0,
+                zapSats: 0,
             },
         });
+    });
+
+    test('counts quote reposts, marker-based replies and zap sats from zap request description', async () => {
+        const transport = createTransportMock([
+            noteEvent({
+                id: 'quote-1',
+                pubkey: FOLLOW_B,
+                kind: 16,
+                createdAt: 910,
+                tags: [['q', 'note-1']],
+                content: 'quote repost',
+            }),
+            noteEvent({
+                id: 'reply-root-1',
+                pubkey: FOLLOW_B,
+                createdAt: 900,
+                tags: [
+                    ['e', 'note-1', '', 'root'],
+                    ['e', 'note-parent', '', 'reply'],
+                ],
+                content: 'reply chain',
+            }),
+            buildZapReceipt('zap-sats-1', 'note-1', 21_000),
+            noteEvent({
+                id: 'zap-invalid-1',
+                pubkey: FOLLOW_A,
+                kind: 9735,
+                createdAt: 890,
+                tags: [
+                    ['e', 'note-1'],
+                    ['description', '{bad-json'],
+                ],
+            }),
+        ]);
+
+        const service = createRuntimeSocialFeedService({
+            createTransport: () => transport as any,
+            resolveRelays: () => ['wss://relay.one'],
+        });
+
+        const engagement = await service.loadEngagement({
+            eventIds: ['note-1'],
+            limit: 80,
+        });
+
+        expect(engagement['note-1']).toEqual({
+            replies: 1,
+            reposts: 1,
+            reactions: 0,
+            zaps: 2,
+            zapSats: 21,
+        });
+    });
+
+    test('chunks large engagement requests while querying both #e and #q tags', async () => {
+        const eventIds = Array.from({ length: 121 }, (_, index) => `note-${index + 1}`);
+        const transport = createTransportMock([
+            noteEvent({
+                id: 'reaction-last',
+                pubkey: FOLLOW_A,
+                kind: 7,
+                createdAt: 920,
+                tags: [['e', 'note-121']],
+                content: '+',
+            }),
+            noteEvent({
+                id: 'quote-first',
+                pubkey: FOLLOW_B,
+                kind: 16,
+                createdAt: 910,
+                tags: [['q', 'note-1']],
+            }),
+        ]);
+
+        const service = createRuntimeSocialFeedService({
+            createTransport: () => transport as any,
+            resolveRelays: () => ['wss://relay.one'],
+        });
+
+        const engagement = await service.loadEngagement({
+            eventIds,
+            limit: 180,
+        });
+
+        expect(engagement['note-1']).toMatchObject({ reposts: 1 });
+        expect(engagement['note-121']).toMatchObject({ reactions: 1 });
+
+        const allFilters = (transport.fetchBackfill as ReturnType<typeof vi.fn>).mock.calls
+            .flatMap((call) => (call[0] as Array<Record<string, unknown>>) ?? []);
+        const eFilters = allFilters.filter((filter) => Array.isArray(filter['#e']));
+        const qFilters = allFilters.filter((filter) => Array.isArray(filter['#q']));
+
+        expect(eFilters.length).toBeGreaterThan(0);
+        expect(qFilters.length).toBeGreaterThan(0);
+        expect(eFilters.every((filter) => ((filter['#e'] as string[]).length <= 120))).toBe(true);
+        expect(qFilters.every((filter) => ((filter['#q'] as string[]).length <= 120))).toBe(true);
     });
 });

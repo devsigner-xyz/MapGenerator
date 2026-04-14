@@ -50,6 +50,7 @@ import {
 interface UseFollowingFeedControllerOptions {
     ownerPubkey?: string;
     follows: string[];
+    hashtag?: string;
     canWrite: boolean;
     service: SocialFeedService;
     storage?: FollowingFeedReadStateStorage;
@@ -88,7 +89,17 @@ const EMPTY_ENGAGEMENT_METRICS: SocialEngagementMetrics = {
     reposts: 0,
     reactions: 0,
     zaps: 0,
+    zapSats: 0,
 };
+
+function normalizeHashtag(value: string | undefined): string | undefined {
+    if (typeof value !== 'string') {
+        return undefined;
+    }
+
+    const normalized = value.trim().replace(/^#+/, '').toLowerCase();
+    return normalized.length > 0 ? normalized : undefined;
+}
 
 export function useFollowingFeedController(options: UseFollowingFeedControllerOptions) {
     const now = options.now ?? (() => Math.floor(Date.now() / 1000));
@@ -117,22 +128,29 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
     const [engagementDeltaByEventId, setEngagementDeltaByEventId] = useState<SocialEngagementByEventId>({});
 
     const follows = useMemo(() => normalizeEventIds(options.follows), [options.follows]);
+    const activeHashtag = useMemo(() => normalizeHashtag(options.hashtag), [options.hashtag]);
     const feedPageSize = Math.max(1, options.pageSize ?? 20);
     const threadPageSize = Math.max(1, options.threadPageSize ?? 25);
 
     const feedQueryKey = useMemo(() => nostrOverlayQueryKeys.followingFeed({
         ownerPubkey: options.ownerPubkey,
         follows,
+        hashtag: activeHashtag,
         pageSize: feedPageSize,
-    }), [feedPageSize, follows, options.ownerPubkey]);
+    }), [activeHashtag, feedPageSize, follows, options.ownerPubkey]);
 
     const feedQuery = useFollowingFeedInfiniteQuery({
         ownerPubkey: options.ownerPubkey,
         follows,
+        hashtag: activeHashtag,
         service: options.service,
         enabled: Boolean(options.ownerPubkey),
         pageSize: feedPageSize,
     });
+
+    useEffect(() => {
+        setActiveThreadRootEventId(null);
+    }, [activeHashtag]);
 
     useEffect(() => {
         if (!options.ownerPubkey) {
@@ -680,6 +698,7 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
         pendingReactionByEventId,
         pendingRepostByEventId,
         engagementByEventId,
+        activeHashtag,
         open,
         close,
         loadNextFeedPage,

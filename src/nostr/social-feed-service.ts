@@ -41,6 +41,12 @@ export interface LoadFollowingFeedInput {
     until?: number;
 }
 
+export interface LoadHashtagFeedInput {
+    hashtag: string;
+    limit?: number;
+    until?: number;
+}
+
 export interface LoadThreadInput {
     rootEventId: string;
     limit?: number;
@@ -58,12 +64,14 @@ export interface SocialEngagementMetrics {
     reposts: number;
     reactions: number;
     zaps: number;
+    zapSats: number;
 }
 
 export type SocialEngagementByEventId = Record<string, SocialEngagementMetrics>;
 
 export interface SocialFeedService {
     loadFollowingFeed(input: LoadFollowingFeedInput): Promise<SocialFeedPage>;
+    loadHashtagFeed(input: LoadHashtagFeedInput): Promise<SocialFeedPage>;
     loadThread(input: LoadThreadInput): Promise<SocialThreadPage>;
     loadEngagement(input: LoadEngagementInput): Promise<SocialEngagementByEventId>;
 }
@@ -91,6 +99,16 @@ function getTags(event: NostrEvent, key: string): string[][] {
 }
 
 export function extractTargetEventId(event: NostrEvent): string | undefined {
+    if (event.kind === 6 || event.kind === 16) {
+        const qTags = getTags(event, 'q')
+            .map((tag) => tagValue(tag))
+            .filter((value): value is string => Boolean(value));
+
+        if (qTags.length > 0) {
+            return qTags[qTags.length - 1];
+        }
+    }
+
     const eTags = getTags(event, 'e')
         .map((tag) => tagValue(tag))
         .filter((value): value is string => Boolean(value));

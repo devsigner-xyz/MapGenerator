@@ -205,6 +205,67 @@ describe('OccupantProfileDialog', () => {
         assertCurrentPanelScrollable();
     });
 
+    test('renders inline media previews for image and video URLs in feed posts', async () => {
+        const rendered = await renderElement(
+            <OccupantProfileDialog
+                {...buildProps({
+                    posts: [
+                        {
+                            id: 'post-media-1',
+                            pubkey: 'a'.repeat(64),
+                            createdAt: 1_700_000_000,
+                            content: 'Imagen https://example.com/photo.jpg y video https://example.com/clip.mp4',
+                        },
+                    ],
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        await selectTab('Feed');
+        await waitForCondition(() => document.body.querySelector('.nostr-profile-post-item') !== null);
+
+        const image = document.body.querySelector('img[src="https://example.com/photo.jpg"]');
+        const video = document.body.querySelector('video[src="https://example.com/clip.mp4"]');
+        const link = document.body.querySelector('a[href="https://example.com/photo.jpg"]');
+
+        expect(image).toBeDefined();
+        expect(video).toBeDefined();
+        expect(link).toBeDefined();
+    });
+
+    test('clicking a post hashtag emits callback to open agora hashtag feed', async () => {
+        const onSelectHashtag = vi.fn();
+        const rendered = await renderElement(
+            <OccupantProfileDialog
+                {...buildProps({
+                    onSelectHashtag,
+                    posts: [
+                        {
+                            id: 'post-hashtag-1',
+                            pubkey: 'a'.repeat(64),
+                            createdAt: 1_700_000_000,
+                            content: 'Vamos #NostrCity',
+                        },
+                    ],
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        await selectTab('Feed');
+        await waitForCondition(() => document.body.querySelector('button[aria-label="Filtrar por hashtag nostrcity"]') !== null);
+
+        const hashtagButton = document.body.querySelector('button[aria-label="Filtrar por hashtag nostrcity"]') as HTMLButtonElement;
+        expect(hashtagButton).toBeDefined();
+
+        await act(async () => {
+            hashtagButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onSelectHashtag).toHaveBeenCalledWith('nostrcity');
+    });
+
     test('moves full verification indicator to information tab and shows icon badge near name', async () => {
         const rendered = await renderElement(
             <OccupantProfileDialog

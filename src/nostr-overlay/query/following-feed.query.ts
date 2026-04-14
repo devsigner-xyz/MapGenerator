@@ -15,6 +15,7 @@ const DEFAULT_THREAD_PAGE_SIZE = 25;
 interface UseFollowingFeedInfiniteQueryOptions {
     ownerPubkey?: string;
     follows: string[];
+    hashtag?: string;
     service: SocialFeedService;
     enabled: boolean;
     pageSize?: number;
@@ -33,22 +34,44 @@ interface UseFollowingFeedEngagementQueryOptions {
     enabled: boolean;
 }
 
+function normalizeHashtag(value: string | undefined): string | undefined {
+    if (typeof value !== 'string') {
+        return undefined;
+    }
+
+    const normalized = value.trim().replace(/^#+/, '').toLowerCase();
+    return normalized.length > 0 ? normalized : undefined;
+}
+
 export function useFollowingFeedInfiniteQuery(options: UseFollowingFeedInfiniteQueryOptions) {
     const follows = normalizeEventIds(options.follows);
+    const hashtag = normalizeHashtag(options.hashtag);
     const pageSize = Math.max(1, options.pageSize ?? DEFAULT_FEED_PAGE_SIZE);
 
     return useInfiniteQuery<SocialFeedPage, Error>(createSocialQueryOptions({
         queryKey: nostrOverlayQueryKeys.followingFeed({
             ownerPubkey: options.ownerPubkey,
             follows,
+            hashtag,
             pageSize,
         }),
-        queryFn: ({ pageParam }: { pageParam: unknown }) => options.service.loadFollowingFeed({
-            follows,
-            limit: pageSize,
-            until: typeof pageParam === 'number' ? pageParam : undefined,
-        }),
-        enabled: options.enabled && follows.length > 0,
+        queryFn: ({ pageParam }: { pageParam: unknown }) => {
+            const until = typeof pageParam === 'number' ? pageParam : undefined;
+            if (hashtag) {
+                return options.service.loadHashtagFeed({
+                    hashtag,
+                    limit: pageSize,
+                    until,
+                });
+            }
+
+            return options.service.loadFollowingFeed({
+                follows,
+                limit: pageSize,
+                until,
+            });
+        },
+        enabled: options.enabled && (Boolean(hashtag) || follows.length > 0),
         initialPageParam: undefined,
         getNextPageParam: (lastPage: SocialFeedPage) => (lastPage.hasMore ? lastPage.nextUntil : undefined),
     }) as any);

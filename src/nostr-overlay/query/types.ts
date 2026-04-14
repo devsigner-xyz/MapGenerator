@@ -3,6 +3,7 @@ import type { QueryKey } from '@tanstack/react-query';
 export interface FollowingFeedQueryInput {
     ownerPubkey?: string;
     follows: string[];
+    hashtag?: string;
     pageSize?: number;
 }
 

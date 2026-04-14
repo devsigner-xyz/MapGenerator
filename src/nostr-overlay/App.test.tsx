@@ -268,6 +268,7 @@ function createSocialNotificationsServiceMock() {
 function createSocialFeedServiceMock() {
     const service: SocialFeedService = {
         loadFollowingFeed: vi.fn(async () => ({ items: [], hasMore: false })),
+        loadHashtagFeed: vi.fn(async () => ({ items: [], hasMore: false })),
         loadThread: vi.fn(async () => ({ root: null, replies: [], hasMore: false })),
         loadEngagement: vi.fn(async () => ({})),
     };
@@ -1460,6 +1461,171 @@ describe('Nostr overlay App', () => {
         await loginWithNsec(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
         await waitFor(() => (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mock.calls.length > 0);
+    });
+
+    test('agora route with tag param loads hashtag feed and shows active filter', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const socialFeed = createSocialFeedServiceMock();
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: ['a'.repeat(64)],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                    socialFeedService: socialFeed.service,
+                }}
+            />,
+            { initialEntries: ['/agora?tag=%23NostrCity'] }
+        );
+        mounted.push(rendered);
+
+        await loginWithNsec(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+        await waitFor(() => (socialFeed.service.loadHashtagFeed as ReturnType<typeof vi.fn>).mock.calls.length > 0);
+
+        expect((socialFeed.service.loadHashtagFeed as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]).toMatchObject({
+            hashtag: 'nostrcity',
+        });
+        expect(rendered.container.textContent || '').toContain('Filtrando por #nostrcity');
+        expect((socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mock.calls.length).toBe(0);
+    });
+
+    test('clears active hashtag filter and goes back to following timeline query', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const socialFeed = createSocialFeedServiceMock();
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: ['a'.repeat(64)],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                    socialFeedService: socialFeed.service,
+                }}
+            />,
+            { initialEntries: ['/agora?tag=nostrcity'] }
+        );
+        mounted.push(rendered);
+
+        await loginWithNsec(rendered.container);
+        await waitFor(() => (socialFeed.service.loadHashtagFeed as ReturnType<typeof vi.fn>).mock.calls.length > 0);
+
+        const clearFilterButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').trim() === 'Quitar filtro'
+        ) as HTMLButtonElement;
+        expect(clearFilterButton).toBeDefined();
+
+        await act(async () => {
+            clearFilterButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mock.calls.length > 0);
+        expect(rendered.container.textContent || '').toContain('Timeline en tiempo real de personas que sigues');
+    });
+
+    test('clicking a hashtag in agora activates hashtag route loading', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const socialFeed = createSocialFeedServiceMock();
+        (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mockResolvedValue({
+            items: [
+                {
+                    id: 'note-hash-1',
+                    pubkey: 'a'.repeat(64),
+                    createdAt: 100,
+                    content: 'hola #NostrCity',
+                    kind: 'note',
+                    rawEvent: {
+                        id: 'note-hash-1',
+                        pubkey: 'a'.repeat(64),
+                        kind: 1,
+                        created_at: 100,
+                        tags: [['t', 'nostrcity']],
+                        content: 'hola #NostrCity',
+                    },
+                },
+            ],
+            hasMore: false,
+        });
+
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: ['a'.repeat(64)],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                    socialFeedService: socialFeed.service,
+                }}
+            />,
+            { initialEntries: ['/agora'] }
+        );
+        mounted.push(rendered);
+
+        await loginWithNsec(rendered.container);
+        await waitFor(() => (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mock.calls.length > 0);
+        await waitFor(() => rendered.container.querySelector('button[aria-label="Filtrar por hashtag nostrcity"]') !== null);
+
+        const hashtagButton = rendered.container.querySelector('button[aria-label="Filtrar por hashtag nostrcity"]') as HTMLButtonElement;
+        expect(hashtagButton).toBeDefined();
+
+        await act(async () => {
+            hashtagButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (socialFeed.service.loadHashtagFeed as ReturnType<typeof vi.fn>).mock.calls.length > 0);
+        expect((socialFeed.service.loadHashtagFeed as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]).toMatchObject({
+            hashtag: 'nostrcity',
+        });
+        expect(rendered.container.textContent || '').toContain('Filtrando por #nostrcity');
     });
 
     test('chats route renders chats page when entering /chats directly', async () => {
