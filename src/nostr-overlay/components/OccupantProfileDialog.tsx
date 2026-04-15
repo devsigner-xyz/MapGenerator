@@ -5,8 +5,9 @@ import { encodeHexToNpub } from '../../nostr/npub';
 import type { NostrEvent, NostrProfile } from '../../nostr/types';
 import type { NostrPostPreview } from '../../nostr/posts';
 import { ListLoadingFooter } from './ListLoadingFooter';
+import { NoteCard } from './NoteCard';
 import { Nip05Identifier } from './Nip05Identifier';
-import { RichNostrContent } from './RichNostrContent';
+import { fromPostPreview } from './note-card-adapters';
 import { CircleCheckIcon, CopyIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -107,6 +108,19 @@ export function OccupantProfileDialog({
         try {
             await navigator.clipboard.writeText(npubValue);
             toast.success('npub copiada', { duration: 1600 });
+        } catch {
+            return;
+        }
+    };
+
+    const copyNoteIdToClipboard = async (noteId: string): Promise<void> => {
+        if (!noteId || typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+            return;
+        }
+
+        try {
+            await navigator.clipboard.writeText(noteId);
+            toast.success('ID de nota copiado', { duration: 1600 });
         } catch {
             return;
         }
@@ -356,27 +370,33 @@ export function OccupantProfileDialog({
                                     ) : null}
 
                                     {posts.length > 0 ? (
-                                        <ul className="nostr-profile-post-list">
-                                            {posts.map((post) => (
-                                                <li key={post.id} className="nostr-profile-post-item">
-                                                    <RichNostrContent
-                                                        content={post.content || ''}
+                                        <div className="nostr-profile-post-list">
+                                            {posts.map((post) => {
+                                                const note = fromPostPreview(post);
+                                                if (!note) {
+                                                    return (
+                                                        <article key={post.id}>
+                                                            <p>No se pudo renderizar la nota.</p>
+                                                        </article>
+                                                    );
+                                                }
+
+                                                return (
+                                                    <NoteCard
+                                                        key={post.id}
+                                                        note={note}
+                                                        profilesByPubkey={profilesByPubkey || {}}
+                                                        onCopyNoteId={copyNoteIdToClipboard}
                                                         onSelectHashtag={onSelectHashtag}
                                                         onSelectProfile={onSelectProfile}
                                                         onResolveProfiles={onResolveProfiles}
-                                                        profilesByPubkey={profilesByPubkey}
                                                         onSelectEventReference={onSelectEventReference}
                                                         onResolveEventReferences={onResolveEventReferences}
                                                         eventReferencesById={eventReferencesById}
-                                                        textClassName="nostr-profile-post-content"
-                                                        emptyFallback={null}
                                                     />
-                                                    <time className="nostr-profile-post-date" dateTime={new Date(post.createdAt * 1000).toISOString()}>
-                                                        {new Date(post.createdAt * 1000).toLocaleString()}
-                                                    </time>
-                                                </li>
-                                            ))}
-                                        </ul>
+                                                );
+                                            })}
+                                        </div>
                                     ) : null}
 
                                     {postsLoading && posts.length === 0 ? (

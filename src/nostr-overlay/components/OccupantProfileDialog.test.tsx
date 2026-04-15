@@ -385,7 +385,9 @@ describe('OccupantProfileDialog', () => {
         mounted.push(rendered);
 
         await selectTab('Feed');
-        await waitForCondition(() => document.body.querySelector('.nostr-profile-post-item') !== null);
+        await waitForCondition(() => document.body.querySelector('article') !== null);
+
+        expect(document.body.querySelector('time[datetime]')).not.toBeNull();
 
         const image = document.body.querySelector('img[src="https://example.com/photo.jpg"]');
         const video = document.body.querySelector('video[src="https://example.com/clip.mp4"]');
@@ -507,11 +509,21 @@ describe('OccupantProfileDialog', () => {
         mounted.push(rendered);
 
         await selectTab('Feed');
-        await waitForCondition(() => (document.body.textContent || '').includes('@Nina Referencia'));
+        await waitForCondition(() => (document.body.textContent || '').includes('Nina Referencia'));
+
+        expect(document.body.querySelector('article')).not.toBeNull();
+        expect(document.body.querySelector('time[datetime]')).not.toBeNull();
+        expect(document.body.querySelectorAll('article').length).toBeGreaterThanOrEqual(2);
+        expect(document.body.querySelectorAll('time[datetime]').length).toBeGreaterThanOrEqual(2);
+        expect(document.body.querySelector('button[aria-label^="Reaccionar ("]')).toBeNull();
+        expect(document.body.querySelector('button[aria-label^="Repostear ("]')).toBeNull();
+        expect(document.body.querySelector('button[aria-label^="Responder ("]')).toBeNull();
+        expect(document.body.querySelector('button[aria-label="Copiar identificador de nota post-event-ref-1"]')).not.toBeNull();
+        expect(document.body.querySelector(`button[aria-label="Copiar identificador de nota ${referencedEventId}"]`)).not.toBeNull();
 
         const text = document.body.textContent || '';
         expect(text).not.toContain('Nota referenciada');
-        expect(text).toContain('@Nina Referencia');
+        expect(text).toContain('Nina Referencia');
         expect(text).toContain('nota citada desde perfil');
     });
 
