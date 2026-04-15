@@ -57,7 +57,7 @@ Skills: `@vitest` `@shadcn`
 - Create: `src/nostr-overlay/components/note-card-adapters.ts`
 - Create: `src/nostr-overlay/components/note-card-adapters.test.ts`
 
-- [ ] **Step 1: Escribir tests RED para adaptadores y defaults**
+- [x] **Step 1: Escribir tests RED para adaptadores y defaults**
 
 ```ts
 import { describe, expect, test } from 'vitest'
@@ -144,11 +144,11 @@ test('fromEmbeddedRepost returns null on invalid payload', () => {
 })
 ```
 
-- [ ] **Step 2: Ejecutar tests para verificar RED**
+- [x] **Step 2: Ejecutar tests para verificar RED**
   - Run: `pnpm vitest run src/nostr-overlay/components/note-card-adapters.test.ts`
   - Expected: FAIL por funciones/archivos aun no implementados.
 
-- [ ] **Step 3: Implementar tipos y adaptadores minimos para pasar tests**
+- [x] **Step 3: Implementar tipos y adaptadores minimos para pasar tests**
 
 Checklist obligatorio de exportes en este paso:
 - `fromFeedItem(...)`
@@ -255,11 +255,11 @@ export function fromEmbeddedRepost(input: { id: string; pubkey: string; createdA
 }
 ```
 
-- [ ] **Step 4: Re-ejecutar tests del adaptador**
+- [x] **Step 4: Re-ejecutar tests del adaptador**
   - Run: `pnpm vitest run src/nostr-overlay/components/note-card-adapters.test.ts`
   - Expected: PASS.
 
-- [ ] **Step 5: Commit del task**
+- [x] **Step 5: Commit del task**
 
 ```bash
 git add src/nostr-overlay/components/note-card-model.ts src/nostr-overlay/components/note-card-adapters.ts src/nostr-overlay/components/note-card-adapters.test.ts
@@ -272,7 +272,7 @@ git commit -m "refactor(agora): add note card model and adapters"
 - Create: `src/nostr-overlay/components/NoteCard.tsx`
 - Create: `src/nostr-overlay/components/NoteCard.test.tsx`
 
-- [ ] **Step 1: Escribir tests RED de estructura y variantes**
+- [x] **Step 1: Escribir tests RED de estructura y variantes**
 
 ```ts
 const defaultNoteFixture = { id: 'note-1', pubkey: 'a'.repeat(64), createdAt: 100, content: 'hola', tags: [], variant: 'default', showCopyId: true, nestingLevel: 0, actions: { canWrite: true, isReactionActive: false, isRepostActive: false, isReactionPending: false, isRepostPending: false, replies: 1, reactions: 3, reposts: 2, zapSats: 210, onReply: () => {}, onToggleReaction: async () => true, onToggleRepost: async () => true } }
@@ -322,11 +322,11 @@ test('copy id button triggers callback', async () => {
 })
 ```
 
-- [ ] **Step 2: Ejecutar tests del componente para confirmar RED**
+- [x] **Step 2: Ejecutar tests del componente para confirmar RED**
   - Run: `pnpm vitest run src/nostr-overlay/components/NoteCard.test.tsx`
   - Expected: FAIL.
 
-- [ ] **Step 3: Implementar `NoteCard` con `Card` + `Item` + `ButtonGroup`**
+- [x] **Step 3: Implementar `NoteCard` con `Card` + `Item` + `ButtonGroup`**
 
 Descomposicion interna obligatoria para mantener responsabilidades claras:
 - `NoteHeaderItem` (avatar/nombre/time/meta)
@@ -365,18 +365,18 @@ Descomposicion interna obligatoria para mantener responsabilidades claras:
 </Card>
 ```
 
-- [ ] **Step 4: Ejecutar tests de NoteCard**
+- [x] **Step 4: Ejecutar tests de NoteCard**
   - Run: `pnpm vitest run src/nostr-overlay/components/NoteCard.test.tsx`
   - Expected: PASS.
 
-- [ ] **Step 5: Commit del task**
+- [x] **Step 5: Commit del task**
 
 ```bash
 git add src/nostr-overlay/components/NoteCard.tsx src/nostr-overlay/components/NoteCard.test.tsx
 git commit -m "feat(agora): add reusable shadcn note card component"
 ```
 
-- [ ] **Step 6: Verificacion del chunk 1 (al final del chunk)**
+- [x] **Step 6: Verificacion del chunk 1 (al final del chunk)**
   - Run: `pnpm vitest run src/nostr-overlay/components/note-card-adapters.test.ts src/nostr-overlay/components/NoteCard.test.tsx && pnpm typecheck`
   - Expected: PASS.
 
@@ -393,7 +393,7 @@ Skills: `@vitest` `@shadcn`
 - Modify: `src/nostr-overlay/components/FollowingFeedContent.tsx`
 - Modify: `src/nostr-overlay/components/FollowingFeedSurface.test.tsx`
 
-- [ ] **Step 1: Escribir/ajustar tests RED de surface para nuevo render base**
+- [x] **Step 1: Escribir/ajustar tests RED de surface para nuevo render base**
   - Cambiar assert fragil `.nostr-following-feed-card-time` por `time[datetime]`.
   - Agregar caso RED: repost embebido valido renderiza nested con contenido citado visible.
   - Agregar caso RED: parseo fallido de repost embebido mantiene texto plano y no crashea.
@@ -414,11 +414,11 @@ expect(onCopyNoteId).toHaveBeenCalledWith('root-1')
 expect(container.querySelector('button[aria-label="Reaccionar (3)"]')?.hasAttribute('disabled')).toBe(true)
 ```
 
-- [ ] **Step 2: Ejecutar tests RED de surface**
+- [x] **Step 2: Ejecutar tests RED de surface**
   - Run: `pnpm vitest run src/nostr-overlay/components/FollowingFeedSurface.test.tsx`
   - Expected: FAIL en asserts nuevos.
 
-- [ ] **Step 3: Migrar `FollowingFeedContent` a modelo/adaptadores + `NoteCard`**
+- [x] **Step 3: Migrar `FollowingFeedContent` a modelo/adaptadores + `NoteCard`**
   - Sustituir card del feed, root y replies por `NoteCard`.
   - Eliminar `FeedActionBar` inline y mapear acciones al modelo.
 
@@ -475,7 +475,7 @@ const replyActionState = {
 }
 ```
 
-- [ ] **Step 4: Ejecutar tests de surface tras migracion**
+- [x] **Step 4: Ejecutar tests de surface tras migracion**
   - Run: `pnpm vitest run src/nostr-overlay/components/FollowingFeedSurface.test.tsx`
   - Expected: PASS con evidencia de:
     - feed/root/reply renderizados con `article` y `time[datetime]`
@@ -486,11 +486,11 @@ const replyActionState = {
     - callback `onCopyNoteId` intacto
     - parseo fallido de repost sin crash
 
-- [ ] **Step 5: Ejecutar typecheck del chunk 2**
+- [x] **Step 5: Ejecutar typecheck del chunk 2**
   - Run: `pnpm typecheck`
   - Expected: PASS.
 
-- [ ] **Step 6: Commit del task**
+- [x] **Step 6: Commit del task**
 
 ```bash
 git add src/nostr-overlay/components/following-feed-note-card-mappers.ts src/nostr-overlay/components/FollowingFeedContent.tsx src/nostr-overlay/components/FollowingFeedSurface.test.tsx
@@ -511,7 +511,7 @@ Skills: `@vitest`
 - Modify: `src/nostr-overlay/components/NoteCard.test.tsx`
 - Modify: `src/nostr-overlay/components/FollowingFeedSurface.test.tsx`
 
-- [ ] **Step 1: Escribir tests RED para orden y cupo determinista de nested**
+- [x] **Step 1: Escribir tests RED para orden y cupo determinista de nested**
   - Caso: `embedded + 3 referencias` => visible `1 embedded + 2 referencias` + `+1 referencias adicionales`.
   - Caso: sin `embedded`, con `3 referencias` => visible maximo `2 referencias` + `+1 referencias adicionales`.
   - Caso: depth >=2 => fallback compacto consume cupo y usa CTA accesible.
@@ -521,11 +521,11 @@ Skills: `@vitest`
   - Caso: sin `onSelectEventReference` no se renderiza boton `Abrir nota referenciada <id>`.
   - Caso: referencias mixtas (1 resuelta + 1 no resuelta) renderiza ambas, sin bloquear la resuelta.
 
-- [ ] **Step 2: Ejecutar tests RED**
+- [x] **Step 2: Ejecutar tests RED**
   - Run: `pnpm vitest run src/nostr-overlay/components/NoteCard.test.tsx src/nostr-overlay/components/FollowingFeedSurface.test.tsx`
   - Expected: FAIL.
 
-- [ ] **Step 3: Implementar API de render de referencias en `RichNostrContent` y wiring en `NoteCard`**
+- [x] **Step 3: Implementar API de render de referencias en `RichNostrContent` y wiring en `NoteCard`**
 
 Subpaso A (API en `RichNostrContent`):
 
@@ -568,7 +568,7 @@ Subpaso D (boundary de ownership):
 - Mantener retries/resolve en `RichNostrContent`.
 - Mover logica de cupo/prioridad/truncado a helper puro interno (ej. `buildVisibleNestedEntries(...)`) para no crecer JSX.
 
-- [ ] **Step 4: Ejecutar tests del chunk**
+- [x] **Step 4: Ejecutar tests del chunk**
   - Run: `pnpm vitest run src/nostr-overlay/components/NoteCard.test.tsx src/nostr-overlay/components/FollowingFeedSurface.test.tsx`
   - Expected: PASS con evidencia de:
     - `Cargando nota referenciada...` con `aria-live="polite"`
@@ -576,11 +576,11 @@ Subpaso D (boundary de ownership):
     - CTA condicional segun exista/no exista `onSelectEventReference`
     - `+N referencias adicionales` cuando supera cupo
 
-- [ ] **Step 5: Ejecutar typecheck del chunk 3**
+- [x] **Step 5: Ejecutar typecheck del chunk 3**
   - Run: `pnpm typecheck`
   - Expected: PASS.
 
-- [ ] **Step 6: Commit del task**
+- [x] **Step 6: Commit del task**
 
 ```bash
 git add src/nostr-overlay/components/RichNostrContent.tsx src/nostr-overlay/components/NoteCard.tsx src/nostr-overlay/components/NoteCard.test.tsx src/nostr-overlay/components/FollowingFeedSurface.test.tsx
@@ -599,7 +599,7 @@ Skills: `@vitest` `@shadcn`
 - Modify: `src/nostr-overlay/components/OccupantProfileDialog.tsx`
 - Modify: `src/nostr-overlay/components/OccupantProfileDialog.test.tsx`
 
-- [ ] **Step 1: Escribir tests RED del feed de perfil con formato unificado**
+- [x] **Step 1: Escribir tests RED del feed de perfil con formato unificado**
   - Cambiar dependencia de `.nostr-profile-post-item` por semantica estable (`article`, `time`, `aria-label`).
   - Agregar assert: en perfil no se muestran acciones mutantes (reaction/repost/reply).
   - Agregar assert RED: referencias `nevent` en perfil se renderizan con formato unificado (mismo header/meta que `NoteCard` nested).
@@ -617,11 +617,11 @@ expect(document.body.querySelector(`button[aria-label="Copiar identificador de n
 expect(document.body.textContent || '').toContain('@Nina Referencia')
 ```
 
-- [ ] **Step 2: Ejecutar tests RED del dialogo**
+- [x] **Step 2: Ejecutar tests RED del dialogo**
   - Run: `pnpm vitest run src/nostr-overlay/components/OccupantProfileDialog.test.tsx`
   - Expected: FAIL.
 
-- [ ] **Step 3: Implementar migracion del tab feed a `NoteCard`**
+- [x] **Step 3: Implementar migracion del tab feed a `NoteCard`**
 
 ```tsx
 {posts.map((post) => {
@@ -655,11 +655,11 @@ Matriz readonly obligatoria en este paso:
 - No renderizar `ButtonGroup` de mutaciones en tab feed perfil.
 - Mantener `copy ID` visible.
 
-- [ ] **Step 4: Ejecutar tests del dialogo**
+- [x] **Step 4: Ejecutar tests del dialogo**
   - Run: `pnpm vitest run src/nostr-overlay/components/OccupantProfileDialog.test.tsx`
   - Expected: PASS.
 
-- [ ] **Step 5: Commit del task**
+- [x] **Step 5: Commit del task**
 
 ```bash
 git add src/nostr-overlay/components/OccupantProfileDialog.tsx src/nostr-overlay/components/OccupantProfileDialog.test.tsx
@@ -675,7 +675,7 @@ git commit -m "refactor(profile): use NoteCard in profile feed tab"
 - Modify if needed: `src/nostr-overlay/components/RichNostrContent.tsx`
 - Modify if needed: `src/nostr-overlay/components/NoteCard.tsx`
 
-- [ ] **Step 1: Reducir estilos custom de card a wrappers necesarios**
+- [x] **Step 1: Reducir estilos custom de card a wrappers necesarios**
   - Remover selectores redundantes de card:
     - `.nostr-following-feed-card`
     - `.nostr-following-feed-card-root`
@@ -699,12 +699,12 @@ git commit -m "refactor(profile): use NoteCard in profile feed tab"
     - `.nostr-profile-post-list`
     - reglas de scroll/empty/error existentes.
 
-- [ ] **Step 2: Verificar que no queden className legacy en componentes**
+- [x] **Step 2: Verificar que no queden className legacy en componentes**
   - Run: `rg "nostr-following-feed-card|nostr-profile-post-item" src/nostr-overlay/components src/nostr-overlay/styles.css --glob '!*.test.tsx'`
   - Expected: `0 matches`.
   - Si aparecen matches: remover classNames legacy en archivos reportados y repetir este paso hasta `0 matches`.
 
-- [ ] **Step 3: Verificar contratos en archivos marcados como Verify**
+- [x] **Step 3: Verificar contratos en archivos marcados como Verify**
   - Run: `rg "<NoteCard|renderEventReferenceCard" src/nostr-overlay/components/FollowingFeedContent.tsx src/nostr-overlay/components/OccupantProfileDialog.tsx src/nostr-overlay/components/RichNostrContent.tsx`
   - Expected: `FollowingFeedContent.tsx` y `OccupantProfileDialog.tsx` contienen `<NoteCard`; `RichNostrContent.tsx` contiene `renderEventReferenceCard`.
   - Run: `rg "fetch\(|setTimeout\(|setInterval\(" src/nostr-overlay/components/NoteCard.tsx`
@@ -715,15 +715,15 @@ git commit -m "refactor(profile): use NoteCard in profile feed tab"
   - `NoteCard.tsx`: presentacional puro, solo render + callbacks recibidos.
   - Si alguno de los checks no cumple: corregir el archivo correspondiente y repetir Step 3 hasta cumplir todos los checks.
 
-- [ ] **Step 4: Ejecutar suite enfocada de componentes**
+- [x] **Step 4: Ejecutar suite enfocada de componentes**
   - Run: `pnpm vitest run src/nostr-overlay/components/NoteCard.test.tsx src/nostr-overlay/components/FollowingFeedSurface.test.tsx src/nostr-overlay/components/OccupantProfileDialog.test.tsx`
   - Expected: PASS.
 
-- [ ] **Step 5: Ejecutar typecheck**
+- [x] **Step 5: Ejecutar typecheck**
   - Run: `pnpm typecheck`
   - Expected: PASS.
 
-- [ ] **Step 6: Commit de cierre del chunk 4 (solo cambios de este chunk)**
+- [x] **Step 6: Commit de cierre del chunk 4 (solo cambios de este chunk)**
 
 ```bash
 git add src/nostr-overlay/styles.css src/nostr-overlay/components/OccupantProfileDialog.tsx src/nostr-overlay/components/OccupantProfileDialog.test.tsx src/nostr-overlay/components/FollowingFeedContent.tsx src/nostr-overlay/components/RichNostrContent.tsx src/nostr-overlay/components/NoteCard.tsx

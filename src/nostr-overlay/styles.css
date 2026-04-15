@@ -1622,7 +1622,6 @@
 .nostr-following-feed-page .nostr-following-feed-thread-list {
     max-height: none;
     min-height: 0;
-    max-width: 600px;
     flex: 1;
 }
 
@@ -1667,14 +1666,11 @@
 
 .nostr-following-feed-list,
 .nostr-following-feed-thread-list {
-    border: 1px solid rgba(210, 218, 225, 0.95);
-    border-radius: 10px;
     background: rgba(251, 253, 255, 0.95);
-    padding: 0.45rem;
     max-height: min(58vh, 520px);
-    overflow: auto;
+    max-width: 600px;
     display: grid;
-    gap: 0.4rem;
+    gap: 1.2rem;
 }
 
 

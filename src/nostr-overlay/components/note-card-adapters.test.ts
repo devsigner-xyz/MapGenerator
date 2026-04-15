@@ -13,7 +13,7 @@ const feedItemFixture = {
     createdAt: 100,
     content: 'hola',
     kind: 'note' as const,
-    rawEvent: { id: 'note-1', pubkey: 'a'.repeat(64), kind: 1, created_at: 100, tags: [], content: 'hola' },
+    rawEvent: { id: 'note-1', pubkey: 'a'.repeat(64), kind: 1, created_at: 100, tags: [] as string[][], content: 'hola' },
 };
 
 const rootFixture = {
@@ -22,7 +22,7 @@ const rootFixture = {
     createdAt: 101,
     content: 'root',
     eventKind: 1,
-    rawEvent: { id: 'root-1', pubkey: 'b'.repeat(64), kind: 1, created_at: 101, tags: [], content: 'root' },
+    rawEvent: { id: 'root-1', pubkey: 'b'.repeat(64), kind: 1, created_at: 101, tags: [] as string[][], content: 'root' },
 };
 
 const replyFixture = {
@@ -31,7 +31,7 @@ const replyFixture = {
     createdAt: 102,
     content: 'reply',
     eventKind: 1,
-    rawEvent: { id: 'reply-1', pubkey: 'c'.repeat(64), kind: 1, created_at: 102, tags: [], content: 'reply' },
+    rawEvent: { id: 'reply-1', pubkey: 'c'.repeat(64), kind: 1, created_at: 102, tags: [] as string[][], content: 'reply' },
 };
 
 const referenceEventFixture = {
@@ -39,7 +39,7 @@ const referenceEventFixture = {
     pubkey: 'd'.repeat(64),
     kind: 1,
     created_at: 103,
-    tags: [],
+    tags: [] as string[][],
     content: 'referencia',
 };
 
