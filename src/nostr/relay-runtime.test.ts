@@ -58,4 +58,29 @@ describe('resolveConservativeSocialRelaySets', () => {
         expect(resolved.primary).toEqual(['wss://bootstrap.one']);
         expect(resolved.fallback).toEqual([]);
     });
+
+    test('merges additional read relays into primary set while preserving bootstrap fallback', () => {
+        const resolved = resolveConservativeSocialRelaySets({
+            ownerPubkey: '9'.repeat(64),
+            additionalReadRelays: ['wss://hint.one', 'wss://relay.read', 'wss://hint.two'],
+            loadSettings: () => ({
+                relays: ['wss://fallback.user-relay'],
+                byType: {
+                    nip65Both: ['wss://relay.both'],
+                    nip65Read: ['wss://relay.read'],
+                    nip65Write: ['wss://relay.write'],
+                    dmInbox: [],
+                },
+            }),
+            bootstrapRelays: ['wss://bootstrap.one', 'wss://bootstrap.two'],
+        });
+
+        expect(resolved.primary).toEqual([
+            'wss://hint.one',
+            'wss://hint.two',
+            'wss://relay.both',
+            'wss://relay.read',
+        ]);
+        expect(resolved.fallback).toEqual(['wss://bootstrap.one', 'wss://bootstrap.two']);
+    });
 });

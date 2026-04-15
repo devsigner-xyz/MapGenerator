@@ -128,6 +128,7 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
     const [engagementDeltaByEventId, setEngagementDeltaByEventId] = useState<SocialEngagementByEventId>({});
 
     const follows = useMemo(() => normalizeEventIds(options.follows), [options.follows]);
+    const hasFollows = follows.length > 0;
     const activeHashtag = useMemo(() => normalizeHashtag(options.hashtag), [options.hashtag]);
     const feedPageSize = Math.max(1, options.pageSize ?? 20);
     const threadPageSize = Math.max(1, options.threadPageSize ?? 25);
@@ -685,6 +686,7 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
     return {
         isOpen,
         items,
+        hasFollows,
         hasUnread,
         isLoadingFeed: feedQuery.isPending || feedQuery.isFetchingNextPage,
         feedError: feedQuery.error?.message ?? null,

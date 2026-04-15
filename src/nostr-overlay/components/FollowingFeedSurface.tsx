@@ -24,6 +24,7 @@ export function FollowingFeedSurface({ activeHashtag, onClearHashtag, ...feedPro
             <div className="nostr-routed-surface-content">
                 <FollowingFeedContent
                     {...feedProps}
+                    activeHashtag={activeHashtag}
                     className="nostr-following-feed-surface-content nostr-following-feed-page nostr-routed-surface-panel nostr-page-layout"
                     headerSubtitle={headerSubtitle}
                     headerActions={headerActions}

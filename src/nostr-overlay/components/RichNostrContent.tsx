@@ -3,13 +3,14 @@ import { nip19 } from 'nostr-tools';
 import Lightbox from 'yet-another-react-lightbox';
 import 'yet-another-react-lightbox/styles.css';
 import type { NostrEvent, NostrProfile } from '../../nostr/types';
+import { Spinner } from '@/components/ui/spinner';
 
 type RichToken =
     | { kind: 'text'; value: string }
     | { kind: 'url'; value: string }
     | { kind: 'hashtag'; value: string }
     | { kind: 'mention'; value: string; pubkey: string }
-    | { kind: 'event-reference'; value: string; eventId: string };
+    | { kind: 'event-reference'; value: string; eventId: string; relayHints: string[] };
 
 export interface RichMediaAttachment {
     url: string;
@@ -29,7 +30,10 @@ export interface RichNostrContentProps {
     onSelectProfile?: (pubkey: string) => void;
     onResolveProfiles?: (pubkeys: string[]) => Promise<void> | void;
     onSelectEventReference?: (eventId: string) => void;
-    onResolveEventReferences?: (eventIds: string[]) => Promise<void> | void;
+    onResolveEventReferences?: (
+        eventIds: string[],
+        options?: { relayHintsByEventId?: Record<string, string[]> }
+    ) => Promise<Record<string, NostrEvent> | void> | Record<string, NostrEvent> | void;
     profilesByPubkey?: Record<string, NostrProfile>;
     eventReferencesById?: Record<string, NostrEvent>;
     textClassName?: string;
@@ -42,7 +46,7 @@ function isHexPubkey(value: string): boolean {
 
 type DecodedNostrEntity =
     | { kind: 'mention'; pubkey: string }
-    | { kind: 'event-reference'; eventId: string }
+    | { kind: 'event-reference'; eventId: string; relayHints: string[] }
     | null;
 
 function decodeNostrEntity(value: string): DecodedNostrEntity {
@@ -59,11 +63,14 @@ function decodeNostrEntity(value: string): DecodedNostrEntity {
         }
 
         if (decoded.type === 'note' && typeof decoded.data === 'string' && isHexPubkey(decoded.data)) {
-            return { kind: 'event-reference', eventId: decoded.data };
+            return { kind: 'event-reference', eventId: decoded.data, relayHints: [] };
         }
 
         if (decoded.type === 'nevent' && typeof decoded.data?.id === 'string' && isHexPubkey(decoded.data.id)) {
-            return { kind: 'event-reference', eventId: decoded.data.id };
+            const relayHints = Array.isArray(decoded.data.relays)
+                ? decoded.data.relays.filter((relay): relay is string => typeof relay === 'string' && relay.length > 0)
+                : [];
+            return { kind: 'event-reference', eventId: decoded.data.id, relayHints };
         }
 
         return null;
@@ -140,7 +147,12 @@ function tokenizeContent(content: string): RichToken[] {
             if (decodedEntity?.kind === 'mention') {
                 tokens.push({ kind: 'mention', value: rawToken, pubkey: decodedEntity.pubkey });
             } else if (decodedEntity?.kind === 'event-reference') {
-                tokens.push({ kind: 'event-reference', value: rawToken, eventId: decodedEntity.eventId });
+                tokens.push({
+                    kind: 'event-reference',
+                    value: rawToken,
+                    eventId: decodedEntity.eventId,
+                    relayHints: decodedEntity.relayHints,
+                });
             } else {
                 tokens.push({ kind: 'url', value: sanitizeUrlToken(rawToken) });
             }
@@ -352,18 +364,22 @@ function renderEventReferenceCards(
             : shortPubkey(eventId);
         const body = event
             ? summarizeEventContent(event.content)
-            : 'Cargando nota referenciada...';
-        const dateLabel = event ? formatCreatedAt(event.created_at) : 'Pendiente de carga';
+            : (
+                <span className="nostr-rich-event-reference-loading">
+                    <Spinner className="size-3" />
+                    <span>Cargando nota referenciada...</span>
+                </span>
+            );
+        const dateLabel = event ? formatCreatedAt(event.created_at) : null;
 
         const content = (
             <>
                 <div className="nostr-rich-event-reference-header">
-                    <span className="nostr-rich-event-reference-label">Nota referenciada</span>
                     <span className="nostr-rich-event-reference-author">@{authorLabel}</span>
                 </div>
                 <p className="nostr-rich-event-reference-content">{body}</p>
                 <div className="nostr-rich-event-reference-meta">
-                    <span className="nostr-rich-event-reference-date">{dateLabel}</span>
+                    {dateLabel ? <span className="nostr-rich-event-reference-date">{dateLabel}</span> : null}
                     <span className="nostr-rich-event-reference-id">{eventId.slice(0, 8)}...{eventId.slice(-6)}</span>
                 </div>
             </>
@@ -390,6 +406,9 @@ function renderEventReferenceCards(
         );
     });
 }
+
+const EVENT_REFERENCE_RESOLVE_MAX_ATTEMPTS = 3;
+const EVENT_REFERENCE_RESOLVE_RETRY_MS = 1_500;
 
 export function RichNostrContent({
     content,
@@ -418,6 +437,9 @@ export function RichNostrContent({
     const hasEventReferences = tokenizedContent.some((token) => token.kind === 'event-reference');
     const requestedMentionPubkeysRef = useRef<Set<string>>(new Set());
     const requestedEventIdsRef = useRef<Set<string>>(new Set());
+    const eventReferenceResolveAttemptsRef = useRef<Map<string, number>>(new Map());
+    const eventReferenceRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [eventReferenceResolveTick, setEventReferenceResolveTick] = useState(0);
 
     useEffect(() => {
         if (!onResolveProfiles) {
@@ -459,8 +481,15 @@ export function RichNostrContent({
         }
 
         const unresolvedEventIds = new Set<string>();
+        const relayHintsByEventId: Record<string, string[]> = {};
         for (const token of tokenizedContent) {
             if (token.kind !== 'event-reference') {
+                continue;
+            }
+
+            if (eventReferencesById?.[token.eventId]) {
+                requestedEventIdsRef.current.delete(token.eventId);
+                eventReferenceResolveAttemptsRef.current.delete(token.eventId);
                 continue;
             }
 
@@ -468,21 +497,78 @@ export function RichNostrContent({
                 continue;
             }
 
-            if (eventReferencesById?.[token.eventId]) {
-                requestedEventIdsRef.current.add(token.eventId);
+            const attempts = eventReferenceResolveAttemptsRef.current.get(token.eventId) ?? 0;
+            if (attempts >= EVENT_REFERENCE_RESOLVE_MAX_ATTEMPTS) {
                 continue;
             }
 
             unresolvedEventIds.add(token.eventId);
             requestedEventIdsRef.current.add(token.eventId);
+
+            if (token.relayHints.length > 0) {
+                relayHintsByEventId[token.eventId] = token.relayHints;
+            }
         }
 
         if (unresolvedEventIds.size === 0) {
             return;
         }
 
-        void onResolveEventReferences(Array.from(unresolvedEventIds));
-    }, [eventReferencesById, onResolveEventReferences, tokenizedContent]);
+        const unresolved = Array.from(unresolvedEventIds);
+        void (async () => {
+            let resolvedById: Record<string, NostrEvent> = {};
+            try {
+                const resolved = await onResolveEventReferences(
+                    unresolved,
+                    Object.keys(relayHintsByEventId).length > 0 ? { relayHintsByEventId } : undefined
+                );
+
+                if (resolved && typeof resolved === 'object') {
+                    resolvedById = resolved as Record<string, NostrEvent>;
+                }
+            } catch {
+                resolvedById = {};
+            }
+
+            let shouldRetry = false;
+            for (const eventId of unresolved) {
+                requestedEventIdsRef.current.delete(eventId);
+                const loaded = Boolean(resolvedById[eventId]) || Boolean(eventReferencesById?.[eventId]);
+                if (loaded) {
+                    eventReferenceResolveAttemptsRef.current.delete(eventId);
+                    continue;
+                }
+
+                const nextAttempt = (eventReferenceResolveAttemptsRef.current.get(eventId) ?? 0) + 1;
+                eventReferenceResolveAttemptsRef.current.set(eventId, nextAttempt);
+                if (nextAttempt < EVENT_REFERENCE_RESOLVE_MAX_ATTEMPTS) {
+                    shouldRetry = true;
+                }
+            }
+
+            if (!shouldRetry) {
+                return;
+            }
+
+            if (eventReferenceRetryTimerRef.current) {
+                clearTimeout(eventReferenceRetryTimerRef.current);
+            }
+
+            eventReferenceRetryTimerRef.current = setTimeout(() => {
+                eventReferenceRetryTimerRef.current = null;
+                setEventReferenceResolveTick((current) => current + 1);
+            }, EVENT_REFERENCE_RESOLVE_RETRY_MS);
+        })();
+    }, [eventReferencesById, eventReferenceResolveTick, onResolveEventReferences, tokenizedContent]);
+
+    useEffect(() => {
+        return () => {
+            if (eventReferenceRetryTimerRef.current) {
+                clearTimeout(eventReferenceRetryTimerRef.current);
+                eventReferenceRetryTimerRef.current = null;
+            }
+        };
+    }, []);
 
     const inlineNodes = useMemo(
         () => renderInlineTokens(tokenizedContent, {

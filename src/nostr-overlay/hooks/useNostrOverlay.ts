@@ -1110,7 +1110,10 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         return loadedProfiles;
     };
 
-    const loadEventsByIds = async (eventIds: string[]): Promise<Record<string, NostrEvent>> => {
+    const loadEventsByIds = async (
+        eventIds: string[],
+        options?: { relayHintsByEventId?: Record<string, string[]> }
+    ): Promise<Record<string, NostrEvent>> => {
         const uniqueEventIds = dedupe(eventIds)
             .filter((eventId) => /^[a-f0-9]{64}$/.test(eventId));
 
@@ -1133,6 +1136,37 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             }
 
             byId[event.id] = event;
+        }
+
+        const unresolvedEventIds = uniqueEventIds.filter((eventId) => !byId[eventId]);
+        if (unresolvedEventIds.length > 0) {
+            const hintedRelays = mergeRelaySets(
+                ...unresolvedEventIds.map((eventId) => options?.relayHintsByEventId?.[eventId] ?? []),
+                getBootstrapRelays()
+            );
+
+            if (hintedRelays.length > 0) {
+                const fallbackRelays = mergeRelaySets(relays, hintedRelays);
+                if (!hasSameRelaySet(relays, fallbackRelays)) {
+                    try {
+                        const fallbackClient = createClient(fallbackRelays);
+                        const fallbackEvents = await fallbackClient.fetchEvents({
+                            ids: unresolvedEventIds,
+                            limit: unresolvedEventIds.length,
+                        });
+
+                        for (const event of fallbackEvents) {
+                            if (!event?.id) {
+                                continue;
+                            }
+
+                            byId[event.id] = event;
+                        }
+                    } catch {
+                        // Ignore fallback failures for best-effort reference hydration.
+                    }
+                }
+            }
         }
 
         const eventAuthors = dedupe(Object.values(byId)
@@ -1272,6 +1306,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         followerProfiles: state.data.followerProfiles,
         followersLoading: state.data.followersLoading,
         selectedPubkey: state.data.selectedPubkey,
+        relayHints: state.data.relayHints,
         suggestedRelays: state.data.suggestedRelays,
         suggestedRelaysByType: state.data.suggestedRelaysByType,
         activeProfilePubkey: state.data.activeProfilePubkey,

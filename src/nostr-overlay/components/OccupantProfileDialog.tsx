@@ -39,7 +39,10 @@ interface OccupantProfileDialogProps {
     onSelectProfile?: (pubkey: string) => void;
     onResolveProfiles?: (pubkeys: string[]) => Promise<void> | void;
     onSelectEventReference?: (eventId: string) => void;
-    onResolveEventReferences?: (eventIds: string[]) => Promise<void> | void;
+    onResolveEventReferences?: (
+        eventIds: string[],
+        options?: { relayHintsByEventId?: Record<string, string[]> }
+    ) => Promise<Record<string, NostrEvent> | void> | Record<string, NostrEvent> | void;
     eventReferencesById?: Record<string, NostrEvent>;
     onClose: () => void;
 }

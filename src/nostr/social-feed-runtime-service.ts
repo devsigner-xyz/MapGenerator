@@ -28,6 +28,7 @@ const ENGAGEMENT_KINDS = [1, 6, 7, 16, 9735] as const;
 const DEFAULT_FEED_LIMIT = 30;
 const DEFAULT_THREAD_LIMIT = 40;
 const DEFAULT_ENGAGEMENT_LIMIT = 120;
+const DEFAULT_BACKFILL_TIMEOUT_MS = 7_000;
 const QUERY_LIMIT_MULTIPLIER = 3;
 const MIN_QUERY_LIMIT = 24;
 const MAX_QUERY_LIMIT = 180;
@@ -40,6 +41,7 @@ interface CreateRuntimeSocialFeedServiceOptions {
     resolveRelays?: () => string[];
     resolveFallbackRelays?: (primaryRelays: string[]) => string[];
     transportPool?: TransportPool<DmTransport>;
+    backfillTimeoutMs?: number;
 }
 
 function resolveRuntimeSocialRelays(): string[] {
@@ -273,6 +275,29 @@ function isRelayTransportError(error: unknown): boolean {
     return /relay|eose|timeout|network|websocket|disconnect/i.test(error.message);
 }
 
+async function fetchBackfillWithTimeout(
+    transport: DmTransport,
+    filters: NostrFilter[],
+    timeoutMs: number
+): Promise<NostrEvent[]> {
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+
+    try {
+        return await Promise.race([
+            transport.fetchBackfill(filters),
+            new Promise<NostrEvent[]>((_, reject) => {
+                timeoutHandle = setTimeout(() => {
+                    reject(new Error(`relay timeout after ${timeoutMs}ms`));
+                }, timeoutMs);
+            }),
+        ]);
+    } finally {
+        if (timeoutHandle) {
+            clearTimeout(timeoutHandle);
+        }
+    }
+}
+
 export function createRuntimeSocialFeedService(
     options: CreateRuntimeSocialFeedServiceOptions = {}
 ): SocialFeedService {
@@ -280,6 +305,9 @@ export function createRuntimeSocialFeedService(
     const resolveRelays = options.resolveRelays ?? resolveRuntimeSocialRelays;
     const resolveFallbackRelays = options.resolveFallbackRelays ?? resolveRuntimeSocialFallbackRelays;
     const transportPool = options.transportPool ?? createTransportPool<DmTransport>();
+    const backfillTimeoutMs = Number.isFinite(options.backfillTimeoutMs)
+        ? Math.max(1, Math.floor(options.backfillTimeoutMs as number))
+        : DEFAULT_BACKFILL_TIMEOUT_MS;
 
     const resolveTransport = (relays: string[]): DmTransport => {
         return transportPool.getOrCreate(relays, createTransport);
@@ -333,12 +361,12 @@ export function createRuntimeSocialFeedService(
                     let maxChunkOldest: number | null = null;
 
                     for (const authorChunk of authorChunks) {
-                        const events = await transport.fetchBackfill([{
+                        const events = await fetchBackfillWithTimeout(transport, [{
                             authors: authorChunk,
                             kinds: [...MAIN_FEED_KINDS],
                             limit: queryLimit,
                             until: cursorUntil,
-                        }]);
+                        }], backfillTimeoutMs);
 
                         const chunkEvents = sortAndDedupe(events as NostrEvent[]);
                         if (chunkEvents.length >= queryLimit) {
@@ -444,12 +472,12 @@ export function createRuntimeSocialFeedService(
                 while (collected.size < limit + 1 && pass < MAX_MAIN_FEED_PASSES) {
                     pass += 1;
 
-                    const events = await transport.fetchBackfill([{
+                    const events = await fetchBackfillWithTimeout(transport, [{
                         kinds: [...MAIN_FEED_KINDS],
                         '#t': [hashtag],
                         limit: queryLimit,
                         until: cursorUntil,
-                    }]);
+                    }], backfillTimeoutMs);
 
                     const sorted = sortAndDedupe(events as NostrEvent[]);
                     if (sorted.length === 0) {
@@ -529,7 +557,7 @@ export function createRuntimeSocialFeedService(
                 const limit = clampLimit(input.limit, DEFAULT_THREAD_LIMIT);
                 const queryLimit = resolveQueryLimit(limit);
 
-                const events = await transport.fetchBackfill([
+                const events = await fetchBackfillWithTimeout(transport, [
                     {
                         ids: [rootEventId],
                         limit: 1,
@@ -540,7 +568,7 @@ export function createRuntimeSocialFeedService(
                         limit: queryLimit,
                         until: input.until,
                     },
-                ]);
+                ], backfillTimeoutMs);
 
                 const sorted = sortAndDedupe(events as NostrEvent[]);
                 let root: SocialThreadItem | null = null;
@@ -608,7 +636,7 @@ export function createRuntimeSocialFeedService(
                     });
                 }
 
-                const events = await transport.fetchBackfill(filters);
+                const events = await fetchBackfillWithTimeout(transport, filters, backfillTimeoutMs);
 
                 for (const event of sortAndDedupe(events as NostrEvent[])) {
                     const targetEventId = resolveEngagementTargetEventId(event, targetSet);

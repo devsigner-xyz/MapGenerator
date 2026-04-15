@@ -125,6 +125,87 @@ describe('social-feed-runtime-service', () => {
         expect(createTransport).toHaveBeenCalledTimes(2);
     });
 
+    test('falls back to secondary relays when primary backfill hangs beyond timeout', async () => {
+        const primaryTransport = {
+            publishToRelays: vi.fn(async () => ({ ackedRelays: [], failedRelays: [], timeoutRelays: [] })),
+            subscribe: vi.fn(() => ({ unsubscribe() { return; } })),
+            fetchBackfill: vi.fn(async () => new Promise<NostrEvent[]>(() => {
+                return;
+            })),
+        };
+        const fallbackTransport = createTransportMock([
+            noteEvent({ id: 'note-timeout-fallback', pubkey: FOLLOW_A, createdAt: 600, content: 'fallback-timeout' }),
+        ]);
+        const createTransport = vi.fn((relays: string[]) => {
+            if (relays.includes('wss://primary.relay')) {
+                return primaryTransport as any;
+            }
+
+            return fallbackTransport as any;
+        });
+
+        const service = createRuntimeSocialFeedService({
+            createTransport,
+            resolveRelays: () => ['wss://primary.relay'],
+            resolveFallbackRelays: () => ['wss://fallback.relay'],
+            transportPool: createTransportPool(),
+            backfillTimeoutMs: 25,
+        } as any);
+
+        const outcome = await Promise.race<any>([
+            service.loadFollowingFeed({
+                follows: [FOLLOW_A],
+                limit: 10,
+            }),
+            new Promise<'guard-timeout'>((resolve) => {
+                setTimeout(() => resolve('guard-timeout'), 120);
+            }),
+        ]);
+
+        expect(outcome).not.toBe('guard-timeout');
+        expect(outcome).toMatchObject({
+            items: [
+                expect.objectContaining({ id: 'note-timeout-fallback' }),
+            ],
+        });
+        expect(createTransport).toHaveBeenCalledTimes(2);
+    });
+
+    test('returns timeout error when primary and fallback backfills hang', async () => {
+        const hangingTransport = {
+            publishToRelays: vi.fn(async () => ({ ackedRelays: [], failedRelays: [], timeoutRelays: [] })),
+            subscribe: vi.fn(() => ({ unsubscribe() { return; } })),
+            fetchBackfill: vi.fn(async () => new Promise<NostrEvent[]>(() => {
+                return;
+            })),
+        };
+        const createTransport = vi.fn(() => hangingTransport as any);
+
+        const service = createRuntimeSocialFeedService({
+            createTransport,
+            resolveRelays: () => ['wss://primary.relay'],
+            resolveFallbackRelays: () => ['wss://fallback.relay'],
+            transportPool: createTransportPool(),
+            backfillTimeoutMs: 20,
+        } as any);
+
+        const outcome = await Promise.race<'rejected' | 'guard-timeout'>([
+            service.loadFollowingFeed({
+                follows: [FOLLOW_A],
+                limit: 5,
+            }).then(() => 'guard-timeout' as const).catch((error: unknown) => {
+                expect(error).toBeInstanceOf(Error);
+                expect((error as Error).message.toLowerCase()).toContain('timeout');
+                return 'rejected' as const;
+            }),
+            new Promise<'guard-timeout'>((resolve) => {
+                setTimeout(() => resolve('guard-timeout'), 120);
+            }),
+        ]);
+
+        expect(outcome).toBe('rejected');
+    });
+
     test('loads following feed, excludes replies and keeps notes/reposts sorted', async () => {
         const transport = createTransportMock([
             noteEvent({

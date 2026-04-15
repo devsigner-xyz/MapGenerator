@@ -40,6 +40,7 @@ afterEach(async () => {
 function buildProps(overrides: Partial<Parameters<typeof FollowingFeedSurface>[0]> = {}): Parameters<typeof FollowingFeedSurface>[0] {
     return {
         items: [],
+        hasFollows: true,
         profilesByPubkey: {},
         engagementByEventId: {},
         activeHashtag: undefined,
@@ -174,6 +175,22 @@ describe('FollowingFeedSurface', () => {
         const surfaceContent = rendered.container.querySelector('.nostr-following-feed-surface-content') as HTMLElement;
         expect(surfaceContent).toBeDefined();
         expect(surfaceContent.classList.contains('nostr-following-feed-dialog')).toBe(false);
+    });
+
+    test('renders no-follows empty state using Empty component copy', async () => {
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    hasFollows: false,
+                    items: [],
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const text = rendered.container.textContent || '';
+        expect(text).toContain('No sigues a nadie todavia');
+        expect(text).toContain('Empieza a seguir perfiles para ver su actividad en Agora.');
     });
 
     test('renders author identity and engagement icon counters on cards', async () => {
@@ -557,7 +574,7 @@ describe('FollowingFeedSurface', () => {
         );
         mounted.push(rendered);
 
-        expect(rendered.container.textContent || '').toContain('Nota referenciada');
+        expect(rendered.container.textContent || '').not.toContain('Nota referenciada');
         expect(rendered.container.textContent || '').toContain('@Nora Referenced');
         expect(rendered.container.textContent || '').toContain('contenido de la nota citada');
 
@@ -602,11 +619,65 @@ describe('FollowingFeedSurface', () => {
         );
         mounted.push(rendered);
 
+        const text = rendered.container.textContent || '';
+        expect(text).toContain('Cargando nota referenciada...');
+        expect(text).not.toContain('Pendiente de carga');
+        expect(rendered.container.querySelector('svg[aria-label="Loading"]')).toBeDefined();
+
         await act(async () => {
             await new Promise((resolve) => setTimeout(resolve, 0));
         });
 
-        expect(onResolveEventReferences).toHaveBeenCalledWith([referencedEventId]);
+        expect(onResolveEventReferences).toHaveBeenCalledWith([referencedEventId], undefined);
+    });
+
+    test('retries unresolved nevent references when initial resolve returns empty', async () => {
+        vi.useFakeTimers();
+        try {
+            const referencedEventId = '2'.repeat(64);
+            const nevent = nip19.neventEncode({ id: referencedEventId });
+            const onResolveEventReferences = vi.fn(async () => ({}));
+
+            const rendered = await renderElement(
+                <FollowingFeedSurface
+                    {...buildProps({
+                        onResolveEventReferences,
+                        items: [
+                            {
+                                id: 'note-ref-retry',
+                                pubkey: 'a'.repeat(64),
+                                createdAt: 100,
+                                content: `retry nostr:${nevent}`,
+                                kind: 'note',
+                                rawEvent: {
+                                    id: 'note-ref-retry',
+                                    pubkey: 'a'.repeat(64),
+                                    kind: 1,
+                                    created_at: 100,
+                                    tags: [],
+                                    content: `retry nostr:${nevent}`,
+                                },
+                            },
+                        ],
+                    })}
+                />
+            );
+            mounted.push(rendered);
+
+            await act(async () => {
+                await Promise.resolve();
+            });
+            expect(onResolveEventReferences).toHaveBeenCalledTimes(1);
+
+            await act(async () => {
+                vi.advanceTimersByTime(1_600);
+                await Promise.resolve();
+            });
+
+            expect(onResolveEventReferences).toHaveBeenCalledTimes(2);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     test('opens per-post media lightbox when clicking an image', async () => {

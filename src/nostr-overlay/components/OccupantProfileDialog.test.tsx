@@ -507,10 +507,10 @@ describe('OccupantProfileDialog', () => {
         mounted.push(rendered);
 
         await selectTab('Feed');
-        await waitForCondition(() => (document.body.textContent || '').includes('Nota referenciada'));
+        await waitForCondition(() => (document.body.textContent || '').includes('@Nina Referencia'));
 
         const text = document.body.textContent || '';
-        expect(text).toContain('Nota referenciada');
+        expect(text).not.toContain('Nota referenciada');
         expect(text).toContain('@Nina Referencia');
         expect(text).toContain('nota citada desde perfil');
     });

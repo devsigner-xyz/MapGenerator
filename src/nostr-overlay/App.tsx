@@ -384,11 +384,14 @@ export function App({ mapBridge, services }: AppProps) {
     const socialState = socialNotifications;
     const socialFeedService = useMemo(
         () => services?.socialFeedService ?? createRuntimeSocialFeedService({
-            resolveRelays: () => resolveConservativeSocialRelaySets({ ownerPubkey: overlay.ownerPubkey }).primary,
+            resolveRelays: () => resolveConservativeSocialRelaySets({
+                ownerPubkey: overlay.ownerPubkey,
+                additionalReadRelays: overlay.relayHints,
+            }).primary,
             resolveFallbackRelays: () => resolveConservativeSocialRelaySets({ ownerPubkey: overlay.ownerPubkey }).fallback,
             transportPool: socialTransportPool,
         }),
-        [overlay.ownerPubkey, services?.socialFeedService, socialTransportPool]
+        [overlay.ownerPubkey, overlay.relayHints, services?.socialFeedService, socialTransportPool]
     );
     const activeAgoraHashtag = useMemo(() => {
         if (location.pathname !== '/agora') {
@@ -771,20 +774,25 @@ export function App({ mapBridge, services }: AppProps) {
         void followingFeed.openThread(eventId);
     };
 
-    const resolveEventReferences = async (eventIds: string[]): Promise<void> => {
+    const resolveEventReferences = async (
+        eventIds: string[],
+        options?: { relayHintsByEventId?: Record<string, string[]> }
+    ): Promise<Record<string, NostrEvent>> => {
         if (!eventIds || eventIds.length === 0) {
-            return;
+            return {};
         }
 
-        const loadedEvents = await overlay.loadEventsByIds(eventIds);
+        const loadedEvents = await overlay.loadEventsByIds(eventIds, options);
         if (Object.keys(loadedEvents).length === 0) {
-            return;
+            return {};
         }
 
         setEventReferencesById((current) => ({
             ...current,
             ...loadedEvents,
         }));
+
+        return loadedEvents;
     };
 
     const clearFollowingFeedHashtagFilter = (): void => {
@@ -1021,6 +1029,7 @@ export function App({ mapBridge, services }: AppProps) {
                     element={(
                         <FollowingFeedSurface
                             items={followingFeed.items}
+                            hasFollows={followingFeed.hasFollows}
                             profilesByPubkey={richContentProfilesByPubkey}
                             engagementByEventId={followingFeed.engagementByEventId}
                             activeHashtag={followingFeed.activeHashtag}

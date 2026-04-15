@@ -14,6 +14,7 @@ interface ResolveConservativeSocialRelaySetsInput {
     ownerPubkey?: string;
     loadSettings?: (input?: LoadSettingsInput) => RelaySettingsState;
     bootstrapRelays?: string[];
+    additionalReadRelays?: string[];
 }
 
 export function normalizeRelaySet(relays: string[]): string[] {
@@ -28,13 +29,14 @@ export function hasSameRelaySet(left: string[], right: string[]): boolean {
     return buildRelaySetKey(left) === buildRelaySetKey(right);
 }
 
-function resolvePrimarySocialRelays(state: RelaySettingsState): string[] {
+function resolvePrimarySocialRelays(state: RelaySettingsState, additionalReadRelays: string[] = []): string[] {
     const protocolRelays = mergeRelaySets(
         getRelaySetByType(state, 'nip65Both'),
         getRelaySetByType(state, 'nip65Read')
     );
     const primaryRelays = protocolRelays.length > 0 ? protocolRelays : state.relays;
-    return normalizeRelaySet(primaryRelays);
+    const mergedPrimary = mergeRelaySets(primaryRelays, additionalReadRelays);
+    return normalizeRelaySet(mergedPrimary);
 }
 
 export function resolveConservativeSocialRelaySets(
@@ -43,7 +45,7 @@ export function resolveConservativeSocialRelaySets(
     const loadSettings = input.loadSettings ?? loadRelaySettings;
     const bootstrapRelays = normalizeRelaySet(input.bootstrapRelays ?? getBootstrapRelays());
     const state = loadSettings({ ownerPubkey: input.ownerPubkey });
-    const primaryCandidate = resolvePrimarySocialRelays(state);
+    const primaryCandidate = resolvePrimarySocialRelays(state, input.additionalReadRelays ?? []);
     const primary = primaryCandidate.length > 0 ? primaryCandidate : bootstrapRelays;
     const fallback = hasSameRelaySet(primary, bootstrapRelays) ? [] : bootstrapRelays;
 

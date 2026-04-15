@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 
 export interface FollowingFeedViewProps {
     items: SocialFeedItem[];
+    hasFollows: boolean;
     profilesByPubkey: Record<string, NostrProfile>;
     engagementByEventId: Record<string, SocialEngagementMetrics>;
     isLoadingFeed: boolean;
@@ -44,7 +45,10 @@ export interface FollowingFeedViewProps {
     onSelectProfile?: (pubkey: string) => void;
     onResolveProfiles?: (pubkeys: string[]) => Promise<void> | void;
     onSelectEventReference?: (eventId: string) => void;
-    onResolveEventReferences?: (eventIds: string[]) => Promise<void> | void;
+    onResolveEventReferences?: (
+        eventIds: string[],
+        options?: { relayHintsByEventId?: Record<string, string[]> }
+    ) => Promise<Record<string, NostrEvent> | void> | Record<string, NostrEvent> | void;
     eventReferencesById?: Record<string, NostrEvent>;
     onCopyNoteId?: (noteId: string) => void;
 }
@@ -53,6 +57,7 @@ interface FollowingFeedContentProps extends FollowingFeedViewProps {
     className?: string;
     headerActions?: ReactNode;
     headerSubtitle?: string;
+    activeHashtag?: string;
 }
 
 const EMPTY_ENGAGEMENT_METRICS: SocialEngagementMetrics = {
@@ -251,7 +256,9 @@ export function FollowingFeedContent({
     className,
     headerActions,
     headerSubtitle,
+    activeHashtag,
     items,
+    hasFollows,
     profilesByPubkey,
     engagementByEventId,
     isLoadingFeed,
@@ -404,6 +411,13 @@ export function FollowingFeedContent({
                                         </EmptyMedia>
                                         <EmptyTitle>Cargando feed</EmptyTitle>
                                         <EmptyDescription>Buscando publicaciones de personas que sigues.</EmptyDescription>
+                                    </EmptyHeader>
+                                </Empty>
+                            ) : !activeHashtag && !hasFollows ? (
+                                <Empty className="nostr-following-feed-empty">
+                                    <EmptyHeader>
+                                        <EmptyTitle>No sigues a nadie todavia</EmptyTitle>
+                                        <EmptyDescription>Empieza a seguir perfiles para ver su actividad en Agora.</EmptyDescription>
                                     </EmptyHeader>
                                 </Empty>
                             ) : (

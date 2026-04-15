@@ -1622,6 +1622,7 @@
 .nostr-following-feed-page .nostr-following-feed-thread-list {
     max-height: none;
     min-height: 0;
+    max-width: 600px;
     flex: 1;
 }
 
@@ -1870,6 +1871,12 @@
     line-height: 1.45;
     white-space: pre-wrap;
     word-break: break-word;
+}
+
+.nostr-rich-event-reference-loading {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .nostr-rich-event-reference-meta {
