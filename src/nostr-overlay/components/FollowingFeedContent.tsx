@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { HeartIcon, MessageCircleIcon, Repeat2Icon, ZapIcon } from 'lucide-react';
 import type { NostrEvent, NostrProfile } from '../../nostr/types';
-import type { SocialEngagementMetrics, SocialFeedItem, SocialThreadItem } from '../../nostr/social-feed-service';
+import type { SocialEngagementMetrics, SocialFeedItem } from '../../nostr/social-feed-service';
 import type { FollowingFeedThreadView } from '../query/following-feed.selectors';
+import { fromEmbeddedRepost, fromFeedItem, fromThreadItem } from './note-card-adapters';
+import {
+    buildFeedActionState,
+    buildReplyActionState,
+    buildRootActionState,
+} from './following-feed-note-card-mappers';
 import { ListLoadingFooter } from './ListLoadingFooter';
-import { RichNostrContent } from './RichNostrContent';
+import { NoteCard } from './NoteCard';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
@@ -60,53 +64,12 @@ interface FollowingFeedContentProps extends FollowingFeedViewProps {
     activeHashtag?: string;
 }
 
-const EMPTY_ENGAGEMENT_METRICS: SocialEngagementMetrics = {
-    replies: 0,
-    reposts: 0,
-    reactions: 0,
-    zaps: 0,
-    zapSats: 0,
-};
-
 function shortPubkey(pubkey: string): string {
     if (!pubkey || pubkey.length < 14) {
         return pubkey || 'desconocido';
     }
 
     return `${pubkey.slice(0, 8)}...${pubkey.slice(-6)}`;
-}
-
-function profileDisplayName(pubkey: string, profile: NostrProfile | undefined): string {
-    return profile?.displayName ?? profile?.name ?? shortPubkey(pubkey);
-}
-
-function profileInitials(pubkey: string, profile: NostrProfile | undefined): string {
-    const source = profileDisplayName(pubkey, profile).trim();
-    if (!source) {
-        return pubkey.slice(0, 2).toUpperCase();
-    }
-
-    const words = source.split(/\s+/).filter((part) => part.length > 0);
-    if (words.length === 1) {
-        return words[0].slice(0, 2).toUpperCase();
-    }
-
-    return `${words[0][0] || ''}${words[1][0] || ''}`.toUpperCase();
-}
-
-function formatCreatedAt(createdAt: number): { iso: string; label: string } {
-    if (!Number.isFinite(createdAt) || createdAt <= 0) {
-        return {
-            iso: new Date(0).toISOString(),
-            label: 'Fecha desconocida',
-        };
-    }
-
-    const date = new Date(createdAt * 1000);
-    return {
-        iso: date.toISOString(),
-        label: date.toLocaleString(),
-    };
 }
 
 interface ParsedEmbeddedRepost {
@@ -160,96 +123,6 @@ function parseEmbeddedRepostEvent(content: string): ParsedEmbeddedRepost | null 
 function shouldLoadMore(container: HTMLDivElement): boolean {
     const distanceToBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
     return distanceToBottom < 80;
-}
-
-interface FeedActionBarProps {
-    eventId: string;
-    pubkey: string;
-    repostContent: string;
-    canWrite: boolean;
-    isReactionActive: boolean;
-    isRepostActive: boolean;
-    isReactionPending: boolean;
-    isRepostPending: boolean;
-    metrics: SocialEngagementMetrics;
-    onReply: () => void;
-    onToggleReaction: (input: { eventId: string; targetPubkey?: string; emoji?: string }) => Promise<boolean>;
-    onToggleRepost: (input: { eventId: string; targetPubkey?: string; repostContent?: string }) => Promise<boolean>;
-}
-
-function FeedActionBar({
-    eventId,
-    pubkey,
-    repostContent,
-    canWrite,
-    isReactionActive,
-    isRepostActive,
-    isReactionPending,
-    isRepostPending,
-    metrics,
-    onReply,
-    onToggleReaction,
-    onToggleRepost,
-}: FeedActionBarProps) {
-    return (
-        <div className="nostr-following-feed-card-actions">
-            <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="nostr-following-feed-action-button"
-                aria-label={`Responder (${metrics.replies})`}
-                onClick={onReply}
-            >
-                <MessageCircleIcon className="nostr-following-feed-action-icon" aria-hidden="true" />
-                <span className="nostr-following-feed-action-count">{metrics.replies}</span>
-            </Button>
-
-            <Button
-                type="button"
-                variant={isReactionActive ? 'default' : 'ghost'}
-                size="sm"
-                className="nostr-following-feed-action-button"
-                disabled={isReactionPending || !canWrite}
-                aria-label={`Reaccionar (${metrics.reactions})`}
-                onClick={() => {
-                    void onToggleReaction({
-                        eventId,
-                        targetPubkey: pubkey,
-                    });
-                }}
-            >
-                <HeartIcon className="nostr-following-feed-action-icon" aria-hidden="true" />
-                <span className="nostr-following-feed-action-count">{metrics.reactions}</span>
-            </Button>
-
-            <Button
-                type="button"
-                variant={isRepostActive ? 'default' : 'ghost'}
-                size="sm"
-                className="nostr-following-feed-action-button"
-                disabled={isRepostPending || !canWrite}
-                aria-label={`Repostear (${metrics.reposts})`}
-                onClick={() => {
-                    void onToggleRepost({
-                        eventId,
-                        targetPubkey: pubkey,
-                        repostContent,
-                    });
-                }}
-            >
-                <Repeat2Icon className="nostr-following-feed-action-icon" aria-hidden="true" />
-                <span className="nostr-following-feed-action-count">{metrics.reposts}</span>
-            </Button>
-
-            <span className="nostr-following-feed-action-indicator" aria-label={`Sats recibidos: ${metrics.zapSats}`}>
-                <ZapIcon className="nostr-following-feed-action-icon" aria-hidden="true" />
-                <span className="nostr-following-feed-action-count" aria-label={`Sats recibidos: ${metrics.zapSats}`}>
-                    {metrics.zapSats}
-                </span>
-            </span>
-        </div>
-    );
 }
 
 export function FollowingFeedContent({
@@ -430,123 +303,71 @@ export function FollowingFeedContent({
                             )
                         ) : (
                             items.map((item) => {
-                                const isReactionActive = Boolean(reactionByEventId[item.id]);
-                                const isRepostActive = Boolean(repostByEventId[item.id]);
-                                const isReactionPending = Boolean(pendingReactionByEventId[item.id]);
-                                const isRepostPending = Boolean(pendingRepostByEventId[item.id]);
-                                const profile = profilesByPubkey[item.pubkey];
-                                const authorName = profileDisplayName(item.pubkey, profile);
-                                const publishedAt = formatCreatedAt(item.createdAt);
-                                const metrics = engagementByEventId[item.id] || EMPTY_ENGAGEMENT_METRICS;
-                                const embeddedRepost = item.kind === 'repost' ? parseEmbeddedRepostEvent(item.content) : null;
-                                const cardContent = item.kind === 'repost' && embeddedRepost
-                                    ? ''
-                                    : item.content.trim();
-                                const embeddedProfile = embeddedRepost ? profilesByPubkey[embeddedRepost.pubkey] : undefined;
-                                const embeddedAuthorName = embeddedRepost
-                                    ? profileDisplayName(embeddedRepost.pubkey, embeddedProfile)
-                                    : '';
-                                const embeddedPublishedAt = formatCreatedAt(embeddedRepost?.createdAt ?? 0);
-                                const shortNoteId = shortPubkey(item.id);
+                                const actionState = buildFeedActionState({
+                                    item,
+                                    canWrite,
+                                    engagementByEventId,
+                                    reactionByEventId,
+                                    repostByEventId,
+                                    pendingReactionByEventId,
+                                    pendingRepostByEventId,
+                                    onOpenThread,
+                                    onToggleReaction,
+                                    onToggleRepost,
+                                });
+
+                                const baseNote = fromFeedItem(item, actionState);
+                                if (!baseNote) {
+                                    return null;
+                                }
+
+                                const embeddedRepostPayload = item.kind === 'repost' ? parseEmbeddedRepostEvent(item.content) : null;
+                                const embeddedRepostNote = embeddedRepostPayload
+                                    ? fromEmbeddedRepost({
+                                        id: embeddedRepostPayload.id,
+                                        pubkey: embeddedRepostPayload.pubkey,
+                                        createdAt: embeddedRepostPayload.createdAt,
+                                        content: embeddedRepostPayload.content,
+                                        tags: embeddedRepostPayload.tags,
+                                    }, 1)
+                                    : null;
+
+                                const note = item.kind === 'repost' && embeddedRepostNote
+                                    ? {
+                                        ...baseNote,
+                                        content: '',
+                                    }
+                                    : baseNote;
 
                                 return (
-                                    <article key={item.id} className="nostr-following-feed-card">
-                                        <div className="nostr-following-feed-card-head">
-                                            <Avatar className="nostr-following-feed-card-avatar">
-                                                {profile?.picture ? <AvatarImage src={profile.picture} alt={authorName} /> : null}
-                                                <AvatarFallback>{profileInitials(item.pubkey, profile)}</AvatarFallback>
-                                            </Avatar>
-                                            <div className="nostr-following-feed-card-head-main">
-                                                <div className="nostr-following-feed-card-head-top">
-                                                    <p className="nostr-following-feed-card-author">{authorName}</p>
-                                                    <time className="nostr-following-feed-card-time" dateTime={publishedAt.iso}>{publishedAt.label}</time>
-                                                </div>
-                                                <p className="nostr-following-feed-card-meta">
-                                                    {item.kind === 'repost' ? <span className="nostr-following-feed-card-kind">Repost</span> : null}
-                                                    <span>{shortPubkey(item.pubkey)}</span>
-                                                    <span>·</span>
-                                                    <span className="nostr-following-feed-card-id">{shortNoteId}</span>
-                                                    {onCopyNoteId ? (
-                                                        <button
-                                                            type="button"
-                                                            className="nostr-following-feed-copy-id"
-                                                            aria-label={`Copiar identificador de nota ${item.id}`}
-                                                            onClick={() => onCopyNoteId(item.id)}
-                                                        >
-                                                            Copiar
-                                                        </button>
-                                                    ) : null}
-                                                    <span>·</span>
-                                                    <span>ID</span>
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <RichNostrContent
-                                            content={cardContent}
-                                            tags={item.rawEvent.tags}
+                                    <div key={item.id} className="nostr-following-feed-card">
+                                        <NoteCard
+                                            note={note}
+                                            profilesByPubkey={profilesByPubkey}
+                                            onCopyNoteId={onCopyNoteId}
                                             onSelectHashtag={onSelectHashtag}
                                             onSelectProfile={onSelectProfile}
                                             onResolveProfiles={onResolveProfiles}
-                                            profilesByPubkey={profilesByPubkey}
                                             onSelectEventReference={onSelectEventReference}
                                             onResolveEventReferences={onResolveEventReferences}
                                             eventReferencesById={eventReferencesById}
-                                            textClassName="nostr-following-feed-card-content"
-                                            emptyFallback={item.kind === 'note' ? <p className="nostr-following-feed-card-content">(sin contenido)</p> : null}
                                         />
-                                        {embeddedRepost ? (
-                                            <article className="nostr-following-feed-card-embedded" aria-label={`Nota original de ${embeddedAuthorName}`}>
-                                                <div className="nostr-following-feed-card-head">
-                                                    <Avatar className="nostr-following-feed-card-avatar nostr-following-feed-card-embedded-avatar">
-                                                        {embeddedProfile?.picture
-                                                            ? <AvatarImage src={embeddedProfile.picture} alt={embeddedAuthorName} />
-                                                            : null}
-                                                        <AvatarFallback>{profileInitials(embeddedRepost.pubkey, embeddedProfile)}</AvatarFallback>
-                                                    </Avatar>
-                                                    <div className="nostr-following-feed-card-head-main">
-                                                        <div className="nostr-following-feed-card-head-top">
-                                                            <p className="nostr-following-feed-card-author">{embeddedAuthorName}</p>
-                                                            <time className="nostr-following-feed-card-time" dateTime={embeddedPublishedAt.iso}>{embeddedPublishedAt.label}</time>
-                                                        </div>
-                                                        <p className="nostr-following-feed-card-meta">
-                                                            <span>{shortPubkey(embeddedRepost.pubkey)}</span>
-                                                            <span>·</span>
-                                                            <span className="nostr-following-feed-card-id">{shortPubkey(embeddedRepost.id)}</span>
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <RichNostrContent
-                                                    content={embeddedRepost.content}
-                                                    tags={embeddedRepost.tags}
+                                        {embeddedRepostNote ? (
+                                            <div className="nostr-following-feed-card-embedded">
+                                                <NoteCard
+                                                    note={embeddedRepostNote}
+                                                    profilesByPubkey={profilesByPubkey}
+                                                    onCopyNoteId={onCopyNoteId}
                                                     onSelectHashtag={onSelectHashtag}
                                                     onSelectProfile={onSelectProfile}
                                                     onResolveProfiles={onResolveProfiles}
-                                                    profilesByPubkey={profilesByPubkey}
                                                     onSelectEventReference={onSelectEventReference}
                                                     onResolveEventReferences={onResolveEventReferences}
                                                     eventReferencesById={eventReferencesById}
-                                                    textClassName="nostr-following-feed-card-content"
-                                                    emptyFallback={<p className="nostr-following-feed-card-content">(sin contenido)</p>}
                                                 />
-                                            </article>
+                                            </div>
                                         ) : null}
-                                        <FeedActionBar
-                                            eventId={item.id}
-                                            pubkey={item.pubkey}
-                                            repostContent={item.content}
-                                            canWrite={canWrite}
-                                            isReactionActive={isReactionActive}
-                                            isRepostActive={isRepostActive}
-                                            isReactionPending={isReactionPending}
-                                            isRepostPending={isRepostPending}
-                                            metrics={metrics}
-                                            onReply={() => {
-                                                void onOpenThread(item.targetEventId || item.id);
-                                            }}
-                                            onToggleReaction={onToggleReaction}
-                                            onToggleRepost={onToggleRepost}
-                                        />
-                                    </article>
+                                    </div>
                                 );
                             })
                         )}
@@ -578,139 +399,82 @@ export function FollowingFeedContent({
                         onScroll={(event) => onThreadScroll(event.currentTarget)}
                     >
                         {activeThread.root ? (
-                            <article className="nostr-following-feed-card nostr-following-feed-card-root">
-                                <div className="nostr-following-feed-card-head">
-                                    <Avatar className="nostr-following-feed-card-avatar">
-                                        {profilesByPubkey[activeThread.root.pubkey]?.picture
-                                            ? <AvatarImage src={profilesByPubkey[activeThread.root.pubkey]?.picture} alt={profileDisplayName(activeThread.root.pubkey, profilesByPubkey[activeThread.root.pubkey])} />
-                                            : null}
-                                        <AvatarFallback>{profileInitials(activeThread.root.pubkey, profilesByPubkey[activeThread.root.pubkey])}</AvatarFallback>
-                                    </Avatar>
-                                    <div className="nostr-following-feed-card-head-main">
-                                        <div className="nostr-following-feed-card-head-top">
-                                            <p className="nostr-following-feed-card-author">{profileDisplayName(activeThread.root.pubkey, profilesByPubkey[activeThread.root.pubkey])}</p>
-                                            <time className="nostr-following-feed-card-time" dateTime={formatCreatedAt(activeThread.root.createdAt).iso}>{formatCreatedAt(activeThread.root.createdAt).label}</time>
-                                        </div>
-                                        <p className="nostr-following-feed-card-meta">
-                                            <span className="nostr-following-feed-card-kind">Raiz</span>
-                                            <span>{shortPubkey(activeThread.root.pubkey)}</span>
-                                            <span>·</span>
-                                            <span className="nostr-following-feed-card-id">{shortPubkey(activeThread.root.id)}</span>
-                                            {onCopyNoteId ? (
-                                                <button
-                                                    type="button"
-                                                    className="nostr-following-feed-copy-id"
-                                                    aria-label={`Copiar identificador de nota ${activeThread.root.id}`}
-                                                    onClick={() => onCopyNoteId(activeThread.root.id)}
-                                                >
-                                                    Copiar
-                                                </button>
-                                            ) : null}
-                                        </p>
-                                    </div>
-                                </div>
-                                <RichNostrContent
-                                    content={activeThread.root.content}
-                                    tags={activeThread.root.rawEvent.tags}
-                                    onSelectHashtag={onSelectHashtag}
-                                    onSelectProfile={onSelectProfile}
-                                    onResolveProfiles={onResolveProfiles}
-                                    profilesByPubkey={profilesByPubkey}
-                                    onSelectEventReference={onSelectEventReference}
-                                    onResolveEventReferences={onResolveEventReferences}
-                                    eventReferencesById={eventReferencesById}
-                                    textClassName="nostr-following-feed-card-content"
-                                    emptyFallback={<p className="nostr-following-feed-card-content">(sin contenido)</p>}
-                                />
-                                <FeedActionBar
-                                    eventId={activeThread.root.id}
-                                    pubkey={activeThread.root.pubkey}
-                                    repostContent={activeThread.root.content}
-                                    canWrite={canWrite}
-                                    isReactionActive={Boolean(reactionByEventId[activeThread.root.id])}
-                                    isRepostActive={Boolean(repostByEventId[activeThread.root.id])}
-                                    isReactionPending={Boolean(pendingReactionByEventId[activeThread.root.id])}
-                                    isRepostPending={Boolean(pendingRepostByEventId[activeThread.root.id])}
-                                    metrics={engagementByEventId[activeThread.root.id] || EMPTY_ENGAGEMENT_METRICS}
-                                    onReply={() => {
+                            (() => {
+                                const rootActionState = buildRootActionState({
+                                    item: activeThread.root,
+                                    canWrite,
+                                    engagementByEventId,
+                                    reactionByEventId,
+                                    repostByEventId,
+                                    pendingReactionByEventId,
+                                    pendingRepostByEventId,
+                                    onReply: () => {
                                         setReplyTargetEventId(activeThread.root?.id || null);
                                         setReplyTargetPubkey(activeThread.root?.pubkey);
-                                    }}
-                                    onToggleReaction={onToggleReaction}
-                                    onToggleRepost={onToggleRepost}
-                                />
-                            </article>
+                                    },
+                                    onToggleReaction,
+                                    onToggleRepost,
+                                });
+                                const rootNote = fromThreadItem(activeThread.root, 'root', rootActionState);
+
+                                if (!rootNote) {
+                                    return null;
+                                }
+
+                                return (
+                                    <div className="nostr-following-feed-card nostr-following-feed-card-root">
+                                        <NoteCard
+                                            note={rootNote}
+                                            profilesByPubkey={profilesByPubkey}
+                                            onCopyNoteId={onCopyNoteId}
+                                            onSelectHashtag={onSelectHashtag}
+                                            onSelectProfile={onSelectProfile}
+                                            onResolveProfiles={onResolveProfiles}
+                                            onSelectEventReference={onSelectEventReference}
+                                            onResolveEventReferences={onResolveEventReferences}
+                                            eventReferencesById={eventReferencesById}
+                                        />
+                                    </div>
+                                );
+                            })()
                         ) : null}
 
                         {activeThread.replies.map((reply) => {
-                            const isReactionActive = Boolean(reactionByEventId[reply.id]);
-                            const isRepostActive = Boolean(repostByEventId[reply.id]);
-                            const isReactionPending = Boolean(pendingReactionByEventId[reply.id]);
-                            const isRepostPending = Boolean(pendingRepostByEventId[reply.id]);
+                            const replyActionState = buildReplyActionState({
+                                item: reply,
+                                canWrite,
+                                engagementByEventId,
+                                reactionByEventId,
+                                repostByEventId,
+                                pendingReactionByEventId,
+                                pendingRepostByEventId,
+                                onReply: () => {
+                                    setReplyTargetEventId(reply.id);
+                                    setReplyTargetPubkey(reply.pubkey);
+                                },
+                                onToggleReaction,
+                                onToggleRepost,
+                            });
+                            const replyNote = fromThreadItem(reply, 'reply', replyActionState);
+
+                            if (!replyNote) {
+                                return null;
+                            }
 
                             return (
-                                <article key={reply.id} className="nostr-following-feed-card">
-                                    <div className="nostr-following-feed-card-head">
-                                        <Avatar className="nostr-following-feed-card-avatar">
-                                            {profilesByPubkey[reply.pubkey]?.picture
-                                                ? <AvatarImage src={profilesByPubkey[reply.pubkey]?.picture} alt={profileDisplayName(reply.pubkey, profilesByPubkey[reply.pubkey])} />
-                                                : null}
-                                            <AvatarFallback>{profileInitials(reply.pubkey, profilesByPubkey[reply.pubkey])}</AvatarFallback>
-                                        </Avatar>
-                                        <div className="nostr-following-feed-card-head-main">
-                                            <div className="nostr-following-feed-card-head-top">
-                                                <p className="nostr-following-feed-card-author">{profileDisplayName(reply.pubkey, profilesByPubkey[reply.pubkey])}</p>
-                                                <time className="nostr-following-feed-card-time" dateTime={formatCreatedAt(reply.createdAt).iso}>{formatCreatedAt(reply.createdAt).label}</time>
-                                            </div>
-                                            <p className="nostr-following-feed-card-meta">
-                                                <span className="nostr-following-feed-card-kind">Reply</span>
-                                                <span>{shortPubkey(reply.pubkey)}</span>
-                                                <span>·</span>
-                                                <span className="nostr-following-feed-card-id">{shortPubkey(reply.id)}</span>
-                                                {onCopyNoteId ? (
-                                                    <button
-                                                        type="button"
-                                                        className="nostr-following-feed-copy-id"
-                                                        aria-label={`Copiar identificador de nota ${reply.id}`}
-                                                        onClick={() => onCopyNoteId(reply.id)}
-                                                    >
-                                                        Copiar
-                                                    </button>
-                                                ) : null}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <RichNostrContent
-                                        content={reply.content}
-                                        tags={reply.rawEvent.tags}
+                                <div key={reply.id} className="nostr-following-feed-card">
+                                    <NoteCard
+                                        note={replyNote}
+                                        profilesByPubkey={profilesByPubkey}
+                                        onCopyNoteId={onCopyNoteId}
                                         onSelectHashtag={onSelectHashtag}
                                         onSelectProfile={onSelectProfile}
                                         onResolveProfiles={onResolveProfiles}
-                                        profilesByPubkey={profilesByPubkey}
                                         onSelectEventReference={onSelectEventReference}
                                         onResolveEventReferences={onResolveEventReferences}
                                         eventReferencesById={eventReferencesById}
-                                        textClassName="nostr-following-feed-card-content"
-                                        emptyFallback={<p className="nostr-following-feed-card-content">(sin contenido)</p>}
                                     />
-                                    <FeedActionBar
-                                        eventId={reply.id}
-                                        pubkey={reply.pubkey}
-                                        repostContent={reply.content}
-                                        canWrite={canWrite}
-                                        isReactionActive={isReactionActive}
-                                        isRepostActive={isRepostActive}
-                                        isReactionPending={isReactionPending}
-                                        isRepostPending={isRepostPending}
-                                        metrics={engagementByEventId[reply.id] || EMPTY_ENGAGEMENT_METRICS}
-                                        onReply={() => {
-                                            setReplyTargetEventId(reply.id);
-                                            setReplyTargetPubkey(reply.pubkey);
-                                        }}
-                                        onToggleReaction={onToggleReaction}
-                                        onToggleRepost={onToggleRepost}
-                                    />
-                                </article>
+                                </div>
                             );
                         })}
 

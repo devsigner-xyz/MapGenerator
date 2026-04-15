@@ -288,6 +288,8 @@ describe('FollowingFeedSurface', () => {
 
     test('keeps thread actions working inside routed surface', async () => {
         const onPublishReply = vi.fn(async () => true);
+        const onToggleReaction = vi.fn(async () => true);
+        const onToggleRepost = vi.fn(async () => true);
         const rendered = await renderElement(
             <FollowingFeedSurface
                 {...buildProps({
@@ -308,13 +310,48 @@ describe('FollowingFeedSurface', () => {
                                 content: 'root',
                             },
                         },
-                        replies: [],
+                        replies: [
+                            {
+                                id: 'reply-1',
+                                pubkey: 'c'.repeat(64),
+                                createdAt: 510,
+                                eventKind: 1,
+                                content: 'reply uno',
+                                targetEventId: 'root-1',
+                                rawEvent: {
+                                    id: 'reply-1',
+                                    pubkey: 'c'.repeat(64),
+                                    kind: 1,
+                                    created_at: 510,
+                                    tags: [['e', 'root-1']],
+                                    content: 'reply uno',
+                                },
+                            },
+                        ],
                         isLoading: false,
                         isLoadingMore: false,
                         error: null,
                         hasMore: false,
                     },
+                    engagementByEventId: {
+                        'root-1': {
+                            replies: 4,
+                            reposts: 2,
+                            reactions: 3,
+                            zaps: 1,
+                            zapSats: 210,
+                        },
+                        'reply-1': {
+                            replies: 1,
+                            reposts: 0,
+                            reactions: 7,
+                            zaps: 0,
+                            zapSats: 21,
+                        },
+                    },
                     onPublishReply,
+                    onToggleReaction,
+                    onToggleRepost,
                 })}
             />
         );
@@ -345,6 +382,28 @@ describe('FollowingFeedSurface', () => {
             rootEventId: 'root-1',
             content: 'respuesta surface',
         });
+
+        const replyReactionButton = rendered.container.querySelector('button[aria-label="Reaccionar (7)"]') as HTMLButtonElement;
+        const replyRepostButton = rendered.container.querySelector('button[aria-label="Repostear (0)"]') as HTMLButtonElement;
+        expect(replyReactionButton).toBeDefined();
+        expect(replyRepostButton).toBeDefined();
+
+        await act(async () => {
+            replyReactionButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            replyRepostButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onToggleReaction).toHaveBeenCalledWith({
+            eventId: 'reply-1',
+            targetPubkey: 'c'.repeat(64),
+        });
+        expect(onToggleRepost).toHaveBeenCalledWith({
+            eventId: 'reply-1',
+            targetPubkey: 'c'.repeat(64),
+            repostContent: 'reply uno',
+        });
+        expect(rendered.container.querySelector('[aria-label="Sats recibidos: 210"]')).toBeDefined();
+        expect(rendered.container.querySelector('[aria-label="Sats recibidos: 21"]')).toBeDefined();
     });
 
     test('removes redundant labels, shows time at card top, and supports copy action', async () => {
@@ -386,8 +445,10 @@ describe('FollowingFeedSurface', () => {
         expect(text).not.toContain('Repost sin comentario');
         expect(text).not.toContain('Nota original');
         expect(text).not.toContain('Nota');
+        expect(text).toContain('nota citada');
 
-        expect(rendered.container.querySelector('.nostr-following-feed-card-time')).toBeDefined();
+        expect(rendered.container.querySelector('time[datetime]')).not.toBeNull();
+        expect(rendered.container.querySelector('.nostr-following-feed-card-time')).toBeNull();
 
         const copyButton = rendered.container.querySelector('button[aria-label="Copiar identificador de nota repost-no-comment"]') as HTMLButtonElement;
         expect(copyButton).toBeDefined();
@@ -397,6 +458,283 @@ describe('FollowingFeedSurface', () => {
         });
 
         expect(onCopyNoteId).toHaveBeenCalledWith('repost-no-comment');
+    });
+
+    test('keeps raw repost text when embedded repost parsing fails', async () => {
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    items: [
+                        {
+                            id: 'repost-invalid-json',
+                            pubkey: 'a'.repeat(64),
+                            createdAt: 120,
+                            content: '{"id":"broken",',
+                            kind: 'repost',
+                            rawEvent: {
+                                id: 'repost-invalid-json',
+                                pubkey: 'a'.repeat(64),
+                                kind: 6,
+                                created_at: 120,
+                                tags: [['e', 'broken']],
+                                content: '{"id":"broken",',
+                            },
+                        },
+                    ],
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const text = rendered.container.textContent || '';
+        expect(text).toContain('{"id":"broken",');
+    });
+
+    test('keeps feed, root and reply action buttons disabled when pending and when canWrite is false', async () => {
+        const renderedFeed = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    canWrite: false,
+                    pendingReactionByEventId: {
+                        'feed-1': false,
+                    },
+                    pendingRepostByEventId: {
+                        'feed-1': false,
+                    },
+                    engagementByEventId: {
+                        'feed-1': {
+                            replies: 1,
+                            reposts: 2,
+                            reactions: 3,
+                            zaps: 0,
+                            zapSats: 210,
+                        },
+                    },
+                    items: [
+                        {
+                            id: 'feed-1',
+                            pubkey: 'a'.repeat(64),
+                            createdAt: 100,
+                            content: 'feed note',
+                            kind: 'note',
+                            rawEvent: {
+                                id: 'feed-1',
+                                pubkey: 'a'.repeat(64),
+                                kind: 1,
+                                created_at: 100,
+                                tags: [],
+                                content: 'feed note',
+                            },
+                        },
+                    ],
+                })}
+            />
+        );
+        mounted.push(renderedFeed);
+
+        const feedReactionButton = renderedFeed.container.querySelector('button[aria-label="Reaccionar (3)"]') as HTMLButtonElement;
+        const feedRepostButton = renderedFeed.container.querySelector('button[aria-label="Repostear (2)"]') as HTMLButtonElement;
+        expect(feedReactionButton.disabled).toBe(true);
+        expect(feedRepostButton.disabled).toBe(true);
+
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    canWrite: false,
+                    pendingReactionByEventId: {
+                        'root-1': true,
+                        'reply-1': true,
+                    },
+                    pendingRepostByEventId: {
+                        'root-1': true,
+                        'reply-1': true,
+                    },
+                    engagementByEventId: {
+                        'root-1': {
+                            replies: 1,
+                            reposts: 5,
+                            reactions: 7,
+                            zaps: 0,
+                            zapSats: 99,
+                        },
+                        'reply-1': {
+                            replies: 0,
+                            reposts: 6,
+                            reactions: 8,
+                            zaps: 0,
+                            zapSats: 33,
+                        },
+                    },
+                    activeThread: {
+                        rootEventId: 'root-1',
+                        root: {
+                            id: 'root-1',
+                            pubkey: 'b'.repeat(64),
+                            createdAt: 500,
+                            eventKind: 1,
+                            content: 'root',
+                            rawEvent: {
+                                id: 'root-1',
+                                pubkey: 'b'.repeat(64),
+                                kind: 1,
+                                created_at: 500,
+                                tags: [],
+                                content: 'root',
+                            },
+                        },
+                        replies: [
+                            {
+                                id: 'reply-1',
+                                pubkey: 'c'.repeat(64),
+                                createdAt: 510,
+                                eventKind: 1,
+                                content: 'reply one',
+                                targetEventId: 'root-1',
+                                rawEvent: {
+                                    id: 'reply-1',
+                                    pubkey: 'c'.repeat(64),
+                                    kind: 1,
+                                    created_at: 510,
+                                    tags: [['e', 'root-1']],
+                                    content: 'reply one',
+                                },
+                            },
+                        ],
+                        isLoading: false,
+                        isLoadingMore: false,
+                        error: null,
+                        hasMore: false,
+                    },
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const threadRootReaction = rendered.container.querySelector('button[aria-label="Reaccionar (7)"]') as HTMLButtonElement;
+        const threadRootRepost = rendered.container.querySelector('button[aria-label="Repostear (5)"]') as HTMLButtonElement;
+        const threadReplyReaction = rendered.container.querySelector('button[aria-label="Reaccionar (8)"]') as HTMLButtonElement;
+        const threadReplyRepost = rendered.container.querySelector('button[aria-label="Repostear (6)"]') as HTMLButtonElement;
+
+        expect(threadRootReaction.disabled).toBe(true);
+        expect(threadRootRepost.disabled).toBe(true);
+        expect(threadReplyReaction.disabled).toBe(true);
+        expect(threadReplyRepost.disabled).toBe(true);
+        expect(rendered.container.querySelector('[aria-label="Sats recibidos: 99"]')).toBeDefined();
+        expect(rendered.container.querySelector('[aria-label="Sats recibidos: 33"]')).toBeDefined();
+    });
+
+    test('keeps copy note id callback for feed and thread notes', async () => {
+        const onCopyNoteId = vi.fn();
+        const renderedFeed = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    onCopyNoteId,
+                    items: [
+                        {
+                            id: 'feed-copy-1',
+                            pubkey: 'a'.repeat(64),
+                            createdAt: 100,
+                            content: 'feed copy',
+                            kind: 'note',
+                            rawEvent: {
+                                id: 'feed-copy-1',
+                                pubkey: 'a'.repeat(64),
+                                kind: 1,
+                                created_at: 100,
+                                tags: [],
+                                content: 'feed copy',
+                            },
+                        },
+                    ],
+                })}
+            />
+        );
+        mounted.push(renderedFeed);
+
+        const feedCopyButton = renderedFeed.container.querySelector('button[aria-label="Copiar identificador de nota feed-copy-1"]') as HTMLButtonElement;
+        expect(feedCopyButton).toBeDefined();
+        await act(async () => {
+            feedCopyButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    onCopyNoteId,
+                    items: [
+                        {
+                            id: 'feed-copy-1',
+                            pubkey: 'a'.repeat(64),
+                            createdAt: 100,
+                            content: 'feed copy',
+                            kind: 'note',
+                            rawEvent: {
+                                id: 'feed-copy-1',
+                                pubkey: 'a'.repeat(64),
+                                kind: 1,
+                                created_at: 100,
+                                tags: [],
+                                content: 'feed copy',
+                            },
+                        },
+                    ],
+                    activeThread: {
+                        rootEventId: 'root-1',
+                        root: {
+                            id: 'root-1',
+                            pubkey: 'b'.repeat(64),
+                            createdAt: 500,
+                            eventKind: 1,
+                            content: 'root',
+                            rawEvent: {
+                                id: 'root-1',
+                                pubkey: 'b'.repeat(64),
+                                kind: 1,
+                                created_at: 500,
+                                tags: [],
+                                content: 'root',
+                            },
+                        },
+                        replies: [
+                            {
+                                id: 'reply-1',
+                                pubkey: 'c'.repeat(64),
+                                createdAt: 510,
+                                eventKind: 1,
+                                content: 'reply one',
+                                targetEventId: 'root-1',
+                                rawEvent: {
+                                    id: 'reply-1',
+                                    pubkey: 'c'.repeat(64),
+                                    kind: 1,
+                                    created_at: 510,
+                                    tags: [['e', 'root-1']],
+                                    content: 'reply one',
+                                },
+                            },
+                        ],
+                        isLoading: false,
+                        isLoadingMore: false,
+                        error: null,
+                        hasMore: false,
+                    },
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const rootCopyButton = rendered.container.querySelector('button[aria-label="Copiar identificador de nota root-1"]') as HTMLButtonElement;
+        const replyCopyButton = rendered.container.querySelector('button[aria-label="Copiar identificador de nota reply-1"]') as HTMLButtonElement;
+        expect(rootCopyButton).toBeDefined();
+        expect(replyCopyButton).toBeDefined();
+
+        await act(async () => {
+            rootCopyButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            replyCopyButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onCopyNoteId).toHaveBeenCalledWith('root-1');
+        expect(onCopyNoteId).toHaveBeenCalledWith('reply-1');
     });
 
     test('renders image/video URLs and makes hashtags clickable', async () => {
