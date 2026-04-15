@@ -1,0 +1,51 @@
+export type NoteCardVariant = 'default' | 'root' | 'reply' | 'nested';
+
+export interface NoteActionState {
+    canWrite: boolean;
+    isReactionActive: boolean;
+    isRepostActive: boolean;
+    isReactionPending: boolean;
+    isRepostPending: boolean;
+    replies: number;
+    reactions: number;
+    reposts: number;
+    zapSats: number;
+    onReply: () => void;
+    onToggleReaction: () => Promise<boolean>;
+    onToggleRepost: () => Promise<boolean>;
+}
+
+export interface NoteCardModel {
+    id: string;
+    pubkey: string;
+    createdAt: number;
+    content: string;
+    tags: string[][];
+    variant: NoteCardVariant;
+    showCopyId: boolean;
+    nestingLevel: number;
+    kindLabel?: string;
+    actions?: NoteActionState;
+    embedded?: NoteCardModel;
+    referencedNotes?: NoteCardModel[];
+}
+
+export function shortId(value: string): string {
+    return value.length >= 14 ? `${value.slice(0, 8)}...${value.slice(-6)}` : value;
+}
+
+export function kindLabel(input: { variant: NoteCardVariant; isRepost?: boolean }): string | undefined {
+    if (input.variant === 'root') {
+        return 'Raiz';
+    }
+
+    if (input.variant === 'reply') {
+        return 'Reply';
+    }
+
+    if (input.isRepost) {
+        return 'Repost';
+    }
+
+    return undefined;
+}
