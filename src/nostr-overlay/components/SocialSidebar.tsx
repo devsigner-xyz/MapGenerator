@@ -154,6 +154,9 @@ export function SocialSidebar({
                             profiles={followerProfiles}
                             emptyText={followersSearch ? 'No hay resultados para esta busqueda.' : 'No se encontraron seguidores aún.'}
                             loading={followersLoading}
+                            selectedPubkey={selectedFollowingPubkey}
+                            onSelectPerson={onSelectFollowing}
+                            onLocatePerson={onLocateFollowing}
                             onCopyNpub={onCopyOwnerNpub}
                             onSendMessage={onMessagePerson}
                             onViewDetails={onViewPersonDetails}

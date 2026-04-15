@@ -1,5 +1,7 @@
 import { ChatConversationList } from './ChatConversationList';
 import { ChatConversationDetail } from './ChatConversationDetail';
+import type { Nip05ValidationResult } from '../../nostr/nip05';
+import type { NostrProfile } from '../../nostr/types';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
 
@@ -7,6 +9,8 @@ export interface ChatConversationSummary {
     id: string;
     peerPubkey: string;
     title: string;
+    profile?: NostrProfile;
+    verification?: Nip05ValidationResult;
     lastMessagePreview: string;
     lastMessageAt: number;
     hasUnread: boolean;

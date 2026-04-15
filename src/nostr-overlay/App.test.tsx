@@ -3179,6 +3179,85 @@ describe('Nostr overlay App', () => {
         expect((clipboardWriteText.mock.calls[0][0] as string).startsWith('npub1')).toBe(true);
     });
 
+    test('navigates to map route when selecting a followed user from relays view', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const personPubkey = 'a'.repeat(64);
+
+        const { bridge } = createMapBridgeStub(6);
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByNpubFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [personPubkey],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                        [personPubkey]: { pubkey: personPubkey, displayName: 'Alice' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [personPubkey],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />,
+            {
+                initialEntries: ['/relays'],
+            }
+        );
+        mounted.push(rendered);
+
+        await waitFor(() => rendered.container.querySelector('[aria-label="Relays"]') !== null);
+
+        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+        const form = rendered.container.querySelector('form');
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
+            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const followingTab = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Sigues (1)')
+        ) as HTMLButtonElement;
+        expect(followingTab).toBeDefined();
+
+        await act(async () => {
+            followingTab.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+            followingTab.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Alice'));
+
+        const followedButton = Array.from(rendered.container.querySelectorAll('button[aria-pressed]')).find((button) =>
+            (button.textContent || '').includes('Alice')
+        ) as HTMLButtonElement;
+        expect(followedButton).toBeDefined();
+
+        await act(async () => {
+            followedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => rendered.container.querySelector('[aria-label="Relays"]') === null);
+        expect(rendered.container.querySelector('[aria-label="Controles de zoom"]')).not.toBeNull();
+    });
+
     test('shows map loader stage messages while processing npub', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const followedPubkey = 'a'.repeat(64);

@@ -437,6 +437,8 @@ export function App({ mapBridge, services }: AppProps) {
                     id: conversation.id,
                     peerPubkey: conversation.id,
                     title,
+                    profile,
+                    verification: verificationByPubkey[conversation.id],
                     lastMessagePreview: lastMessage?.plaintext || '',
                     lastMessageAt: lastMessage?.createdAt || 0,
                     hasUnread: conversation.hasUnread,
@@ -451,6 +453,8 @@ export function App({ mapBridge, services }: AppProps) {
                 id: chatPinnedConversationId,
                 peerPubkey: chatPinnedConversationId,
                 title,
+                profile,
+                verification: verificationByPubkey[chatPinnedConversationId],
                 lastMessagePreview: '',
                 lastMessageAt: 0,
                 hasUnread: false,
@@ -458,7 +462,7 @@ export function App({ mapBridge, services }: AppProps) {
         }
 
         return summaries;
-    }, [chatState, overlay.profiles, overlay.followerProfiles, chatPinnedConversationId]);
+    }, [chatState, overlay.profiles, overlay.followerProfiles, chatPinnedConversationId, verificationByPubkey]);
 
     const chatActiveConversationId = chatState.activeConversationId ?? chatPinnedConversationId;
 
@@ -659,6 +663,18 @@ export function App({ mapBridge, services }: AppProps) {
         }
 
         mapBridge.focusBuilding(buildingIndex);
+    };
+
+    const selectSidebarPerson = (pubkey: string): void => {
+        if (!pubkey) {
+            return;
+        }
+
+        overlay.selectFollowing(pubkey);
+
+        if (!isMapRoute) {
+            navigate('/');
+        }
     };
 
     const closeOccupiedContextMenu = (): void => {
@@ -903,7 +919,7 @@ export function App({ mapBridge, services }: AppProps) {
                     followerProfiles={overlay.followerProfiles}
                     followersLoading={overlay.followersLoading}
                     selectedFollowingPubkey={overlay.selectedPubkey}
-                    onSelectFollowing={overlay.selectFollowing}
+                    onSelectFollowing={selectSidebarPerson}
                     onLocateFollowing={locateFollowingOnMap}
                     onMessagePerson={canAccessDirectMessages ? openDmFromContextMenu : undefined}
                     onViewPersonDetails={(pubkey) => overlay.openActiveProfile(pubkey)}

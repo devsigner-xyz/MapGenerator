@@ -151,6 +151,38 @@ describe('ChatsPage', () => {
         expect(onOpenConversation).toHaveBeenCalledWith('peer-1');
     });
 
+    test('renders avatar and latest message preview in list rows without contextual menu', async () => {
+        const rendered = await renderElement(
+            <ChatsPage
+                hasUnreadGlobal={false}
+                conversations={[
+                    buildConversation({
+                        profile: {
+                            pubkey: 'a'.repeat(64),
+                            displayName: 'Alice',
+                            picture: 'https://example.com/alice.png',
+                        },
+                    }),
+                ]}
+                messages={[buildMessage()]}
+                activeConversationId={null}
+                onOpenConversation={() => {}}
+                onBackToList={() => {}}
+                onSendMessage={async () => {}}
+            />
+        );
+        mounted.push(rendered);
+
+        const rowButton = rendered.container.querySelector('button[data-chat-conversation="peer-1"]') as HTMLButtonElement;
+        expect(rowButton).not.toBeNull();
+
+        const avatarFallback = rowButton.querySelector('[data-slot="avatar-fallback"]') as HTMLElement;
+        expect(avatarFallback).not.toBeNull();
+        expect(avatarFallback.textContent || '').toContain('AL');
+        expect(rendered.container.textContent || '').toContain('Hola');
+        expect(rendered.container.querySelector('button[aria-label="Abrir acciones para Alice"]')).toBeNull();
+    });
+
     test('shows undecryptable placeholder in detail view', async () => {
         const rendered = await renderElement(
             <ChatsPage
