@@ -340,7 +340,7 @@ export function FollowingFeedContent({
                                     : baseNote;
 
                                 return (
-                                    <div key={item.id} className="nostr-following-feed-card">
+                                    <div key={item.id} className="grid gap-2">
                                         <NoteCard
                                             note={note}
                                             profilesByPubkey={profilesByPubkey}
@@ -353,19 +353,17 @@ export function FollowingFeedContent({
                                             eventReferencesById={eventReferencesById}
                                         />
                                         {embeddedRepostNote ? (
-                                            <div className="nostr-following-feed-card-embedded">
-                                                <NoteCard
-                                                    note={embeddedRepostNote}
-                                                    profilesByPubkey={profilesByPubkey}
-                                                    onCopyNoteId={onCopyNoteId}
-                                                    onSelectHashtag={onSelectHashtag}
-                                                    onSelectProfile={onSelectProfile}
-                                                    onResolveProfiles={onResolveProfiles}
-                                                    onSelectEventReference={onSelectEventReference}
-                                                    onResolveEventReferences={onResolveEventReferences}
-                                                    eventReferencesById={eventReferencesById}
-                                                />
-                                            </div>
+                                            <NoteCard
+                                                note={embeddedRepostNote}
+                                                profilesByPubkey={profilesByPubkey}
+                                                onCopyNoteId={onCopyNoteId}
+                                                onSelectHashtag={onSelectHashtag}
+                                                onSelectProfile={onSelectProfile}
+                                                onResolveProfiles={onResolveProfiles}
+                                                onSelectEventReference={onSelectEventReference}
+                                                onResolveEventReferences={onResolveEventReferences}
+                                                eventReferencesById={eventReferencesById}
+                                            />
                                         ) : null}
                                     </div>
                                 );
@@ -422,19 +420,17 @@ export function FollowingFeedContent({
                                 }
 
                                 return (
-                                    <div className="nostr-following-feed-card nostr-following-feed-card-root">
-                                        <NoteCard
-                                            note={rootNote}
-                                            profilesByPubkey={profilesByPubkey}
-                                            onCopyNoteId={onCopyNoteId}
-                                            onSelectHashtag={onSelectHashtag}
-                                            onSelectProfile={onSelectProfile}
-                                            onResolveProfiles={onResolveProfiles}
-                                            onSelectEventReference={onSelectEventReference}
-                                            onResolveEventReferences={onResolveEventReferences}
-                                            eventReferencesById={eventReferencesById}
-                                        />
-                                    </div>
+                                    <NoteCard
+                                        note={rootNote}
+                                        profilesByPubkey={profilesByPubkey}
+                                        onCopyNoteId={onCopyNoteId}
+                                        onSelectHashtag={onSelectHashtag}
+                                        onSelectProfile={onSelectProfile}
+                                        onResolveProfiles={onResolveProfiles}
+                                        onSelectEventReference={onSelectEventReference}
+                                        onResolveEventReferences={onResolveEventReferences}
+                                        eventReferencesById={eventReferencesById}
+                                    />
                                 );
                             })()
                         ) : null}
@@ -462,19 +458,18 @@ export function FollowingFeedContent({
                             }
 
                             return (
-                                <div key={reply.id} className="nostr-following-feed-card">
-                                    <NoteCard
-                                        note={replyNote}
-                                        profilesByPubkey={profilesByPubkey}
-                                        onCopyNoteId={onCopyNoteId}
-                                        onSelectHashtag={onSelectHashtag}
-                                        onSelectProfile={onSelectProfile}
-                                        onResolveProfiles={onResolveProfiles}
-                                        onSelectEventReference={onSelectEventReference}
-                                        onResolveEventReferences={onResolveEventReferences}
-                                        eventReferencesById={eventReferencesById}
-                                    />
-                                </div>
+                                <NoteCard
+                                    key={reply.id}
+                                    note={replyNote}
+                                    profilesByPubkey={profilesByPubkey}
+                                    onCopyNoteId={onCopyNoteId}
+                                    onSelectHashtag={onSelectHashtag}
+                                    onSelectProfile={onSelectProfile}
+                                    onResolveProfiles={onResolveProfiles}
+                                    onSelectEventReference={onSelectEventReference}
+                                    onResolveEventReferences={onResolveEventReferences}
+                                    eventReferencesById={eventReferencesById}
+                                />
                             );
                         })}
 
