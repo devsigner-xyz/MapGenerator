@@ -87,6 +87,23 @@ async function renderNoteCard(note: NoteCardModel = defaultNoteFixture) {
     return { container: rendered.container, onCopyNoteId };
 }
 
+function createNestedNote(input: Partial<NoteCardModel> & { id: string }): NoteCardModel {
+    return {
+        id: input.id,
+        pubkey: input.pubkey ?? 'c'.repeat(64),
+        createdAt: input.createdAt ?? 200,
+        content: input.content ?? `contenido ${input.id}`,
+        tags: input.tags ?? [],
+        variant: input.variant ?? 'nested',
+        showCopyId: input.showCopyId ?? true,
+        nestingLevel: input.nestingLevel ?? 1,
+        kindLabel: input.kindLabel,
+        actions: input.actions,
+        embedded: input.embedded,
+        referencedNotes: input.referencedNotes,
+    };
+}
+
 describe('NoteCard', () => {
     async function renderDefault() {
         return await renderNoteCard(defaultNoteFixture);
@@ -116,6 +133,95 @@ describe('NoteCard', () => {
         expect(container.querySelector('button[aria-label="Abrir nota referenciada abcde123000000000000000000000000000000000000000000000000fff999"]')).not.toBeNull();
         expect(container.textContent || '').toContain('abcde123...fff999');
         expect((container.textContent || '').includes('...')).toBe(true);
+    });
+
+    test('renders deterministic nested quota with embedded + 3 references', async () => {
+        const note: NoteCardModel = {
+            ...defaultNoteFixture,
+            id: 'parent-with-embedded-and-refs',
+            content: 'top-level',
+            embedded: createNestedNote({ id: 'embedded-1', content: 'embedded visible' }),
+            referencedNotes: [
+                createNestedNote({ id: 'ref-1', content: 'reference visible 1' }),
+                createNestedNote({ id: 'ref-2', content: 'reference visible 2' }),
+                createNestedNote({ id: 'ref-3', content: 'reference hidden 3' }),
+            ],
+        };
+
+        const { container } = await renderNoteCard(note);
+        const text = container.textContent || '';
+
+        expect(text).toContain('embedded visible');
+        expect(text).toContain('reference visible 1');
+        expect(text).toContain('reference visible 2');
+        expect(text).toContain('+1 referencias adicionales');
+        expect(text).not.toContain('reference hidden 3');
+    });
+
+    test('renders deterministic nested quota with 3 references and no embedded note', async () => {
+        const note: NoteCardModel = {
+            ...defaultNoteFixture,
+            id: 'parent-with-refs-only',
+            content: 'top-level',
+            referencedNotes: [
+                createNestedNote({ id: 'ref-only-1', content: 'reference only visible 1' }),
+                createNestedNote({ id: 'ref-only-2', content: 'reference only visible 2' }),
+                createNestedNote({ id: 'ref-only-3', content: 'reference only hidden 3' }),
+            ],
+        };
+
+        const { container } = await renderNoteCard(note);
+        const text = container.textContent || '';
+
+        expect(text).toContain('reference only visible 1');
+        expect(text).toContain('reference only visible 2');
+        expect(text).toContain('+1 referencias adicionales');
+        expect(text).not.toContain('reference only hidden 3');
+    });
+
+    test('depth >= 2 compact fallback consumes nested quota and keeps accessible CTA', async () => {
+        const deepReferencedNote = createNestedNote({
+            id: 'abcdef12aa00aa00aa00aa00aa00aa00aa00aa00aa00aa00aa00123456',
+            content: 'y'.repeat(160),
+            nestingLevel: 2,
+        });
+        const note: NoteCardModel = {
+            ...defaultNoteFixture,
+            id: 'parent-with-deep-reference',
+            referencedNotes: [
+                deepReferencedNote,
+                createNestedNote({ id: 'ref-after-deep-1', content: 'after deep visible 1' }),
+                createNestedNote({ id: 'ref-after-deep-2', content: 'after deep hidden 2' }),
+            ],
+        };
+
+        const { container } = await renderNoteCard(note);
+        const text = container.textContent || '';
+
+        expect(text).toContain('Nota referenciada');
+        expect(container.querySelector(`button[aria-label="Abrir nota referenciada ${deepReferencedNote.id}"]`)).not.toBeNull();
+        expect(text).toContain('+1 referencias adicionales');
+        expect(text).toContain('after deep visible 1');
+        expect(text).not.toContain('after deep hidden 2');
+    });
+
+    test('depth >= 2 compact fallback hides open button when onSelectEventReference is undefined', async () => {
+        const note: NoteCardModel = {
+            ...deepNestedFixture,
+            id: 'abcdef12aa00aa00aa00aa00aa00aa00aa00aa00aa00aa00aa00123456',
+            content: 'z'.repeat(200),
+        };
+        const onCopyNoteId = vi.fn();
+        const rendered = await renderElement(
+            <NoteCard
+                note={note}
+                profilesByPubkey={{}}
+                onCopyNoteId={onCopyNoteId}
+            />,
+        );
+        mounted.push(rendered);
+
+        expect(rendered.container.querySelector(`button[aria-label="Abrir nota referenciada ${note.id}"]`)).toBeNull();
     });
 
     test('copy id button triggers callback', async () => {

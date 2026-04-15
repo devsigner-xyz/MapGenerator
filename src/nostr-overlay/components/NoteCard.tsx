@@ -1,6 +1,8 @@
+import type { ReactNode } from 'react';
 import { HeartIcon, MessageCircleIcon, Repeat2Icon, ZapIcon } from 'lucide-react';
 import type { NostrEvent, NostrProfile } from '../../nostr/types';
 import { RichNostrContent } from './RichNostrContent';
+import { fromResolvedReferenceEvent } from './note-card-adapters';
 import type { NoteActionState, NoteCardModel } from './note-card-model';
 import { shortId } from './note-card-model';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -68,6 +70,33 @@ function truncateTo140(content: string): string {
     }
 
     return `${normalized.slice(0, 140)}...`;
+}
+
+const MAX_NESTED_VISIBLE = 3;
+const MAX_REFERENCES_VISIBLE = 2;
+
+interface VisibleNestedEntries {
+    visibleEntries: Array<{ key: string; note: NoteCardModel }>;
+    hiddenReferencesCount: number;
+}
+
+function buildVisibleNestedEntries(note: NoteCardModel): VisibleNestedEntries {
+    const visibleEntries: Array<{ key: string; note: NoteCardModel }> = [];
+    const referencedNotes = note.referencedNotes ?? [];
+
+    if (note.embedded) {
+        visibleEntries.push({ key: `embedded-${note.embedded.id}`, note: note.embedded });
+    }
+
+    const remainingTotalSlots = Math.max(0, MAX_NESTED_VISIBLE - visibleEntries.length);
+    const allowedReferenceSlots = Math.min(MAX_REFERENCES_VISIBLE, remainingTotalSlots);
+    const visibleReferences = referencedNotes.slice(0, allowedReferenceSlots);
+    visibleEntries.push(...visibleReferences.map((nestedNote) => ({ key: `reference-${nestedNote.id}`, note: nestedNote })));
+
+    return {
+        visibleEntries,
+        hiddenReferencesCount: Math.max(0, referencedNotes.length - visibleReferences.length),
+    };
 }
 
 interface NoteHeaderItemProps {
@@ -177,6 +206,81 @@ export function NoteCard({
 }: NoteCardProps) {
     const isDeepNested = note.nestingLevel >= 2;
     const profile = profilesByPubkey[note.pubkey];
+    const { visibleEntries, hiddenReferencesCount } = buildVisibleNestedEntries(note);
+
+    const renderNestedReference = (eventId: string, event: NostrEvent | undefined, nestingLevel: number): ReactNode => {
+        if (!event) {
+            return (
+                <article aria-live="polite">
+                    <p>Cargando nota referenciada...</p>
+                </article>
+            );
+        }
+
+        const nestedNote = fromResolvedReferenceEvent(event, nestingLevel);
+        if (!nestedNote) {
+            return (
+                <article aria-live="polite">
+                    <p>No se pudo renderizar la nota referenciada.</p>
+                    {onSelectEventReference ? (
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            aria-label={`Abrir nota referenciada ${eventId}`}
+                            onClick={() => onSelectEventReference(eventId)}
+                        >
+                            Abrir nota
+                        </Button>
+                    ) : null}
+                </article>
+            );
+        }
+
+        return (
+            <div>
+                <NoteCard
+                    note={nestedNote}
+                    profilesByPubkey={profilesByPubkey}
+                    onCopyNoteId={onCopyNoteId}
+                    onSelectHashtag={onSelectHashtag}
+                    onSelectProfile={onSelectProfile}
+                    onResolveProfiles={onResolveProfiles}
+                    onSelectEventReference={onSelectEventReference}
+                    onResolveEventReferences={onResolveEventReferences}
+                    eventReferencesById={eventReferencesById}
+                />
+                {onSelectEventReference ? (
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        aria-label={`Abrir nota referenciada ${eventId}`}
+                        onClick={() => onSelectEventReference(eventId)}
+                    >
+                        Abrir nota
+                    </Button>
+                ) : null}
+            </div>
+        );
+    };
+
+    const renderNestedModel = (nestedNote: NoteCardModel, key: string) => {
+        return (
+            <NoteCard
+                key={key}
+                note={nestedNote}
+                profilesByPubkey={profilesByPubkey}
+                onCopyNoteId={onCopyNoteId}
+                onSelectHashtag={onSelectHashtag}
+                onSelectProfile={onSelectProfile}
+                onResolveProfiles={onResolveProfiles}
+                onSelectEventReference={onSelectEventReference}
+                onResolveEventReferences={onResolveEventReferences}
+                eventReferencesById={eventReferencesById}
+            />
+        );
+    };
 
     return (
         <article>
@@ -213,10 +317,14 @@ export function NoteCard({
                             onSelectEventReference={onSelectEventReference}
                             onResolveEventReferences={onResolveEventReferences}
                             eventReferencesById={eventReferencesById}
+                            renderEventReferenceCard={({ eventId, event }) => renderNestedReference(eventId, event, note.nestingLevel + 1)}
                             profilesByPubkey={profilesByPubkey}
                             emptyFallback={<p>(sin contenido)</p>}
                         />
                     )}
+
+                    {!isDeepNested ? visibleEntries.map((entry) => renderNestedModel(entry.note, entry.key)) : null}
+                    {!isDeepNested && hiddenReferencesCount > 0 ? <p>+{hiddenReferencesCount} referencias adicionales</p> : null}
                 </CardContent>
 
                 {note.actions ? (

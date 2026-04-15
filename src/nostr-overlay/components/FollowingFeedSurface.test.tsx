@@ -913,7 +913,7 @@ describe('FollowingFeedSurface', () => {
         mounted.push(rendered);
 
         expect(rendered.container.textContent || '').not.toContain('Nota referenciada');
-        expect(rendered.container.textContent || '').toContain('@Nora Referenced');
+        expect(rendered.container.textContent || '').toContain('Nora Referenced');
         expect(rendered.container.textContent || '').toContain('contenido de la nota citada');
 
         const openReferenceButton = rendered.container.querySelector(`button[aria-label="Abrir nota referenciada ${referencedEventId}"]`) as HTMLButtonElement;
@@ -960,6 +960,7 @@ describe('FollowingFeedSurface', () => {
         const text = rendered.container.textContent || '';
         expect(text).toContain('Cargando nota referenciada...');
         expect(text).not.toContain('Pendiente de carga');
+        expect(rendered.container.querySelector('[aria-live="polite"]')).toBeDefined();
         expect(rendered.container.querySelector('svg[aria-label="Loading"]')).toBeDefined();
 
         await act(async () => {
@@ -967,6 +968,117 @@ describe('FollowingFeedSurface', () => {
         });
 
         expect(onResolveEventReferences).toHaveBeenCalledWith([referencedEventId], undefined);
+    });
+
+    test('shows exhausted fallback with accessible open reference CTA after max retries', async () => {
+        vi.useFakeTimers();
+        try {
+            const referencedEventId = '9'.repeat(64);
+            const nevent = nip19.neventEncode({ id: referencedEventId });
+            const onResolveEventReferences = vi.fn(async () => ({}));
+
+            const rendered = await renderElement(
+                <FollowingFeedSurface
+                    {...buildProps({
+                        onResolveEventReferences,
+                        items: [
+                            {
+                                id: 'note-ref-exhausted',
+                                pubkey: 'a'.repeat(64),
+                                createdAt: 100,
+                                content: `agotada nostr:${nevent}`,
+                                kind: 'note',
+                                rawEvent: {
+                                    id: 'note-ref-exhausted',
+                                    pubkey: 'a'.repeat(64),
+                                    kind: 1,
+                                    created_at: 100,
+                                    tags: [],
+                                    content: `agotada nostr:${nevent}`,
+                                },
+                            },
+                        ],
+                    })}
+                />
+            );
+            mounted.push(rendered);
+
+            await act(async () => {
+                await Promise.resolve();
+            });
+            expect(onResolveEventReferences).toHaveBeenCalledTimes(1);
+
+            await act(async () => {
+                vi.advanceTimersByTime(1_600);
+                await Promise.resolve();
+            });
+            expect(onResolveEventReferences).toHaveBeenCalledTimes(2);
+
+            await act(async () => {
+                vi.advanceTimersByTime(1_600);
+                await Promise.resolve();
+            });
+            expect(onResolveEventReferences).toHaveBeenCalledTimes(3);
+
+            const text = rendered.container.textContent || '';
+            expect(text).toContain('No se pudo cargar la nota referenciada.');
+            expect(rendered.container.querySelector(`button[aria-label="Abrir nota referenciada ${referencedEventId}"]`)).toBeDefined();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    test('renders mixed references without blocking resolved quoted note', async () => {
+        const resolvedReferenceId = '7'.repeat(64);
+        const unresolvedReferenceId = '8'.repeat(64);
+        const resolvedAuthorPubkey = '6'.repeat(64);
+        const resolvedNevent = nip19.neventEncode({ id: resolvedReferenceId, author: resolvedAuthorPubkey });
+        const unresolvedNevent = nip19.neventEncode({ id: unresolvedReferenceId });
+
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    eventReferencesById: {
+                        [resolvedReferenceId]: {
+                            id: resolvedReferenceId,
+                            pubkey: resolvedAuthorPubkey,
+                            kind: 1,
+                            created_at: 1700000001,
+                            tags: [],
+                            content: 'nota resuelta visible',
+                        },
+                    },
+                    profilesByPubkey: {
+                        [resolvedAuthorPubkey]: {
+                            pubkey: resolvedAuthorPubkey,
+                            displayName: 'Rita Resuelta',
+                        },
+                    },
+                    items: [
+                        {
+                            id: 'note-ref-mixed',
+                            pubkey: 'a'.repeat(64),
+                            createdAt: 100,
+                            content: `mixto nostr:${resolvedNevent} y nostr:${unresolvedNevent}`,
+                            kind: 'note',
+                            rawEvent: {
+                                id: 'note-ref-mixed',
+                                pubkey: 'a'.repeat(64),
+                                kind: 1,
+                                created_at: 100,
+                                tags: [],
+                                content: `mixto nostr:${resolvedNevent} y nostr:${unresolvedNevent}`,
+                            },
+                        },
+                    ],
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const text = rendered.container.textContent || '';
+        expect(text).toContain('nota resuelta visible');
+        expect(text).toContain('Cargando nota referenciada...');
     });
 
     test('retries unresolved nevent references when initial resolve returns empty', async () => {

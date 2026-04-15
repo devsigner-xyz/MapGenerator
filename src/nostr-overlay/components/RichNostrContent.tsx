@@ -36,6 +36,7 @@ export interface RichNostrContentProps {
     ) => Promise<Record<string, NostrEvent> | void> | Record<string, NostrEvent> | void;
     profilesByPubkey?: Record<string, NostrProfile>;
     eventReferencesById?: Record<string, NostrEvent>;
+    renderEventReferenceCard?: (input: { eventId: string; event?: NostrEvent }) => ReactNode;
     textClassName?: string;
     emptyFallback?: ReactNode;
 }
@@ -338,14 +339,10 @@ function renderInlineTokens(
     });
 }
 
-function renderEventReferenceCards(
+function buildVisibleEventReferenceEntries(
     tokens: RichToken[],
-    input: {
-        eventReferencesById: Record<string, NostrEvent> | undefined;
-        profilesByPubkey: Record<string, NostrProfile> | undefined;
-        onSelectEventReference: ((eventId: string) => void) | undefined;
-    }
-): ReactNode[] {
+    maxVisible = 2
+): { visibleEventIds: string[]; hiddenCount: number } {
     const uniqueEventIds: string[] = [];
     const seen = new Set<string>();
 
@@ -357,53 +354,131 @@ function renderEventReferenceCards(
         uniqueEventIds.push(token.eventId);
     }
 
-    return uniqueEventIds.map((eventId) => {
-        const event = input.eventReferencesById?.[eventId];
-        const authorLabel = event
-            ? resolveMentionLabel(event.pubkey, input.profilesByPubkey)
-            : shortPubkey(eventId);
-        const body = event
-            ? summarizeEventContent(event.content)
-            : (
+    const visibleEventIds = uniqueEventIds.slice(0, maxVisible);
+    const hiddenCount = Math.max(0, uniqueEventIds.length - visibleEventIds.length);
+
+    return {
+        visibleEventIds,
+        hiddenCount,
+    };
+}
+
+function renderLoadingReference(eventId: string): ReactNode {
+    return (
+        <article key={`event-reference-${eventId}`} className="nostr-rich-event-reference" aria-live="polite">
+            <p className="nostr-rich-event-reference-content">
                 <span className="nostr-rich-event-reference-loading">
                     <Spinner className="size-3" />
                     <span>Cargando nota referenciada...</span>
                 </span>
-            );
-        const dateLabel = event ? formatCreatedAt(event.created_at) : null;
+            </p>
+            <div className="nostr-rich-event-reference-meta">
+                <span className="nostr-rich-event-reference-id">{eventId.slice(0, 8)}...{eventId.slice(-6)}</span>
+            </div>
+        </article>
+    );
+}
 
-        const content = (
-            <>
-                <div className="nostr-rich-event-reference-header">
-                    <span className="nostr-rich-event-reference-author">@{authorLabel}</span>
-                </div>
-                <p className="nostr-rich-event-reference-content">{body}</p>
-                <div className="nostr-rich-event-reference-meta">
-                    {dateLabel ? <span className="nostr-rich-event-reference-date">{dateLabel}</span> : null}
-                    <span className="nostr-rich-event-reference-id">{eventId.slice(0, 8)}...{eventId.slice(-6)}</span>
-                </div>
-            </>
+function renderExhaustedReference(eventId: string, onSelectEventReference: ((eventId: string) => void) | undefined): ReactNode {
+    return (
+        <article key={`event-reference-${eventId}`} className="nostr-rich-event-reference" aria-live="polite">
+            <p className="nostr-rich-event-reference-content">No se pudo cargar la nota referenciada.</p>
+            <div className="nostr-rich-event-reference-meta">
+                <span className="nostr-rich-event-reference-id">{eventId.slice(0, 8)}...{eventId.slice(-6)}</span>
+            </div>
+            {onSelectEventReference ? (
+                <button
+                    type="button"
+                    className="nostr-rich-event-reference-open"
+                    aria-label={`Abrir nota referenciada ${eventId}`}
+                    onClick={() => onSelectEventReference(eventId)}
+                >
+                    Abrir nota
+                </button>
+            ) : null}
+        </article>
+    );
+}
+
+function renderResolvedReference(
+    eventId: string,
+    event: NostrEvent,
+    input: {
+        profilesByPubkey: Record<string, NostrProfile> | undefined;
+        onSelectEventReference: ((eventId: string) => void) | undefined;
+        renderEventReferenceCard: ((input: { eventId: string; event?: NostrEvent }) => ReactNode) | undefined;
+    }
+): ReactNode {
+    const customNode = input.renderEventReferenceCard?.({ eventId, event });
+    if (customNode) {
+        return <div key={`event-reference-${eventId}`}>{customNode}</div>;
+    }
+
+    const authorLabel = resolveMentionLabel(event.pubkey, input.profilesByPubkey);
+    const body = summarizeEventContent(event.content);
+    const dateLabel = formatCreatedAt(event.created_at);
+
+    const content = (
+        <>
+            <div className="nostr-rich-event-reference-header">
+                <span className="nostr-rich-event-reference-author">@{authorLabel}</span>
+            </div>
+            <p className="nostr-rich-event-reference-content">{body}</p>
+            <div className="nostr-rich-event-reference-meta">
+                <span className="nostr-rich-event-reference-date">{dateLabel}</span>
+                <span className="nostr-rich-event-reference-id">{eventId.slice(0, 8)}...{eventId.slice(-6)}</span>
+            </div>
+        </>
+    );
+
+    if (!input.onSelectEventReference) {
+        return (
+            <article key={`event-reference-${eventId}`} className="nostr-rich-event-reference">
+                {content}
+            </article>
         );
+    }
 
-        if (!input.onSelectEventReference || !event) {
-            return (
-                <article key={`event-reference-${eventId}`} className="nostr-rich-event-reference">
-                    {content}
-                </article>
-            );
+    return (
+        <button
+            key={`event-reference-${eventId}`}
+            type="button"
+            className="nostr-rich-event-reference nostr-rich-event-reference-button"
+            aria-label={`Abrir nota referenciada ${eventId}`}
+            onClick={() => input.onSelectEventReference?.(eventId)}
+        >
+            {content}
+        </button>
+    );
+}
+
+function renderEventReferenceCards(
+    eventIds: string[],
+    input: {
+        eventReferencesById: Record<string, NostrEvent> | undefined;
+        profilesByPubkey: Record<string, NostrProfile> | undefined;
+        onSelectEventReference: ((eventId: string) => void) | undefined;
+        renderEventReferenceCard: ((input: { eventId: string; event?: NostrEvent }) => ReactNode) | undefined;
+        resolveAttemptsByEventId: Map<string, number>;
+    }
+): ReactNode[] {
+    return eventIds.map((eventId) => {
+        const event = input.eventReferencesById?.[eventId];
+        if (event) {
+            return renderResolvedReference(eventId, event, input);
         }
 
-        return (
-            <button
-                key={`event-reference-${eventId}`}
-                type="button"
-                className="nostr-rich-event-reference nostr-rich-event-reference-button"
-                aria-label={`Abrir nota referenciada ${eventId}`}
-                onClick={() => input.onSelectEventReference?.(eventId)}
-            >
-                {content}
-            </button>
-        );
+        const attempts = input.resolveAttemptsByEventId.get(eventId) ?? 0;
+        if (attempts >= EVENT_REFERENCE_RESOLVE_MAX_ATTEMPTS) {
+            return renderExhaustedReference(eventId, input.onSelectEventReference);
+        }
+
+        const customNode = input.renderEventReferenceCard?.({ eventId });
+        if (customNode) {
+            return <div key={`event-reference-${eventId}`}>{customNode}</div>;
+        }
+
+        return renderLoadingReference(eventId);
     });
 }
 
@@ -420,6 +495,7 @@ export function RichNostrContent({
     onResolveEventReferences,
     profilesByPubkey,
     eventReferencesById,
+    renderEventReferenceCard,
     textClassName,
     emptyFallback,
 }: RichNostrContentProps) {
@@ -547,6 +623,7 @@ export function RichNostrContent({
             }
 
             if (!shouldRetry) {
+                setEventReferenceResolveTick((current) => current + 1);
                 return;
             }
 
@@ -578,13 +655,19 @@ export function RichNostrContent({
         }),
         [tokenizedContent, onSelectHashtag, onSelectProfile, profilesByPubkey]
     );
+    const { visibleEventIds, hiddenCount: hiddenEventReferencesCount } = useMemo(
+        () => buildVisibleEventReferenceEntries(tokenizedContent, 2),
+        [tokenizedContent]
+    );
     const eventReferenceCards = useMemo(
-        () => renderEventReferenceCards(tokenizedContent, {
+        () => renderEventReferenceCards(visibleEventIds, {
             eventReferencesById,
             profilesByPubkey,
             onSelectEventReference,
+            renderEventReferenceCard,
+            resolveAttemptsByEventId: eventReferenceResolveAttemptsRef.current,
         }),
-        [eventReferencesById, onSelectEventReference, profilesByPubkey, tokenizedContent]
+        [eventReferenceResolveTick, eventReferencesById, onSelectEventReference, profilesByPubkey, renderEventReferenceCard, visibleEventIds]
     );
 
     const openLightbox = (imageUrl: string) => {
@@ -613,6 +696,7 @@ export function RichNostrContent({
             {hasEventReferences ? (
                 <div className="nostr-rich-event-reference-list">
                     {eventReferenceCards}
+                    {hiddenEventReferencesCount > 0 ? <p>+{hiddenEventReferencesCount} referencias adicionales</p> : null}
                 </div>
             ) : null}
 
