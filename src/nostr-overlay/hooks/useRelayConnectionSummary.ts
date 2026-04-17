@@ -101,20 +101,30 @@ export function useRelayConnectionSummary(
     );
 
     const relayKey = useMemo(() => relays.join('|'), [relays]);
+    const stableRelays = useMemo(() => relays, [relayKey]);
     const [statusByRelay, setStatusByRelay] = useState<Record<string, RelayConnectionStatus>>({});
 
     useEffect(() => {
         setStatusByRelay((current) => {
             const next: Record<string, RelayConnectionStatus> = {};
-            for (const relay of relays) {
+            for (const relay of stableRelays) {
                 next[relay] = current[relay] ?? 'checking';
             }
+
+            const currentKeys = Object.keys(current);
+            const unchanged =
+                currentKeys.length === stableRelays.length
+                && stableRelays.every((relay) => current[relay] === next[relay]);
+            if (unchanged) {
+                return current;
+            }
+
             return next;
         });
-    }, [relayKey, relays]);
+    }, [relayKey, stableRelays]);
 
     useEffect(() => {
-        if (!enabled || relays.length === 0) {
+        if (!enabled || stableRelays.length === 0) {
             return;
         }
 
@@ -171,7 +181,7 @@ export function useRelayConnectionSummary(
                 return;
             }
 
-            await runProbeQueue(relays);
+            await runProbeQueue(stableRelays);
         };
 
         void runProbe();
@@ -190,11 +200,11 @@ export function useRelayConnectionSummary(
             cancelled = true;
             window.clearInterval(timer);
         };
-    }, [enabled, relayKey, relays, probe, timeoutMs, refreshIntervalMs, maxConcurrentProbes, skipWhenHidden]);
+    }, [enabled, relayKey, stableRelays, probe, timeoutMs, refreshIntervalMs, maxConcurrentProbes, skipWhenHidden]);
 
-    const connectedRelays = relays.reduce((count, relayUrl) => count + (statusByRelay[relayUrl] === 'connected' ? 1 : 0), 0);
-    const checkingRelays = relays.reduce((count, relayUrl) => count + (statusByRelay[relayUrl] === 'checking' ? 1 : 0), 0);
-    const totalRelays = relays.length;
+    const connectedRelays = stableRelays.reduce((count, relayUrl) => count + (statusByRelay[relayUrl] === 'connected' ? 1 : 0), 0);
+    const checkingRelays = stableRelays.reduce((count, relayUrl) => count + (statusByRelay[relayUrl] === 'checking' ? 1 : 0), 0);
+    const totalRelays = stableRelays.length;
     const disconnectedRelays = Math.max(0, totalRelays - connectedRelays - checkingRelays);
 
     return {

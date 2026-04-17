@@ -76,6 +76,34 @@ describe('createHttpClient', () => {
         });
     });
 
+    test('captures retry-after header for rate-limited responses', async () => {
+        const fetchMock = vi.fn<typeof fetch>(async () => {
+            return new Response(JSON.stringify({
+                error: {
+                    code: 'RATE_LIMITED',
+                    message: 'Rate limit exceeded',
+                },
+            }), {
+                status: 429,
+                headers: {
+                    'content-type': 'application/json',
+                    'retry-after': '17',
+                },
+            });
+        });
+        vi.stubGlobal('fetch', fetchMock);
+
+        const client = createHttpClient({
+            baseUrl: 'https://bff.example/v1',
+        });
+
+        await expect(client.getJson('/social/feed/following')).rejects.toMatchObject({
+            status: 429,
+            code: 'RATE_LIMITED',
+            retryAfterSeconds: 17,
+        });
+    });
+
     test('throws normalized timeout error when request exceeds timeout', async () => {
         vi.useFakeTimers();
 

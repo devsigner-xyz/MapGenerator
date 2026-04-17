@@ -239,6 +239,34 @@ describe('dm routes', () => {
     });
   });
 
+  it('returns 400 when inbox query limit exceeds max bound', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: `/v1/dm/events/inbox?ownerPubkey=${OWNER_PUBKEY}&limit=101&since=1719000000`,
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({
+      error: {
+        code: 'VALIDATION_ERROR',
+      },
+    });
+  });
+
+  it('returns 400 when conversation query limit exceeds max bound', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: `/v1/dm/events/conversation?ownerPubkey=${OWNER_PUBKEY}&peerPubkey=${PEER_PUBKEY}&limit=101&since=1719000000`,
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({
+      error: {
+        code: 'VALIDATION_ERROR',
+      },
+    });
+  });
+
   it('returns 200 SSE stream with expected framing', async () => {
     streamShouldThrow = false;
     lastStreamSignal = undefined;

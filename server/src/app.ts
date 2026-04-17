@@ -3,6 +3,12 @@ import Fastify, {
   type FastifyServerOptions,
 } from 'fastify';
 
+import { contentRoutes } from './modules/content/content.routes';
+import type { ContentService } from './modules/content/content.service';
+import { graphRoutes } from './modules/graph/graph.routes';
+import type { GraphService } from './modules/graph/graph.service';
+import { identityRoutes } from './modules/identity/identity.routes';
+import type { IdentityService } from './modules/identity/identity.service';
 import { dmRoutes } from './modules/dm/dm.routes';
 import type { DmService } from './modules/dm/dm.service';
 import { notificationsRoutes } from './modules/notifications/notifications.routes';
@@ -22,6 +28,9 @@ import { securityHeadersPlugin } from './plugins/security-headers';
 import { healthRoute } from './routes/health.route';
 
 export interface BuildAppOptions {
+  identityService?: IdentityService;
+  graphService?: GraphService;
+  contentService?: ContentService;
   socialService?: SocialService;
   notificationsService?: NotificationsService;
   usersService?: UsersService;
@@ -62,6 +71,18 @@ export const buildApp = (options: BuildAppOptions = {}): FastifyInstance => {
   app.register(errorHandlerPlugin);
 
   app.register(healthRoute, { prefix: '/v1' });
+  app.register(identityRoutes, {
+    prefix: '/v1',
+    service: options.identityService,
+  });
+  app.register(graphRoutes, {
+    prefix: '/v1',
+    service: options.graphService,
+  });
+  app.register(contentRoutes, {
+    prefix: '/v1',
+    service: options.contentService,
+  });
   app.register(socialRoutes, {
     prefix: '/v1',
     service: options.socialService,

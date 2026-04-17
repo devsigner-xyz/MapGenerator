@@ -106,7 +106,6 @@ export function createSocialFeedApiService(options: CreateSocialFeedApiServiceOp
 
             const ownerPubkey = resolveOwnerPubkeyOrThrow(options.resolveOwnerPubkey);
             const response = await client.getJson<FollowingFeedResponseDto>('/social/feed/following', {
-                includeAuth: true,
                 query: {
                     ownerPubkey,
                     limit: input.limit ?? 20,
@@ -120,7 +119,6 @@ export function createSocialFeedApiService(options: CreateSocialFeedApiServiceOp
         async loadHashtagFeed(input) {
             const ownerPubkey = resolveOwnerPubkeyOrThrow(options.resolveOwnerPubkey);
             const response = await client.getJson<FollowingFeedResponseDto>('/social/feed/following', {
-                includeAuth: true,
                 query: {
                     ownerPubkey,
                     limit: input.limit ?? 20,

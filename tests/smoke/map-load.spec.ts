@@ -4,7 +4,7 @@ async function openSettings(page: Page) {
   const settingsButton = page.locator('button[aria-label="Abrir ajustes"]').first();
   await expect(settingsButton).toBeVisible();
   await settingsButton.click();
-  await expect(page.getByRole('menuitem', { name: 'Advanced settings' })).toBeVisible();
+  await expect(page.locator('button[aria-label="Abrir advanced settings"]')).toBeVisible();
 }
 
 test('loads map canvases and gui panel', async ({ page }) => {
@@ -38,13 +38,13 @@ test('runs generate action without fatal runtime errors', async ({ page }) => {
   await expect(page.locator('#map-canvas')).toBeVisible();
 });
 
-test('settings context menu opens and can launch advanced settings dialog', async ({ page }) => {
+test('settings menu opens and can navigate to advanced settings', async ({ page }) => {
   await page.goto('/app/');
 
   await openSettings(page);
 
-  await page.getByRole('menuitem', { name: 'Advanced settings' }).click();
-  await expect(page.getByRole('dialog', { name: 'Ajustes' })).toBeVisible();
+  await page.locator('button[aria-label="Abrir advanced settings"]').click();
+  await expect(page.getByRole('heading', { name: 'Advanced settings' })).toBeVisible();
 });
 
 test('npub submit shows progressive status without runtime errors', async ({ page }) => {

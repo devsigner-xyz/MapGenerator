@@ -12,7 +12,7 @@ import {
 import { assignPubkeysToBuildings, hashPubkeyToIndex, type AssignmentResult } from '../../nostr/domain/assignment';
 import { buildOccupancyState } from '../../nostr/domain/occupancy';
 import { fetchFollowersBestEffort } from '../../nostr/followers';
-import { fetchFollowsByNpub, fetchFollowsByPubkey, parseFollowsFromKind3 } from '../../nostr/follows';
+import { fetchFollowsByNpub, fetchFollowsByPubkey } from '../../nostr/follows';
 import { createLazyNdkClient } from '../../nostr/lazy-ndk-client';
 import { fetchLatestPostsByPubkey } from '../../nostr/posts';
 import { fetchProfileStats } from '../../nostr/profile-stats';
@@ -32,6 +32,8 @@ import type { NostrClient, NostrEvent, NostrProfile } from '../../nostr/types';
 import { createWriteGateway } from '../../nostr/write-gateway';
 import { createRuntimeDirectMessagesService } from '../../nostr/dm-runtime-service';
 import { createDmApiService } from '../../nostr-api/dm-api-service';
+import { createGraphApiService, type GraphApiService } from '../../nostr-api/graph-api-service';
+import { createIdentityApiService, type IdentityApiService } from '../../nostr-api/identity-api-service';
 import { createHttpClient, type HttpClientAuthContext } from '../../nostr-api/http-client';
 import { createSocialFeedApiService } from '../../nostr-api/social-feed-api-service';
 import { createSocialNotificationsApiService } from '../../nostr-api/social-notifications-api-service';
@@ -87,6 +89,7 @@ interface OverlayState {
 
 export interface NostrOverlayServices {
     createClient?: (relays?: string[]) => NostrClient;
+    identityApiService?: IdentityApiService;
     fetchFollowsByNpubFn?: typeof fetchFollowsByNpub;
     fetchFollowsByPubkeyFn?: typeof fetchFollowsByPubkey;
     fetchProfilesFn?: typeof fetchProfiles;
@@ -94,6 +97,7 @@ export interface NostrOverlayServices {
     fetchFollowersBestEffortFn?: typeof fetchFollowersBestEffort;
     fetchLatestPostsByPubkeyFn?: typeof fetchLatestPostsByPubkey;
     fetchProfileStatsFn?: typeof fetchProfileStats;
+    graphApiService?: GraphApiService;
     directMessagesService?: DirectMessagesService;
     socialNotificationsService?: SocialNotificationsService;
     socialFeedService?: SocialFeedService;
@@ -106,6 +110,8 @@ interface UseNostrOverlayOptions {
 
 const DM_INBOX_RELAY_CAP = 8;
 const DM_OUTBOX_RELAY_CAP = 8;
+const AUTH_PROOF_TIMEOUT_MS = 8_000;
+const RELAY_METADATA_TIMEOUT_MS = 4_000;
 
 function capRelayList(relays: string[], limit: number): string[] {
     const normalizedLimit = Math.max(1, Math.floor(limit));
@@ -271,6 +277,25 @@ async function maybeComputePayloadHash(input: unknown): Promise<string | undefin
         .join('');
 }
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+        const timer = window.setTimeout(() => {
+            reject(new Error(timeoutMessage));
+        }, Math.max(1, timeoutMs));
+
+        void promise.then(
+            (value) => {
+                window.clearTimeout(timer);
+                resolve(value);
+            },
+            (error) => {
+                window.clearTimeout(timer);
+                reject(error);
+            },
+        );
+    });
+}
+
 export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions) {
     const OCCUPANCY_BATCH_SIZE = 8;
     const OCCUPANCY_BATCH_DELAY_MS = 22;
@@ -301,17 +326,21 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         try {
             const absoluteUrl = toAbsoluteRequestUrl(context.url);
             const payloadHash = await maybeComputePayloadHash(context.body);
-            const authEvent = await writeGateway.publishEvent({
-                kind: 27_235,
-                content: '',
-                created_at: Math.floor(Date.now() / 1000),
-                tags: [
-                    ['u', absoluteUrl],
-                    ['method', context.method.toUpperCase()],
-                    ['nonce', `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`],
-                    ...(payloadHash ? [['payload', payloadHash]] : []),
-                ],
-            });
+            const authEvent = await withTimeout(
+                writeGateway.publishEvent({
+                    kind: 27_235,
+                    content: '',
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: [
+                        ['u', absoluteUrl],
+                        ['method', context.method.toUpperCase()],
+                        ['nonce', `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`],
+                        ...(payloadHash ? [['payload', payloadHash]] : []),
+                    ],
+                }),
+                AUTH_PROOF_TIMEOUT_MS,
+                'Timed out while signing Nostr auth proof',
+            );
 
             return {
                 authorization: `Nostr ${encodeNostrAuthEvent(authEvent)}`,
@@ -349,6 +378,109 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         () => createUserSearchApiService({ client: bffClient }),
         [bffClient]
     );
+    const identityApiService = useMemo(
+        () => services?.identityApiService ?? createIdentityApiService({ client: bffClient }),
+        [bffClient, services?.identityApiService],
+    );
+    const graphApiService = useMemo(() => {
+        if (services?.graphApiService) {
+            return services.graphApiService;
+        }
+
+        const shouldUseLegacyReaders = Boolean(
+            services?.fetchFollowsByNpubFn
+            || services?.fetchFollowsByPubkeyFn
+            || services?.fetchFollowersBestEffortFn
+            || services?.fetchLatestPostsByPubkeyFn
+            || services?.fetchProfileStatsFn,
+        );
+
+        if (!shouldUseLegacyReaders) {
+            return createGraphApiService({ client: bffClient });
+        }
+
+        const resolveLegacyRelays = (): string[] => mergeRelaySets(
+            latestStateRef.current.data.relayHints,
+            getBootstrapRelays(),
+        );
+
+        const legacyApiService: GraphApiService = {
+            async loadFollows(input) {
+                const client = createClient(resolveLegacyRelays());
+                const graph = await fetchFollowsByPubkeyFn(input.pubkey, client);
+                return {
+                    ownerPubkey: graph.ownerPubkey,
+                    follows: graph.follows,
+                    relayHints: graph.relayHints,
+                };
+            },
+            async loadFollowers(input) {
+                const client = createClient(resolveLegacyRelays());
+                const result = await fetchFollowersBestEffortFn({
+                    targetPubkey: input.pubkey,
+                    client,
+                    candidateAuthors: input.candidateAuthors,
+                });
+                return {
+                    followers: result.followers,
+                    complete: result.complete,
+                };
+            },
+            async loadPosts(input) {
+                const client = createClient(resolveLegacyRelays());
+                return fetchLatestPostsByPubkeyFn({
+                    pubkey: input.pubkey,
+                    client,
+                    limit: input.limit,
+                    until: input.until,
+                });
+            },
+            async loadProfileStats(input) {
+                const client = createClient(resolveLegacyRelays());
+                return fetchProfileStatsFn({
+                    pubkey: input.pubkey,
+                    client,
+                    candidateAuthors: input.candidateAuthors,
+                });
+            },
+        };
+
+        return legacyApiService;
+    }, [
+        bffClient,
+        createClient,
+        fetchFollowersBestEffortFn,
+        fetchFollowsByPubkeyFn,
+        fetchLatestPostsByPubkeyFn,
+        fetchProfileStatsFn,
+        services?.fetchFollowersBestEffortFn,
+        services?.fetchFollowsByNpubFn,
+        services?.fetchFollowsByPubkeyFn,
+        services?.fetchLatestPostsByPubkeyFn,
+        services?.fetchProfileStatsFn,
+        services?.graphApiService,
+    ]);
+    const resolveProfilesByOwner = useCallback(async (input: {
+        ownerPubkey: string;
+        pubkeys: string[];
+        legacyClient?: NostrClient;
+    }): Promise<Record<string, NostrProfile>> => {
+        const uniquePubkeys = dedupe(input.pubkeys)
+            .filter((pubkey) => /^[a-f0-9]{64}$/.test(pubkey));
+
+        if (uniquePubkeys.length === 0) {
+            return {};
+        }
+
+        if (services?.fetchProfilesFn && input.legacyClient) {
+            return fetchProfilesFn(uniquePubkeys, input.legacyClient);
+        }
+
+        return identityApiService.resolveProfiles({
+            ownerPubkey: input.ownerPubkey,
+            pubkeys: uniquePubkeys,
+        });
+    }, [fetchProfilesFn, identityApiService, services?.fetchProfilesFn]);
     const scopedRelayOwnerPubkey = state.data.authSession?.pubkey;
     const runtimeDmRelays = useMemo(() => {
         const loadedSettings = loadRelaySettings({ ownerPubkey: scopedRelayOwnerPubkey });
@@ -744,40 +876,35 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 return candidates.length > 0 ? candidates : getBootstrapRelays();
             })();
 
-            const fetchGraphWithRelays = async (relays: string[]) => {
-                const client = createClient(relays);
-                const graph =
-                    input.method === 'npub' && input.credential
-                        ? await fetchFollowsByNpubFn(input.credential, client)
-                        : await fetchFollowsByPubkeyFn(input.session.pubkey, client);
+            let graphClient = createClient(configuredRelays);
+            const shouldUseLegacyGraphBootstrap = Boolean(
+                services?.fetchFollowsByNpubFn || services?.fetchFollowsByPubkeyFn,
+            );
 
-                return {
-                    client,
-                    graph,
-                    relays,
-                };
+            const loadLegacyGraph = async (client: NostrClient) => {
+                return input.method === 'npub' && input.credential
+                    ? await fetchFollowsByNpubFn(input.credential, client)
+                    : await fetchFollowsByPubkeyFn(input.session.pubkey, client);
             };
 
-            let graphClient: NostrClient;
-            let graphRelays = configuredRelays;
-            let graph: Awaited<ReturnType<typeof fetchFollowsByPubkeyFn>>;
+            const graph = shouldUseLegacyGraphBootstrap
+                ? await (async () => {
+                    try {
+                        return await loadLegacyGraph(graphClient);
+                    } catch (error) {
+                        const bootstrapRelays = getBootstrapRelays();
+                        if (hasSameRelaySet(configuredRelays, bootstrapRelays)) {
+                            throw error;
+                        }
 
-            try {
-                const primary = await fetchGraphWithRelays(configuredRelays);
-                graphClient = primary.client;
-                graph = primary.graph;
-                graphRelays = primary.relays;
-            } catch (primaryError) {
-                const bootstrapRelays = getBootstrapRelays();
-                if (hasSameRelaySet(configuredRelays, bootstrapRelays)) {
-                    throw primaryError;
-                }
-
-                const fallback = await fetchGraphWithRelays(bootstrapRelays);
-                graphClient = fallback.client;
-                graph = fallback.graph;
-                graphRelays = fallback.relays;
-            }
+                        graphClient = createClient(bootstrapRelays);
+                        return loadLegacyGraph(graphClient);
+                    }
+                })()
+                : await graphApiService.loadFollows({
+                    ownerPubkey: input.session.pubkey,
+                    pubkey: input.session.pubkey,
+                });
 
             const follows = dedupe(graph.follows);
             const featuredPubkeys = FEATURED_OCCUPANT_PUBKEYS;
@@ -791,8 +918,16 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             };
             try {
                 const [relayListEvent, dmInboxRelayListEvent] = await Promise.all([
-                    graphClient.fetchLatestReplaceableEvent(graph.ownerPubkey, 10002),
-                    graphClient.fetchLatestReplaceableEvent(graph.ownerPubkey, 10050),
+                    withTimeout(
+                        graphClient.fetchLatestReplaceableEvent(graph.ownerPubkey, 10002),
+                        RELAY_METADATA_TIMEOUT_MS,
+                        'Relay timeout while fetching relay list (kind 10002)',
+                    ),
+                    withTimeout(
+                        graphClient.fetchLatestReplaceableEvent(graph.ownerPubkey, 10050),
+                        RELAY_METADATA_TIMEOUT_MS,
+                        'Relay timeout while fetching DM relay list (kind 10050)',
+                    ),
                 ]);
                 const nip65ByType = relaySuggestionsByTypeFromKind10002Event(relayListEvent);
                 const dmInboxRelays = dmInboxRelayListFromKind10050Event(dmInboxRelayListEvent);
@@ -823,8 +958,16 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             setMapLoaderStage('fetching_data');
 
             const [ownerProfiles, profiles] = await Promise.all([
-                fetchProfilesFn([graph.ownerPubkey], graphClient),
-                fetchProfilesFn(assignmentPubkeys, graphClient),
+                resolveProfilesByOwner({
+                    ownerPubkey: graph.ownerPubkey,
+                    pubkeys: [graph.ownerPubkey],
+                    legacyClient: graphClient,
+                }),
+                resolveProfilesByOwner({
+                    ownerPubkey: graph.ownerPubkey,
+                    pubkeys: assignmentPubkeys,
+                    legacyClient: graphClient,
+                }),
             ]);
             const ownerProfile = ownerProfiles[graph.ownerPubkey];
 
@@ -902,7 +1045,11 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                         followerSet.add(pubkey);
                     }
 
-                    const fetchedProfiles = await fetchProfilesFn(newFollowers, graphClient);
+                    const fetchedProfiles = await resolveProfilesByOwner({
+                        ownerPubkey: graph.ownerPubkey,
+                        pubkeys: newFollowers,
+                        legacyClient: graphClient,
+                    });
                     Object.assign(nextFollowerProfiles, fetchedProfiles);
 
                     if (requestIdRef.current !== requestId) {
@@ -933,18 +1080,17 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 });
 
                 try {
-                    const followersClient = createClient(mergeRelaySets(graphRelays, graph.relayHints));
-                    await fetchFollowersBestEffortFn({
-                        targetPubkey: graph.ownerPubkey,
-                        client: followersClient,
+                    const followersResult = await graphApiService.loadFollowers({
+                        ownerPubkey: graph.ownerPubkey,
+                        pubkey: graph.ownerPubkey,
                         candidateAuthors: follows,
-                        onBatch: async (batch) => {
-                            if (requestIdRef.current !== requestId || batch.newFollowers.length === 0) {
-                                return;
-                            }
-                            followerBatcher.add(batch.newFollowers);
-                        },
                     });
+
+                    if (requestIdRef.current !== requestId) {
+                        return;
+                    }
+
+                    followerBatcher.add(followersResult.followers);
 
                     await followerBatcher.flushNow();
                 } catch {
@@ -1201,9 +1347,18 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         }
 
         const current = latestStateRef.current;
+        const ownerPubkey = current.data.ownerPubkey;
+        if (!ownerPubkey) {
+            return {};
+        }
+
         const relays = resolveOverlayRelays(current.data.relayHints);
         const client = createClient(relays);
-        const loadedProfiles = await fetchProfilesFn(uniquePubkeys, client);
+        const loadedProfiles = await resolveProfilesByOwner({
+            ownerPubkey,
+            pubkeys: uniquePubkeys,
+            legacyClient: client,
+        });
 
         if (Object.keys(loadedProfiles).length > 0) {
             setState((nextState) => ({
@@ -1284,8 +1439,13 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             .map((event) => event.pubkey)
             .filter((pubkey) => typeof pubkey === 'string' && pubkey.length > 0));
 
-        if (eventAuthors.length > 0) {
-            const loadedProfiles = await fetchProfilesFn(eventAuthors, client);
+        const ownerPubkey = current.data.ownerPubkey;
+        if (eventAuthors.length > 0 && ownerPubkey) {
+            const loadedProfiles = await resolveProfilesByOwner({
+                ownerPubkey,
+                pubkeys: eventAuthors,
+                legacyClient: client,
+            });
             if (Object.keys(loadedProfiles).length > 0) {
                 setState((nextState) => ({
                     ...nextState,
@@ -1371,40 +1531,71 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         () => ({
             loadPosts: async ({ pubkey, limit, until }) => {
                 const current = latestStateRef.current;
-                const client = createClient(resolveOverlayRelays(current.data.relayHints));
-                return fetchLatestPostsByPubkeyFn({
+                const ownerPubkey = current.data.ownerPubkey;
+                if (!ownerPubkey) {
+                    return {
+                        posts: [],
+                        nextUntil: undefined,
+                        hasMore: false,
+                    };
+                }
+
+                return graphApiService.loadPosts({
+                    ownerPubkey,
                     pubkey,
-                    client,
                     limit,
                     until,
                 });
             },
             loadStats: async ({ pubkey }) => {
                 const current = latestStateRef.current;
-                const client = createClient(resolveOverlayRelays(current.data.relayHints));
-                return fetchProfileStatsFn({
+                const ownerPubkey = current.data.ownerPubkey;
+                if (!ownerPubkey) {
+                    return {
+                        followsCount: 0,
+                        followersCount: 0,
+                    };
+                }
+
+                return graphApiService.loadProfileStats({
+                    ownerPubkey,
                     pubkey,
-                    client,
                     candidateAuthors: current.data.follows,
                 });
             },
             loadNetwork: async ({ pubkey }) => {
                 const current = latestStateRef.current;
+                const ownerPubkey = current.data.ownerPubkey;
+                if (!ownerPubkey) {
+                    return {
+                        follows: [],
+                        followers: [],
+                        profiles: {},
+                    };
+                }
+
                 const client = createClient(resolveOverlayRelays(current.data.relayHints));
 
-                const [kind3Event, followersResult] = await Promise.all([
-                    client.fetchLatestReplaceableEvent(pubkey, 3),
-                    fetchFollowersBestEffortFn({
-                        targetPubkey: pubkey,
-                        client,
+                const [followsResult, followersResult] = await Promise.all([
+                    graphApiService.loadFollows({
+                        ownerPubkey,
+                        pubkey,
+                    }),
+                    graphApiService.loadFollowers({
+                        ownerPubkey,
+                        pubkey,
                         candidateAuthors: current.data.follows,
                     }),
                 ]);
 
-                const follows = kind3Event ? parseFollowsFromKind3(kind3Event) : [];
+                const follows = dedupe(followsResult.follows);
                 const followers = dedupe(followersResult.followers);
                 const networkPubkeys = dedupe([...follows, ...followers]);
-                const profiles = await fetchProfilesFn(networkPubkeys, client);
+                const profiles = await resolveProfilesByOwner({
+                    ownerPubkey,
+                    pubkeys: networkPubkeys,
+                    legacyClient: client,
+                });
                 return {
                     follows,
                     followers,
@@ -1412,7 +1603,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 };
             },
         }),
-        [createClient, fetchFollowersBestEffortFn, fetchLatestPostsByPubkeyFn, fetchProfileStatsFn, fetchProfilesFn]
+        [createClient, graphApiService, resolveProfilesByOwner]
     );
 
     const assignedCount = useMemo(() => Object.keys(state.data.assignments.byBuildingIndex).length, [state.data.assignments]);

@@ -3,23 +3,12 @@
 import { act, createElement, useEffect, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
 import type { Nip05ValidationResult } from '../../nostr/nip05';
 import type { NostrProfile } from '../../nostr/types';
+import type { IdentityApiService } from '../../nostr-api/identity-api-service';
 import { useNip05VerificationQueries } from './nip05.query';
 import { createNostrOverlayQueryClient } from './query-client';
-
-const { validateNip05IdentifierMock } = vi.hoisted(() => ({
-    validateNip05IdentifierMock: vi.fn(),
-}));
-
-vi.mock('../../nostr/nip05', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('../../nostr/nip05')>();
-    return {
-        ...actual,
-        validateNip05Identifier: validateNip05IdentifierMock,
-    };
-});
 
 interface RenderResult {
     container: HTMLDivElement;
@@ -28,15 +17,19 @@ interface RenderResult {
 }
 
 interface ProbeProps {
+    ownerPubkey?: string;
     profilesByPubkey: Record<string, NostrProfile>;
     targetPubkeys: string[];
+    identityApiService: IdentityApiService;
     onUpdate: (next: Record<string, Nip05ValidationResult | undefined>) => void;
 }
 
-function Nip05Probe({ profilesByPubkey, targetPubkeys, onUpdate }: ProbeProps): null {
+function Nip05Probe({ ownerPubkey, profilesByPubkey, targetPubkeys, identityApiService, onUpdate }: ProbeProps): null {
     const verificationByPubkey = useNip05VerificationQueries({
+        ownerPubkey,
         profilesByPubkey,
         targetPubkeys,
+        identityApiService,
     });
 
     useEffect(() => {
@@ -87,10 +80,6 @@ beforeAll(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 });
 
-beforeEach(() => {
-    validateNip05IdentifierMock.mockReset();
-});
-
 afterEach(async () => {
     for (const entry of mounted) {
         await act(async () => {
@@ -102,21 +91,32 @@ afterEach(async () => {
 });
 
 describe('useNip05VerificationQueries', () => {
-    test('dedupes validation requests by normalized identity', async () => {
-        validateNip05IdentifierMock.mockImplementation(async (input: { pubkey: string; nip05: string }) => ({
-            status: 'verified',
-            identifier: input.nip05.trim().toLowerCase(),
-            resolvedPubkey: input.pubkey.toLowerCase(),
-            checkedAt: 1,
-        }));
+    test('dedupes verification checks by normalized identity in one batch call', async () => {
+        const verifyNip05Batch = vi.fn<IdentityApiService['verifyNip05Batch']>(async ({ checks }) =>
+            checks.map((check) => ({
+                pubkey: check.pubkey,
+                result: {
+                    status: 'verified',
+                    identifier: check.nip05,
+                    resolvedPubkey: check.pubkey,
+                    checkedAt: 1,
+                },
+            })),
+        );
+        const identityApiService: IdentityApiService = {
+            verifyNip05Batch,
+            resolveProfiles: vi.fn(async () => ({})),
+        };
 
         let latest: Record<string, Nip05ValidationResult | undefined> = {};
         const rendered = await renderElement(createElement(Nip05Probe, {
+            ownerPubkey: 'f'.repeat(64),
             profilesByPubkey: {
                 'pubkey-a': { pubkey: 'pubkey-a', nip05: 'Alice@example.com' },
                 'PUBKEY-A': { pubkey: 'PUBKEY-A', nip05: ' alice@example.com ' },
             },
             targetPubkeys: ['PUBKEY-A', 'pubkey-a'],
+            identityApiService,
             onUpdate: (next) => {
                 latest = next;
             },
@@ -124,74 +124,91 @@ describe('useNip05VerificationQueries', () => {
         mounted.push(rendered);
 
         await waitFor(() => Object.values(latest).some((value) => value?.status === 'verified'));
-        expect(validateNip05IdentifierMock).toHaveBeenCalledTimes(1);
+        expect(verifyNip05Batch).toHaveBeenCalledTimes(1);
+        expect(verifyNip05Batch.mock.calls[0]?.[0].checks).toEqual([
+            {
+                pubkey: 'pubkey-a',
+                nip05: 'alice@example.com',
+            },
+        ]);
         expect(Object.keys(latest)).toEqual(['pubkey-a']);
     });
 
-    test('returns deterministic output for equivalent target sets', async () => {
-        validateNip05IdentifierMock.mockImplementation(async (input: { pubkey: string; nip05: string }) => ({
-            status: 'verified',
-            identifier: input.nip05.trim().toLowerCase(),
-            resolvedPubkey: input.pubkey,
-            checkedAt: 1,
-        }));
+    test('keeps deterministic batch key for equivalent target sets', async () => {
+        const verifyNip05Batch = vi.fn<IdentityApiService['verifyNip05Batch']>(async ({ checks }) =>
+            checks.map((check) => ({
+                pubkey: check.pubkey,
+                result: {
+                    status: 'verified',
+                    identifier: check.nip05,
+                    resolvedPubkey: check.pubkey,
+                    checkedAt: 1,
+                },
+            })),
+        );
+        const identityApiService: IdentityApiService = {
+            verifyNip05Batch,
+            resolveProfiles: vi.fn(async () => ({})),
+        };
 
-        const snapshots: Record<string, Nip05ValidationResult | undefined>[] = [];
         const profilesByPubkey = {
             'pubkey-a': { pubkey: 'pubkey-a', nip05: 'alice@example.com' },
             'pubkey-b': { pubkey: 'pubkey-b', nip05: 'bob@example.com' },
         };
 
         const rendered = await renderElement(createElement(Nip05Probe, {
+            ownerPubkey: 'f'.repeat(64),
             profilesByPubkey,
             targetPubkeys: ['pubkey-b', 'pubkey-a'],
-            onUpdate: (next) => {
-                snapshots.push(next);
-            },
+            identityApiService,
+            onUpdate: () => {},
         }));
         mounted.push(rendered);
 
-        await waitFor(() => {
-            const latestSnapshot = snapshots[snapshots.length - 1] ?? {};
-            return Object.values(latestSnapshot).every((entry) => entry?.status === 'verified')
-                && Object.keys(latestSnapshot).length === 2;
-        });
-        const readySnapshot = snapshots[snapshots.length - 1];
-        expect(Object.keys(readySnapshot ?? {})).toEqual(['pubkey-a', 'pubkey-b']);
+        await waitFor(() => verifyNip05Batch.mock.calls.length === 1);
 
         await rendered.rerender(createElement(Nip05Probe, {
+            ownerPubkey: 'f'.repeat(64),
             profilesByPubkey,
             targetPubkeys: ['pubkey-a', 'pubkey-b'],
-            onUpdate: (next) => {
-                snapshots.push(next);
-            },
+            identityApiService,
+            onUpdate: () => {},
         }));
 
-        await waitFor(() => snapshots.length >= 2);
-        expect(snapshots[snapshots.length - 1]).toBe(readySnapshot);
+        await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        });
+
+        expect(verifyNip05Batch).toHaveBeenCalledTimes(1);
     });
 
-    test('does not retry failed validations with identity defaults', async () => {
-        validateNip05IdentifierMock.mockRejectedValue(new Error('status 500'));
+    test('skips batch request when owner pubkey is missing', async () => {
+        const verifyNip05Batch = vi.fn<IdentityApiService['verifyNip05Batch']>(async () => []);
+        const identityApiService: IdentityApiService = {
+            verifyNip05Batch,
+            resolveProfiles: vi.fn(async () => ({})),
+        };
 
-        let latest: Record<string, Nip05ValidationResult | undefined> = {};
+        let latest: Record<string, Nip05ValidationResult | undefined> = {
+            seed: undefined,
+        };
         const rendered = await renderElement(createElement(Nip05Probe, {
             profilesByPubkey: {
                 'pubkey-a': { pubkey: 'pubkey-a', nip05: 'alice@example.com' },
             },
             targetPubkeys: ['pubkey-a'],
+            identityApiService,
             onUpdate: (next) => {
                 latest = next;
             },
         }));
         mounted.push(rendered);
 
-        await waitFor(() => validateNip05IdentifierMock.mock.calls.length > 0);
         await act(async () => {
-            await new Promise((resolve) => setTimeout(resolve, 25));
+            await new Promise((resolve) => setTimeout(resolve, 0));
         });
 
-        expect(validateNip05IdentifierMock).toHaveBeenCalledTimes(1);
-        expect(latest['pubkey-a']).toBeUndefined();
+        expect(verifyNip05Batch).not.toHaveBeenCalled();
+        expect(latest).toEqual({});
     });
 });

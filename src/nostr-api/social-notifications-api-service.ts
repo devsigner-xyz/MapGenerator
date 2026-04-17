@@ -2,6 +2,7 @@ import type {
     SocialNotificationEvent,
     SocialNotificationsService,
 } from '../nostr/social-notifications-service';
+import { clampApiLimit } from './api-limits';
 import { createHttpClient, type HttpClient } from './http-client';
 
 interface NotificationEventDto {
@@ -187,7 +188,7 @@ export function createSocialNotificationsApiService(
                 includeAuth: true,
                 query: {
                     ownerPubkey: input.ownerPubkey,
-                    limit: input.limit ?? 120,
+                    limit: clampApiLimit(input.limit ?? 120),
                     since: input.since ?? Math.floor(Date.now() / 1000),
                 },
             });

@@ -8,6 +8,7 @@ import { RELAY_SETTINGS_STORAGE_KEY } from '../nostr/relay-settings';
 import { UI_SETTINGS_STORAGE_KEY } from '../nostr/ui-settings';
 import { EASTER_EGG_PROGRESS_STORAGE_KEY } from '../nostr/easter-egg-progress';
 import { getBootstrapRelays } from '../nostr/relay-policy';
+import { __resetFollowsCacheForTests } from '../nostr/follows';
 import { encodeHexToNpub } from '../nostr/npub';
 import * as ndkClientModule from '../nostr/ndk-client';
 import * as writeGatewayModule from '../nostr/write-gateway';
@@ -444,6 +445,7 @@ beforeAll(() => {
 
 beforeEach(() => {
     window.localStorage.clear();
+    __resetFollowsCacheForTests();
     (window as unknown as { nostr?: unknown }).nostr = createNip07ExtensionMock();
     createNdkDmTransportClientSpy = vi.spyOn(ndkClientModule, 'createNdkDmTransportClient').mockReturnValue({
         publishToRelays: vi.fn(async () => ({
@@ -4736,13 +4738,28 @@ describe('Nostr overlay App', () => {
         const { bridge } = createMapBridgeStub(12);
 
         const originalFetch = globalThis.fetch;
-        const fetchMock = vi.fn().mockResolvedValue({
-            ok: true,
-            json: async () => ({
-                names: {
-                    _: followedPubkey,
+        const fetchMock = vi.fn().mockImplementation(async (_input: string | URL, init?: RequestInit) => {
+            const requestBody = typeof init?.body === 'string' ? JSON.parse(init.body) as {
+                checks?: Array<{ pubkey: string; nip05: string }>;
+            } : { checks: [] };
+            const checks = requestBody.checks ?? [];
+
+            return new Response(JSON.stringify({
+                results: checks.map((check) => ({
+                    pubkey: check.pubkey,
+                    nip05: check.nip05,
+                    status: check.pubkey === followedPubkey ? 'verified' : 'mismatch',
+                    identifier: check.nip05,
+                    displayIdentifier: check.nip05,
+                    resolvedPubkey: check.pubkey === followedPubkey ? check.pubkey : undefined,
+                    checkedAt: 1_719_001_000,
+                })),
+            }), {
+                status: 200,
+                headers: {
+                    'content-type': 'application/json',
                 },
-            }),
+            });
         });
         (globalThis as any).fetch = fetchMock;
 
@@ -4810,28 +4827,31 @@ describe('Nostr overlay App', () => {
         const { bridge, triggerOccupiedBuildingClick } = createMapBridgeStub(6);
 
         const originalFetch = globalThis.fetch;
-        const fetchMock = vi.fn().mockImplementation(async (input: string | URL) => {
-            const url = String(input);
-            const parsed = new URL(url);
-            const name = parsed.searchParams.get('name') || '';
-            if (parsed.hostname === 'owner.test' && name === 'owner') {
-                return {
-                    ok: true,
-                    json: async () => ({ names: { owner: ownerPubkey } }),
-                };
-            }
+        const fetchMock = vi.fn().mockImplementation(async (_input: string | URL, init?: RequestInit) => {
+            const requestBody = typeof init?.body === 'string' ? JSON.parse(init.body) as {
+                checks?: Array<{ pubkey: string; nip05: string }>;
+            } : { checks: [] };
+            const checks = requestBody.checks ?? [];
 
-            if (parsed.hostname === 'alice.test' && name === 'alice') {
-                return {
-                    ok: true,
-                    json: async () => ({ names: { alice: followedPubkey } }),
-                };
-            }
-
-            return {
-                ok: true,
-                json: async () => ({ names: {} }),
-            };
+            return new Response(JSON.stringify({
+                results: checks.map((check) => ({
+                    pubkey: check.pubkey,
+                    nip05: check.nip05,
+                    status: check.pubkey === ownerPubkey || check.pubkey === followedPubkey ? 'verified' : 'mismatch',
+                    identifier: check.nip05,
+                    displayIdentifier: check.nip05,
+                    resolvedPubkey:
+                        check.pubkey === ownerPubkey || check.pubkey === followedPubkey
+                            ? check.pubkey
+                            : undefined,
+                    checkedAt: 1_719_001_200,
+                })),
+            }), {
+                status: 200,
+                headers: {
+                    'content-type': 'application/json',
+                },
+            });
         });
         (globalThis as any).fetch = fetchMock;
 
@@ -5709,6 +5729,67 @@ describe('Nostr overlay App', () => {
         expect(rendered.container.querySelector('.nostr-error')).toBeNull();
 
         delete (window as any).nostr;
+    });
+
+    test('keeps logout accessible when session exists but owner graph failed to load', async () => {
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    graphApiService: {
+                        loadFollows: vi.fn().mockRejectedValue(new Error('Missing or invalid Nostr auth proof')),
+                        loadFollowers: vi.fn().mockResolvedValue({ followers: [], complete: true }),
+                        loadPosts: vi.fn().mockResolvedValue({ posts: [], hasMore: false, nextUntil: undefined }),
+                        loadProfileStats: vi.fn().mockResolvedValue({ followsCount: 0, followersCount: 0 }),
+                    },
+                }}
+            />,
+        );
+        mounted.push(rendered);
+
+        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+        const form = rendered.container.querySelector('form');
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
+            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        });
+
+        await waitFor(() => rendered.container.querySelector('button[aria-label="Abrir menu de usuario"]') !== null);
+
+        const userMenuButton = rendered.container.querySelector('button[aria-label="Abrir menu de usuario"]') as HTMLButtonElement;
+        expect(userMenuButton).toBeDefined();
+
+        await act(async () => {
+            userMenuButton.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+            userMenuButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() =>
+            Array.from(document.body.querySelectorAll('[role="menuitem"]')).some((item) =>
+                (item.textContent || '').includes('Cerrar sesión'),
+            ),
+        );
+
+        const logoutItem = Array.from(document.body.querySelectorAll('[role="menuitem"]')).find((item) =>
+            (item.textContent || '').includes('Cerrar sesión'),
+        ) as HTMLElement;
+        expect(logoutItem).toBeDefined();
+
+        await act(async () => {
+            logoutItem.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+            logoutItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => rendered.container.querySelector('input[name="npub"]') !== null);
+        expect(rendered.container.querySelector('button[aria-label="Abrir menu de usuario"]')).toBeNull();
     });
 
     test('clears logout session cache for active profile agora dm notifications before next account login', async () => {

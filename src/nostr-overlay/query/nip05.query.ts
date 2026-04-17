@@ -1,12 +1,18 @@
 import { useMemo } from 'react';
-import { useQueries } from '@tanstack/react-query';
-import { validateNip05Identifier, type Nip05ValidationResult } from '../../nostr/nip05';
+import { useQuery } from '@tanstack/react-query';
+import type { Nip05ValidationResult } from '../../nostr/nip05';
 import type { NostrProfile } from '../../nostr/types';
+import {
+    createIdentityApiService,
+    type IdentityApiService,
+} from '../../nostr-api/identity-api-service';
 import { createIdentityQueryOptions } from './options';
 
 interface UseNip05VerificationQueriesInput {
+    ownerPubkey?: string;
     profilesByPubkey: Record<string, NostrProfile>;
     targetPubkeys: string[];
+    identityApiService?: IdentityApiService;
 }
 
 interface VerificationPlan {
@@ -73,22 +79,38 @@ export function useNip05VerificationQueries(
     input: UseNip05VerificationQueriesInput
 ): Record<string, Nip05ValidationResult | undefined> {
     const plans = useMemo(() => buildPlans(input), [input.profilesByPubkey, input.targetPubkeys]);
+    const identityApiService = useMemo(
+        () => input.identityApiService ?? createIdentityApiService(),
+        [input.identityApiService],
+    );
 
-    return useQueries({
-        queries: plans.map((plan) => createIdentityQueryOptions({
-            queryKey: ['nostr-overlay', 'social', 'nip05', { pubkey: plan.pubkey, nip05: plan.normalizedNip05 }] as const,
-            queryFn: () => validateNip05Identifier({
-                pubkey: plan.pubkey,
-                nip05: plan.normalizedNip05,
-            }),
-        })),
-        combine: (queryResults) => {
+    const query = useQuery(createIdentityQueryOptions({
+        queryKey: ['nostr-overlay', 'social', 'nip05', 'batch', {
+            ownerPubkey: input.ownerPubkey || '__none__',
+            checks: plans.map((plan) => `${plan.pubkey}::${plan.normalizedNip05}`),
+        }] as const,
+        queryFn: async (): Promise<Record<string, Nip05ValidationResult | undefined>> => {
+            if (!input.ownerPubkey || plans.length === 0) {
+                return {};
+            }
+
+            const results = await identityApiService.verifyNip05Batch({
+                ownerPubkey: input.ownerPubkey,
+                checks: plans.map((plan) => ({
+                    pubkey: plan.pubkey,
+                    nip05: plan.normalizedNip05,
+                })),
+            });
+
             const verificationByPubkey: Record<string, Nip05ValidationResult | undefined> = {};
-            for (const [index, plan] of plans.entries()) {
-                verificationByPubkey[plan.pubkey] = queryResults[index]?.data;
+            for (const item of results) {
+                verificationByPubkey[item.pubkey] = item.result;
             }
 
             return verificationByPubkey;
         },
-    });
+        enabled: Boolean(input.ownerPubkey && plans.length > 0),
+    }));
+
+    return query.data ?? {};
 }

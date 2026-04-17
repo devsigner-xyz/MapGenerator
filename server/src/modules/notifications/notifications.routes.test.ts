@@ -217,6 +217,20 @@ describe('notifications routes', () => {
     });
   });
 
+  it('returns 400 when notifications query limit exceeds max bound', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: `/v1/notifications?ownerPubkey=${OWNER_PUBKEY}&limit=101&since=1719000000`,
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({
+      error: {
+        code: 'VALIDATION_ERROR',
+      },
+    });
+  });
+
   it('returns 400 when notifications query has invalid since', async () => {
     const response = await app.inject({
       method: 'GET',

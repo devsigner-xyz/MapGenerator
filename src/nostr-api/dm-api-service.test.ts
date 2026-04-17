@@ -42,6 +42,42 @@ function hexToBytes(hex: string): Uint8Array {
 }
 
 describe('createDmApiService', () => {
+    test('clamps outgoing query limit to backend max', async () => {
+        const ownerPubkey = 'a'.repeat(64);
+        const peerPubkey = 'b'.repeat(64);
+        const response: DmEventsResponseDto = {
+            items: [],
+            hasMore: false,
+            nextSince: null,
+        };
+        const getJson = vi.fn(async () => response);
+        const client: HttpClient = {
+            requestRaw: vi.fn(async () => new Response(null, { status: 200 })),
+            requestJson: vi.fn(async () => response) as unknown as HttpClient['requestJson'],
+            getJson: getJson as unknown as HttpClient['getJson'],
+            postJson: vi.fn(async () => response) as unknown as HttpClient['postJson'],
+        };
+
+        const service = createDmApiService({
+            client,
+            defaultLimit: 1000,
+        });
+
+        await service.loadInitialConversations({ ownerPubkey });
+        await service.loadConversationMessages({ ownerPubkey, peerPubkey });
+
+        expect(getJson).toHaveBeenNthCalledWith(1, '/dm/events/inbox', expect.objectContaining({
+            query: expect.objectContaining({
+                limit: 100,
+            }),
+        }));
+        expect(getJson).toHaveBeenNthCalledWith(2, '/dm/events/conversation', expect.objectContaining({
+            query: expect.objectContaining({
+                limit: 100,
+            }),
+        }));
+    });
+
     test('decrypts kind 4 events when decryptDm is provided', async () => {
         const ownerPubkey = 'a'.repeat(64);
         const peerPubkey = 'b'.repeat(64);

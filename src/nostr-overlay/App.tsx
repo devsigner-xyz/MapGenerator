@@ -185,6 +185,7 @@ export function App({ mapBridge, services }: AppProps) {
         overlay.activeProfilePubkey,
     ]);
     const verificationByPubkey = useNip05Verification({
+        ownerPubkey: overlay.ownerPubkey,
         profilesByPubkey: verificationProfilesByPubkey,
         targetPubkeys: verificationTargetPubkeys,
     });
@@ -465,7 +466,7 @@ export function App({ mapBridge, services }: AppProps) {
     }, [chatState, chatActiveConversationId]);
 
     const canAccessDirectMessages = Boolean(overlay.ownerPubkey && overlay.canDirectMessages && overlay.directMessagesService);
-    const canAccessSocialNotifications = Boolean(overlay.ownerPubkey);
+    const canAccessSocialNotifications = Boolean(overlay.ownerPubkey && overlay.canWrite && overlay.socialNotificationsService);
     const canAccessFollowingFeed = Boolean(overlay.ownerPubkey);
     const relayStatusTargets = relaySettingsSnapshot.relays;
     const relayConnectionSummary = useRelayConnectionSummary(relayStatusTargets, {

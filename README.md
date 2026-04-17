@@ -114,6 +114,9 @@ See the [documentation](https://maps.probabletrain.com).
 The Nostr overlay now uses a Fastify Backend-for-Frontend (BFF) for social feed,
 notifications, DM read/stream, user search, and signed publish forwarding.
 
+Architecture notes for the backend-first migration are available in
+`docs/portfolio-backend-first.md`.
+
 For local development, run both processes:
 
 - Terminal 1: `pnpm bff:dev`

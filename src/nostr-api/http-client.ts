@@ -29,6 +29,7 @@ export interface HttpClientErrorOptions {
     details?: unknown;
     cause?: unknown;
     isTimeout?: boolean;
+    retryAfterSeconds?: number;
 }
 
 export class HttpClientError extends Error {
@@ -39,6 +40,7 @@ export class HttpClientError extends Error {
     readonly requestId?: string;
     readonly details?: unknown;
     readonly isTimeout: boolean;
+    readonly retryAfterSeconds?: number;
 
     constructor(options: HttpClientErrorOptions) {
         super(options.message);
@@ -50,6 +52,7 @@ export class HttpClientError extends Error {
         this.requestId = options.requestId;
         this.details = options.details;
         this.isTimeout = Boolean(options.isTimeout);
+        this.retryAfterSeconds = options.retryAfterSeconds;
 
         if (options.cause !== undefined) {
             (this as Error & { cause?: unknown }).cause = options.cause;
@@ -170,10 +173,33 @@ function normalizeErrorEnvelope(response: Response, payload: unknown): Normalize
         };
     }
 
+    if (payload && typeof payload === 'object') {
+        const message = (payload as { message?: unknown }).message;
+        if (typeof message === 'string' && message.trim().length > 0) {
+            return {
+                code: normalizeStatusCodeError(response.status),
+                message,
+            };
+        }
+    }
+
     return {
         code: normalizeStatusCodeError(response.status),
         message: response.statusText || `Request failed with status ${response.status}`,
     };
+}
+
+function parseRetryAfterSeconds(value: string | null): number | undefined {
+    if (!value) {
+        return undefined;
+    }
+
+    const numeric = Number.parseInt(value, 10);
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+        return undefined;
+    }
+
+    return numeric;
 }
 
 async function parseJsonBody(response: Response): Promise<unknown> {
@@ -292,6 +318,7 @@ export function createHttpClient(config: HttpClientConfig = {}): HttpClient {
                 url,
                 requestId: normalizedError.requestId,
                 details: normalizedError.details,
+                retryAfterSeconds: parseRetryAfterSeconds(response.headers.get('retry-after')),
             });
         } catch (error) {
             if (error instanceof HttpClientError) {

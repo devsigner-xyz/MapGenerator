@@ -3,6 +3,7 @@ import { getSinglePTag, parseEventFromJson } from '../nostr/dm-service-crypto';
 import type { EncryptionScheme } from '../nostr/auth/session';
 import type { NostrEvent } from '../nostr/types';
 import type { DirectMessageItem, DirectMessagesService } from '../nostr-overlay/query/direct-messages.query';
+import { API_MAX_LIMIT, clampApiLimit } from './api-limits';
 import { createHttpClient, type HttpClient } from './http-client';
 
 interface DmEventDto {
@@ -276,7 +277,7 @@ function toStreamEvent(payload: unknown): DmEventDto | null {
 
 export function createDmApiService(options: CreateDmApiServiceOptions = {}): DirectMessagesService {
     const client = options.client ?? createHttpClient();
-    const defaultLimit = Math.max(1, Math.floor(options.defaultLimit ?? 200));
+    const defaultLimit = clampApiLimit(options.defaultLimit ?? API_MAX_LIMIT);
     const reconnectDelayMs = Math.max(250, Math.floor(options.reconnectDelayMs ?? 1_500));
     const verifyDmEvent = options.verifyDmEvent ?? verifyEvent;
 

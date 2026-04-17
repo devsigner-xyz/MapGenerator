@@ -375,17 +375,18 @@ function SidebarUserMenu({
     onLogout,
 }: Pick<OverlaySidebarProps, 'authSession' | 'ownerPubkey' | 'ownerProfile' | 'onCopyOwnerNpub' | 'onLocateOwner' | 'onViewOwnerDetails' | 'onLogout'>) {
     const { isMobile } = useSidebar();
+    const resolvedOwnerPubkey = ownerPubkey ?? authSession?.pubkey;
 
-    if (!ownerPubkey) {
+    if (!resolvedOwnerPubkey) {
         return null;
     }
 
-    const shortPubkey = `${ownerPubkey.slice(0, 10)}...${ownerPubkey.slice(-6)}`;
+    const shortPubkey = `${resolvedOwnerPubkey.slice(0, 10)}...${resolvedOwnerPubkey.slice(-6)}`;
     const ownerName = resolveDisplayName(ownerProfile, shortPubkey);
-    const ownerFallback = resolveInitials(ownerProfile, ownerPubkey);
+    const ownerFallback = resolveInitials(ownerProfile, resolvedOwnerPubkey);
     let ownerNpub: string | undefined;
     try {
-        ownerNpub = encodeHexToNpub(ownerPubkey);
+        ownerNpub = encodeHexToNpub(resolvedOwnerPubkey);
     } catch {
         ownerNpub = undefined;
     }
@@ -425,23 +426,27 @@ function SidebarUserMenu({
                         align="end"
                     >
                         <DropdownMenuItem onSelect={() => {
-                            void onCopyOwnerNpub?.(ownerNpub || ownerPubkey);
+                            void onCopyOwnerNpub?.(ownerNpub || resolvedOwnerPubkey);
                         }}>
                             <UserRoundIcon />
                             Copiar npub
                         </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => {
-                            onLocateOwner?.();
-                        }}>
-                            <MapPinIcon />
-                            Ubicar en el mapa
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => {
-                            onViewOwnerDetails?.();
-                        }}>
-                            <SearchIcon />
-                            Ver detalles
-                        </DropdownMenuItem>
+                        {ownerPubkey ? (
+                            <DropdownMenuItem onSelect={() => {
+                                onLocateOwner?.();
+                            }}>
+                                <MapPinIcon />
+                                Ubicar en el mapa
+                            </DropdownMenuItem>
+                        ) : null}
+                        {ownerPubkey ? (
+                            <DropdownMenuItem onSelect={() => {
+                                onViewOwnerDetails?.();
+                            }}>
+                                <SearchIcon />
+                                Ver detalles
+                            </DropdownMenuItem>
+                        ) : null}
                         {authSession ? (
                             <>
                                 <DropdownMenuSeparator />
