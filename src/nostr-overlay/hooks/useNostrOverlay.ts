@@ -424,6 +424,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
 
                 const apiService = createDmApiService({
                     client: bffClient,
+                    decryptDm: writeGateway.decryptDm,
                     sendDm: async (input) => {
                         const sendDm = getRuntimeService().sendDm;
                         if (!sendDm) {

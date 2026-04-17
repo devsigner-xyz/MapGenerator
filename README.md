@@ -86,15 +86,19 @@ git clone https://github.com/probabletrain/mapgenerator.git
 cd mapgenerator
 pnpm install
 ```
-3. Start dev server
+3. Start the BFF server (Terminal 1)
+```
+pnpm bff:dev
+```
+4. Start the frontend dev server (Terminal 2)
 ```
 pnpm dev
 ```
-4. Build production bundle
+5. Build production bundle
 ```
 pnpm build
 ```
-5. Preview production bundle
+6. Preview production bundle
 ```
 pnpm preview
 ```
@@ -104,6 +108,53 @@ pnpm preview
 ## Usage
 
 See the [documentation](https://maps.probabletrain.com).
+
+### Local development (frontend + BFF)
+
+The Nostr overlay now uses a Fastify Backend-for-Frontend (BFF) for social feed,
+notifications, DM read/stream, user search, and signed publish forwarding.
+
+For local development, run both processes:
+
+- Terminal 1: `pnpm bff:dev`
+- Terminal 2: `pnpm dev`
+
+In development, Vite proxies `/v1/*` requests to `http://127.0.0.1:3000`.
+
+If you only run `pnpm dev`, some overlay surfaces (for example Agora) can fail with
+`Not found` because `/v1/*` endpoints are served by the BFF.
+
+### BFF health check
+
+Verify the BFF is up:
+
+```sh
+curl http://127.0.0.1:3000/v1/health
+```
+
+Expected response:
+
+```json
+{"status":"ok"}
+```
+
+### Troubleshooting
+
+#### `tsx: not found` when running `pnpm bff:dev`
+
+This usually means dev dependencies were not installed.
+
+```sh
+pnpm install
+pnpm exec tsx --version
+```
+
+### BFF environment variables
+
+- `PORT` (default: `3000`)
+- `HOST` (default: `127.0.0.1`)
+- `BFF_CORS_ORIGINS` (comma-separated allowed origins)
+- `FASTIFY_TRUST_PROXY` (default: `loopback`; supports `true`, `false`, or comma-separated trusted proxies)
 
 ### Routes
 

@@ -110,9 +110,9 @@ function NoteHeaderItem({ note, profile, onCopyNoteId }: NoteHeaderItemProps) {
     const authorName = profileDisplayName(note.pubkey, profile);
 
     return (
-        <Item variant="outline">
+        <Item>
             <ItemMedia>
-                <Avatar>
+                <Avatar size="lg">
                     {profile?.picture ? <AvatarImage src={profile.picture} alt={authorName} /> : null}
                     <AvatarFallback>{profileInitials(note.pubkey, profile)}</AvatarFallback>
                 </Avatar>
