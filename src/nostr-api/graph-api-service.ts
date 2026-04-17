@@ -42,13 +42,12 @@ export interface CreateGraphApiServiceOptions {
     client?: HttpClient;
 }
 
-function toCandidateAuthorsParam(authors?: string[]): string | undefined {
+function toCandidateAuthorsList(authors?: string[]): string[] | undefined {
     if (!authors || authors.length === 0) {
         return undefined;
     }
 
     return [...new Set(authors.map((value) => value.trim().toLowerCase()).filter((value) => value.length > 0))]
-        .join(',');
 }
 
 export function createGraphApiService(options: CreateGraphApiServiceOptions = {}): GraphApiService {
@@ -71,11 +70,11 @@ export function createGraphApiService(options: CreateGraphApiServiceOptions = {}
         },
 
         async loadFollowers(input) {
-            const response = await client.getJson<GraphFollowersResponseDto>('/graph/followers', {
-                query: {
+            const response = await client.postJson<GraphFollowersResponseDto>('/graph/followers', {
+                body: {
                     ownerPubkey: input.ownerPubkey,
                     pubkey: input.pubkey,
-                    candidateAuthors: toCandidateAuthorsParam(input.candidateAuthors),
+                    candidateAuthors: toCandidateAuthorsList(input.candidateAuthors),
                 },
             });
 
@@ -103,11 +102,11 @@ export function createGraphApiService(options: CreateGraphApiServiceOptions = {}
         },
 
         async loadProfileStats(input) {
-            return client.getJson<ProfileStatsResponseDto>('/content/profile-stats', {
-                query: {
+            return client.postJson<ProfileStatsResponseDto>('/content/profile-stats', {
+                body: {
                     ownerPubkey: input.ownerPubkey,
                     pubkey: input.pubkey,
-                    candidateAuthors: toCandidateAuthorsParam(input.candidateAuthors),
+                    candidateAuthors: toCandidateAuthorsList(input.candidateAuthors),
                 },
             });
         },

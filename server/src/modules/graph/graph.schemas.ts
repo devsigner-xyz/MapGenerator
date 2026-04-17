@@ -9,6 +9,12 @@ export interface GraphFollowersQuery {
   candidateAuthors?: string;
 }
 
+export interface GraphFollowersBody {
+  ownerPubkey: string;
+  pubkey: string;
+  candidateAuthors?: string[];
+}
+
 export interface GraphFollowsResponseDto {
   pubkey: string;
   follows: string[];
@@ -55,6 +61,30 @@ export const graphFollowersQuerySchema = {
     candidateAuthors: {
       type: 'string',
       maxLength: 50_000,
+    },
+  },
+} as const;
+
+export const graphFollowersBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['ownerPubkey', 'pubkey'],
+  properties: {
+    ownerPubkey: {
+      type: 'string',
+      pattern: LOWER_HEX_64_PATTERN,
+    },
+    pubkey: {
+      type: 'string',
+      pattern: LOWER_HEX_64_PATTERN,
+    },
+    candidateAuthors: {
+      type: 'array',
+      maxItems: 2_000,
+      items: {
+        type: 'string',
+        pattern: LOWER_HEX_64_PATTERN,
+      },
     },
   },
 } as const;

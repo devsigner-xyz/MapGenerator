@@ -149,10 +149,17 @@ class GatewayContentService implements ContentService {
   async getProfileStats(query: ProfileStatsQuery): Promise<ProfileStatsResponseDto> {
     const candidateAuthors = parseCandidateAuthors(query.candidateAuthors);
 
-    return this.profileStatsGateway.query({
-      key: `content:profile-stats:${normalizePubkey(query.pubkey)}:${candidateAuthors.join(',')}`,
-      params: query,
-    });
+    try {
+      return await this.profileStatsGateway.query({
+        key: `content:profile-stats:${normalizePubkey(query.pubkey)}:${candidateAuthors.join(',')}`,
+        params: query,
+      });
+    } catch {
+      return {
+        followsCount: 0,
+        followersCount: 0,
+      };
+    }
   }
 }
 

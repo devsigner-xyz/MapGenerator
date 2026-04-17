@@ -23,6 +23,7 @@ interface SocialSidebarProps {
     onSelectFollowing?: (pubkey: string) => void;
     onLocateFollowing?: (pubkey: string) => void;
     onMessagePerson?: (pubkey: string) => void | Promise<void>;
+    onFollowPerson?: (pubkey: string) => void | Promise<void>;
     onViewPersonDetails?: (pubkey: string) => void;
     zapAmounts?: number[];
     onConfigureZapAmounts?: () => void;
@@ -45,6 +46,7 @@ export function SocialSidebar({
     onSelectFollowing,
     onLocateFollowing,
     onMessagePerson,
+    onFollowPerson,
     onViewPersonDetails,
     zapAmounts = [21, 128, 256],
     onConfigureZapAmounts,
@@ -162,6 +164,8 @@ export function SocialSidebar({
                             onViewDetails={onViewPersonDetails}
                             zapAmounts={zapAmounts}
                             onConfigureZapAmounts={onConfigureZapAmounts}
+                            followedPubkeys={followingPeople}
+                            onFollowPerson={onFollowPerson}
                             searchQuery={followerPeople.length > 0 ? followersSearch : undefined}
                             onSearchQueryChange={followerPeople.length > 0 ? setFollowersSearch : undefined}
                             searchAriaLabel={followerPeople.length > 0 ? 'Buscar en seguidores' : undefined}

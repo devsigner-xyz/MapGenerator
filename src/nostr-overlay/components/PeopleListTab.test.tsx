@@ -365,6 +365,48 @@ describe('PeopleListTab', () => {
         expect((onCopyNpub.mock.calls[0][0] as string).startsWith('npub1')).toBe(true);
     });
 
+    test('shows follow action and disables rows already followed', async () => {
+        const alice = makePubkey(1);
+        const bob = makePubkey(2);
+        const followDeferred = new Promise<void>(() => {});
+        const onFollowPerson = vi.fn(() => followDeferred);
+
+        const rendered = await renderElement(
+            <PeopleListTab
+                people={[alice, bob]}
+                profiles={{
+                    [alice]: { pubkey: alice, displayName: 'Alice' },
+                    [bob]: { pubkey: bob, displayName: 'Bob' },
+                }}
+                emptyText="Sin resultados"
+                loading={false}
+                followedPubkeys={[bob]}
+                onFollowPerson={onFollowPerson}
+            />
+        );
+        mounted.push(rendered);
+
+        const followAliceButton = rendered.container.querySelector('button[aria-label="Seguir a Alice"]') as HTMLButtonElement;
+        const followedBobButton = rendered.container.querySelector('button[aria-label="Ya sigues a Bob"]') as HTMLButtonElement;
+
+        expect(followAliceButton).toBeDefined();
+        expect(followAliceButton.disabled).toBe(false);
+        expect((followAliceButton.textContent || '').trim()).toBe('Seguir');
+
+        expect(followedBobButton).toBeDefined();
+        expect(followedBobButton.disabled).toBe(true);
+        expect((followedBobButton.textContent || '').trim()).toBe('Siguiendo');
+
+        await act(async () => {
+            followAliceButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onFollowPerson).toHaveBeenCalledTimes(1);
+        expect(onFollowPerson).toHaveBeenCalledWith(alice);
+        expect(followAliceButton.disabled).toBe(true);
+        expect((followAliceButton.textContent || '').trim()).toBe('Siguiendo');
+    });
+
     test('renders separators between people rows', async () => {
         const people = [makePubkey(1), makePubkey(2), makePubkey(3)];
         const rendered = await renderElement(

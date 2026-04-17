@@ -24,6 +24,12 @@ export interface ProfileStatsQuery {
   candidateAuthors?: string;
 }
 
+export interface ProfileStatsBody {
+  ownerPubkey: string;
+  pubkey: string;
+  candidateAuthors?: string[];
+}
+
 export interface ProfileStatsResponseDto {
   followsCount: number;
   followersCount: number;
@@ -114,6 +120,30 @@ export const profileStatsQuerySchema = {
     candidateAuthors: {
       type: 'string',
       maxLength: 50_000,
+    },
+  },
+} as const;
+
+export const profileStatsBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['ownerPubkey', 'pubkey'],
+  properties: {
+    ownerPubkey: {
+      type: 'string',
+      pattern: LOWER_HEX_64_PATTERN,
+    },
+    pubkey: {
+      type: 'string',
+      pattern: LOWER_HEX_64_PATTERN,
+    },
+    candidateAuthors: {
+      type: 'array',
+      maxItems: 2_000,
+      items: {
+        type: 'string',
+        pattern: LOWER_HEX_64_PATTERN,
+      },
     },
   },
 } as const;

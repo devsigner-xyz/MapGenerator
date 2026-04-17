@@ -4,6 +4,8 @@ import type { SimplePool } from 'nostr-tools';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createContentService } from './content.service';
+import type { RelayGateway } from '../../relay/relay-gateway.types';
+import type { ContentPostsQuery, ContentPostsResponseDto, ProfileStatsQuery, ProfileStatsResponseDto } from './content.schemas';
 
 const OWNER_PUBKEY = 'a'.repeat(64);
 const TARGET_PUBKEY = 'b'.repeat(64);
@@ -103,6 +105,39 @@ describe('content service', () => {
     expect(result).toEqual({
       followsCount: 2,
       followersCount: 1,
+    });
+  });
+
+  it('returns zeroed stats when profile stats gateway query fails', async () => {
+    const postsGateway: RelayGateway<ContentPostsQuery, ContentPostsResponseDto> = {
+      query: vi.fn(async () => ({
+        posts: [],
+        nextUntil: null,
+        hasMore: false,
+      })),
+      clearCache: vi.fn(),
+    };
+    const profileStatsGateway: RelayGateway<ProfileStatsQuery, ProfileStatsResponseDto> = {
+      query: vi.fn(async () => {
+        throw new Error('gateway timeout');
+      }),
+      clearCache: vi.fn(),
+    };
+
+    const service = createContentService({
+      postsGateway,
+      profileStatsGateway,
+    });
+
+    const result = await service.getProfileStats({
+      ownerPubkey: OWNER_PUBKEY,
+      pubkey: TARGET_PUBKEY,
+      candidateAuthors: 'c'.repeat(64),
+    });
+
+    expect(result).toEqual({
+      followsCount: 0,
+      followersCount: 0,
     });
   });
 });

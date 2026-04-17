@@ -33,6 +33,7 @@ export interface CreateIdentityApiServiceOptions {
 }
 
 const RESOLVE_PROFILES_MAX_BATCH_SIZE = 200;
+const VERIFY_NIP05_MAX_BATCH_SIZE = 50;
 
 function chunkValues<T>(values: T[], size: number): T[][] {
     const chunks: T[][] = [];
@@ -92,25 +93,32 @@ export function createIdentityApiService(options: CreateIdentityApiServiceOption
                 return [];
             }
 
-            const response = await client.postJson<VerifyNip05BatchResponseDto>('/identity/nip05/verify-batch', {
-                body: {
-                    ownerPubkey: input.ownerPubkey,
-                    checks: input.checks,
-                    timeoutMs: input.timeoutMs,
-                },
-            });
+            const batches = chunkValues(input.checks, VERIFY_NIP05_MAX_BATCH_SIZE);
+            const aggregatedResults: VerifyNip05BatchResultItem[] = [];
 
-            return response.results.map((item) => ({
-                pubkey: item.pubkey,
-                result: {
-                    status: item.status,
-                    identifier: item.identifier,
-                    displayIdentifier: item.displayIdentifier,
-                    resolvedPubkey: item.resolvedPubkey,
-                    error: item.error,
-                    checkedAt: item.checkedAt,
-                },
-            }));
+            for (const checks of batches) {
+                const response = await client.postJson<VerifyNip05BatchResponseDto>('/identity/nip05/verify-batch', {
+                    body: {
+                        ownerPubkey: input.ownerPubkey,
+                        checks,
+                        timeoutMs: input.timeoutMs,
+                    },
+                });
+
+                aggregatedResults.push(...response.results.map((item) => ({
+                    pubkey: item.pubkey,
+                    result: {
+                        status: item.status,
+                        identifier: item.identifier,
+                        displayIdentifier: item.displayIdentifier,
+                        resolvedPubkey: item.resolvedPubkey,
+                        error: item.error,
+                        checkedAt: item.checkedAt,
+                    },
+                })));
+            }
+
+            return aggregatedResults;
         },
 
         async resolveProfiles(input) {

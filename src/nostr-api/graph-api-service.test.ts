@@ -4,18 +4,13 @@ import type { HttpClient } from './http-client';
 import { createGraphApiService } from './graph-api-service';
 
 describe('createGraphApiService', () => {
-    test('serializes candidate authors and maps content responses', async () => {
+    test('sends followers and profile stats candidate authors via POST body and maps content responses', async () => {
         const getJson = vi
             .fn()
             .mockImplementationOnce(async () => ({
                 pubkey: 'a'.repeat(64),
                 follows: ['b'.repeat(64)],
                 relayHints: ['wss://relay.one'],
-            }))
-            .mockImplementationOnce(async () => ({
-                pubkey: 'a'.repeat(64),
-                followers: ['c'.repeat(64)],
-                complete: true,
             }))
             .mockImplementationOnce(async () => ({
                 posts: [
@@ -28,6 +23,14 @@ describe('createGraphApiService', () => {
                 ],
                 hasMore: false,
                 nextUntil: null,
+            }));
+
+        const postJson = vi
+            .fn()
+            .mockImplementationOnce(async () => ({
+                pubkey: 'a'.repeat(64),
+                followers: ['c'.repeat(64)],
+                complete: true,
             }))
             .mockImplementationOnce(async () => ({
                 followsCount: 1,
@@ -38,7 +41,7 @@ describe('createGraphApiService', () => {
             requestRaw: vi.fn(async () => new Response(null, { status: 200 })),
             requestJson: vi.fn() as unknown as HttpClient['requestJson'],
             getJson: getJson as unknown as HttpClient['getJson'],
-            postJson: vi.fn() as unknown as HttpClient['postJson'],
+            postJson: postJson as unknown as HttpClient['postJson'],
         };
 
         const service = createGraphApiService({ client });
@@ -79,9 +82,14 @@ describe('createGraphApiService', () => {
             followersCount: 2,
         });
 
-        expect(getJson).toHaveBeenNthCalledWith(2, '/graph/followers', expect.objectContaining({
-            query: expect.objectContaining({
-                candidateAuthors: 'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
+        expect(postJson).toHaveBeenNthCalledWith(1, '/graph/followers', expect.objectContaining({
+            body: expect.objectContaining({
+                candidateAuthors: ['c'.repeat(64)],
+            }),
+        }));
+        expect(postJson).toHaveBeenNthCalledWith(2, '/content/profile-stats', expect.objectContaining({
+            body: expect.objectContaining({
+                candidateAuthors: ['c'.repeat(64)],
             }),
         }));
     });

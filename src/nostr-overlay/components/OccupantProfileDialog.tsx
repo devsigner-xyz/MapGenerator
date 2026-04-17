@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode, type UIEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode, type UIEvent } from 'react';
 import Lightbox from 'yet-another-react-lightbox';
 import type { Nip05ValidationResult } from '../../nostr/nip05';
 import { encodeHexToNpub } from '../../nostr/npub';
@@ -15,9 +15,13 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item';
+import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 
 interface OccupantProfileDialogProps {
+    ownerPubkey?: string;
     pubkey: string;
     profile?: NostrProfile;
     followsCount: number;
@@ -38,6 +42,8 @@ interface OccupantProfileDialogProps {
     onLoadMorePosts: () => Promise<void>;
     onSelectHashtag?: (hashtag: string) => void;
     onSelectProfile?: (pubkey: string) => void;
+    ownerFollows?: string[];
+    onFollowProfile?: (pubkey: string) => void | Promise<void>;
     onResolveProfiles?: (pubkeys: string[]) => Promise<void> | void;
     onSelectEventReference?: (eventId: string) => void;
     onResolveEventReferences?: (
@@ -52,11 +58,42 @@ function resolveName(pubkey: string, profile?: NostrProfile): string {
     return profile?.displayName ?? profile?.name ?? `${pubkey.slice(0, 10)}...${pubkey.slice(-6)}`;
 }
 
+function resolveInitials(pubkey: string, profile?: NostrProfile): string {
+    const name = resolveName(pubkey, profile).trim();
+    if (!name) {
+        return pubkey.slice(0, 2).toUpperCase();
+    }
+
+    const parts = name.split(/\s+/).filter((part) => part.length > 0);
+    if (parts.length === 1) {
+        return parts[0].slice(0, 2).toUpperCase();
+    }
+
+    return `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase();
+}
+
+function pubkeyToNpub(pubkey: string): string {
+    try {
+        return encodeHexToNpub(pubkey);
+    } catch {
+        return pubkey;
+    }
+}
+
+function truncateIdentifier(identifier: string): string {
+    if (identifier.length <= 22) {
+        return identifier;
+    }
+
+    return `${identifier.slice(0, 14)}...${identifier.slice(-6)}`;
+}
+
 const NETWORK_PAGE_SIZE = 20;
 const NETWORK_LOAD_DELAY_MS = 120;
 type OccupantProfileTab = 'info' | 'feed' | 'followers' | 'following';
 
 export function OccupantProfileDialog({
+    ownerPubkey,
     pubkey,
     profile,
     posts,
@@ -73,6 +110,8 @@ export function OccupantProfileDialog({
     onLoadMorePosts,
     onSelectHashtag,
     onSelectProfile,
+    ownerFollows = [],
+    onFollowProfile,
     onResolveProfiles,
     onSelectEventReference,
     onResolveEventReferences,
@@ -85,8 +124,10 @@ export function OccupantProfileDialog({
     const [visibleFollowersCount, setVisibleFollowersCount] = useState(() => Math.min(NETWORK_PAGE_SIZE, followers.length));
     const [followsLoadingMore, setFollowsLoadingMore] = useState(false);
     const [followersLoadingMore, setFollowersLoadingMore] = useState(false);
+    const [pendingFollowByPubkey, setPendingFollowByPubkey] = useState<Record<string, boolean>>({});
     const [activeTab, setActiveTab] = useState<OccupantProfileTab>('info');
     const [isAvatarLightboxOpen, setIsAvatarLightboxOpen] = useState(false);
+    const ownerFollowSet = useMemo(() => new Set(ownerFollows), [ownerFollows]);
     const isNip05Verified = verification?.status === 'verified';
     const displayName = resolveName(pubkey, profile);
 
@@ -206,6 +247,31 @@ export function OccupantProfileDialog({
         }
     };
 
+    const followProfile = (targetPubkey: string): void => {
+        if (typeof onFollowProfile !== 'function') {
+            return;
+        }
+
+        setPendingFollowByPubkey((current) => ({
+            ...current,
+            [targetPubkey]: true,
+        }));
+
+        void Promise.resolve(onFollowProfile(targetPubkey))
+            .catch((): void => undefined)
+            .finally((): void => {
+                setPendingFollowByPubkey((current) => {
+                    if (!current[targetPubkey]) {
+                        return current;
+                    }
+
+                    const next = { ...current };
+                    delete next[targetPubkey];
+                    return next;
+                });
+            });
+    };
+
     const infoRows: Array<{ label: string; value: ReactNode }> = [
         {
             label: 'Descripcion',
@@ -252,6 +318,69 @@ export function OccupantProfileDialog({
                 : 'No declaradas',
         },
     ];
+
+    const renderNetworkPersonItem = (personPubkey: string) => {
+        const personProfile = networkProfiles[personPubkey];
+        const personDisplay = resolveName(personPubkey, personProfile);
+        const personNpub = pubkeyToNpub(personPubkey);
+        const personNpubLabel = personNpub.startsWith('npub1')
+            ? truncateIdentifier(personNpub)
+            : `${personPubkey.slice(0, 8)}...${personPubkey.slice(-6)}`;
+        const selectable = typeof onSelectProfile === 'function';
+        const canFollow = typeof onFollowProfile === 'function' && ownerPubkey !== personPubkey;
+        const isFollowed = ownerFollowSet.has(personPubkey);
+        const isFollowPending = Boolean(pendingFollowByPubkey[personPubkey]);
+        const followDisabled = isFollowed || isFollowPending;
+        const followLabel = followDisabled ? 'Siguiendo' : 'Seguir';
+        const followAriaLabel = followDisabled ? `Ya sigues a ${personDisplay}` : `Seguir a ${personDisplay}`;
+
+        const personContent = (
+            <>
+                <ItemMedia>
+                    <Avatar className="size-8">
+                        {personProfile?.picture ? (
+                            <AvatarImage src={personProfile.picture} alt={personDisplay} />
+                        ) : null}
+                        <AvatarFallback>{resolveInitials(personPubkey, personProfile)}</AvatarFallback>
+                    </Avatar>
+                </ItemMedia>
+                <ItemContent className="min-w-0">
+                    <ItemTitle>
+                        <span className="truncate">{personDisplay}</span>
+                    </ItemTitle>
+                    <ItemDescription className="truncate">{personNpubLabel}</ItemDescription>
+                </ItemContent>
+            </>
+        );
+
+        return (
+            <Item variant="default" size="sm" className="gap-2">
+                {selectable ? (
+                    <button
+                        type="button"
+                        className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 text-left outline-none"
+                        onClick={() => onSelectProfile?.(personPubkey)}
+                    >
+                        {personContent}
+                    </button>
+                ) : personContent}
+
+                {canFollow ? (
+                    <Button
+                        type="button"
+                        size="xs"
+                        variant={followDisabled ? 'secondary' : 'outline'}
+                        className="shrink-0"
+                        disabled={followDisabled}
+                        aria-label={followAriaLabel}
+                        onClick={() => followProfile(personPubkey)}
+                    >
+                        {followLabel}
+                    </Button>
+                ) : null}
+            </Item>
+        );
+    };
 
     return (
         <Dialog open onOpenChange={(open) => {
@@ -454,11 +583,14 @@ export function OccupantProfileDialog({
                                                 </div>
                                             ) : null}
                                             {followers.length > 0 ? (
-                                                <ul className="nostr-profile-network-list">
-                                                    {visibleFollowers.map((followerPubkey) => (
-                                                        <li key={followerPubkey}>{resolveName(followerPubkey, networkProfiles[followerPubkey])}</li>
+                                                <ItemGroup className="nostr-profile-network-list">
+                                                    {visibleFollowers.map((followerPubkey, index) => (
+                                                        <div key={followerPubkey} className="nostr-profile-network-item-wrap">
+                                                            {renderNetworkPersonItem(followerPubkey)}
+                                                            {index < visibleFollowers.length - 1 ? <Separator className="nostr-profile-network-separator" /> : null}
+                                                        </div>
                                                     ))}
-                                                </ul>
+                                                </ItemGroup>
                                             ) : null}
                                             <ListLoadingFooter loading={followersLoadingMore} />
                                         </>
@@ -497,11 +629,14 @@ export function OccupantProfileDialog({
                                                 </div>
                                             ) : null}
                                             {follows.length > 0 ? (
-                                                <ul className="nostr-profile-network-list">
-                                                    {visibleFollows.map((followPubkey) => (
-                                                        <li key={followPubkey}>{resolveName(followPubkey, networkProfiles[followPubkey])}</li>
+                                                <ItemGroup className="nostr-profile-network-list">
+                                                    {visibleFollows.map((followPubkey, index) => (
+                                                        <div key={followPubkey} className="nostr-profile-network-item-wrap">
+                                                            {renderNetworkPersonItem(followPubkey)}
+                                                            {index < visibleFollows.length - 1 ? <Separator className="nostr-profile-network-separator" /> : null}
+                                                        </div>
                                                     ))}
-                                                </ul>
+                                                </ItemGroup>
                                             ) : null}
                                             <ListLoadingFooter loading={followsLoadingMore} />
                                         </>

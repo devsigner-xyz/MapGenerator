@@ -332,6 +332,10 @@ describe('OccupantProfileDialog', () => {
         await selectTab('Seguidores');
 
         await waitForCondition(() => (document.body.textContent || '').includes('Dave'));
+        const followerDescriptions = Array.from(document.body.querySelectorAll('.nostr-profile-network-list [data-slot="item-description"]'))
+            .map((node) => (node.textContent || '').trim())
+            .filter((value) => value.length > 0);
+        expect(followerDescriptions.some((value) => value.startsWith('npub1'))).toBe(true);
 
         await selectTab('Siguiendo');
 
@@ -339,6 +343,56 @@ describe('OccupantProfileDialog', () => {
             const text = document.body.textContent || '';
             return text.includes('Bob') && text.includes('Carol');
         });
+        const followingDescriptions = Array.from(document.body.querySelectorAll('.nostr-profile-network-list [data-slot="item-description"]'))
+            .map((node) => (node.textContent || '').trim())
+            .filter((value) => value.length > 0);
+        expect(followingDescriptions.some((value) => value.startsWith('npub1'))).toBe(true);
+    });
+
+    test('shows follow action in network tabs and disables already followed people', async () => {
+        const onFollowProfile = vi.fn(() => new Promise<void>(() => {}));
+        const rendered = await renderElement(
+            <OccupantProfileDialog
+                {...buildProps({
+                    ownerPubkey: 'f'.repeat(64),
+                    ownerFollows: ['b'.repeat(64)],
+                    onFollowProfile,
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        await selectTab('Seguidores');
+        await waitForCondition(() => (document.body.textContent || '').includes('Dave'));
+
+        const followDaveButton = document.body.querySelector('button[aria-label="Seguir a Dave"]') as HTMLButtonElement;
+        expect(followDaveButton).toBeDefined();
+        expect(followDaveButton.disabled).toBe(false);
+        expect((followDaveButton.textContent || '').trim()).toBe('Seguir');
+
+        await act(async () => {
+            followDaveButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onFollowProfile).toHaveBeenCalledTimes(1);
+        expect(onFollowProfile).toHaveBeenCalledWith('d'.repeat(64));
+        expect(followDaveButton.disabled).toBe(true);
+        expect((followDaveButton.textContent || '').trim()).toBe('Siguiendo');
+
+        await selectTab('Siguiendo');
+        await waitForCondition(() => {
+            const text = document.body.textContent || '';
+            return text.includes('Bob') && text.includes('Carol');
+        });
+
+        const followedBobButton = document.body.querySelector('button[aria-label="Ya sigues a Bob"]') as HTMLButtonElement;
+        const followCarolButton = document.body.querySelector('button[aria-label="Seguir a Carol"]') as HTMLButtonElement;
+        expect(followedBobButton).toBeDefined();
+        expect(followedBobButton.disabled).toBe(true);
+        expect((followedBobButton.textContent || '').trim()).toBe('Siguiendo');
+        expect(followCarolButton).toBeDefined();
+        expect(followCarolButton.disabled).toBe(false);
+        expect((followCarolButton.textContent || '').trim()).toBe('Seguir');
     });
 
     test('keeps header and tabs fixed while only tab panels are scrollable', async () => {

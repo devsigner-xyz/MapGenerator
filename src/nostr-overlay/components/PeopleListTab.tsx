@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type UIEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type UIEvent } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { EllipsisVerticalIcon, SearchIcon, XIcon } from 'lucide-react';
 import { encodeHexToNpub } from '../../nostr/npub';
@@ -48,6 +48,8 @@ interface PeopleListTabProps {
     onSearchQueryChange?: (value: string) => void;
     searchAriaLabel?: string;
     verificationByPubkey?: Record<string, Nip05ValidationResult | undefined>;
+    followedPubkeys?: string[];
+    onFollowPerson?: (pubkey: string) => void | Promise<void>;
 }
 
 function personName(pubkey: string, profile: NostrProfile | undefined): string {
@@ -110,6 +112,8 @@ export function PeopleListTab({
     onSearchQueryChange,
     searchAriaLabel,
     verificationByPubkey = {},
+    followedPubkeys = [],
+    onFollowPerson,
 }: PeopleListTabProps) {
     const hasSearch = typeof onSearchQueryChange === 'function';
     const hasSearchQuery = (searchQuery || '').trim().length > 0;
@@ -118,10 +122,13 @@ export function PeopleListTab({
     const loadMoreTimerRef = useRef<number | null>(null);
     const [visibleCount, setVisibleCount] = useState(() => Math.min(LOAD_MORE_PAGE_SIZE, people.length));
     const [loadingMore, setLoadingMore] = useState(false);
+    const [pendingFollowByPubkey, setPendingFollowByPubkey] = useState<Record<string, boolean>>({});
+    const followedSet = useMemo(() => new Set(followedPubkeys), [followedPubkeys]);
 
     useEffect(() => {
         setVisibleCount(Math.min(LOAD_MORE_PAGE_SIZE, people.length));
         setLoadingMore(false);
+        setPendingFollowByPubkey({});
         if (scrollContainerRef.current) {
             scrollContainerRef.current.scrollTop = 0;
         }
@@ -175,6 +182,31 @@ export function PeopleListTab({
         }));
     };
 
+    const followPerson = (pubkey: string): void => {
+        if (typeof onFollowPerson !== 'function') {
+            return;
+        }
+
+        setPendingFollowByPubkey((current) => ({
+            ...current,
+            [pubkey]: true,
+        }));
+
+        void Promise.resolve(onFollowPerson(pubkey))
+            .catch((): void => undefined)
+            .finally((): void => {
+                setPendingFollowByPubkey((current) => {
+                    if (!current[pubkey]) {
+                        return current;
+                    }
+
+                    const next = { ...current };
+                    delete next[pubkey];
+                    return next;
+                });
+            });
+    };
+
     const rowVirtualizer = useVirtualizer({
         count: visiblePeople.length,
         getScrollElement: () => scrollContainerRef.current,
@@ -211,11 +243,17 @@ export function PeopleListTab({
         const canCopy = typeof onCopyNpub === 'function';
         const canSendMessage = typeof onSendMessage === 'function';
         const canViewDetails = typeof onViewDetails === 'function';
+        const canFollow = typeof onFollowPerson === 'function';
         const hasActions = true;
         const display = personName(pubkey, profile);
         const npub = pubkeyToNpub(pubkey);
         const npubLabel = npub.startsWith('npub1') ? truncateIdentifier(npub) : `${pubkey.slice(0, 8)}...${pubkey.slice(-6)}`;
         const verification = verificationByPubkey[pubkey];
+        const isFollowed = followedSet.has(pubkey);
+        const isFollowPending = Boolean(pendingFollowByPubkey[pubkey]);
+        const followDisabled = isFollowed || isFollowPending;
+        const followLabel = followDisabled ? 'Siguiendo' : 'Seguir';
+        const followAriaLabel = followDisabled ? `Ya sigues a ${display}` : `Seguir a ${display}`;
 
         return (
             <Item
@@ -266,6 +304,20 @@ export function PeopleListTab({
                         </ItemContent>
                     </>
                 )}
+
+                {canFollow ? (
+                    <Button
+                        type="button"
+                        variant={followDisabled ? 'secondary' : 'outline'}
+                        size="xs"
+                        className="shrink-0"
+                        disabled={followDisabled}
+                        aria-label={followAriaLabel}
+                        onClick={() => followPerson(pubkey)}
+                    >
+                        {followLabel}
+                    </Button>
+                ) : null}
 
                 {hasActions ? (
                     <ContextMenu>

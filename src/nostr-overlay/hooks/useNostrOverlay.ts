@@ -1305,6 +1305,91 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         }));
     };
 
+    const followPerson = async (pubkey: string): Promise<void> => {
+        const normalizedPubkey = pubkey.trim().toLowerCase();
+        if (!/^[a-f0-9]{64}$/.test(normalizedPubkey)) {
+            throw new Error('La cuenta a seguir no es valida');
+        }
+
+        const current = latestStateRef.current;
+        if (!hasLoadedOverlayData(current.status)) {
+            throw new Error('La red social aun se esta cargando');
+        }
+
+        if (!isWriteEnabled(current.data.authSession)) {
+            throw new Error('Tu sesion actual no puede seguir cuentas');
+        }
+
+        if (current.data.ownerPubkey === normalizedPubkey) {
+            return;
+        }
+
+        const nextFollows = dedupe([...current.data.follows, normalizedPubkey]);
+        if (nextFollows.length === current.data.follows.length) {
+            return;
+        }
+
+        await writeGateway.publishContactList(nextFollows);
+
+        setState((nextState) => {
+            if (!hasLoadedOverlayData(nextState.status) || !nextState.data.ownerPubkey) {
+                return nextState;
+            }
+
+            const updatedFollows = nextState.data.follows.includes(normalizedPubkey)
+                ? nextState.data.follows
+                : dedupe([...nextState.data.follows, normalizedPubkey]);
+
+            const assignmentPubkeys = dedupe([...updatedFollows, ...nextState.data.featuredPubkeys]);
+            let assignments = nextState.data.assignments;
+            let ownerBuildingIndex = nextState.data.ownerBuildingIndex;
+            let buildingsCount = nextState.data.buildingsCount;
+            let parkCount = nextState.data.parkCount;
+
+            if (mapBridge) {
+                const buildings = mapBridge.listBuildings();
+                const reservedBuildingIndexes = getReservedSpecialBuildingIndexes(mapBridge);
+                assignments = assignPubkeysToBuildings({
+                    pubkeys: assignmentPubkeys,
+                    priorityPubkeys: nextState.data.featuredPubkeys,
+                    buildingsCount: buildings.length,
+                    seed: nextState.data.ownerPubkey,
+                    excludedBuildingIndexes: reservedBuildingIndexes,
+                });
+
+                const occupancy = buildOccupancyState({
+                    buildingsCount: buildings.length,
+                    assignments: assignments.assignments,
+                    selectedPubkey: nextState.data.selectedPubkey,
+                });
+
+                mapBridge.applyOccupancy({
+                    byBuildingIndex: occupancy.byBuildingIndex,
+                    selectedBuildingIndex: occupancy.selectedBuildingIndex,
+                });
+
+                ownerBuildingIndex = resolveOwnerBuildingIndex(nextState.data.ownerPubkey, buildings.length, reservedBuildingIndexes);
+                buildingsCount = buildings.length;
+                parkCount = mapBridge.getParkCount();
+            }
+
+            return {
+                ...nextState,
+                data: {
+                    ...nextState.data,
+                    follows: updatedFollows,
+                    assignments,
+                    ownerBuildingIndex,
+                    buildingsCount,
+                    parkCount,
+                },
+            };
+        });
+
+        void queryClient.invalidateQueries({ queryKey: nostrOverlayQueryKeys.invalidation.followingFeed() });
+        void queryClient.invalidateQueries({ queryKey: nostrOverlayQueryKeys.invalidation.activeProfile() });
+    };
+
     const openActiveProfile = (pubkey: string, buildingIndex?: number): void => {
         if (!mapBridge || !hasLoadedOverlayData(state.status) || !pubkey) {
             return;
@@ -1651,6 +1736,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         loadProfilesByPubkeys,
         loadEventsByIds,
         selectFollowing,
+        followPerson,
         openActiveProfile,
         closeActiveProfileDialog,
     };

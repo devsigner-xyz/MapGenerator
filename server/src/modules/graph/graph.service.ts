@@ -176,10 +176,18 @@ class GatewayGraphService implements GraphService {
   async getFollowers(query: GraphFollowersQuery): Promise<GraphFollowersResponseDto> {
     const candidateAuthors = parseCandidateAuthors(query.candidateAuthors);
 
-    return this.followersGateway.query({
-      key: `graph:followers:${normalizePubkey(query.pubkey)}:${candidateAuthors.join(',')}`,
-      params: query,
-    });
+    try {
+      return await this.followersGateway.query({
+        key: `graph:followers:${normalizePubkey(query.pubkey)}:${candidateAuthors.join(',')}`,
+        params: query,
+      });
+    } catch {
+      return {
+        pubkey: normalizePubkey(query.pubkey),
+        followers: [],
+        complete: false,
+      };
+    }
   }
 }
 
@@ -256,46 +264,50 @@ const createPoolFetchers = (options: {
     let until: number | undefined;
     let complete = false;
 
-    await queryWithFallback(async (relays) => {
-      if (relays.length === 0) {
-        complete = true;
-        return;
-      }
-
-      for (let batchIndex = 0; batchIndex < FOLLOWERS_TAG_MAX_BATCHES; batchIndex += 1) {
-        const events = await options.pool.querySync(relays, {
-          kinds: [3],
-          '#p': [targetPubkey],
-          until,
-          limit: FOLLOWERS_TAG_BATCH_LIMIT,
-        }) as NostrEventLike[];
-
-        if (events.length === 0) {
+    try {
+      await queryWithFallback(async (relays) => {
+        if (relays.length === 0) {
           complete = true;
-          break;
+          return;
         }
 
-        const { minCreatedAt } = collectFollowersFromEvents(events, targetPubkey, followers);
-        if (events.length < FOLLOWERS_TAG_BATCH_LIMIT) {
-          complete = true;
-          break;
+        for (let batchIndex = 0; batchIndex < FOLLOWERS_TAG_MAX_BATCHES; batchIndex += 1) {
+          const events = await options.pool.querySync(relays, {
+            kinds: [3],
+            '#p': [targetPubkey],
+            until,
+            limit: FOLLOWERS_TAG_BATCH_LIMIT,
+          }) as NostrEventLike[];
+
+          if (events.length === 0) {
+            complete = true;
+            break;
+          }
+
+          const { minCreatedAt } = collectFollowersFromEvents(events, targetPubkey, followers);
+          if (events.length < FOLLOWERS_TAG_BATCH_LIMIT) {
+            complete = true;
+            break;
+          }
+
+          if (Number.isFinite(minCreatedAt)) {
+            until = minCreatedAt - 1;
+          }
         }
 
-        if (Number.isFinite(minCreatedAt)) {
-          until = minCreatedAt - 1;
+        for (const authors of chunkArray(candidateAuthors, CANDIDATE_AUTHOR_BATCH_SIZE)) {
+          const events = await options.pool.querySync(relays, {
+            kinds: [3],
+            authors,
+            limit: Math.max(FOLLOWERS_TAG_BATCH_LIMIT, authors.length * 3),
+          }) as NostrEventLike[];
+
+          collectFollowersFromEvents(events, targetPubkey, followers);
         }
-      }
-
-      for (const authors of chunkArray(candidateAuthors, CANDIDATE_AUTHOR_BATCH_SIZE)) {
-        const events = await options.pool.querySync(relays, {
-          kinds: [3],
-          authors,
-          limit: Math.max(FOLLOWERS_TAG_BATCH_LIMIT, authors.length * 3),
-        }) as NostrEventLike[];
-
-        collectFollowersFromEvents(events, targetPubkey, followers);
-      }
-    });
+      });
+    } catch {
+      complete = false;
+    }
 
     return {
       pubkey: targetPubkey,

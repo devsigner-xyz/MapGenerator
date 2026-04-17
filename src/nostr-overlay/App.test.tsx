@@ -3336,6 +3336,94 @@ describe('Nostr overlay App', () => {
         expect((clipboardWriteText.mock.calls[0][0] as string).startsWith('npub1')).toBe(true);
     });
 
+    test('allows following from followers tab and updates row state to following', async () => {
+        const ownerPubkey = SAMPLE_AUTH_PUBKEY;
+        const followedPubkey = 'a'.repeat(64);
+        const followerPubkey = 'b'.repeat(64);
+        const publishContactList = vi.fn(async () => ({
+            id: '1'.repeat(64),
+            pubkey: ownerPubkey,
+            kind: 3,
+            created_at: Math.floor(Date.now() / 1000),
+            tags: [['p', followedPubkey], ['p', followerPubkey]],
+            content: '',
+            sig: '2'.repeat(128),
+        }));
+
+        vi.spyOn(writeGatewayModule, 'createWriteGateway').mockReturnValue({
+            publishEvent: vi.fn(async (event: any) => ({
+                ...event,
+                id: '3'.repeat(64),
+                pubkey: ownerPubkey,
+                sig: '4'.repeat(128),
+            })),
+            publishContactList,
+            encryptDm: vi.fn(async (_pubkey: string, plaintext: string) => plaintext),
+            decryptDm: vi.fn(async (_pubkey: string, ciphertext: string) => ciphertext),
+        } as any);
+
+        const { bridge } = createMapBridgeStub(8);
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [followedPubkey],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                        [followedPubkey]: { pubkey: followedPubkey, displayName: 'Alice' },
+                        [followerPubkey]: { pubkey: followerPubkey, displayName: 'Bob' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [followerPubkey],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        await loginWithNip07(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const followersTab = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Seguidores (1)')
+        ) as HTMLButtonElement;
+        expect(followersTab).toBeDefined();
+
+        await act(async () => {
+            followersTab.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+            followersTab.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Bob'));
+
+        const followBobButton = rendered.container.querySelector('button[aria-label="Seguir a Bob"]') as HTMLButtonElement;
+        expect(followBobButton).toBeDefined();
+        expect(followBobButton.disabled).toBe(false);
+
+        await act(async () => {
+            followBobButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(publishContactList).toHaveBeenCalledTimes(1);
+        expect(publishContactList).toHaveBeenCalledWith([followedPubkey, followerPubkey]);
+
+        await waitFor(() => {
+            const followingButton = rendered.container.querySelector('button[aria-label="Ya sigues a Bob"]') as HTMLButtonElement | null;
+            return Boolean(followingButton && followingButton.disabled);
+        });
+    });
+
     test('navigates to map route when selecting a followed user from relays view', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const personPubkey = 'a'.repeat(64);

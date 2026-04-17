@@ -1,10 +1,12 @@
 import type { FastifyPluginAsync } from 'fastify';
 
 import {
+  graphFollowersBodySchema,
   graphFollowersQuerySchema,
   graphFollowersResponseSchema,
   graphFollowsQuerySchema,
   graphFollowsResponseSchema,
+  type GraphFollowersBody,
   type GraphFollowersQuery,
   type GraphFollowsQuery,
 } from './graph.schemas';
@@ -60,6 +62,33 @@ export const graphRoutes: FastifyPluginAsync<GraphRoutesOptions> = async (app, o
     },
     async (request) => {
       return service.getFollowers(request.query);
+    },
+  );
+
+  app.post<{
+    Body: GraphFollowersBody;
+  }>(
+    '/graph/followers',
+    {
+      config: {
+        rateLimit: {
+          max: 90,
+          windowMs: 60_000,
+        },
+      },
+      schema: {
+        body: graphFollowersBodySchema,
+        response: {
+          200: graphFollowersResponseSchema,
+        },
+      },
+    },
+    async (request) => {
+      return service.getFollowers({
+        ownerPubkey: request.body.ownerPubkey,
+        pubkey: request.body.pubkey,
+        candidateAuthors: request.body.candidateAuthors?.join(','),
+      });
     },
   );
 };

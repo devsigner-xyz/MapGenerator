@@ -656,6 +656,19 @@ export function App({ mapBridge, services }: AppProps) {
         }
     };
 
+    const followPerson = async (pubkey: string): Promise<void> => {
+        if (!pubkey || !overlay.canWrite) {
+            return;
+        }
+
+        try {
+            await overlay.followPerson(pubkey);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'No se pudo seguir esta cuenta';
+            toast.error(message, { duration: 2200 });
+        }
+    };
+
     const closeOccupiedContextMenu = (): void => {
         setBuildingContextMenu(null);
     };
@@ -906,6 +919,7 @@ export function App({ mapBridge, services }: AppProps) {
                     onSelectFollowing={selectSidebarPerson}
                     onLocateFollowing={locateFollowingOnMap}
                     onMessagePerson={canAccessDirectMessages ? openDmFromContextMenu : undefined}
+                    onFollowPerson={overlay.canWrite ? followPerson : undefined}
                     onViewPersonDetails={(pubkey) => overlay.openActiveProfile(pubkey)}
                     zapAmounts={zapSettings.amounts}
                     onConfigureZapAmounts={() => openSettingsPage('zaps')}
@@ -1181,6 +1195,7 @@ export function App({ mapBridge, services }: AppProps) {
 
             {overlay.activeProfilePubkey ? (
                 <OccupantProfileDialog
+                    ownerPubkey={overlay.ownerPubkey}
                     pubkey={overlay.activeProfilePubkey}
                     profile={overlay.activeProfile}
                     followsCount={activeProfileData.followsCount}
@@ -1201,6 +1216,8 @@ export function App({ mapBridge, services }: AppProps) {
                     onLoadMorePosts={activeProfileData.loadMorePosts}
                     onSelectHashtag={selectProfilePostHashtag}
                     onSelectProfile={openMentionedProfile}
+                    ownerFollows={overlay.follows}
+                    onFollowProfile={overlay.canWrite ? followPerson : undefined}
                     onResolveProfiles={resolveMentionProfiles}
                     onResolveEventReferences={resolveEventReferences}
                     eventReferencesById={eventReferencesById}

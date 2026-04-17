@@ -92,6 +92,25 @@ describe('graph routes', () => {
     });
   });
 
+  it('returns followers contract for valid body via POST', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/graph/followers',
+      payload: {
+        ownerPubkey: OWNER_PUBKEY,
+        pubkey: TARGET_PUBKEY,
+        candidateAuthors: ['c'.repeat(64), 'd'.repeat(64)],
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      pubkey: TARGET_PUBKEY,
+      followers: ['c'.repeat(64)],
+      complete: true,
+    });
+  });
+
   it('returns 400 when follows query is missing ownerPubkey', async () => {
     const response = await app.inject({
       method: 'GET',

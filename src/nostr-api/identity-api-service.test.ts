@@ -46,6 +46,66 @@ describe('createIdentityApiService', () => {
         ]);
     });
 
+    test('chunks nip05 verification requests to backend max payload size', async () => {
+        const checks = Array.from({ length: 75 }, (_, index) => ({
+            pubkey: `c${index.toString(16).padStart(63, '0')}`,
+            nip05: `user${index}@example.com`,
+        }));
+        const firstBatchChecks = checks.slice(0, 50);
+        const secondBatchChecks = checks.slice(50);
+
+        const postJson = vi
+            .fn()
+            .mockImplementationOnce(async () => ({
+                results: firstBatchChecks.map((item) => ({
+                    pubkey: item.pubkey,
+                    nip05: item.nip05,
+                    status: 'verified',
+                    identifier: item.nip05,
+                    checkedAt: 1,
+                })),
+            }))
+            .mockImplementationOnce(async () => ({
+                results: secondBatchChecks.map((item) => ({
+                    pubkey: item.pubkey,
+                    nip05: item.nip05,
+                    status: 'verified',
+                    identifier: item.nip05,
+                    checkedAt: 2,
+                })),
+            }));
+
+        const client: HttpClient = {
+            requestRaw: vi.fn(async () => new Response(null, { status: 200 })),
+            requestJson: vi.fn() as unknown as HttpClient['requestJson'],
+            getJson: vi.fn() as unknown as HttpClient['getJson'],
+            postJson: postJson as unknown as HttpClient['postJson'],
+        };
+
+        const service = createIdentityApiService({ client });
+        const result = await service.verifyNip05Batch({
+            ownerPubkey: 'f'.repeat(64),
+            checks,
+        });
+
+        expect(postJson).toHaveBeenCalledTimes(2);
+        expect(postJson).toHaveBeenNthCalledWith(1, '/identity/nip05/verify-batch', {
+            body: {
+                ownerPubkey: 'f'.repeat(64),
+                checks: firstBatchChecks,
+                timeoutMs: undefined,
+            },
+        });
+        expect(postJson).toHaveBeenNthCalledWith(2, '/identity/nip05/verify-batch', {
+            body: {
+                ownerPubkey: 'f'.repeat(64),
+                checks: secondBatchChecks,
+                timeoutMs: undefined,
+            },
+        });
+        expect(result).toHaveLength(75);
+    });
+
     test('chunks profile resolve requests to backend max payload size', async () => {
         const firstBatchPubkeys = Array.from(
             { length: 200 },

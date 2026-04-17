@@ -104,6 +104,24 @@ describe('content routes', () => {
     });
   });
 
+  it('returns profile stats contract for valid body via POST', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/content/profile-stats',
+      payload: {
+        ownerPubkey: OWNER_PUBKEY,
+        pubkey: TARGET_PUBKEY,
+        candidateAuthors: ['c'.repeat(64), 'd'.repeat(64)],
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      followsCount: 12,
+      followersCount: 34,
+    });
+  });
+
   it('returns 400 when posts query has invalid limit', async () => {
     const response = await app.inject({
       method: 'GET',

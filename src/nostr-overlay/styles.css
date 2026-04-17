@@ -2367,21 +2367,29 @@
 }
 
 .nostr-profile-network-list {
-    list-style: none;
     margin: 0.3rem 0 0;
-    padding: 0;
     display: grid;
-    gap: 0.25rem;
+    gap: 0.2rem;
 }
 
-.nostr-profile-network-list li {
-    font-size: 0.8rem;
-    color: #233a45;
+.nostr-profile-network-item-wrap {
+    display: grid;
+    gap: 0.2rem;
+}
+
+.nostr-profile-network-list [data-slot="item"] {
     border: 1px solid rgba(215, 222, 228, 0.95);
-    border-radius: 7px;
     background: rgba(251, 253, 255, 0.95);
-    padding: 0.32rem 0.42rem;
-    word-break: break-word;
+    color: #233a45;
+}
+
+.nostr-profile-network-list [data-slot="item-description"] {
+    font-size: 0.75rem;
+    color: #5f727f;
+}
+
+.nostr-profile-network-separator {
+    margin: 0;
 }
 
 .nostr-loading-inline {

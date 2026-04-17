@@ -3,9 +3,11 @@ import type { FastifyPluginAsync } from 'fastify';
 import {
   contentPostsQuerySchema,
   contentPostsResponseSchema,
+  profileStatsBodySchema,
   profileStatsQuerySchema,
   profileStatsResponseSchema,
   type ContentPostsQuery,
+  type ProfileStatsBody,
   type ProfileStatsQuery,
 } from './content.schemas';
 import { createContentService, type ContentService } from './content.service';
@@ -60,6 +62,33 @@ export const contentRoutes: FastifyPluginAsync<ContentRoutesOptions> = async (ap
     },
     async (request) => {
       return service.getProfileStats(request.query);
+    },
+  );
+
+  app.post<{
+    Body: ProfileStatsBody;
+  }>(
+    '/content/profile-stats',
+    {
+      config: {
+        rateLimit: {
+          max: 90,
+          windowMs: 60_000,
+        },
+      },
+      schema: {
+        body: profileStatsBodySchema,
+        response: {
+          200: profileStatsResponseSchema,
+        },
+      },
+    },
+    async (request) => {
+      return service.getProfileStats({
+        ownerPubkey: request.body.ownerPubkey,
+        pubkey: request.body.pubkey,
+        candidateAuthors: request.body.candidateAuthors?.join(','),
+      });
     },
   );
 };
