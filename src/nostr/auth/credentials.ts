@@ -1,7 +1,7 @@
-import { decodeNpubToHex, decodeNsecToHex, isHexKey } from '../npub';
+import { decodeNpubToHex, isHexKey } from '../npub';
 import { parseNip46Uri, type ParsedNip46Uri } from './providers/nip46/uri';
 
-export type CredentialKind = 'npub' | 'nsec' | 'hex' | 'bunker' | 'unknown';
+export type CredentialKind = 'npub' | 'hex' | 'bunker' | 'unknown';
 
 interface BaseParsedCredential {
     kind: Exclude<CredentialKind, 'unknown'>;
@@ -11,11 +11,6 @@ interface BaseParsedCredential {
 export interface ParsedNpubCredential extends BaseParsedCredential {
     kind: 'npub';
     pubkeyHex: string;
-}
-
-export interface ParsedNsecCredential extends BaseParsedCredential {
-    kind: 'nsec';
-    privateKeyHex: string;
 }
 
 export interface ParsedHexCredential extends BaseParsedCredential {
@@ -31,7 +26,6 @@ export interface ParsedBunkerCredential extends BaseParsedCredential {
 
 export type ParsedCredential =
     | ParsedNpubCredential
-    | ParsedNsecCredential
     | ParsedHexCredential
     | ParsedBunkerCredential;
 
@@ -44,10 +38,6 @@ export function detectCredentialKind(value: string): CredentialKind {
 
     if (normalized.startsWith('npub1')) {
         return 'npub';
-    }
-
-    if (normalized.startsWith('nsec1')) {
-        return 'nsec';
     }
 
     if (normalized.startsWith('bunker://')) {
@@ -67,6 +57,11 @@ export function detectCredentialKind(value: string): CredentialKind {
 
 export function parseCredential(value: string): ParsedCredential {
     const original = normalizeCredentialInput(value);
+
+    if (original.startsWith('nsec1')) {
+        throw new Error('nsec credential login is no longer supported');
+    }
+
     const kind = detectCredentialKind(original);
 
     if (kind === 'npub') {
@@ -74,14 +69,6 @@ export function parseCredential(value: string): ParsedCredential {
             kind,
             original,
             pubkeyHex: decodeNpubToHex(original),
-        };
-    }
-
-    if (kind === 'nsec') {
-        return {
-            kind,
-            original,
-            privateKeyHex: decodeNsecToHex(original),
         };
     }
 

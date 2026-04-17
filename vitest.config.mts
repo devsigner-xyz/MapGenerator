@@ -9,8 +9,25 @@ export default defineConfig({
         },
     },
     test: {
-        include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
-        environment: 'jsdom',
-        setupFiles: ['src/test/vitest.setup.ts'],
+        projects: [
+            {
+                extends: true,
+                test: {
+                    name: 'frontend',
+                    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+                    exclude: ['server/src/**/*.test.ts'],
+                    environment: 'jsdom',
+                    setupFiles: ['src/test/vitest.setup.ts'],
+                },
+            },
+            {
+                extends: true,
+                test: {
+                    name: 'backend',
+                    include: ['server/src/**/*.test.ts'],
+                    environment: 'node',
+                },
+            },
+        ],
     },
 });

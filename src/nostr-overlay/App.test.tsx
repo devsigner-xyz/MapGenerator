@@ -11,6 +11,8 @@ import { getBootstrapRelays } from '../nostr/relay-policy';
 import { encodeHexToNpub } from '../nostr/npub';
 import * as ndkClientModule from '../nostr/ndk-client';
 import * as writeGatewayModule from '../nostr/write-gateway';
+import * as runtimeDmServiceModule from '../nostr/dm-runtime-service';
+import * as dmApiServiceModule from '../nostr-api/dm-api-service';
 import { App } from './App';
 import type { MapBridge } from './map-bridge';
 import type { NostrClient } from '../nostr/types';
@@ -60,10 +62,29 @@ function createDeferred<T>(): Deferred<T> {
     };
 }
 
-const SAMPLE_NSEC = 'nsec1vl029mgpspedva04g90vltkh6fvh240zqtv9k0t9af8935ke9laqsnlfe5';
-const SAMPLE_NSEC_PUBKEY = '7e7e9c42a91bfef19fa929e5fda1b72e0ebc1a4c1141673e2794234d86addf4e';
+const SAMPLE_AUTH_PUBKEY = '7e7e9c42a91bfef19fa929e5fda1b72e0ebc1a4c1141673e2794234d86addf4e';
 
-async function loginWithNsec(container: HTMLDivElement): Promise<void> {
+function createNip07ExtensionMock(pubkey = SAMPLE_AUTH_PUBKEY) {
+    return {
+        getPublicKey: vi.fn(async () => pubkey),
+        signEvent: vi.fn(async (event: any) => ({
+            ...event,
+            pubkey,
+            id: typeof event?.id === 'string' && event.id.length > 0 ? event.id : 'f'.repeat(64),
+            sig: 'e'.repeat(128),
+        })),
+        nip04: {
+            encrypt: vi.fn(async (_targetPubkey: string, plaintext: string) => plaintext),
+            decrypt: vi.fn(async (_targetPubkey: string, ciphertext: string) => ciphertext),
+        },
+        nip44: {
+            encrypt: vi.fn(async (_targetPubkey: string, plaintext: string) => plaintext),
+            decrypt: vi.fn(async (_targetPubkey: string, ciphertext: string) => ciphertext),
+        },
+    };
+}
+
+async function loginWithNip07(container: HTMLDivElement): Promise<void> {
     const methodSelectTrigger = container.querySelector('[data-slot="select-trigger"]') as HTMLButtonElement;
     expect(methodSelectTrigger).toBeDefined();
 
@@ -72,28 +93,18 @@ async function loginWithNsec(container: HTMLDivElement): Promise<void> {
         methodSelectTrigger.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
     });
 
-    const nsecOption = Array.from(document.body.querySelectorAll('[data-slot="select-item"]')).find((item) =>
-        (item.textContent || '').trim() === 'nsec'
+    const nip07Option = Array.from(document.body.querySelectorAll('[data-slot="select-item"]')).find((item) =>
+        (item.textContent || '').trim() === 'Extension (NIP-07)'
     ) as HTMLElement;
-    expect(nsecOption).toBeDefined();
+    expect(nip07Option).toBeDefined();
 
     await act(async () => {
-        nsecOption.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
-        nsecOption.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
-    });
-
-    const nsecInput = container.querySelector('input[name="nsec"]') as HTMLInputElement;
-    expect(nsecInput).toBeDefined();
-
-    await act(async () => {
-        const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-        valueSetter?.call(nsecInput, SAMPLE_NSEC);
-        nsecInput.dispatchEvent(new Event('input', { bubbles: true }));
-        nsecInput.dispatchEvent(new Event('change', { bubbles: true }));
+        nip07Option.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+        nip07Option.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
     });
 
     const continueButton = Array.from(container.querySelectorAll('button')).find((button) =>
-        (button.textContent || '').includes('Continuar')
+        (button.textContent || '').includes('Continuar con extension')
     ) as HTMLButtonElement;
     expect(continueButton).toBeDefined();
 
@@ -433,6 +444,7 @@ beforeAll(() => {
 
 beforeEach(() => {
     window.localStorage.clear();
+    (window as unknown as { nostr?: unknown }).nostr = createNip07ExtensionMock();
     createNdkDmTransportClientSpy = vi.spyOn(ndkClientModule, 'createNdkDmTransportClient').mockReturnValue({
         publishToRelays: vi.fn(async () => ({
             ackedRelays: [],
@@ -456,6 +468,7 @@ afterEach(async () => {
         entry.container.remove();
     }
     mounted = [];
+    delete (window as unknown as { nostr?: unknown }).nostr;
     vi.restoreAllMocks();
     createNdkDmTransportClientSpy = null;
 });
@@ -539,7 +552,7 @@ describe('Nostr overlay App', () => {
 
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
         expect(rendered.container.textContent || '').not.toContain('Accede o explora');
-        expect(rendered.container.textContent || '').not.toContain('Modo solo lectura. Cambia a nsec o extension para habilitar acciones de escritura.');
+        expect(rendered.container.textContent || '').not.toContain('Modo solo lectura. Cambia a extension o bunker para habilitar acciones de escritura.');
         expect(rendered.container.textContent || '').toContain('Read Only');
 
         expect(rendered.container.querySelector('.nostr-profile-avatar')).toBeNull();
@@ -646,7 +659,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
         const panelFeedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir Agora"]');
@@ -714,7 +727,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
         const feedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir Agora"]') as HTMLButtonElement;
@@ -866,7 +879,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
         const feedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir Agora"]') as HTMLButtonElement;
@@ -1022,7 +1035,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
         const feedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir Agora"]') as HTMLButtonElement;
@@ -1208,7 +1221,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
         const feedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir Agora"]') as HTMLButtonElement;
@@ -1314,7 +1327,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
         const feedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir Agora"]') as HTMLButtonElement;
@@ -1360,7 +1373,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
         const feedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir Agora"]') as HTMLButtonElement;
@@ -1407,7 +1420,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
         const feedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir Agora"]') as HTMLButtonElement;
@@ -1459,7 +1472,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
         await waitFor(() => (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mock.calls.length > 0);
     });
@@ -1497,7 +1510,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
         await waitFor(() => (socialFeed.service.loadHashtagFeed as ReturnType<typeof vi.fn>).mock.calls.length > 0);
 
@@ -1541,7 +1554,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
         await waitFor(() => (socialFeed.service.loadHashtagFeed as ReturnType<typeof vi.fn>).mock.calls.length > 0);
 
         const clearFilterButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
@@ -1611,7 +1624,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
         await waitFor(() => (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mock.calls.length > 0);
         await waitFor(() => rendered.container.querySelector('button[aria-label="Filtrar por hashtag nostrcity"]') !== null);
 
@@ -1630,7 +1643,7 @@ describe('Nostr overlay App', () => {
     });
 
     test('resolves nostr nprofile mentions to names and chains profile dialogs from feed and dialog posts', async () => {
-        const ownerPubkey = SAMPLE_NSEC_PUBKEY;
+        const ownerPubkey = SAMPLE_AUTH_PUBKEY;
         const followedPubkey = 'a'.repeat(64);
         const firstMentionPubkey = 'b'.repeat(64);
         const secondMentionPubkey = 'c'.repeat(64);
@@ -1728,7 +1741,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
         await waitFor(() => rendered.container.querySelector('button[aria-label="Abrir perfil de Bruno Mention"]') !== null);
 
@@ -1786,7 +1799,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
         await waitFor(() => (rendered.container.textContent || '').includes('Chats'));
     });
@@ -1849,7 +1862,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
         await waitFor(() => (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mock.calls.length > 0);
         await waitFor(() => rendered.container.querySelector('.nostr-panel-toolbar .nostr-following-feed-unread-dot') !== null);
@@ -1923,7 +1936,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
         await waitFor(() => (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mock.calls.length > 0);
 
@@ -1965,7 +1978,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
 
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
@@ -2026,7 +2039,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
         const requiredOrder = [
@@ -2096,7 +2109,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
         socialFeed.emit({
@@ -2156,7 +2169,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
         socialFeed.emit({
@@ -2185,16 +2198,90 @@ describe('Nostr overlay App', () => {
         await waitFor(() => rendered.container.querySelector('.nostr-panel-toolbar .nostr-notifications-unread-dot') !== null);
     });
 
-    test('loads DM dialog data without explicit directMessagesService injection', async () => {
-        const ownerPubkey = SAMPLE_NSEC_PUBKEY;
+    test('loads DM dialog data through dm api service without runtime read fallback', async () => {
+        const ownerPubkey = SAMPLE_AUTH_PUBKEY;
         const peerPubkey = 'a'.repeat(64);
-        const dmEvent = createWrappedDmEvent({
-            ownerPubkey,
-            rumorPubkey: peerPubkey,
-            rumorRecipient: ownerPubkey,
-            rumorContent: 'hola runtime dm',
-            rumorCreatedAt: 1700000100,
-        });
+        const runtimeReadService = {
+            subscribeInbox: vi.fn(() => () => {}),
+            loadInitialConversations: vi.fn(async () => [{
+                id: 'runtime-fallback-inbox',
+                clientMessageId: 'runtime-fallback-inbox',
+                conversationId: peerPubkey,
+                peerPubkey,
+                direction: 'incoming' as const,
+                createdAt: 1,
+                plaintext: 'runtime fallback inbox',
+                deliveryState: 'sent' as const,
+            }]),
+            loadConversationMessages: vi.fn(async () => [{
+                id: 'runtime-fallback-thread',
+                clientMessageId: 'runtime-fallback-thread',
+                conversationId: peerPubkey,
+                peerPubkey,
+                direction: 'incoming' as const,
+                createdAt: 2,
+                plaintext: 'runtime fallback thread',
+                deliveryState: 'sent' as const,
+            }]),
+            sendDm: vi.fn(async () => ({
+                id: 'runtime-send',
+                clientMessageId: 'runtime-send',
+                conversationId: peerPubkey,
+                peerPubkey,
+                direction: 'outgoing' as const,
+                createdAt: 3,
+                plaintext: 'runtime send',
+                deliveryState: 'sent' as const,
+                publishResult: {
+                    ackedRelays: [],
+                    failedRelays: [],
+                    timeoutRelays: [],
+                },
+                attempts: 1,
+            })),
+        };
+        const apiReadService = {
+            subscribeInbox: vi.fn(() => () => {}),
+            loadInitialConversations: vi.fn(async () => [{
+                id: 'api-inbox-1',
+                clientMessageId: 'api-inbox-1',
+                conversationId: peerPubkey,
+                peerPubkey,
+                direction: 'incoming' as const,
+                createdAt: 1700000100,
+                plaintext: 'hola api dm',
+                deliveryState: 'sent' as const,
+            }]),
+            loadConversationMessages: vi.fn(async () => [{
+                id: 'api-thread-1',
+                clientMessageId: 'api-thread-1',
+                conversationId: peerPubkey,
+                peerPubkey,
+                direction: 'incoming' as const,
+                createdAt: 1700000101,
+                plaintext: 'hola api dm',
+                deliveryState: 'sent' as const,
+            }]),
+            sendDm: vi.fn(async () => ({
+                id: 'api-send',
+                clientMessageId: 'api-send',
+                conversationId: peerPubkey,
+                peerPubkey,
+                direction: 'outgoing' as const,
+                createdAt: 1700000102,
+                plaintext: 'api send',
+                deliveryState: 'sent' as const,
+                publishResult: {
+                    ackedRelays: [],
+                    failedRelays: [],
+                    timeoutRelays: [],
+                },
+                attempts: 1,
+            })),
+        };
+
+        const createRuntimeServiceSpy = vi.spyOn(runtimeDmServiceModule, 'createRuntimeDirectMessagesService').mockReturnValue(runtimeReadService as any);
+        const createDmApiServiceSpy = vi.spyOn(dmApiServiceModule, 'createDmApiService').mockReturnValue(apiReadService as any);
         const createTransportSpy = createNdkDmTransportClientSpy!.mockImplementation(() => ({
             publishToRelays: vi.fn(async () => ({
                 ackedRelays: ['wss://relay.one'],
@@ -2206,16 +2293,7 @@ describe('Nostr overlay App', () => {
                     return;
                 },
             })),
-            fetchBackfill: vi.fn(async (filters: Array<Record<string, unknown>>) => {
-                const firstFilter = filters[0] || {};
-                const kinds = Array.isArray(firstFilter.kinds) ? firstFilter.kinds : [];
-                const isDmKinds = kinds.includes(1059) || kinds.includes(4);
-                if (isDmKinds) {
-                    return [dmEvent as any];
-                }
-
-                return [];
-            }),
+            fetchBackfill: vi.fn(async () => []),
         } as any));
         const createWriteGatewaySpy = vi.spyOn(writeGatewayModule, 'createWriteGateway').mockReturnValue({
             publishEvent: vi.fn(async () => {
@@ -2254,7 +2332,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
 
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
@@ -2266,7 +2344,14 @@ describe('Nostr overlay App', () => {
         await waitFor(() => (rendered.container.textContent || '').includes('Chats'));
         await waitFor(() => !(rendered.container.textContent || '').includes('No hay conversaciones todavía'));
 
-        expect(rendered.container.textContent || '').toContain('hola runtime dm');
+        expect(rendered.container.textContent || '').toContain('hola api dm');
+        expect(createRuntimeServiceSpy).not.toHaveBeenCalled();
+        expect(createDmApiServiceSpy).toHaveBeenCalled();
+        expect(apiReadService.subscribeInbox).toHaveBeenCalled();
+        expect(apiReadService.loadInitialConversations).toHaveBeenCalled();
+        expect(runtimeReadService.subscribeInbox).not.toHaveBeenCalled();
+        expect(runtimeReadService.loadInitialConversations).not.toHaveBeenCalled();
+        expect(runtimeReadService.loadConversationMessages).not.toHaveBeenCalled();
 
     });
 
@@ -2361,45 +2446,66 @@ describe('Nostr overlay App', () => {
         }
     });
 
-    test('opens chat dialog and shows existing conversations without waiting for new incoming events', async () => {
-        const ownerPubkey = SAMPLE_NSEC_PUBKEY;
+    test('opens chat dialog and shows existing conversations from dm api backfill', async () => {
+        const ownerPubkey = SAMPLE_AUTH_PUBKEY;
         const peerPubkey = 'a'.repeat(64);
-        const historicalEvent = createWrappedDmEvent({
-            ownerPubkey,
-            rumorPubkey: peerPubkey,
-            rumorRecipient: ownerPubkey,
-            rumorContent: 'historial visible',
-            rumorCreatedAt: 1700000300,
-        });
-        const createTransportSpy = createNdkDmTransportClientSpy!.mockImplementation(() => ({
-            publishToRelays: vi.fn(async () => ({
-                ackedRelays: ['wss://relay.one'],
-                failedRelays: [],
-                timeoutRelays: [],
-            })),
-            subscribe: vi.fn(() => ({
-                unsubscribe() {
-                    return;
+        const runtimeReadService = {
+            subscribeInbox: vi.fn(() => () => {}),
+            loadInitialConversations: vi.fn(async () => []),
+            loadConversationMessages: vi.fn(async () => []),
+            sendDm: vi.fn(async () => ({
+                id: 'runtime-send',
+                clientMessageId: 'runtime-send',
+                conversationId: peerPubkey,
+                peerPubkey,
+                direction: 'outgoing' as const,
+                createdAt: 1700000301,
+                plaintext: 'runtime send',
+                deliveryState: 'sent' as const,
+                publishResult: {
+                    ackedRelays: [],
+                    failedRelays: [],
+                    timeoutRelays: [],
                 },
+                attempts: 1,
             })),
-            fetchBackfill: vi.fn(async (filters: Array<Record<string, unknown>>) => {
-                const firstFilter = filters[0] || {};
-                const kinds = Array.isArray(firstFilter.kinds) ? firstFilter.kinds : [];
-                const isDmKinds = kinds.includes(1059) || kinds.includes(4);
-                if (isDmKinds) {
-                    return [historicalEvent as any];
-                }
-
-                return [];
-            }),
-        } as any));
-        const createWriteGatewaySpy = vi.spyOn(writeGatewayModule, 'createWriteGateway').mockReturnValue({
-            publishEvent: vi.fn(async () => {
-                throw new Error('not-used');
-            }),
-            encryptDm: vi.fn(async (_pubkey: string, plaintext: string) => plaintext),
-            decryptDm: vi.fn(async (_pubkey: string, ciphertext: string) => ciphertext),
-        } as any);
+        };
+        const apiReadService = {
+            subscribeInbox: vi.fn(() => () => {}),
+            loadInitialConversations: vi.fn(async () => [{
+                id: 'api-historical-1',
+                clientMessageId: 'api-historical-1',
+                conversationId: peerPubkey,
+                peerPubkey,
+                direction: 'incoming' as const,
+                createdAt: 1700000300,
+                plaintext: 'historial visible',
+                deliveryState: 'sent' as const,
+            }]),
+            loadConversationMessages: vi.fn(async () => []),
+            sendDm: vi.fn(async () => ({
+                id: 'api-send',
+                clientMessageId: 'api-send',
+                conversationId: peerPubkey,
+                peerPubkey,
+                direction: 'outgoing' as const,
+                createdAt: 1700000302,
+                plaintext: 'api send',
+                deliveryState: 'sent' as const,
+                publishResult: {
+                    ackedRelays: [],
+                    failedRelays: [],
+                    timeoutRelays: [],
+                },
+                attempts: 1,
+            })),
+        };
+        const createRuntimeServiceSpy = vi
+            .spyOn(runtimeDmServiceModule, 'createRuntimeDirectMessagesService')
+            .mockReturnValue(runtimeReadService as any);
+        const createDmApiServiceSpy = vi
+            .spyOn(dmApiServiceModule, 'createDmApiService')
+            .mockReturnValue(apiReadService as any);
 
         const { bridge } = createMapBridgeStub();
         const rendered = await renderApp(
@@ -2430,7 +2536,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
 
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
@@ -2443,11 +2549,40 @@ describe('Nostr overlay App', () => {
         await waitFor(() => (rendered.container.textContent || '').includes('Alice'));
         expect(rendered.container.textContent || '').toContain('historial visible');
 
+        expect(createRuntimeServiceSpy).not.toHaveBeenCalled();
+        expect(createDmApiServiceSpy).toHaveBeenCalled();
+        expect(apiReadService.subscribeInbox).toHaveBeenCalled();
+        expect(apiReadService.loadInitialConversations).toHaveBeenCalled();
+        expect(runtimeReadService.subscribeInbox).not.toHaveBeenCalled();
+        expect(runtimeReadService.loadInitialConversations).not.toHaveBeenCalled();
+        expect(runtimeReadService.loadConversationMessages).not.toHaveBeenCalled();
     });
 
-    test('includes owner relay-list hints in runtime DM transport relays', async () => {
-        const ownerPubkey = SAMPLE_NSEC_PUBKEY;
+    test('does not initialize runtime dm transport while loading chat reads from bff', async () => {
+        const ownerPubkey = SAMPLE_AUTH_PUBKEY;
         const hintedRelay = 'wss://relay.hinted.example';
+        const createRuntimeServiceSpy = vi.spyOn(runtimeDmServiceModule, 'createRuntimeDirectMessagesService');
+        const createDmApiServiceSpy = vi.spyOn(dmApiServiceModule, 'createDmApiService').mockReturnValue({
+            subscribeInbox: vi.fn(() => () => {}),
+            loadInitialConversations: vi.fn(async () => []),
+            loadConversationMessages: vi.fn(async () => []),
+            sendDm: vi.fn(async () => ({
+                id: 'api-send',
+                clientMessageId: 'api-send',
+                conversationId: 'a'.repeat(64),
+                peerPubkey: 'a'.repeat(64),
+                direction: 'outgoing',
+                createdAt: 1700000401,
+                plaintext: 'api send',
+                deliveryState: 'sent',
+                publishResult: {
+                    ackedRelays: [],
+                    failedRelays: [],
+                    timeoutRelays: [],
+                },
+                attempts: 1,
+            })),
+        } as any);
 
         createNdkDmTransportClientSpy!.mockReturnValue({
             publishToRelays: vi.fn(async () => ({
@@ -2505,7 +2640,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
 
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
@@ -2514,16 +2649,15 @@ describe('Nostr overlay App', () => {
             panelChatButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
-        await waitFor(() => {
-            return createNdkDmTransportClientSpy!.mock.calls.some((call: unknown[]) => {
-                const relays = call[0] as string[];
-                return Array.isArray(relays) && relays.includes(hintedRelay);
-            });
-        });
+        await waitFor(() => (rendered.container.textContent || '').includes('Chats'));
+
+        expect(createDmApiServiceSpy).toHaveBeenCalled();
+        expect(createRuntimeServiceSpy).not.toHaveBeenCalled();
+        expect(createNdkDmTransportClientSpy).not.toHaveBeenCalled();
     });
 
     test('caps runtime dm relay fanout to avoid oversized target relay lists', async () => {
-        const ownerPubkey = SAMPLE_NSEC_PUBKEY;
+        const ownerPubkey = SAMPLE_AUTH_PUBKEY;
         const followedPubkey = 'a'.repeat(64);
         const { bridge, triggerOccupiedBuildingContextMenu } = createMapBridgeStub();
         const transportCreations: Array<{
@@ -2623,7 +2757,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
         await act(async () => {
@@ -2671,54 +2805,61 @@ describe('Nostr overlay App', () => {
         expect(firstRelayTargets.length).toBeLessThanOrEqual(8);
     });
 
-    test('updates chat list when historical bootstrap resolves after dialog is already open', async () => {
-        const ownerPubkey = SAMPLE_NSEC_PUBKEY;
+    test('updates chat list when dm api bootstrap resolves after dialog is already open', async () => {
+        const ownerPubkey = SAMPLE_AUTH_PUBKEY;
         const peerPubkey = 'a'.repeat(64);
-        const historicalEvent = createWrappedDmEvent({
-            ownerPubkey,
-            rumorPubkey: peerPubkey,
-            rumorRecipient: ownerPubkey,
-            rumorContent: 'historial tardio',
-            rumorCreatedAt: 1700000600,
+        let resolveApiBackfill: ((items: any[]) => void) | null = null;
+        const apiBackfillPromise = new Promise<any[]>((resolve) => {
+            resolveApiBackfill = resolve;
         });
-
-        let resolveInboxBackfill: ((events: any[]) => void) | null = null;
-        const inboxBackfillPromise = new Promise<any[]>((resolve) => {
-            resolveInboxBackfill = resolve;
-        });
-
-        const fetchBackfill = vi.fn(async (filters: any[]) => {
-            const firstFilter = filters[0] || {};
-            const kinds = Array.isArray(firstFilter.kinds) ? firstFilter.kinds : [];
-            const isDmKinds = kinds.includes(1059) || kinds.includes(4);
-            if (isDmKinds && Array.isArray(firstFilter['#p']) && firstFilter['#p'][0] === ownerPubkey) {
-                return inboxBackfillPromise;
-            }
-
-            return [];
-        });
-
-        createNdkDmTransportClientSpy!.mockReturnValue({
-            publishToRelays: vi.fn(async () => ({
-                ackedRelays: [],
-                failedRelays: [],
-                timeoutRelays: [],
-            })),
-            subscribe: vi.fn(() => ({
-                unsubscribe() {
-                    return;
+        const runtimeReadService = {
+            subscribeInbox: vi.fn(() => () => {}),
+            loadInitialConversations: vi.fn(async () => []),
+            loadConversationMessages: vi.fn(async () => []),
+            sendDm: vi.fn(async () => ({
+                id: 'runtime-send',
+                clientMessageId: 'runtime-send',
+                conversationId: peerPubkey,
+                peerPubkey,
+                direction: 'outgoing' as const,
+                createdAt: 1700000601,
+                plaintext: 'runtime send',
+                deliveryState: 'sent' as const,
+                publishResult: {
+                    ackedRelays: [],
+                    failedRelays: [],
+                    timeoutRelays: [],
                 },
+                attempts: 1,
             })),
-            fetchBackfill,
-        } as any);
-
-        const createWriteGatewaySpy = vi.spyOn(writeGatewayModule, 'createWriteGateway').mockReturnValue({
-            publishEvent: vi.fn(async () => {
-                throw new Error('not-used');
-            }),
-            encryptDm: vi.fn(async (_pubkey: string, plaintext: string) => plaintext),
-            decryptDm: vi.fn(async (_pubkey: string, ciphertext: string) => ciphertext),
-        } as any);
+        };
+        const apiReadService = {
+            subscribeInbox: vi.fn(() => () => {}),
+            loadInitialConversations: vi.fn(async () => apiBackfillPromise),
+            loadConversationMessages: vi.fn(async () => []),
+            sendDm: vi.fn(async () => ({
+                id: 'api-send',
+                clientMessageId: 'api-send',
+                conversationId: peerPubkey,
+                peerPubkey,
+                direction: 'outgoing' as const,
+                createdAt: 1700000602,
+                plaintext: 'api send',
+                deliveryState: 'sent' as const,
+                publishResult: {
+                    ackedRelays: [],
+                    failedRelays: [],
+                    timeoutRelays: [],
+                },
+                attempts: 1,
+            })),
+        };
+        const createRuntimeServiceSpy = vi
+            .spyOn(runtimeDmServiceModule, 'createRuntimeDirectMessagesService')
+            .mockReturnValue(runtimeReadService as any);
+        const createDmApiServiceSpy = vi
+            .spyOn(dmApiServiceModule, 'createDmApiService')
+            .mockReturnValue(apiReadService as any);
 
         const { bridge } = createMapBridgeStub();
         const rendered = await renderApp(
@@ -2749,7 +2890,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
 
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
@@ -2758,17 +2899,31 @@ describe('Nostr overlay App', () => {
             panelChatButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
-        await waitFor(() => fetchBackfill.mock.calls.length > 0);
+        await waitFor(() => apiReadService.loadInitialConversations.mock.calls.length > 0);
 
         await waitFor(() => (rendered.container.textContent || '').includes('Cargando conversaciones'));
 
         await act(async () => {
-            resolveInboxBackfill?.([historicalEvent as any]);
+            resolveApiBackfill?.([
+                {
+                    id: 'api-historical-late',
+                    clientMessageId: 'api-historical-late',
+                    conversationId: peerPubkey,
+                    peerPubkey,
+                    direction: 'incoming',
+                    createdAt: 1700000600,
+                    plaintext: 'historial tardio',
+                    deliveryState: 'sent',
+                },
+            ]);
         });
 
         await waitFor(() => (rendered.container.textContent || '').includes('historial tardio'));
 
-        createWriteGatewaySpy.mockRestore();
+        expect(createRuntimeServiceSpy).not.toHaveBeenCalled();
+        expect(createDmApiServiceSpy).toHaveBeenCalled();
+        expect(runtimeReadService.loadInitialConversations).not.toHaveBeenCalled();
+        expect(runtimeReadService.subscribeInbox).not.toHaveBeenCalled();
     });
 
     test('renders map zoom controls with current zoom level', async () => {
@@ -3855,7 +4010,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
 
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
@@ -3887,7 +4042,7 @@ describe('Nostr overlay App', () => {
     });
 
     test('shows pending message immediately while send is still in-flight', async () => {
-        const ownerPubkey = SAMPLE_NSEC_PUBKEY;
+        const ownerPubkey = SAMPLE_AUTH_PUBKEY;
         const followedPubkey = 'a'.repeat(64);
         const { bridge, triggerOccupiedBuildingContextMenu } = createMapBridgeStub();
         const sendDeferred = createDeferred<any>();
@@ -3933,7 +4088,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
         await act(async () => {
@@ -4041,7 +4196,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
 
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
@@ -4163,7 +4318,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
         await act(async () => {
@@ -4366,7 +4521,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
         const infoTab = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
@@ -4409,7 +4564,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
         const discoverButton = rendered.container.querySelector('button[aria-label="Abrir descubre"]') as HTMLButtonElement;
@@ -4453,7 +4608,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
         const infoTabBeforeCollapse = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
@@ -5752,7 +5907,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await loginWithNsec(rendered.container);
+        await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
         expect(rendered.container.textContent || '').toContain('0/3');
 

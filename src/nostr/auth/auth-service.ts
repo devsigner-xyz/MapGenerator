@@ -1,15 +1,11 @@
-import { NsecAuthProvider } from './providers/nsec-provider';
 import { Nip07AuthProvider } from './providers/nip07-provider';
 import { Nip46AuthProvider } from './providers/nip46-provider';
 import { NpubAuthProvider } from './providers/npub-provider';
 import type { AuthProvider, ProviderResolveInput } from './providers/types';
 import {
     clearStoredAuthSession,
-    encryptPrivateKeyToNcryptsec,
-    lockSession as lockStoredSession,
     loadStoredAuthSession,
     saveStoredAuthSession,
-    unlockSession as unlockStoredSession,
     type StoredAuthSession,
 } from './secure-storage';
 import {
@@ -38,29 +34,29 @@ interface AuthService {
     startSession(method: LoginMethod, input: ProviderResolveInput): Promise<AuthSessionState>;
     restoreSession(input?: RestoreSessionInput): Promise<AuthSessionState | undefined>;
     switchMethod(method: LoginMethod, input: ProviderResolveInput): Promise<AuthSessionState>;
-    lockSession(): Promise<AuthSessionState | undefined>;
-    unlockSession(passphrase: string): Promise<AuthSessionState>;
     logout(): Promise<void>;
 }
 
 function buildDefaultProviders(): Record<LoginMethod, AuthProvider> {
     return {
         npub: new NpubAuthProvider(),
-        nsec: new NsecAuthProvider(),
         nip07: new Nip07AuthProvider(),
         nip46: new Nip46AuthProvider(),
     };
 }
 
-function toStoredSession(session: AuthSessionState, ncryptsec?: string): StoredAuthSession {
+function toStoredSession(session: AuthSessionState): StoredAuthSession {
     return {
         method: session.method,
         pubkey: session.pubkey,
         readonly: session.readonly,
         locked: session.locked,
         createdAt: session.createdAt,
-        ncryptsec,
     };
+}
+
+function isLegacyNsecMethod(method: string): method is 'nsec' {
+    return method === 'nsec';
 }
 
 export function createAuthService(options: AuthServiceOptions = {}): AuthService {
@@ -80,17 +76,8 @@ export function createAuthService(options: AuthServiceOptions = {}): AuthService
     };
 
     const persist = (session: AuthSessionState, input: ProviderResolveInput) => {
-        let ncryptsec: string | undefined;
-
-        if (session.method === 'nsec') {
-            if (input.ncryptsec) {
-                ncryptsec = input.ncryptsec;
-            } else if (input.credential && input.passphrase) {
-                ncryptsec = encryptPrivateKeyToNcryptsec(input.credential, input.passphrase);
-            }
-        }
-
-        saveStoredAuthSession(toStoredSession(session, ncryptsec), storage);
+        void input;
+        saveStoredAuthSession(toStoredSession(session), storage);
     };
 
     return {
@@ -108,7 +95,15 @@ export function createAuthService(options: AuthServiceOptions = {}): AuthService
         },
 
         async startSession(method: LoginMethod, input: ProviderResolveInput): Promise<AuthSessionState> {
+            if (isLegacyNsecMethod(method)) {
+                throw new Error('nsec login is no longer supported');
+            }
+
             const provider = providerMap[method];
+            if (!provider) {
+                throw new Error(`Unsupported login method: ${method}`);
+            }
+
             const resolved = await provider.resolveSession(input);
 
             const baseSession = createAuthSession({
@@ -134,6 +129,7 @@ export function createAuthService(options: AuthServiceOptions = {}): AuthService
         },
 
         async restoreSession(input: RestoreSessionInput = {}): Promise<AuthSessionState | undefined> {
+            void input;
             const stored = loadStoredAuthSession(storage);
             if (!stored) {
                 currentSession = undefined;
@@ -141,14 +137,9 @@ export function createAuthService(options: AuthServiceOptions = {}): AuthService
                 return undefined;
             }
 
-            if (stored.method === 'nsec' && !stored.locked && stored.ncryptsec && input.passphrase) {
-                return this.startSession('nsec', {
-                    ncryptsec: stored.ncryptsec,
-                    passphrase: input.passphrase,
-                });
-            }
+            const storedMethod = stored.method;
 
-            if (stored.method === 'nsec' && !stored.ncryptsec) {
+            if (isLegacyNsecMethod(storedMethod)) {
                 clearStoredAuthSession(storage);
                 currentSession = undefined;
                 activeProvider = undefined;
@@ -156,7 +147,7 @@ export function createAuthService(options: AuthServiceOptions = {}): AuthService
                 return undefined;
             }
 
-            if (stored.method === 'nip07') {
+            if (storedMethod === 'nip07') {
                 try {
                     return await this.startSession('nip07', {});
                 } catch {
@@ -168,7 +159,7 @@ export function createAuthService(options: AuthServiceOptions = {}): AuthService
                 }
             }
 
-            if (stored.method === 'nip46') {
+            if (storedMethod === 'nip46') {
                 clearStoredAuthSession(storage);
                 currentSession = undefined;
                 activeProvider = undefined;
@@ -176,16 +167,16 @@ export function createAuthService(options: AuthServiceOptions = {}): AuthService
                 return undefined;
             }
 
-            const requiresRecoveredProvider = stored.method !== 'npub';
+            const requiresRecoveredProvider = storedMethod !== 'npub';
             const restoredLocked = stored.locked || requiresRecoveredProvider;
 
             currentSession = {
                 ...createAuthSession({
-                    method: stored.method,
+                    method: storedMethod,
                     pubkey: stored.pubkey,
                     locked: restoredLocked,
                     createdAt: stored.createdAt,
-                    capabilities: defaultCapabilitiesForMethod(stored.method),
+                    capabilities: defaultCapabilitiesForMethod(storedMethod),
                 }),
                 readonly: stored.readonly,
                 locked: restoredLocked,
@@ -197,47 +188,15 @@ export function createAuthService(options: AuthServiceOptions = {}): AuthService
         },
 
         async switchMethod(method: LoginMethod, input: ProviderResolveInput): Promise<AuthSessionState> {
+            if (isLegacyNsecMethod(method)) {
+                throw new Error('nsec login is no longer supported');
+            }
+
             if (activeProvider) {
                 await activeProvider.lock();
             }
 
             return this.startSession(method, input);
-        },
-
-        async lockSession(): Promise<AuthSessionState | undefined> {
-            if (!currentSession) {
-                return undefined;
-            }
-
-            if (activeProvider) {
-                await activeProvider.lock();
-            }
-
-            if (currentSession.method === 'nsec') {
-                lockStoredSession(storage);
-            }
-
-            currentSession = {
-                ...currentSession,
-                locked: true,
-            };
-            activeProvider = undefined;
-            notify();
-
-            return currentSession;
-        },
-
-        async unlockSession(passphrase: string): Promise<AuthSessionState> {
-            if (!currentSession || currentSession.method !== 'nsec') {
-                throw new Error('Only nsec sessions can be unlocked');
-            }
-
-            const unlocked = unlockStoredSession(passphrase, storage);
-
-            return this.startSession('nsec', {
-                ncryptsec: unlocked.session.ncryptsec,
-                passphrase,
-            });
         },
 
         async logout(): Promise<void> {

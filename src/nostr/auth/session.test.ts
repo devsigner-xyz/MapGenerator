@@ -11,7 +11,7 @@ import {
 
 function buildSession(overrides: Partial<AuthSessionState> = {}): AuthSessionState {
     return {
-        method: 'nsec',
+        method: 'nip07',
         pubkey: 'f'.repeat(64),
         readonly: false,
         locked: false,
@@ -34,11 +34,11 @@ describe('defaultCapabilitiesForMethod', () => {
         });
     });
 
-    test('returns signing and encryption capabilities for nsec', () => {
-        expect(defaultCapabilitiesForMethod('nsec')).toEqual({
+    test('returns signing capabilities for nip07', () => {
+        expect(defaultCapabilitiesForMethod('nip07')).toEqual({
             canSign: true,
-            canEncrypt: true,
-            encryptionSchemes: ['nip04', 'nip44'],
+            canEncrypt: false,
+            encryptionSchemes: [],
         });
     });
 });
@@ -58,7 +58,7 @@ describe('createAuthSession', () => {
 
     test('creates locked session when lock flag is true', () => {
         const session = createAuthSession({
-            method: 'nsec',
+            method: 'nip46',
             pubkey: 'b'.repeat(64),
             locked: true,
         });

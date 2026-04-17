@@ -10,7 +10,7 @@ interface RenderResult {
 
 interface RenderSelectorInput {
     disabled?: boolean;
-    initialMethod?: 'npub' | 'nsec' | 'nip07' | 'nip46';
+    initialMethod?: 'npub' | 'nip07' | 'nip46';
 }
 
 async function renderSelector(input: RenderSelectorInput = {}): Promise<RenderResult> {
@@ -41,6 +41,28 @@ let mounted: RenderResult[] = [];
 
 beforeAll(() => {
     (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+
+    if (!Element.prototype.scrollIntoView) {
+        Element.prototype.scrollIntoView = () => {};
+    }
+
+    const htmlElementPrototype = HTMLElement.prototype as HTMLElement & {
+        hasPointerCapture?: (pointerId: number) => boolean;
+        setPointerCapture?: (pointerId: number) => void;
+        releasePointerCapture?: (pointerId: number) => void;
+    };
+
+    if (!htmlElementPrototype.hasPointerCapture) {
+        htmlElementPrototype.hasPointerCapture = () => false;
+    }
+
+    if (!htmlElementPrototype.setPointerCapture) {
+        htmlElementPrototype.setPointerCapture = () => {};
+    }
+
+    if (!htmlElementPrototype.releasePointerCapture) {
+        htmlElementPrototype.releasePointerCapture = () => {};
+    }
 });
 
 afterEach(async () => {
@@ -67,6 +89,24 @@ describe('LoginMethodSelector', () => {
         expect(content).toContain('Metodo de acceso');
         expect(methodSelectTrigger).not.toBeNull();
         expect(npubInput).not.toBeNull();
+    });
+
+    test('does not show nsec in login method options', async () => {
+        const rendered = await renderSelector();
+        mounted.push(rendered);
+
+        const methodSelectTrigger = rendered.container.querySelector('[data-slot="select-trigger"]') as HTMLButtonElement;
+        expect(methodSelectTrigger).toBeDefined();
+
+        await act(async () => {
+            methodSelectTrigger.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+            methodSelectTrigger.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+        });
+
+        const options = Array.from(document.body.querySelectorAll('[data-slot="select-item"]'));
+        expect(options.some((option) => (option.textContent || '').trim() === 'nsec')).toBe(false);
+        expect(options.some((option) => (option.textContent || '').trim() === 'Extension (NIP-07)')).toBe(true);
+        expect(options.some((option) => (option.textContent || '').trim() === 'Bunker (NIP-46)')).toBe(true);
     });
 
     test('submits npub login through startSession handler', async () => {

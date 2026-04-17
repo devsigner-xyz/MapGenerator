@@ -6,11 +6,15 @@
   "scripts": {
     "dev": "vite",
     "dev:lan": "vite --host 0.0.0.0 --port 5173",
+    "bff:dev": "tsx watch server/src/main.ts",
+    "bff:start": "tsx server/src/main.ts",
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
-    "test:unit": "vitest run",
+    "test:unit": "pnpm test:unit:frontend && pnpm test:unit:backend",
+    "test:unit:frontend": "vitest run --config vitest.config.mts --project frontend",
+    "test:unit:backend": "vitest run --config vitest.config.mts --project backend",
     "test:unit:watch": "vitest",
     "test:smoke": "pnpm build && playwright test",
     "test": "pnpm test:unit"
@@ -42,6 +46,7 @@
     "cmdk": "^1.1.1",
     "d3-quadtree": "^3.0.1",
     "dat.gui": "^0.7.6",
+    "fastify": "^5.6.1",
     "file-saver": "^2.0.2",
     "interactjs": "^1.9.8",
     "isect": "^3.0.0",
@@ -82,6 +87,7 @@
     "eslint": "^10.2.0",
     "jsdom": "^29.0.2",
     "tailwindcss": "^4.2.2",
+    "tsx": "^4.21.0",
     "typescript": "^6.0.2",
     "vite": "^8.0.7",
     "vitest": "^4.1.3"

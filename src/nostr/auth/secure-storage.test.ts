@@ -2,15 +2,11 @@ import { describe, expect, test } from 'vitest';
 import {
     AUTH_SESSION_STORAGE_KEY,
     clearStoredAuthSession,
-    encryptPrivateKeyToNcryptsec,
     loadStoredAuthSession,
-    lockSession,
     saveStoredAuthSession,
-    unlockSession,
     type StoredAuthSession,
 } from './secure-storage';
 
-const SAMPLE_NSEC = 'nsec1vl029mgpspedva04g90vltkh6fvh240zqtv9k0t9af8935ke9laqsnlfe5';
 const SAMPLE_PUBKEY = 'f'.repeat(64);
 
 function createMemoryStorage(): Storage {
@@ -40,12 +36,11 @@ function createMemoryStorage(): Storage {
 
 function buildSession(overrides: Partial<StoredAuthSession> = {}): StoredAuthSession {
     return {
-        method: 'nsec',
+        method: 'nip46',
         pubkey: SAMPLE_PUBKEY,
         readonly: false,
         locked: false,
         createdAt: 123,
-        ncryptsec: encryptPrivateKeyToNcryptsec(SAMPLE_NSEC, 'password1234'),
         ...overrides,
     };
 }
@@ -61,44 +56,44 @@ describe('secure-storage', () => {
         expect(loaded).toEqual(session);
     });
 
-    test('never stores plain nsec in persisted payload', () => {
+    test('does not persist legacy ncryptsec payload field', () => {
         const storage = createMemoryStorage();
         const session = buildSession();
 
         saveStoredAuthSession(session, storage);
-        const raw = storage.getItem(AUTH_SESSION_STORAGE_KEY);
+        const raw = storage.getItem(AUTH_SESSION_STORAGE_KEY) ?? '';
 
-        expect(raw).not.toBeNull();
-        expect(raw).not.toContain('nsec1');
-        expect(raw).not.toContain('67dea2ed018072d675f5415ecfaed7d2597555e202d85b3d65ea4e58d2d92ffa');
+        expect(raw).not.toContain('ncryptsec');
     });
 
-    test('lockSession marks session as locked', () => {
+    test('loads legacy payloads but strips ncryptsec field', () => {
         const storage = createMemoryStorage();
-        saveStoredAuthSession(buildSession({ locked: false }), storage);
-
-        const locked = lockSession(storage);
-        expect(locked?.locked).toBe(true);
-    });
-
-    test('unlockSession returns private key and unlocked session', () => {
-        const storage = createMemoryStorage();
-        saveStoredAuthSession(buildSession({ locked: true }), storage);
-
-        const unlocked = unlockSession('password1234', storage);
-
-        expect(unlocked.privateKeyHex).toBe('67dea2ed018072d675f5415ecfaed7d2597555e202d85b3d65ea4e58d2d92ffa');
-        expect(unlocked.session.locked).toBe(false);
+        storage.setItem(
+            AUTH_SESSION_STORAGE_KEY,
+            JSON.stringify({
+                ...buildSession(),
+                ncryptsec: 'legacy-encrypted-private-key',
+            })
+        );
 
         const loaded = loadStoredAuthSession(storage);
-        expect(loaded?.locked).toBe(false);
+        expect(loaded).toEqual(buildSession());
+        expect((loaded as any)?.ncryptsec).toBeUndefined();
     });
 
-    test('unlockSession throws for invalid passphrase', () => {
+    test('rejects and clears persisted payload with unsupported method', () => {
         const storage = createMemoryStorage();
-        saveStoredAuthSession(buildSession({ locked: true }), storage);
+        storage.setItem(
+            AUTH_SESSION_STORAGE_KEY,
+            JSON.stringify({
+                ...buildSession(),
+                method: 'foo',
+            })
+        );
 
-        expect(() => unlockSession('wrong-passphrase', storage)).toThrow();
+        const loaded = loadStoredAuthSession(storage);
+        expect(loaded).toBeUndefined();
+        expect(storage.getItem(AUTH_SESSION_STORAGE_KEY)).toBeNull();
     });
 
     test('clearStoredAuthSession removes persisted payload', () => {

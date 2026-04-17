@@ -1,0 +1,87 @@
+import Fastify, {
+  type FastifyInstance,
+  type FastifyServerOptions,
+} from 'fastify';
+
+import { dmRoutes } from './modules/dm/dm.routes';
+import type { DmService } from './modules/dm/dm.service';
+import { notificationsRoutes } from './modules/notifications/notifications.routes';
+import type { NotificationsService } from './modules/notifications/notifications.service';
+import { publishRoutes } from './modules/publish/publish.routes';
+import type { PublishService } from './modules/publish/publish.service';
+import { socialRoutes } from './modules/social/social.routes';
+import type { SocialService } from './modules/social/social.service';
+import { usersRoutes } from './modules/users/users.routes';
+import type { UsersService } from './modules/users/users.service';
+import { corsPlugin } from './plugins/cors';
+import { errorHandlerPlugin } from './plugins/error-handler';
+import { ownerAuthPlugin } from './plugins/owner-auth';
+import { rateLimitPlugin } from './plugins/rate-limit';
+import { requestContextPlugin } from './plugins/request-context';
+import { securityHeadersPlugin } from './plugins/security-headers';
+import { healthRoute } from './routes/health.route';
+
+export interface BuildAppOptions {
+  socialService?: SocialService;
+  notificationsService?: NotificationsService;
+  usersService?: UsersService;
+  dmService?: DmService;
+  publishService?: PublishService;
+}
+
+const resolveTrustProxy = (): FastifyServerOptions['trustProxy'] => {
+  const configured = process.env.FASTIFY_TRUST_PROXY?.trim();
+  if (!configured) {
+    return 'loopback';
+  }
+
+  if (configured === 'true') {
+    return true;
+  }
+
+  if (configured === 'false') {
+    return false;
+  }
+
+  const allowList = configured
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+
+  return allowList.length > 0 ? allowList : 'loopback';
+};
+
+export const buildApp = (options: BuildAppOptions = {}): FastifyInstance => {
+  const app = Fastify({ logger: false, trustProxy: resolveTrustProxy() });
+
+  app.register(requestContextPlugin);
+  app.register(corsPlugin);
+  app.register(securityHeadersPlugin);
+  app.register(rateLimitPlugin);
+  app.register(ownerAuthPlugin);
+  app.register(errorHandlerPlugin);
+
+  app.register(healthRoute, { prefix: '/v1' });
+  app.register(socialRoutes, {
+    prefix: '/v1',
+    service: options.socialService,
+  });
+  app.register(notificationsRoutes, {
+    prefix: '/v1',
+    service: options.notificationsService,
+  });
+  app.register(dmRoutes, {
+    prefix: '/v1',
+    service: options.dmService,
+  });
+  app.register(usersRoutes, {
+    prefix: '/v1',
+    service: options.usersService,
+  });
+  app.register(publishRoutes, {
+    prefix: '/v1',
+    service: options.publishService,
+  });
+
+  return app;
+};

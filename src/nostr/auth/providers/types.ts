@@ -30,7 +30,6 @@ export interface ProviderResolveInput {
     credential?: string;
     passphrase?: string;
     pubkey?: string;
-    ncryptsec?: string;
     bunkerUri?: string;
 }
 

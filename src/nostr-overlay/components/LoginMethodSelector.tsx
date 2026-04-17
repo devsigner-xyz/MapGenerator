@@ -21,11 +21,10 @@ interface LoginMethodSelectorProps {
     initialMethod?: SelectorMethod;
 }
 
-type SelectorMethod = 'npub' | 'nsec' | 'nip07' | 'nip46';
+type SelectorMethod = 'npub' | 'nip07' | 'nip46';
 
 const selectorMethodLabels: Record<SelectorMethod, string> = {
     npub: 'npub (solo lectura)',
-    nsec: 'nsec',
     nip07: 'Extension (NIP-07)',
     nip46: 'Bunker (NIP-46)',
 };
@@ -37,8 +36,6 @@ export function LoginMethodSelector({
 }: LoginMethodSelectorProps) {
     const [method, setMethod] = useState<SelectorMethod>(initialMethod);
     const [npub, setNpub] = useState('');
-    const [nsec, setNsec] = useState('');
-    const [nsecPassphrase, setNsecPassphrase] = useState('');
     const [bunkerUri, setBunkerUri] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -66,21 +63,6 @@ export function LoginMethodSelector({
         });
     };
 
-    const handleNsecSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-        const credential = nsec.trim();
-        if (!credential) {
-            return;
-        }
-
-        await run(async () => {
-            await onStartSession('nsec', {
-                credential,
-                passphrase: nsecPassphrase.trim() || undefined,
-            });
-        });
-    };
-
     const isBusy = disabled || isSubmitting;
 
     const handleNip46Submit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -105,14 +87,13 @@ export function LoginMethodSelector({
                     <SelectTrigger id="nostr-login-method-trigger" className="nostr-login-method-select" aria-label="Metodo de login">
                         <SelectValue>{selectorMethodLabels[method]}</SelectValue>
                     </SelectTrigger>
-                    <SelectContent>
-                        <SelectGroup>
-                            <SelectItem value="npub">{selectorMethodLabels.npub}</SelectItem>
-                            <SelectItem value="nsec">{selectorMethodLabels.nsec}</SelectItem>
-                            <SelectItem value="nip07">{selectorMethodLabels.nip07}</SelectItem>
-                            <SelectItem value="nip46">{selectorMethodLabels.nip46}</SelectItem>
-                        </SelectGroup>
-                    </SelectContent>
+                        <SelectContent>
+                            <SelectGroup>
+                                <SelectItem value="npub">{selectorMethodLabels.npub}</SelectItem>
+                                <SelectItem value="nip07">{selectorMethodLabels.nip07}</SelectItem>
+                                <SelectItem value="nip46">{selectorMethodLabels.nip46}</SelectItem>
+                            </SelectGroup>
+                        </SelectContent>
                 </Select>
             </div>
 
@@ -138,47 +119,6 @@ export function LoginMethodSelector({
                                 Cargando...
                             </>
                         ) : 'Visualize'}
-                    </Button>
-                </form>
-            ) : null}
-
-            {method === 'nsec' ? (
-                <form className="nostr-form" onSubmit={handleNsecSubmit}>
-                    <Label className="nostr-label" htmlFor="nostr-nsec-input">
-                        Nostr nsec
-                    </Label>
-
-                    <Input
-                        id="nostr-nsec-input"
-                        name="nsec"
-                        type="password"
-                        placeholder="nsec1..."
-                        value={nsec}
-                        disabled={isBusy}
-                        onChange={(event) => setNsec(event.target.value)}
-                    />
-
-                    <Label className="nostr-label" htmlFor="nostr-nsec-passphrase-input">
-                        Passphrase para cifrar (recomendado)
-                    </Label>
-
-                    <Input
-                        id="nostr-nsec-passphrase-input"
-                        name="nsec-passphrase"
-                        type="password"
-                        placeholder="Minimo 8 caracteres"
-                        value={nsecPassphrase}
-                        disabled={isBusy}
-                        onChange={(event) => setNsecPassphrase(event.target.value)}
-                    />
-
-                    <Button type="submit" className="w-full" disabled={isBusy || nsec.trim().length === 0}>
-                        {isBusy ? (
-                            <>
-                                <Spinner data-icon="inline-start" />
-                                Cargando...
-                            </>
-                        ) : 'Continuar'}
                     </Button>
                 </form>
             ) : null}

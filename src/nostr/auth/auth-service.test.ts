@@ -4,7 +4,6 @@ import { AUTH_SESSION_STORAGE_KEY } from './secure-storage';
 import { AUTH_PROVIDER_ERROR } from './providers/types';
 
 const SAMPLE_NPUB = 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw';
-const SAMPLE_NSEC = 'nsec1vl029mgpspedva04g90vltkh6fvh240zqtv9k0t9af8935ke9laqsnlfe5';
 
 function createMemoryStorage(): Storage {
     const values = new Map<string, string>();
@@ -50,22 +49,16 @@ describe('createAuthService', () => {
         expect(persisted).not.toBeNull();
     });
 
-    test('starts nsec session and stores only ncryptsec payload', async () => {
+    test('rejects startSession for nsec login method', async () => {
         const storage = createMemoryStorage();
         const auth = createAuthService({ storage });
 
-        const session = await auth.startSession('nsec', {
-            credential: SAMPLE_NSEC,
-            passphrase: 'password1234',
-        });
-
-        expect(session.method).toBe('nsec');
-        expect(session.readonly).toBe(false);
-        expect(session.locked).toBe(false);
-
-        const persisted = storage.getItem(AUTH_SESSION_STORAGE_KEY);
-        expect(persisted).not.toBeNull();
-        expect(persisted).not.toContain('nsec1');
+        await expect(
+            auth.startSession('nsec' as any, {
+                credential: 'nsec1vl029mgpspedva04g90vltkh6fvh240zqtv9k0t9af8935ke9laqsnlfe5',
+                passphrase: 'password1234',
+            })
+        ).rejects.toThrow('nsec login is no longer supported');
     });
 
     test('restores session from persisted state', async () => {
@@ -81,14 +74,18 @@ describe('createAuthService', () => {
         expect(authB.getSession()?.method).toBe('npub');
     });
 
-    test('does not restore nsec session without persisted ncryptsec payload', async () => {
+    test('clears persisted nsec session on restore', async () => {
         const storage = createMemoryStorage();
-        const authA = createAuthService({ storage });
-        const started = await authA.startSession('nsec', {
-            credential: SAMPLE_NSEC,
-        });
-
-        expect(started.locked).toBe(false);
+        storage.setItem(
+            AUTH_SESSION_STORAGE_KEY,
+            JSON.stringify({
+                method: 'nsec',
+                pubkey: 'a'.repeat(64),
+                readonly: false,
+                locked: false,
+                createdAt: 123,
+            })
+        );
 
         const authB = createAuthService({ storage });
         const restored = await authB.restoreSession();
@@ -98,33 +95,29 @@ describe('createAuthService', () => {
         expect(storage.getItem(AUTH_SESSION_STORAGE_KEY)).toBeNull();
     });
 
-    test('restores nsec session as locked when ncryptsec exists but no passphrase is provided', async () => {
-        const storage = createMemoryStorage();
-        const authA = createAuthService({ storage });
-        await authA.startSession('nsec', {
-            credential: SAMPLE_NSEC,
-            passphrase: 'password1234',
-        });
-
-        const authB = createAuthService({ storage });
-        const restored = await authB.restoreSession();
-
-        expect(restored?.method).toBe('nsec');
-        expect(restored?.locked).toBe(true);
-    });
-
-    test('switchMethod updates active session', async () => {
+    test('switchMethod updates active session for supported method', async () => {
         const storage = createMemoryStorage();
         const auth = createAuthService({ storage });
 
         await auth.startSession('npub', { credential: SAMPLE_NPUB });
-        const switched = await auth.switchMethod('nsec', {
-            credential: SAMPLE_NSEC,
-            passphrase: 'password1234',
-        });
+        const switched = await auth.switchMethod('npub', { credential: SAMPLE_NPUB });
 
-        expect(switched.method).toBe('nsec');
-        expect(auth.getSession()?.method).toBe('nsec');
+        expect(switched.method).toBe('npub');
+        expect(auth.getSession()?.method).toBe('npub');
+    });
+
+    test('rejects switchMethod to nsec login method', async () => {
+        const storage = createMemoryStorage();
+        const auth = createAuthService({ storage });
+
+        await auth.startSession('npub', { credential: SAMPLE_NPUB });
+
+        await expect(
+            auth.switchMethod('nsec' as any, {
+                credential: 'nsec1vl029mgpspedva04g90vltkh6fvh240zqtv9k0t9af8935ke9laqsnlfe5',
+                passphrase: 'password1234',
+            })
+        ).rejects.toThrow('nsec login is no longer supported');
     });
 
     test('supports nip07 flow with browser extension', async () => {
@@ -236,20 +229,4 @@ describe('createAuthService', () => {
         expect(listener).toHaveBeenCalledTimes(2);
     });
 
-    test('locks and unlocks nsec session with passphrase', async () => {
-        const storage = createMemoryStorage();
-        const auth = createAuthService({ storage });
-
-        await auth.startSession('nsec', {
-            credential: SAMPLE_NSEC,
-            passphrase: 'password1234',
-        });
-
-        const locked = await auth.lockSession();
-        expect(locked?.locked).toBe(true);
-
-        const unlocked = await auth.unlockSession('password1234');
-        expect(unlocked.method).toBe('nsec');
-        expect(unlocked.locked).toBe(false);
-    });
 });

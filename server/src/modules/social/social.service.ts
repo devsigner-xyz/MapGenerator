@@ -1,0 +1,530 @@
+import { SimplePool, type Filter } from 'nostr-tools';
+
+import { shouldUseFallbackRelays } from '../../relay/relay-fallback';
+import { createRelayGateway } from '../../relay/relay-gateway';
+import type {
+  RelayGateway,
+  RelayGatewayQueryContext,
+} from '../../relay/relay-gateway.types';
+import { resolveRelaySets } from '../../relay/relay-resolver';
+import type {
+  EngagementBody,
+  EngagementResponseDto,
+  FollowingFeedResponseDto,
+  FollowingFeedQuery,
+  SocialEventDto,
+  ThreadResponseDto,
+  ThreadParams,
+  ThreadQuery,
+} from './social.schemas';
+
+type ThreadRequest = ThreadQuery & ThreadParams;
+type EngagementRequest = EngagementBody;
+
+type NostrEventLike = {
+  id: string;
+  pubkey: string;
+  kind: number;
+  created_at: number;
+  tags: string[][];
+  content: string;
+};
+
+const DEFAULT_BOOTSTRAP_RELAYS = [
+  'wss://relay.damus.io',
+  'wss://relay.primal.net',
+  'wss://nos.lol',
+  'wss://relay.nostr.band',
+];
+
+const SOCIAL_NOTE_KINDS = [1, 6];
+const ENGAGEMENT_QUERY_LIMIT = 5_000;
+
+const createEmptyEngagementTotals = () => ({
+  replies: 0,
+  reposts: 0,
+  reactions: 0,
+  zaps: 0,
+  zapSats: 0,
+});
+
+const toEventDto = (event: NostrEventLike): SocialEventDto => {
+  return {
+    id: event.id,
+    pubkey: event.pubkey,
+    kind: event.kind,
+    createdAt: event.created_at,
+    content: event.content,
+    tags: event.tags,
+  };
+};
+
+const byCreatedAtDesc = (left: NostrEventLike, right: NostrEventLike): number => {
+  if (left.created_at !== right.created_at) {
+    return right.created_at - left.created_at;
+  }
+
+  return left.id.localeCompare(right.id);
+};
+
+const dedupeById = (events: NostrEventLike[]): NostrEventLike[] => {
+  const map = new Map<string, NostrEventLike>();
+  for (const event of events) {
+    if (!map.has(event.id)) {
+      map.set(event.id, event);
+    }
+  }
+
+  return [...map.values()];
+};
+
+const parseFollowsFromContactList = (event: NostrEventLike | undefined): string[] => {
+  if (!event) {
+    return [];
+  }
+
+  const follows = new Set<string>();
+  for (const tag of event.tags) {
+    if (Array.isArray(tag) && tag[0] === 'p' && typeof tag[1] === 'string') {
+      const value = tag[1].trim().toLowerCase();
+      if (/^[0-9a-f]{64}$/.test(value)) {
+        follows.add(value);
+      }
+    }
+  }
+
+  return [...follows];
+};
+
+const findTargetEventId = (
+  tags: string[][],
+  candidateEventIds: Set<string>,
+): string | undefined => {
+  const matchingETags = tags.filter(
+    (tag) =>
+      Array.isArray(tag) &&
+      tag[0] === 'e' &&
+      typeof tag[1] === 'string' &&
+      candidateEventIds.has(tag[1]),
+  );
+
+  for (const tag of matchingETags) {
+    if (tag[3] === 'reply') {
+      return tag[1];
+    }
+  }
+
+  for (const tag of matchingETags) {
+    if (tag[3] === 'root') {
+      return tag[1];
+    }
+  }
+
+  for (let index = matchingETags.length - 1; index >= 0; index -= 1) {
+    const tag = matchingETags[index];
+    if (
+      typeof tag[1] === 'string' &&
+      candidateEventIds.has(tag[1])
+    ) {
+      return tag[1];
+    }
+  }
+
+  return undefined;
+};
+
+const parseZapSats = (event: NostrEventLike): number => {
+  const amountTag = event.tags.find(
+    (tag) => Array.isArray(tag) && tag[0] === 'amount' && typeof tag[1] === 'string',
+  );
+  if (!amountTag || !amountTag[1]) {
+    return 0;
+  }
+
+  const parsedAmount = Number(amountTag[1]);
+  if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+    return 0;
+  }
+
+  return Math.floor(parsedAmount / 1000);
+};
+
+const paginateEvents = (
+  events: NostrEventLike[],
+  limit: number,
+): { page: NostrEventLike[]; hasMore: boolean; nextUntil: number | null } => {
+  const hasMore = events.length > limit;
+  const page = events.slice(0, limit);
+  const nextUntil =
+    hasMore && page.length > 0
+      ? Math.max(0, page[page.length - 1].created_at - 1)
+      : null;
+
+  return {
+    page,
+    hasMore,
+    nextUntil,
+  };
+};
+
+export interface SocialServiceOptions {
+  feedGateway?: RelayGateway<FollowingFeedQuery, FollowingFeedResponseDto>;
+  threadGateway?: RelayGateway<ThreadRequest, ThreadResponseDto>;
+  engagementGateway?: RelayGateway<EngagementRequest, EngagementResponseDto>;
+  fetchFollowingFeed?: (
+    query: FollowingFeedQuery,
+    context: RelayGatewayQueryContext,
+  ) => Promise<FollowingFeedResponseDto>;
+  fetchThread?: (
+    query: ThreadRequest,
+    context: RelayGatewayQueryContext,
+  ) => Promise<ThreadResponseDto>;
+  fetchEngagement?: (
+    query: EngagementRequest,
+    context: RelayGatewayQueryContext,
+  ) => Promise<EngagementResponseDto>;
+  defaultTimeoutMs?: number;
+  bootstrapRelays?: string[];
+  pool?: SimplePool;
+}
+
+export interface SocialService {
+  getFollowingFeed(query: FollowingFeedQuery): Promise<FollowingFeedResponseDto>;
+  getThread(query: ThreadRequest): Promise<ThreadResponseDto>;
+  getEngagement(query: EngagementRequest): Promise<EngagementResponseDto>;
+}
+
+class GatewaySocialService implements SocialService {
+  constructor(
+    private readonly feedGateway: RelayGateway<FollowingFeedQuery, FollowingFeedResponseDto>,
+    private readonly threadGateway: RelayGateway<ThreadRequest, ThreadResponseDto>,
+    private readonly engagementGateway: RelayGateway<EngagementRequest, EngagementResponseDto>,
+  ) {}
+
+  async getFollowingFeed(query: FollowingFeedQuery): Promise<FollowingFeedResponseDto> {
+    return this.feedGateway.query({
+      key: `social:feed:${query.ownerPubkey}:${query.limit}:${query.until}:${query.hashtag ?? ''}`,
+      params: query,
+    });
+  }
+
+  async getThread(query: ThreadRequest): Promise<ThreadResponseDto> {
+    return this.threadGateway.query({
+      key: `social:thread:${query.rootEventId}:${query.limit}:${query.until}`,
+      params: query,
+    });
+  }
+
+  async getEngagement(query: EngagementRequest): Promise<EngagementResponseDto> {
+    const eventIds = [...new Set(query.eventIds)].sort();
+
+    return this.engagementGateway.query({
+      key: `social:engagement:${eventIds.join(',')}:${query.until ?? ''}`,
+      params: {
+        ...query,
+        eventIds,
+      },
+    });
+  }
+}
+
+const toDefaultEngagementResponse = (eventIds: string[]): EngagementResponseDto => {
+  return {
+    byEventId: Object.fromEntries(
+      [...new Set(eventIds)].map((eventId) => [
+        eventId,
+        createEmptyEngagementTotals(),
+      ]),
+    ),
+  };
+};
+
+const createPoolFetchers = (options: {
+  pool: SimplePool;
+  bootstrapRelays: string[];
+}): {
+  fetchFollowingFeed: (
+    query: FollowingFeedQuery,
+    context: RelayGatewayQueryContext,
+  ) => Promise<FollowingFeedResponseDto>;
+  fetchThread: (
+    query: ThreadRequest,
+    context: RelayGatewayQueryContext,
+  ) => Promise<ThreadResponseDto>;
+  fetchEngagement: (
+    query: EngagementRequest,
+    context: RelayGatewayQueryContext,
+  ) => Promise<EngagementResponseDto>;
+} => {
+  const queryWithFallback = async <T>(
+    relaySets: ReturnType<typeof resolveRelaySets>,
+    queryFn: (relays: string[]) => Promise<T>,
+  ): Promise<T> => {
+    if (shouldUseFallbackRelays({ primaryRelays: relaySets.primary })) {
+      return queryFn(relaySets.fallback);
+    }
+
+    try {
+      return await queryFn(relaySets.primary);
+    } catch (error) {
+      if (shouldUseFallbackRelays({ primaryRelays: relaySets.primary, error })) {
+        return queryFn(relaySets.fallback);
+      }
+
+      throw error;
+    }
+  };
+
+  const fetchFollowingFeed = async (
+    query: FollowingFeedQuery,
+    _context: RelayGatewayQueryContext,
+  ): Promise<FollowingFeedResponseDto> => {
+    const relaySets = resolveRelaySets({
+      scopedRelays: [],
+      userRelays: [],
+      bootstrapRelays: options.bootstrapRelays,
+    });
+
+    const queryFeedOnRelays = async (relays: string[]): Promise<FollowingFeedResponseDto> => {
+      if (relays.length === 0) {
+        return {
+          items: [],
+          hasMore: false,
+          nextUntil: null,
+        };
+      }
+
+      const contactEvents = await options.pool.querySync(relays, {
+        authors: [query.ownerPubkey],
+        kinds: [3],
+        limit: 1,
+      });
+
+      const latestContactList = dedupeById(contactEvents).sort(byCreatedAtDesc)[0];
+      const follows = parseFollowsFromContactList(latestContactList);
+      if (follows.length === 0) {
+        return {
+          items: [],
+          hasMore: false,
+          nextUntil: null,
+        };
+      }
+
+      const filter: Filter = {
+        authors: follows,
+        kinds: SOCIAL_NOTE_KINDS,
+        until: query.until,
+        limit: query.limit + 1,
+      };
+
+      if (query.hashtag) {
+        filter['#t'] = [query.hashtag.toLowerCase()];
+      }
+
+      const events = await options.pool.querySync(relays, filter);
+      const sorted = dedupeById(events).sort(byCreatedAtDesc);
+      const pagination = paginateEvents(sorted, query.limit);
+
+      return {
+        items: pagination.page.map(toEventDto),
+        hasMore: pagination.hasMore,
+        nextUntil: pagination.nextUntil,
+      };
+    };
+
+    return queryWithFallback(relaySets, queryFeedOnRelays);
+  };
+
+  const fetchThread = async (
+    query: ThreadRequest,
+    _context: RelayGatewayQueryContext,
+  ): Promise<ThreadResponseDto> => {
+    const relaySets = resolveRelaySets({
+      scopedRelays: [],
+      userRelays: [],
+      bootstrapRelays: options.bootstrapRelays,
+    });
+
+    const queryThreadOnRelays = async (relays: string[]): Promise<ThreadResponseDto> => {
+      if (relays.length === 0) {
+        return {
+          root: null,
+          replies: [],
+          hasMore: false,
+          nextUntil: null,
+        };
+      }
+
+      const rootCandidates = await options.pool.querySync(relays, {
+        ids: [query.rootEventId],
+        limit: 1,
+      });
+      const root = dedupeById(rootCandidates).sort(byCreatedAtDesc)[0] ?? null;
+
+      const replyCandidates = await options.pool.querySync(relays, {
+        '#e': [query.rootEventId],
+        kinds: [1],
+        until: query.until,
+        limit: query.limit + 1,
+      });
+      const replies = dedupeById(replyCandidates).sort(byCreatedAtDesc);
+      const pagination = paginateEvents(replies, query.limit);
+
+      return {
+        root: root ? toEventDto(root) : null,
+        replies: pagination.page.map(toEventDto),
+        hasMore: pagination.hasMore,
+        nextUntil: pagination.nextUntil,
+      };
+    };
+
+    return queryWithFallback(relaySets, queryThreadOnRelays);
+  };
+
+  const fetchEngagement = async (
+    query: EngagementRequest,
+    _context: RelayGatewayQueryContext,
+  ): Promise<EngagementResponseDto> => {
+    const relaySets = resolveRelaySets({
+      scopedRelays: [],
+      userRelays: [],
+      bootstrapRelays: options.bootstrapRelays,
+    });
+
+    const queryEngagementOnRelays = async (relays: string[]): Promise<EngagementResponseDto> => {
+      if (relays.length === 0) {
+        return toDefaultEngagementResponse(query.eventIds);
+      }
+
+      const candidateIds = new Set(query.eventIds);
+      const totalsByEventId = new Map(
+        query.eventIds.map((eventId) => [eventId, createEmptyEngagementTotals()]),
+      );
+
+      const engagementFilters: Filter[] = [
+        {
+          '#e': query.eventIds,
+          kinds: [1],
+          limit: ENGAGEMENT_QUERY_LIMIT,
+          until: query.until,
+        },
+        {
+          '#e': query.eventIds,
+          kinds: [6],
+          limit: ENGAGEMENT_QUERY_LIMIT,
+          until: query.until,
+        },
+        {
+          '#e': query.eventIds,
+          kinds: [7],
+          limit: ENGAGEMENT_QUERY_LIMIT,
+          until: query.until,
+        },
+        {
+          '#e': query.eventIds,
+          kinds: [9735],
+          limit: ENGAGEMENT_QUERY_LIMIT,
+          until: query.until,
+        },
+      ];
+
+      const [replies, reposts, reactions, zaps] = await Promise.all(
+        engagementFilters.map((filter) => options.pool.querySync(relays, filter)),
+      );
+
+      for (const event of dedupeById(replies)) {
+        const eventId = findTargetEventId(event.tags, candidateIds);
+        if (!eventId) {
+          continue;
+        }
+
+        totalsByEventId.get(eventId)!.replies += 1;
+      }
+
+      for (const event of dedupeById(reposts)) {
+        const eventId = findTargetEventId(event.tags, candidateIds);
+        if (!eventId) {
+          continue;
+        }
+
+        totalsByEventId.get(eventId)!.reposts += 1;
+      }
+
+      for (const event of dedupeById(reactions)) {
+        const eventId = findTargetEventId(event.tags, candidateIds);
+        if (!eventId) {
+          continue;
+        }
+
+        totalsByEventId.get(eventId)!.reactions += 1;
+      }
+
+      for (const event of dedupeById(zaps)) {
+        const eventId = findTargetEventId(event.tags, candidateIds);
+        if (!eventId) {
+          continue;
+        }
+
+        const totals = totalsByEventId.get(eventId)!;
+        totals.zaps += 1;
+        totals.zapSats += parseZapSats(event);
+      }
+
+      return {
+        byEventId: Object.fromEntries(totalsByEventId.entries()),
+      };
+    };
+
+    return queryWithFallback(relaySets, queryEngagementOnRelays);
+  };
+
+  return {
+    fetchFollowingFeed,
+    fetchThread,
+    fetchEngagement,
+  };
+};
+
+export const createSocialService = (options: SocialServiceOptions = {}): SocialService => {
+  const pool = options.pool ?? new SimplePool();
+  const bootstrapRelays = options.bootstrapRelays ?? DEFAULT_BOOTSTRAP_RELAYS;
+  const fetchers = createPoolFetchers({
+    pool,
+    bootstrapRelays,
+  });
+
+  const feedGateway =
+    options.feedGateway ??
+    createRelayGateway<FollowingFeedQuery, FollowingFeedResponseDto>({
+      queryFn: options.fetchFollowingFeed || fetchers.fetchFollowingFeed,
+      defaultTimeoutMs: options.defaultTimeoutMs,
+      cache: {
+        ttlMs: 15_000,
+        maxEntries: 300,
+      },
+    });
+
+  const threadGateway =
+    options.threadGateway ??
+    createRelayGateway<ThreadRequest, ThreadResponseDto>({
+      queryFn: options.fetchThread || fetchers.fetchThread,
+      defaultTimeoutMs: options.defaultTimeoutMs,
+      cache: {
+        ttlMs: 15_000,
+        maxEntries: 300,
+      },
+    });
+
+  const engagementGateway =
+    options.engagementGateway ??
+    createRelayGateway<EngagementRequest, EngagementResponseDto>({
+      queryFn: options.fetchEngagement || fetchers.fetchEngagement,
+      defaultTimeoutMs: options.defaultTimeoutMs,
+      cache: {
+        ttlMs: 5_000,
+        maxEntries: 300,
+      },
+    });
+
+  return new GatewaySocialService(feedGateway, threadGateway, engagementGateway);
+};

@@ -66,7 +66,7 @@ describe('ProfileTab', () => {
         mounted.push(rendered);
 
         expect(rendered.container.querySelector('.nostr-auth-hint')).toBeNull();
-        expect(rendered.container.textContent || '').not.toContain('Modo solo lectura. Inicia sesion con nsec o extension para interactuar con Nostr.');
+        expect(rendered.container.textContent || '').not.toContain('Modo solo lectura. Inicia sesion con extension o bunker para interactuar con Nostr.');
         expect(rendered.container.textContent || '').not.toContain('Sesion bloqueada. Desbloquea para seguir, publicar y enviar mensajes privados.');
         expect(rendered.container.textContent || '').not.toContain('Sesion lista para seguir, publicar y enviar mensajes privados.');
         expect(rendered.container.textContent || '').not.toContain('Elige un metodo de login para continuar.');

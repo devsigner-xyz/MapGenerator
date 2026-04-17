@@ -1,0 +1,257 @@
+export interface FollowingFeedQuery {
+  ownerPubkey: string;
+  limit: number;
+  until: number;
+  hashtag?: string;
+}
+
+export interface ThreadParams {
+  rootEventId: string;
+}
+
+export interface ThreadQuery {
+  limit: number;
+  until: number;
+}
+
+export interface EngagementBody {
+  eventIds: string[];
+  until?: number;
+}
+
+export interface SocialEventDto {
+  id: string;
+  pubkey: string;
+  kind: number;
+  createdAt: number;
+  content: string;
+  tags: string[][];
+}
+
+export interface FollowingFeedResponseDto {
+  items: SocialEventDto[];
+  hasMore: boolean;
+  nextUntil: number | null;
+}
+
+export interface ThreadResponseDto {
+  root: SocialEventDto | null;
+  replies: SocialEventDto[];
+  hasMore: boolean;
+  nextUntil: number | null;
+}
+
+export interface EngagementTotalsDto {
+  replies: number;
+  reposts: number;
+  reactions: number;
+  zaps: number;
+  zapSats: number;
+}
+
+export interface EngagementResponseDto {
+  byEventId: Record<string, EngagementTotalsDto>;
+}
+
+const LOWER_HEX_64_PATTERN = '^[0-9a-f]{64}$';
+const MAX_ENGAGEMENT_EVENT_IDS = 100;
+const MAX_UNTIL = 2_147_483_647;
+
+export const followingFeedQuerySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['ownerPubkey', 'limit', 'until'],
+  properties: {
+    ownerPubkey: {
+      type: 'string',
+      pattern: LOWER_HEX_64_PATTERN,
+    },
+    limit: {
+      type: 'integer',
+      minimum: 1,
+      maximum: 100,
+    },
+    until: {
+      type: 'integer',
+      minimum: 0,
+    },
+    hashtag: {
+      type: 'string',
+      minLength: 1,
+      maxLength: 64,
+    },
+  },
+} as const;
+
+export const threadParamsSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['rootEventId'],
+  properties: {
+    rootEventId: {
+      type: 'string',
+      pattern: LOWER_HEX_64_PATTERN,
+    },
+  },
+} as const;
+
+export const threadQuerySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['limit', 'until'],
+  properties: {
+    limit: {
+      type: 'integer',
+      minimum: 1,
+      maximum: 100,
+    },
+    until: {
+      type: 'integer',
+      minimum: 0,
+    },
+  },
+} as const;
+
+export const engagementBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['eventIds'],
+  properties: {
+    eventIds: {
+      type: 'array',
+      minItems: 1,
+      maxItems: MAX_ENGAGEMENT_EVENT_IDS,
+      items: {
+        type: 'string',
+        pattern: LOWER_HEX_64_PATTERN,
+      },
+    },
+    until: {
+      type: 'integer',
+      minimum: 0,
+      maximum: MAX_UNTIL,
+    },
+  },
+} as const;
+
+const socialTagSchema = {
+  type: 'array',
+  items: {
+    type: 'string',
+  },
+} as const;
+
+export const socialEventSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['id', 'pubkey', 'kind', 'createdAt', 'content', 'tags'],
+  properties: {
+    id: {
+      type: 'string',
+      pattern: LOWER_HEX_64_PATTERN,
+    },
+    pubkey: {
+      type: 'string',
+      pattern: LOWER_HEX_64_PATTERN,
+    },
+    kind: {
+      type: 'integer',
+      minimum: 0,
+    },
+    createdAt: {
+      type: 'integer',
+      minimum: 0,
+    },
+    content: {
+      type: 'string',
+    },
+    tags: {
+      type: 'array',
+      items: socialTagSchema,
+    },
+  },
+} as const;
+
+export const followingFeedResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['items', 'hasMore', 'nextUntil'],
+  properties: {
+    items: {
+      type: 'array',
+      items: socialEventSchema,
+    },
+    hasMore: {
+      type: 'boolean',
+    },
+    nextUntil: {
+      type: ['integer', 'null'],
+      minimum: 0,
+    },
+  },
+} as const;
+
+export const threadResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['root', 'replies', 'hasMore', 'nextUntil'],
+  properties: {
+    root: {
+      anyOf: [socialEventSchema, { type: 'null' }],
+    },
+    replies: {
+      type: 'array',
+      items: socialEventSchema,
+    },
+    hasMore: {
+      type: 'boolean',
+    },
+    nextUntil: {
+      type: ['integer', 'null'],
+      minimum: 0,
+    },
+  },
+} as const;
+
+const engagementTotalsSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['replies', 'reposts', 'reactions', 'zaps', 'zapSats'],
+  properties: {
+    replies: {
+      type: 'integer',
+      minimum: 0,
+    },
+    reposts: {
+      type: 'integer',
+      minimum: 0,
+    },
+    reactions: {
+      type: 'integer',
+      minimum: 0,
+    },
+    zaps: {
+      type: 'integer',
+      minimum: 0,
+    },
+    zapSats: {
+      type: 'integer',
+      minimum: 0,
+    },
+  },
+} as const;
+
+export const engagementResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['byEventId'],
+  properties: {
+    byEventId: {
+      type: 'object',
+      patternProperties: {
+        [LOWER_HEX_64_PATTERN]: engagementTotalsSchema,
+      },
+      additionalProperties: false,
+    },
+  },
+} as const;

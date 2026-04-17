@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { decodeNpubToHex, decodeNsecToHex, encodeHexToNpub } from './npub';
+import { decodeNpubToHex, encodeHexToNpub } from './npub';
 
 describe('encodeHexToNpub', () => {
     test('returns npub for valid 64-char hex pubkey', () => {
@@ -24,20 +24,5 @@ describe('decodeNpubToHex', () => {
 
     test('throws for malformed npub identifiers', () => {
         expect(() => decodeNpubToHex('npub1invalid')).toThrow();
-    });
-});
-
-describe('decodeNsecToHex', () => {
-    test('returns 64-char hex private key for valid nsec', () => {
-        const result = decodeNsecToHex('nsec1vl029mgpspedva04g90vltkh6fvh240zqtv9k0t9af8935ke9laqsnlfe5');
-        expect(result).toBe('67dea2ed018072d675f5415ecfaed7d2597555e202d85b3d65ea4e58d2d92ffa');
-    });
-
-    test('throws for non-nsec values', () => {
-        expect(() => decodeNsecToHex('npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw')).toThrow();
-    });
-
-    test('throws for malformed nsec values', () => {
-        expect(() => decodeNsecToHex('nsec1invalid')).toThrow();
     });
 });

@@ -6,7 +6,7 @@ import type { NostrEvent } from './types';
 
 function buildSession(overrides: Partial<AuthSessionState> = {}): AuthSessionState {
     return {
-        method: 'nsec',
+        method: 'nip46',
         pubkey: 'f'.repeat(64),
         readonly: false,
         locked: false,
@@ -22,7 +22,7 @@ function buildSession(overrides: Partial<AuthSessionState> = {}): AuthSessionSta
 
 function buildProvider(): AuthProvider {
     return {
-        method: 'nsec',
+        method: 'nip46',
         supports: {
             canSign: true,
             canEncrypt: true,

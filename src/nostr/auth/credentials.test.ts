@@ -3,7 +3,6 @@ import {
     type CredentialKind,
     detectCredentialKind,
     parseCredential,
-    type ParsedCredential,
 } from './credentials';
 
 const SAMPLE_NPUB = 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw';
@@ -15,16 +14,16 @@ function expectKind(input: string, kind: CredentialKind) {
 }
 
 describe('detectCredentialKind', () => {
-    test('detects npub, nsec, hex and bunker markers', () => {
+    test('detects npub, hex and bunker markers', () => {
         expectKind(SAMPLE_NPUB, 'npub');
-        expectKind(SAMPLE_NSEC, 'nsec');
         expectKind(SAMPLE_HEX, 'hex');
         expectKind('bunker://abc?relay=wss://relay.example.com', 'bunker');
         expectKind('nostrconnect://abc?relay=wss://relay.example.com&secret=test', 'bunker');
     });
 
-    test('returns unknown when marker is unsupported', () => {
+    test('returns unknown when marker is unsupported or disallowed for login', () => {
         expectKind('note1something', 'unknown');
+        expectKind(SAMPLE_NSEC, 'unknown');
     });
 });
 
@@ -38,17 +37,6 @@ describe('parseCredential', () => {
 
         expect(parsed.original).toBe(SAMPLE_NPUB);
         expect(parsed.pubkeyHex).toMatch(/^[a-f0-9]{64}$/);
-    });
-
-    test('parses nsec into hex and preserves original value', () => {
-        const parsed = parseCredential(SAMPLE_NSEC);
-        expect(parsed.kind).toBe('nsec');
-        if (parsed.kind !== 'nsec') {
-            throw new Error('Expected nsec credential');
-        }
-
-        expect(parsed.original).toBe(SAMPLE_NSEC);
-        expect(parsed.privateKeyHex).toBe('67dea2ed018072d675f5415ecfaed7d2597555e202d85b3d65ea4e58d2d92ffa');
     });
 
     test('parses hex and normalizes to lowercase', () => {
@@ -106,8 +94,8 @@ describe('parseCredential', () => {
         expect(() => parseCredential('invalid-key-value')).toThrow('Unsupported credential format');
     });
 
-    test('throws for invalid nsec even if it has nsec prefix', () => {
-        expect(() => parseCredential('nsec1invalid')).toThrow('Provided identifier is not an nsec key');
+    test('throws for nsec credential because nsec login is removed', () => {
+        expect(() => parseCredential(SAMPLE_NSEC)).toThrow('nsec credential login is no longer supported');
     });
 
     test('throws for invalid bunker uri payload', () => {

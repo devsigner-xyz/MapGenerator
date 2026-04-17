@@ -25,28 +25,3 @@ export function decodeNpubToHex(npub: string): string {
 
     return pubkey;
 }
-
-export function decodeNsecToHex(nsec: string): string {
-    try {
-        const decoded = nip19.decode(nsec);
-        if (decoded.type !== 'nsec') {
-            throw new Error('Provided identifier is not an nsec key');
-        }
-
-        const privateKey = decoded.data;
-        const privateKeyHex =
-            typeof privateKey === 'string'
-                ? privateKey
-                : Array.from(privateKey)
-                      .map((value) => value.toString(16).padStart(2, '0'))
-                      .join('');
-
-        if (!isHexKey(privateKeyHex)) {
-            throw new Error('Decoded nsec did not produce a valid 64-char hex private key');
-        }
-
-        return privateKeyHex;
-    } catch {
-        throw new Error('Provided identifier is not an nsec key');
-    }
-}

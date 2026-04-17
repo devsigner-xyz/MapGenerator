@@ -24,11 +24,11 @@ describe('capabilitiesForMethod', () => {
         });
     });
 
-    test('returns writing capabilities for nsec', () => {
-        expect(capabilitiesForMethod('nsec')).toEqual({
+    test('returns signing-only capabilities for nip46 by default', () => {
+        expect(capabilitiesForMethod('nip46')).toEqual({
             canSign: true,
-            canEncrypt: true,
-            encryptionSchemes: ['nip04', 'nip44'],
+            canEncrypt: false,
+            encryptionSchemes: [],
         });
     });
 
@@ -45,8 +45,8 @@ describe('methodSupports', () => {
     test('checks capability matrix by method', () => {
         expect(methodSupports('npub', 'sign')).toBe(false);
         expect(methodSupports('npub', 'encrypt')).toBe(false);
-        expect(methodSupports('nsec', 'sign')).toBe(true);
-        expect(methodSupports('nsec', 'encrypt')).toBe(true);
+        expect(methodSupports('nip46', 'sign')).toBe(true);
+        expect(methodSupports('nip46', 'encrypt')).toBe(false);
         expect(methodSupports('nip07', 'sign')).toBe(true);
         expect(methodSupports('nip07', 'encrypt')).toBe(false);
     });
