@@ -1,10 +1,7 @@
 import { useMemo, useState } from 'react';
 import { encodeHexToNpub } from '../../nostr/npub';
 import type { Nip05ValidationResult } from '../../nostr/nip05';
-import type { ProviderResolveInput } from '../../nostr/auth/providers/types';
-import type { AuthSessionState, LoginMethod } from '../../nostr/auth/session';
 import type { NostrProfile } from '../../nostr/types';
-import { LoginMethodSelector } from './LoginMethodSelector';
 import { PeopleListTab } from './PeopleListTab';
 import { ProfileTab } from './ProfileTab';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -28,9 +25,6 @@ interface SocialSidebarProps {
     zapAmounts?: number[];
     onConfigureZapAmounts?: () => void;
     onCopyOwnerNpub?: (value: string) => void | Promise<void>;
-    loginDisabled?: boolean;
-    authSession?: AuthSessionState;
-    onStartSession?: (method: LoginMethod, input: ProviderResolveInput) => Promise<void> | void;
     verificationByPubkey?: Record<string, Nip05ValidationResult | undefined>;
 }
 
@@ -51,9 +45,6 @@ export function SocialSidebar({
     zapAmounts = [21, 128, 256],
     onConfigureZapAmounts,
     onCopyOwnerNpub,
-    loginDisabled = false,
-    authSession,
-    onStartSession,
     verificationByPubkey = {},
 }: SocialSidebarProps) {
     const [activeTab, setActiveTab] = useState<SocialTab>('profile');
@@ -98,82 +89,71 @@ export function SocialSidebar({
     }, [followerPeople, followerProfiles, followersSearch]);
 
     return (
-        <div className={`nostr-social-sidebar ${!authSession ? 'nostr-social-sidebar-authless' : ''}`} aria-label="Panel social">
-            {!authSession ? (
-                <LoginMethodSelector
-                    disabled={loginDisabled}
-                    onStartSession={async (method, input) => {
-                        await onStartSession?.(method, input);
-                    }}
-                />
-            ) : null}
+        <div className="nostr-social-sidebar" aria-label="Panel social">
+            <Tabs
+                value={activeTab}
+                onValueChange={(value) => setActiveTab(value as SocialTab)}
+                className="nostr-social-tabs"
+                aria-label="Pestanas sociales"
+            >
+                <TabsList variant="line" className="grid h-auto w-full grid-cols-3" aria-label="Pestanas sociales">
+                    <TabsTrigger value="profile">Sobre mi</TabsTrigger>
+                    <TabsTrigger value="following">{`Sigues (${followingPeople.length})`}</TabsTrigger>
+                    <TabsTrigger value="followers">{`Seguidores (${followerPeople.length})`}</TabsTrigger>
+                </TabsList>
 
-            {authSession ? (
-                <Tabs
-                    value={activeTab}
-                    onValueChange={(value) => setActiveTab(value as SocialTab)}
-                    className="nostr-social-tabs"
-                    aria-label="Pestanas sociales"
-                >
-                    <TabsList variant="line" className="grid h-auto w-full grid-cols-3" aria-label="Pestanas sociales">
-                        <TabsTrigger value="profile">Sobre mi</TabsTrigger>
-                        <TabsTrigger value="following">{`Sigues (${followingPeople.length})`}</TabsTrigger>
-                        <TabsTrigger value="followers">{`Seguidores (${followerPeople.length})`}</TabsTrigger>
-                    </TabsList>
+                <TabsContent value="profile" className="nostr-tab-panel">
+                    <ProfileTab
+                        ownerPubkey={ownerPubkey}
+                        ownerProfile={ownerProfile}
+                        ownerVerification={ownerPubkey ? verificationByPubkey[ownerPubkey] : undefined}
+                    />
+                </TabsContent>
 
-                    <TabsContent value="profile" className="nostr-tab-panel">
-                        <ProfileTab
-                            ownerPubkey={ownerPubkey}
-                            ownerProfile={ownerProfile}
-                            ownerVerification={ownerPubkey ? verificationByPubkey[ownerPubkey] : undefined}
-                        />
-                    </TabsContent>
+                <TabsContent value="following" className="nostr-tab-panel">
+                    <PeopleListTab
+                        people={filteredFollowingPeople}
+                        profiles={profiles}
+                        emptyText={followingSearch ? 'No hay resultados para esta busqueda.' : 'No hay cuentas seguidas todavía.'}
+                        loading={false}
+                        selectedPubkey={selectedFollowingPubkey}
+                        onSelectPerson={onSelectFollowing}
+                        onLocatePerson={onLocateFollowing}
+                        onCopyNpub={onCopyOwnerNpub}
+                        onSendMessage={onMessagePerson}
+                        onViewDetails={onViewPersonDetails}
+                        zapAmounts={zapAmounts}
+                        onConfigureZapAmounts={onConfigureZapAmounts}
+                        searchQuery={followingPeople.length > 0 ? followingSearch : undefined}
+                        onSearchQueryChange={followingPeople.length > 0 ? setFollowingSearch : undefined}
+                        searchAriaLabel={followingPeople.length > 0 ? 'Buscar en seguidos' : undefined}
+                        verificationByPubkey={verificationByPubkey}
+                    />
+                </TabsContent>
 
-                    <TabsContent value="following" className="nostr-tab-panel">
-                        <PeopleListTab
-                            people={filteredFollowingPeople}
-                            profiles={profiles}
-                            emptyText={followingSearch ? 'No hay resultados para esta busqueda.' : 'No hay cuentas seguidas todavía.'}
-                            loading={false}
-                            selectedPubkey={selectedFollowingPubkey}
-                            onSelectPerson={onSelectFollowing}
-                            onLocatePerson={onLocateFollowing}
-                            onCopyNpub={onCopyOwnerNpub}
-                            onSendMessage={onMessagePerson}
-                            onViewDetails={onViewPersonDetails}
-                            zapAmounts={zapAmounts}
-                            onConfigureZapAmounts={onConfigureZapAmounts}
-                            searchQuery={followingPeople.length > 0 ? followingSearch : undefined}
-                            onSearchQueryChange={followingPeople.length > 0 ? setFollowingSearch : undefined}
-                            searchAriaLabel={followingPeople.length > 0 ? 'Buscar en seguidos' : undefined}
-                            verificationByPubkey={verificationByPubkey}
-                        />
-                    </TabsContent>
-
-                    <TabsContent value="followers" className="nostr-tab-panel">
-                        <PeopleListTab
-                            people={filteredFollowerPeople}
-                            profiles={followerProfiles}
-                            emptyText={followersSearch ? 'No hay resultados para esta busqueda.' : 'No se encontraron seguidores aún.'}
-                            loading={followersLoading}
-                            selectedPubkey={selectedFollowingPubkey}
-                            onSelectPerson={onSelectFollowing}
-                            onLocatePerson={onLocateFollowing}
-                            onCopyNpub={onCopyOwnerNpub}
-                            onSendMessage={onMessagePerson}
-                            onViewDetails={onViewPersonDetails}
-                            zapAmounts={zapAmounts}
-                            onConfigureZapAmounts={onConfigureZapAmounts}
-                            followedPubkeys={followingPeople}
-                            onFollowPerson={onFollowPerson}
-                            searchQuery={followerPeople.length > 0 ? followersSearch : undefined}
-                            onSearchQueryChange={followerPeople.length > 0 ? setFollowersSearch : undefined}
-                            searchAriaLabel={followerPeople.length > 0 ? 'Buscar en seguidores' : undefined}
-                            verificationByPubkey={verificationByPubkey}
-                        />
-                    </TabsContent>
-                </Tabs>
-            ) : null}
+                <TabsContent value="followers" className="nostr-tab-panel">
+                    <PeopleListTab
+                        people={filteredFollowerPeople}
+                        profiles={followerProfiles}
+                        emptyText={followersSearch ? 'No hay resultados para esta busqueda.' : 'No se encontraron seguidores aún.'}
+                        loading={followersLoading}
+                        selectedPubkey={selectedFollowingPubkey}
+                        onSelectPerson={onSelectFollowing}
+                        onLocatePerson={onLocateFollowing}
+                        onCopyNpub={onCopyOwnerNpub}
+                        onSendMessage={onMessagePerson}
+                        onViewDetails={onViewPersonDetails}
+                        zapAmounts={zapAmounts}
+                        onConfigureZapAmounts={onConfigureZapAmounts}
+                        followedPubkeys={followingPeople}
+                        onFollowPerson={onFollowPerson}
+                        searchQuery={followerPeople.length > 0 ? followersSearch : undefined}
+                        onSearchQueryChange={followerPeople.length > 0 ? setFollowersSearch : undefined}
+                        searchAriaLabel={followerPeople.length > 0 ? 'Buscar en seguidores' : undefined}
+                        verificationByPubkey={verificationByPubkey}
+                    />
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }

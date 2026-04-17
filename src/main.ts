@@ -17,7 +17,7 @@ import { shouldRegenerateMapOnViewportInsetChange } from './ts/ui/viewport_inset
 import { SVG } from '@svgdotjs/svg.js';
 import type ModelGenerator from './ts/model_generator';
 import { saveAs } from 'file-saver';
-import { mountNostrOverlayDeferred } from './nostr-overlay/deferred-bootstrap';
+import { mountNostrOverlay } from './nostr-overlay/bootstrap';
 import { createMiddlePanState, stopMiddlePanState, type MiddlePanState, updateMiddlePanState } from './ts/ui/middle_pan_drag';
 import { createViewChangeScheduler } from './ts/ui/view_change_scheduler';
 import type { EasterEggId } from './ts/ui/easter_eggs';
@@ -816,5 +816,5 @@ class Main {
 window.addEventListener('load', (): void => {
     const main = new Main();
     (window as any).mapGeneratorMain = main;
-    mountNostrOverlayDeferred();
+    mountNostrOverlay();
 });

@@ -358,6 +358,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         data: createInitialData(),
     });
     const [mapLoaderStage, setMapLoaderStage] = useState<MapLoaderStage | null>(null);
+    const [sessionRestorationResolved, setSessionRestorationResolved] = useState(false);
     const requestIdRef = useRef(0);
     const latestStateRef = useRef(state);
     const occupancyAnimationTokenRef = useRef(0);
@@ -701,29 +702,40 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
     }, [state]);
 
     useEffect(() => {
-        if (didRestoreSessionRef.current || !mapBridge) {
+        if (didRestoreSessionRef.current) {
+            return;
+        }
+
+        if (!mapBridge) {
+            setSessionRestorationResolved(true);
             return;
         }
 
         didRestoreSessionRef.current = true;
         void (async () => {
-            const restored = await authService.restoreSession();
-            if (!restored) {
-                return;
+            try {
+                const restored = await authService.restoreSession();
+                if (!restored) {
+                    return;
+                }
+
+                setState((current) => ({
+                    ...current,
+                    data: {
+                        ...current.data,
+                        authSession: restored,
+                    },
+                }));
+
+                setSessionRestorationResolved(true);
+
+                await loadOwnerGraph({
+                    session: restored,
+                    method: restored.method,
+                });
+            } finally {
+                setSessionRestorationResolved(true);
             }
-
-            setState((current) => ({
-                ...current,
-                data: {
-                    ...current.data,
-                    authSession: restored,
-                },
-            }));
-
-            await loadOwnerGraph({
-                session: restored,
-                method: restored.method,
-            });
         })();
     }, [authService, mapBridge]);
 
@@ -1696,6 +1708,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
     return {
         status: state.status,
         mapLoaderStage,
+        sessionRestorationResolved,
         error: state.error,
         authSession: state.data.authSession,
         canWrite: isWriteEnabled(state.data.authSession),

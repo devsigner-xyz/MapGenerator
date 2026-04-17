@@ -28,6 +28,7 @@ import { SettingsPage } from './components/SettingsPage';
 import { UserSearchPage } from './components/UserSearchPage';
 import { RelayDetailRoute } from './components/RelayDetailRoute';
 import { RelaysRoute } from './components/RelaysRoute';
+import { LoginGateScreen } from './components/LoginGateScreen';
 import { SettingsAboutRoute } from './components/settings-routes/SettingsAboutRoute';
 import { SettingsAdvancedRoute } from './components/settings-routes/SettingsAdvancedRoute';
 import { SettingsShortcutsRoute } from './components/settings-routes/SettingsShortcutsRoute';
@@ -137,6 +138,9 @@ export function App({ mapBridge, services }: AppProps) {
     );
     const loginDisabled = overlay.status !== 'idle' && overlay.status !== 'success' && overlay.status !== 'error';
     const mapLoaderText = mapLoaderStageLabel(overlay.mapLoaderStage);
+    const sessionRestorationResolved = overlay.sessionRestorationResolved;
+    const isAppReady = Boolean(overlay.authSession) && overlay.status === 'success';
+    const showLoginGate = !sessionRestorationResolved || !isAppReady;
     const regenerateDisabled = !mapBridge || overlay.mapLoaderStage !== null;
     const lastErrorToastRef = useRef<string | undefined>(undefined);
     const streetLabelUsernames = useMemo(() => extractStreetLabelUsernames({
@@ -217,6 +221,13 @@ export function App({ mapBridge, services }: AppProps) {
             return;
         }
 
+        if (showLoginGate) {
+            mapBridge.setViewportInsetLeft(0);
+            return () => {
+                mapBridge.setViewportInsetLeft(0);
+            };
+        }
+
         mapBridge.setViewportInsetLeft(
             isMobile
                 ? 0
@@ -227,7 +238,7 @@ export function App({ mapBridge, services }: AppProps) {
         return () => {
             mapBridge.setViewportInsetLeft(0);
         };
-    }, [isMobile, mapBridge, sidebarOpen]);
+    }, [isMobile, mapBridge, showLoginGate, sidebarOpen]);
 
     useEffect(() => {
         if (!mapBridge) {
@@ -289,13 +300,17 @@ export function App({ mapBridge, services }: AppProps) {
         }
 
         return mapBridge.onOccupiedBuildingContextMenu((payload) => {
+            if (showLoginGate) {
+                return;
+            }
+
             contextMenuNonceRef.current += 1;
             setBuildingContextMenu({
                 ...payload,
                 nonce: contextMenuNonceRef.current,
             });
         });
-    }, [mapBridge]);
+    }, [mapBridge, showLoginGate]);
 
     useEffect(() => {
         if (!mapBridge || !mapBridge.onEasterEggBuildingClick) {
@@ -322,12 +337,22 @@ export function App({ mapBridge, services }: AppProps) {
         }
 
         return mapBridge.onSpecialBuildingClick((payload) => {
+            if (showLoginGate) {
+                return;
+            }
+
             const entry = getSpecialBuildingEntry(payload.specialBuildingId);
             if (entry.action === 'open_agora') {
                 navigate('/agora');
             }
         });
-    }, [mapBridge, navigate]);
+    }, [mapBridge, navigate, showLoginGate]);
+
+    useEffect(() => {
+        if (showLoginGate) {
+            setBuildingContextMenu(null);
+        }
+    }, [showLoginGate]);
 
     useEffect(() => {
         if (!buildingContextMenu || !contextMenuTriggerRef.current) {
@@ -862,74 +887,75 @@ export function App({ mapBridge, services }: AppProps) {
         openChatConversation(pubkey, true);
     };
 
+    const handleLogout = async (): Promise<void> => {
+        await overlay.logoutSession?.();
+        setEasterEggProgress({ discoveredIds: [] });
+        setZapSettings(loadZapSettings());
+        setActiveEasterEgg(null);
+        navigate('/');
+    };
+
     return (
         <div
             className="nostr-overlay-shell"
-            style={{ width: isMobile ? '100vw' : `${sidebarOpen ? OVERLAY_SIDEBAR_EXPANDED_WIDTH : OVERLAY_SIDEBAR_COLLAPSED_WIDTH}px` }}
+            style={{ width: (showLoginGate || isMobile) ? '100vw' : `${sidebarOpen ? OVERLAY_SIDEBAR_EXPANDED_WIDTH : OVERLAY_SIDEBAR_COLLAPSED_WIDTH}px` }}
         >
-            <OverlaySidebar
-                open={sidebarOpen}
-                onOpenChange={setSidebarOpen}
-                authSession={overlay.authSession}
-                ownerPubkey={overlay.ownerPubkey}
-                ownerProfile={overlay.ownerProfile}
-                canAccessDirectMessages={canAccessDirectMessages}
-                canAccessSocialNotifications={canAccessSocialNotifications}
-                canAccessFollowingFeed={canAccessFollowingFeed}
-                chatHasUnread={chatState.hasUnreadGlobal}
-                notificationsHasUnread={socialState.hasUnread}
-                followingFeedHasUnread={followingFeedHasUnread}
-                onOpenMap={() => navigate('/')}
-                onOpenCityStats={() => navigate('/estadisticas')}
-                onOpenChat={openChatList}
-                onOpenRelays={openRelaysPage}
-                onOpenNotifications={openNotifications}
-                onOpenFollowingFeed={openFollowingFeed}
-                onOpenGlobalSearch={openGlobalUserSearch}
-                onOpenSettings={openSettingsPage}
-                onLogout={async () => {
-                    await overlay.logoutSession?.();
-                    setEasterEggProgress({ discoveredIds: [] });
-                    setZapSettings(loadZapSettings());
-                    setActiveEasterEgg(null);
-                    navigate('/');
-                }}
-                onCopyOwnerNpub={copyOwnerIdentifier}
-                onLocateOwner={locateOwnerOnMap}
-                onViewOwnerDetails={() => {
-                    if (overlay.ownerPubkey) {
-                        overlay.openActiveProfile(overlay.ownerPubkey, overlay.ownerBuildingIndex);
-                    }
-                }}
-                missionsDiscoveredCount={discoveredMissionsCount}
-                missionsTotal={EASTER_EGG_MISSIONS.length}
-                relaysConnectedCount={relayConnectionSummary.connectedRelays}
-                relaysTotal={relayConnectionSummary.totalRelays}
-                onOpenMissions={() => navigate('/descubre')}
-            >
-                <SocialSidebar
+            {!showLoginGate ? (
+                <OverlaySidebar
+                    open={sidebarOpen}
+                    onOpenChange={setSidebarOpen}
+                    authSession={overlay.authSession}
                     ownerPubkey={overlay.ownerPubkey}
                     ownerProfile={overlay.ownerProfile}
-                    follows={overlay.follows}
-                    profiles={overlay.profiles}
-                    followers={overlay.followers}
-                    followerProfiles={overlay.followerProfiles}
-                    followersLoading={overlay.followersLoading}
-                    selectedFollowingPubkey={overlay.selectedPubkey}
-                    onSelectFollowing={selectSidebarPerson}
-                    onLocateFollowing={locateFollowingOnMap}
-                    onMessagePerson={canAccessDirectMessages ? openDmFromContextMenu : undefined}
-                    onFollowPerson={overlay.canWrite ? followPerson : undefined}
-                    onViewPersonDetails={(pubkey) => overlay.openActiveProfile(pubkey)}
-                    zapAmounts={zapSettings.amounts}
-                    onConfigureZapAmounts={() => openSettingsPage('zaps')}
+                    canAccessDirectMessages={canAccessDirectMessages}
+                    canAccessSocialNotifications={canAccessSocialNotifications}
+                    canAccessFollowingFeed={canAccessFollowingFeed}
+                    chatHasUnread={chatState.hasUnreadGlobal}
+                    notificationsHasUnread={socialState.hasUnread}
+                    followingFeedHasUnread={followingFeedHasUnread}
+                    onOpenMap={() => navigate('/')}
+                    onOpenCityStats={() => navigate('/estadisticas')}
+                    onOpenChat={openChatList}
+                    onOpenRelays={openRelaysPage}
+                    onOpenNotifications={openNotifications}
+                    onOpenFollowingFeed={openFollowingFeed}
+                    onOpenGlobalSearch={openGlobalUserSearch}
+                    onOpenSettings={openSettingsPage}
+                    onLogout={handleLogout}
                     onCopyOwnerNpub={copyOwnerIdentifier}
-                    loginDisabled={loginDisabled}
-                    authSession={overlay.authSession}
-                    onStartSession={overlay.startSession}
-                    verificationByPubkey={verificationByPubkey}
-                />
-            </OverlaySidebar>
+                    onLocateOwner={locateOwnerOnMap}
+                    onViewOwnerDetails={() => {
+                        if (overlay.ownerPubkey) {
+                            overlay.openActiveProfile(overlay.ownerPubkey, overlay.ownerBuildingIndex);
+                        }
+                    }}
+                    missionsDiscoveredCount={discoveredMissionsCount}
+                    missionsTotal={EASTER_EGG_MISSIONS.length}
+                    relaysConnectedCount={relayConnectionSummary.connectedRelays}
+                    relaysTotal={relayConnectionSummary.totalRelays}
+                    onOpenMissions={() => navigate('/descubre')}
+                >
+                    <SocialSidebar
+                        ownerPubkey={overlay.ownerPubkey}
+                        ownerProfile={overlay.ownerProfile}
+                        follows={overlay.follows}
+                        profiles={overlay.profiles}
+                        followers={overlay.followers}
+                        followerProfiles={overlay.followerProfiles}
+                        followersLoading={overlay.followersLoading}
+                        selectedFollowingPubkey={overlay.selectedPubkey}
+                        onSelectFollowing={selectSidebarPerson}
+                        onLocateFollowing={locateFollowingOnMap}
+                        onMessagePerson={canAccessDirectMessages ? openDmFromContextMenu : undefined}
+                        onFollowPerson={overlay.canWrite ? followPerson : undefined}
+                        onViewPersonDetails={(pubkey) => overlay.openActiveProfile(pubkey)}
+                        zapAmounts={zapSettings.amounts}
+                        onConfigureZapAmounts={() => openSettingsPage('zaps')}
+                        onCopyOwnerNpub={copyOwnerIdentifier}
+                        verificationByPubkey={verificationByPubkey}
+                    />
+                </OverlaySidebar>
+            ) : null}
 
             {isMapRoute ? (
                 <MapZoomControls
@@ -1002,7 +1028,7 @@ export function App({ mapBridge, services }: AppProps) {
                 </div>
             ) : null}
 
-            {mapLoaderText ? (
+            {mapLoaderText && !showLoginGate ? (
                 <div className="nostr-map-loader-overlay" role="status" aria-live="polite">
                     <div className="nostr-map-loader-card">
                         <Spinner />
@@ -1014,6 +1040,13 @@ export function App({ mapBridge, services }: AppProps) {
             <Toaster richColors position="bottom-center" closeButton={false} />
 
             <Routes>
+                {showLoginGate ? (
+                    <>
+                        <Route path="/login" element={null} />
+                        <Route path="*" element={<Navigate to="/login" replace />} />
+                    </>
+                ) : (
+                    <>
                 <Route
                     path="/agora"
                     element={(
@@ -1176,8 +1209,11 @@ export function App({ mapBridge, services }: AppProps) {
                     <Route path="/settings/relays" element={<Navigate to="/relays" replace />} />
                     <Route path="/settings/relays/detail" element={<Navigate to={`/relays/detail${location.search}`} replace />} />
                     <Route path="/settings/:view" element={<Navigate to="/settings/ui" replace />} />
+                    <Route path="/login" element={<Navigate to="/" replace />} />
                     <Route path="/" element={null} />
                     <Route path="*" element={<Navigate to="/" replace />} />
+                    </>
+                )}
             </Routes>
 
             <MapPresenceLayer
@@ -1231,6 +1267,17 @@ export function App({ mapBridge, services }: AppProps) {
                     buildingIndex={activeEasterEgg.buildingIndex}
                     entry={getEasterEggEntry(activeEasterEgg.easterEggId)}
                     onClose={() => setActiveEasterEgg(null)}
+                />
+            ) : null}
+
+            {showLoginGate ? (
+                <LoginGateScreen
+                    disabled={loginDisabled || !sessionRestorationResolved}
+                    mapLoaderText={mapLoaderText}
+                    restoringSession={!sessionRestorationResolved}
+                    showLogout={Boolean(overlay.authSession)}
+                    onLogout={handleLogout}
+                    onStartSession={overlay.startSession}
                 />
             ) : null}
         </div>
