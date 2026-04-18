@@ -4,6 +4,7 @@ import type { AuthSessionState, LoginMethod } from '../../nostr/auth/session';
 import { CreateAccountMethodSelector, type CreateAccountMethod } from './CreateAccountMethodSelector';
 import { CreateAccountDialog, type CreateLocalAccountInput } from './CreateAccountDialog';
 import { LoginMethodSelector } from './LoginMethodSelector';
+import { AuthFlowFooter } from './AuthFlowFooter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -49,7 +50,7 @@ export function LoginGateScreen({
     return (
         <div className="nostr-login-screen nostr-login-screen-dialog" data-testid="login-gate-screen" role="main" aria-label="Pantalla de login">
             <div className="nostr-login-screen-center">
-                <Card className="nostr-login-screen-card">
+                <Card className="nostr-login-screen-card gap-0 py-0">
                     <CardContent className="flex flex-col gap-6 nostr-login-screen-content">
                         <div className="nostr-login-cover-wrap">
                             <img src={loginCover} alt="Nostr City cover" className="nostr-login-cover" />
@@ -101,9 +102,11 @@ export function LoginGateScreen({
                         ) : panel === 'create-account-selector' ? (
                             <>
                                 <CreateAccountMethodSelector disabled={disabled} onSelectMethod={handleCreateAccountMethod} />
-                                <Button type="button" variant="outline" disabled={disabled} onClick={() => setPanel('login')}>
-                                    Volver al login
-                                </Button>
+                                <AuthFlowFooter align="start">
+                                    <Button type="button" variant="ghost" disabled={disabled} onClick={() => setPanel('login')}>
+                                        Volver al login
+                                    </Button>
+                                </AuthFlowFooter>
                             </>
                         ) : panel === 'create-account-flow' && selectedCreateAccountMethod ? (
                             <CreateAccountDialog
@@ -127,12 +130,26 @@ export function LoginGateScreen({
                             />
                         ) : (
                             <>
-                                <LoginMethodSelector
-                                    disabled={disabled}
-                                    onStartSession={async (method, input) => {
-                                        await onStartSession(method, input);
-                                    }}
-                                />
+                                {savedLocalAccount ? (
+                                    <LoginMethodSelector
+                                        disabled={disabled}
+                                        onStartSession={async (method, input) => {
+                                            await onStartSession(method, input);
+                                        }}
+                                    />
+                                ) : (
+                                    <div className="nostr-login-gate-actions">
+                                        <LoginMethodSelector
+                                            disabled={disabled}
+                                            onStartSession={async (method, input) => {
+                                                await onStartSession(method, input);
+                                            }}
+                                        />
+                                        <Button type="button" variant="outline" disabled={disabled} onClick={() => setPanel('create-account-selector')}>
+                                            Crear cuenta
+                                        </Button>
+                                    </div>
+                                )}
                                 {savedLocalAccount?.mode === 'device' ? (
                                     <Button
                                         type="button"
@@ -172,9 +189,11 @@ export function LoginGateScreen({
                                         </Button>
                                     </form>
                                 ) : null}
-                                <Button type="button" variant="outline" disabled={disabled} onClick={() => setPanel('create-account-selector')}>
-                                    Crear cuenta
-                                </Button>
+                                {savedLocalAccount ? (
+                                    <Button type="button" variant="outline" disabled={disabled} onClick={() => setPanel('create-account-selector')}>
+                                        Crear cuenta
+                                    </Button>
+                                ) : null}
                             </>
                         )}
 

@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
 import { nip19 } from 'nostr-tools';
 import { generateSecretKey, getPublicKey } from 'nostr-tools/pure';
+import type { FormEvent } from 'react';
 import type { ProviderResolveInput } from '../../nostr/auth/providers/types';
 import { getDefaultRelaySettings, type RelaySettingsState } from '../../nostr/relay-settings';
+import { AuthFlowFooter } from './AuthFlowFooter';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { CardDescription, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -32,6 +34,8 @@ interface CreateAccountDialogProps {
 }
 
 type LocalStep = 'intro' | 'backup' | 'profile' | 'relays';
+
+const authLabelClassName = 'nostr-label nostr-auth-label';
 
 function downloadTextFile(fileName: string, content: string) {
     if (typeof window === 'undefined') {
@@ -87,7 +91,7 @@ export function CreateAccountDialog({
         }
     };
 
-    const handleExternalBunkerSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    const handleExternalBunkerSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         const value = bunkerUri.trim();
         if (!value) {
@@ -127,12 +131,12 @@ export function CreateAccountDialog({
 
     if (initialMethod === 'external') {
         return (
-            <Card>
-                <CardHeader>
-                    <CardTitle>Crear cuenta con app o extension</CardTitle>
-                    <CardDescription>Conecta un signer externo para seguir usando tu identidad fuera del navegador.</CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-4">
+            <>
+                <div className="flex flex-col gap-1 px-0">
+                    <CardTitle>Usar app o extension</CardTitle>
+                    <CardDescription>Elige como conectar una cuenta que ya controlas.</CardDescription>
+                </div>
+                <div className="flex flex-col gap-4 px-0">
                     {hasNip07 ? (
                         <Button
                             type="button"
@@ -148,7 +152,7 @@ export function CreateAccountDialog({
                     ) : null}
 
                     <form className="flex flex-col gap-3" onSubmit={handleExternalBunkerSubmit}>
-                        <Label htmlFor="create-account-bunker-uri">URI de bunker</Label>
+                        <Label className={authLabelClassName} htmlFor="create-account-bunker-uri">URI de bunker</Label>
                         <Input
                             id="create-account-bunker-uri"
                             name="bunker-uri"
@@ -161,32 +165,32 @@ export function CreateAccountDialog({
                             Conectar bunker
                         </Button>
                     </form>
-                </CardContent>
-                <CardFooter>
+                </div>
+                <AuthFlowFooter align="start">
                     <Button type="button" variant="ghost" disabled={isBusy} onClick={onBack}>
                         Volver
                     </Button>
-                </CardFooter>
-            </Card>
+                </AuthFlowFooter>
+            </>
         );
     }
 
     const canAdvanceFromBackup = backupConfirmed;
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Crear cuenta en esta app</CardTitle>
+        <>
+            <div className="flex flex-col gap-1 px-0">
+                <CardTitle>Crear cuenta local</CardTitle>
                 <CardDescription>
-                    Crea una identidad Nostr local con firma y cifrado NIP-44, y guardala de forma segura en este dispositivo.
+                    Genera una cuenta nueva y guarda tu clave antes de continuar.
                 </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
+            </div>
+            <div className="flex flex-col gap-4 px-0">
                 {localStep === 'intro' ? (
                     <div className="flex flex-col gap-3">
                         <p>Se generara una nueva clave privada Nostr en este navegador. El siguiente paso te obliga a guardarla antes de continuar.</p>
                         <div className="flex flex-col gap-2">
-                            <Label htmlFor="generated-npub">Tu npub</Label>
+                            <Label className={authLabelClassName} htmlFor="generated-npub">Tu npub</Label>
                             <Input id="generated-npub" value={npub} readOnly />
                         </div>
                     </div>
@@ -195,11 +199,11 @@ export function CreateAccountDialog({
                 {localStep === 'backup' ? (
                     <div className="flex flex-col gap-3">
                         <div className="flex flex-col gap-2">
-                            <Label htmlFor="generated-nsec">Tu nsec</Label>
+                            <Label className={authLabelClassName} htmlFor="generated-nsec">Tu nsec</Label>
                             <Textarea id="generated-nsec" value={nsec} readOnly rows={4} />
                         </div>
                         <div className="flex flex-col gap-2">
-                            <Label htmlFor="generated-npub-backup">Tu npub</Label>
+                            <Label className={authLabelClassName} htmlFor="generated-npub-backup">Tu npub</Label>
                             <Input id="generated-npub-backup" value={npub} readOnly />
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -210,7 +214,7 @@ export function CreateAccountDialog({
                                 Descargar backup
                             </Button>
                         </div>
-                        <Label className="flex items-center gap-2" htmlFor="confirm-backup">
+                        <Label className={`${authLabelClassName} flex items-center gap-2`} htmlFor="confirm-backup">
                             <input
                                 id="confirm-backup"
                                 name="confirm-backup"
@@ -227,15 +231,15 @@ export function CreateAccountDialog({
                 {localStep === 'profile' ? (
                     <div className="flex flex-col gap-3">
                         <div className="flex flex-col gap-2">
-                            <Label htmlFor="profile-name">Nombre</Label>
+                            <Label className={authLabelClassName} htmlFor="profile-name">Nombre</Label>
                             <Input id="profile-name" name="profile-name" value={profileName} disabled={isBusy} onChange={(event) => setProfileName(event.target.value)} />
                         </div>
                         <div className="flex flex-col gap-2">
-                            <Label htmlFor="profile-about">Sobre mi</Label>
+                            <Label className={authLabelClassName} htmlFor="profile-about">Sobre mi</Label>
                             <Textarea id="profile-about" name="profile-about" value={profileAbout} disabled={isBusy} rows={4} onChange={(event) => setProfileAbout(event.target.value)} />
                         </div>
                         <div className="flex flex-col gap-2">
-                            <Label htmlFor="profile-picture">Avatar</Label>
+                            <Label className={authLabelClassName} htmlFor="profile-picture">Avatar</Label>
                             <Input id="profile-picture" name="profile-picture" placeholder="https://..." value={profilePicture} disabled={isBusy} onChange={(event) => setProfilePicture(event.target.value)} />
                         </div>
                     </div>
@@ -245,7 +249,7 @@ export function CreateAccountDialog({
                     <div className="flex flex-col gap-3">
                         <p>Se guardaran relays por defecto para el perfil, lectura/escritura y DMs.</p>
                         <div className="flex flex-col gap-2">
-                            <Label htmlFor="device-passphrase">Passphrase del dispositivo (opcional)</Label>
+                            <Label className={authLabelClassName} htmlFor="device-passphrase">Passphrase del dispositivo (opcional)</Label>
                             <Input
                                 id="device-passphrase"
                                 name="device-passphrase"
@@ -264,8 +268,8 @@ export function CreateAccountDialog({
                         />
                     </div>
                 ) : null}
-            </CardContent>
-            <CardFooter className="flex gap-2">
+            </div>
+            <AuthFlowFooter>
                 <Button type="button" variant="ghost" disabled={isBusy} onClick={localStep === 'intro' ? onBack : () => setLocalStep(localStep === 'backup' ? 'intro' : localStep === 'profile' ? 'backup' : 'profile')}>
                     Volver
                 </Button>
@@ -282,7 +286,7 @@ export function CreateAccountDialog({
                         Crear cuenta ahora
                     </Button>
                 )}
-            </CardFooter>
-        </Card>
+            </AuthFlowFooter>
+        </>
     );
 }

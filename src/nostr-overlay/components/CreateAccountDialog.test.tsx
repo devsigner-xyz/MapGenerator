@@ -62,6 +62,41 @@ afterEach(async () => {
 });
 
 describe('CreateAccountDialog', () => {
+    test('renders the external flow copy with a footer-only back action and no nested card shell', async () => {
+        const rendered = await renderDialog({ initialMethod: 'external', hasNip07: true });
+        mounted.push(rendered);
+
+        const content = rendered.container.textContent || '';
+        const footer = rendered.container.querySelector('[data-testid="auth-flow-footer"]');
+        const footerButtons = Array.from(footer?.querySelectorAll('button') ?? []);
+
+        expect(content).toContain('Usar app o extension');
+        expect(content).toContain('Elige como conectar una cuenta que ya controlas.');
+        expect(content).not.toContain('Crear cuenta con app o extension');
+        expect(content).not.toContain('Conecta un signer externo para seguir usando tu identidad fuera del navegador.');
+        expect(footerButtons).toHaveLength(1);
+        expect(footerButtons[0]?.textContent || '').toContain('Volver');
+        expect(rendered.container.querySelectorAll('[data-slot="card"]')).toHaveLength(0);
+    });
+
+    test('renders the local flow copy with left back action, right primary action, and no nested card shell', async () => {
+        const rendered = await renderDialog({ initialMethod: 'local' });
+        mounted.push(rendered);
+
+        const content = rendered.container.textContent || '';
+        const footer = rendered.container.querySelector('[data-testid="auth-flow-footer"]');
+        const footerButtons = Array.from(footer?.querySelectorAll('button') ?? []);
+
+        expect(content).toContain('Crear cuenta local');
+        expect(content).toContain('Genera una cuenta nueva y guarda tu clave antes de continuar.');
+        expect(content).not.toContain('Crear cuenta en esta app');
+        expect(content).not.toContain('Crea una identidad Nostr local con firma y cifrado NIP-44, y guardala de forma segura en este dispositivo.');
+        expect(footerButtons).toHaveLength(2);
+        expect(footerButtons[0]?.textContent || '').toContain('Volver');
+        expect(footerButtons[1]?.textContent || '').toContain('Continuar');
+        expect(rendered.container.querySelectorAll('[data-slot="card"]')).toHaveLength(0);
+    });
+
     test('requires backup confirmation before finishing local account creation', async () => {
         const rendered = await renderDialog({ initialMethod: 'local' });
         mounted.push(rendered);
@@ -217,6 +252,38 @@ describe('CreateAccountDialog', () => {
         expect(handlers.onStartSession).toHaveBeenCalledWith('nip46', {
             bunkerUri: `bunker://${'a'.repeat(64)}?relay=wss://relay.example.com`,
         });
+    });
+
+    test('keeps the local primary action on the right as the flow advances', async () => {
+        const rendered = await renderDialog({ initialMethod: 'local' });
+        mounted.push(rendered);
+
+        const clickByLabel = async (label: string) => {
+            const button = Array.from(rendered.container.querySelectorAll('button')).find((candidate) =>
+                (candidate.textContent || '').includes(label)
+            ) as HTMLButtonElement | undefined;
+            expect(button).toBeDefined();
+            await act(async () => {
+                button?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            });
+        };
+
+        await clickByLabel('Continuar');
+
+        const backupCheckbox = rendered.container.querySelector('input[name="confirm-backup"]') as HTMLInputElement;
+        await act(async () => {
+            backupCheckbox.click();
+        });
+
+        await clickByLabel('Continuar');
+        await clickByLabel('Continuar');
+
+        const footer = rendered.container.querySelector('[data-testid="auth-flow-footer"]');
+        const footerButtons = Array.from(footer?.querySelectorAll('button') ?? []);
+
+        expect(footerButtons).toHaveLength(2);
+        expect(footerButtons[0]?.textContent || '').toContain('Volver');
+        expect(footerButtons[1]?.textContent || '').toContain('Crear cuenta ahora');
     });
 
     test('does not generate local key material for the external branch', async () => {

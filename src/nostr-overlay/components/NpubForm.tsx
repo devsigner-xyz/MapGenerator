@@ -25,7 +25,7 @@ export function NpubForm({ disabled = false, onSubmit }: NpubFormProps) {
     return (
         <form className="nostr-form" onSubmit={handleSubmit}>
             <Label className="nostr-label" htmlFor="nostr-npub-input">
-                Nostr npub
+                Public Key
             </Label>
 
             <div className="nostr-npub-row">
@@ -40,7 +40,7 @@ export function NpubForm({ disabled = false, onSubmit }: NpubFormProps) {
                 />
 
                 <Button className="nostr-submit" type="submit" disabled={disabled || npub.trim().length === 0}>
-                    Visualize
+                    Acceder
                 </Button>
             </div>
         </form>

@@ -485,10 +485,96 @@ describe('Nostr overlay App', () => {
         expect(content).not.toContain('Accede o explora');
         expect(content).toContain('npub (solo lectura)');
         expect(content).toContain('Metodo de acceso');
-        expect(content).toContain('Visualize');
+        expect(content).toContain('Acceder');
         expect(content).not.toContain('Cargar seguidos');
         expect(rendered.container.querySelector('.nostr-panel-toolbar')).toBeNull();
         expect((bridge.setViewportInsetLeft as any).mock.calls.at(-1)?.[0]).toBe(0);
+    });
+
+    test('renders the scoped create-account selector copy and footer inside the auth flow', async () => {
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(<App mapBridge={bridge} />);
+        mounted.push(rendered);
+
+        await waitFor(() => rendered.container.querySelector('input[name="npub"]') !== null);
+
+        const createAccountButton = Array.from(rendered.container.querySelectorAll('button')).find(
+            (button) => (button.textContent || '').includes('Crear cuenta')
+        ) as HTMLButtonElement | undefined;
+        expect(createAccountButton).toBeDefined();
+
+        await act(async () => {
+            createAccountButton?.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+        });
+
+        const content = rendered.container.textContent || '';
+        const footer = rendered.container.querySelector('[data-testid="auth-flow-footer"]');
+        const footerButtons = Array.from(footer?.querySelectorAll('button') ?? []);
+
+        expect(content).toContain('Usar app o extension');
+        expect(content).toContain('Conecta una extension o un signer externo.');
+        expect(content).toContain('Crear cuenta local');
+        expect(content).toContain('Crea una cuenta nueva en este dispositivo.');
+        expect(footerButtons).toHaveLength(1);
+        expect(footerButtons[0]?.textContent || '').toContain('Volver al login');
+    });
+
+    test('renders updated external and local auth-flow copy with scoped auth labels', async () => {
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(<App mapBridge={bridge} />);
+        mounted.push(rendered);
+
+        await waitFor(() => rendered.container.querySelector('input[name="npub"]') !== null);
+
+        const openSelectorButton = Array.from(rendered.container.querySelectorAll('button')).find(
+            (button) => (button.textContent || '').includes('Crear cuenta')
+        ) as HTMLButtonElement | undefined;
+        expect(openSelectorButton).toBeDefined();
+
+        await act(async () => {
+            openSelectorButton?.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+        });
+
+        const externalButton = Array.from(rendered.container.querySelectorAll('button')).find(
+            (button) => (button.textContent || '').includes('Usar app o extension')
+        ) as HTMLButtonElement | undefined;
+        expect(externalButton).toBeDefined();
+
+        await act(async () => {
+            externalButton?.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+        });
+
+        let content = rendered.container.textContent || '';
+        let authLabels = Array.from(rendered.container.querySelectorAll('.nostr-auth-label'));
+
+        expect(content).toContain('Usar app o extension');
+        expect(content).toContain('Elige como conectar una cuenta que ya controlas.');
+        expect(authLabels.length).toBeGreaterThan(0);
+
+        const backButton = Array.from(rendered.container.querySelectorAll('button')).find(
+            (button) => (button.textContent || '').trim() === 'Volver'
+        ) as HTMLButtonElement | undefined;
+        expect(backButton).toBeDefined();
+
+        await act(async () => {
+            backButton?.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+        });
+
+        const localButton = Array.from(rendered.container.querySelectorAll('button')).find(
+            (button) => (button.textContent || '').includes('Crear cuenta local')
+        ) as HTMLButtonElement | undefined;
+        expect(localButton).toBeDefined();
+
+        await act(async () => {
+            localButton?.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+        });
+
+        content = rendered.container.textContent || '';
+        authLabels = Array.from(rendered.container.querySelectorAll('.nostr-auth-label'));
+
+        expect(content).toContain('Crear cuenta local');
+        expect(content).toContain('Genera una cuenta nueva y guarda tu clave antes de continuar.');
+        expect(authLabels.length).toBeGreaterThan(0);
     });
 
     test('restores persisted session and leaves /login for / after initial load', async () => {
@@ -6194,7 +6280,7 @@ describe('Nostr overlay App', () => {
         };
 
         await clickButton('Crear cuenta');
-        await clickButton('Crear cuenta en esta app');
+        await clickButton('Crear cuenta local');
         await clickButton('Continuar');
 
         const backupCheckbox = rendered.container.querySelector('input[name="confirm-backup"]') as HTMLInputElement;

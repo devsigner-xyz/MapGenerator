@@ -88,8 +88,19 @@ describe('LoginMethodSelector', () => {
         expect(content).not.toContain('Accede o explora');
         expect(content).toContain('npub (solo lectura)');
         expect(content).toContain('Metodo de acceso');
+        expect(content).toContain('Public key');
+        expect(content).toContain('Acceder');
         expect(methodSelectTrigger).not.toBeNull();
         expect(npubInput).not.toBeNull();
+    });
+
+    test('uses auth-scoped foreground label styling for the default login labels', async () => {
+        const rendered = await renderSelector({ initialMethod: 'npub' });
+        mounted.push(rendered);
+
+        const labels = Array.from(rendered.container.querySelectorAll('label'));
+        expect(labels.length).toBeGreaterThan(0);
+        expect(labels.every((label) => label.classList.contains('nostr-auth-label'))).toBe(true);
     });
 
     test('does not show nsec in login method options', async () => {
@@ -154,6 +165,38 @@ describe('LoginMethodSelector', () => {
         expect(submitButton.textContent || '').toContain('Cargando');
         const spinner = submitButton.querySelector('[aria-label="Loading"]');
         expect(spinner).toBeDefined();
+    });
+
+    test('applies the login-scoped spacing class on the npub primary action button', async () => {
+        const rendered = await renderSelector({ initialMethod: 'npub' });
+        mounted.push(rendered);
+
+        const submitButton = rendered.container.querySelector('button[type="submit"]');
+
+        expect(submitButton?.classList.contains('nostr-login-method-actions')).toBe(true);
+    });
+
+    test('applies the login-scoped spacing class on the nip07 primary action button', async () => {
+        const rendered = await renderSelector({ initialMethod: 'nip07' });
+        mounted.push(rendered);
+
+        const primaryButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Continuar con extension')
+        );
+
+        expect(primaryButton?.classList.contains('nostr-login-method-actions')).toBe(true);
+        expect(rendered.container.querySelector('.nostr-label')?.classList.contains('nostr-auth-label')).toBe(true);
+    });
+
+    test('applies the login-scoped spacing class on the nip46 primary action button', async () => {
+        const rendered = await renderSelector({ initialMethod: 'nip46' });
+        mounted.push(rendered);
+
+        const submitButton = rendered.container.querySelector('button[type="submit"]');
+
+        expect(submitButton?.classList.contains('nostr-login-method-actions')).toBe(true);
+        const labels = Array.from(rendered.container.querySelectorAll('label'));
+        expect(labels.every((label) => label.classList.contains('nostr-auth-label'))).toBe(true);
     });
 
     test('submits bunker uri through nip46 method', async () => {

@@ -75,6 +75,19 @@
     width: 100%;
 }
 
+.nostr-login-method-actions {
+    margin-top: 0.5rem;
+}
+
+.nostr-panel-actions > .nostr-login-method-actions {
+    margin-top: 0.55rem;
+}
+
+.nostr-login-gate-actions {
+    display: grid;
+    gap: 0.75rem;
+}
+
 .nostr-login-screen {
     position: fixed;
     inset: 0;
@@ -103,7 +116,7 @@
 }
 
 .nostr-login-screen-content {
-    padding: 1.35rem 1.35rem 1.2rem;
+    padding: 1.35rem;
 }
 
 .nostr-login-cover-wrap {
@@ -179,6 +192,10 @@
 .nostr-label {
     font-size: 0.84rem;
     color: #425764;
+}
+
+.nostr-auth-label {
+    @apply text-foreground;
 }
 
 .nostr-input {

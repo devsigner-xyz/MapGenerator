@@ -53,12 +53,46 @@ afterEach(async () => {
 });
 
 describe('LoginGateScreen', () => {
+    test('removes shell card vertical padding so the dialog edges align with content spacing', async () => {
+        const rendered = await renderScreen();
+        mounted.push(rendered);
+
+        const shellCard = rendered.container.querySelector('.nostr-login-screen-card');
+
+        expect(shellCard?.className).toContain('py-0');
+        expect(shellCard?.className).toContain('gap-0');
+    });
+
+    test('keeps the main login view without a footer back action', async () => {
+        const rendered = await renderScreen();
+        mounted.push(rendered);
+
+        const footer = rendered.container.querySelector('[data-testid="auth-flow-footer"]');
+        expect(footer).toBeNull();
+        expect(rendered.container.textContent || '').not.toContain('Volver al login');
+    });
+
     test('shows a visible create account entry point', async () => {
         const rendered = await renderScreen();
         mounted.push(rendered);
 
         const content = rendered.container.textContent || '';
         expect(content).toContain('Crear cuenta');
+    });
+
+    test('groups login selector and create account entry point in the main login container', async () => {
+        const rendered = await renderScreen();
+        mounted.push(rendered);
+
+        const selectorSection = rendered.container.querySelector('.nostr-login-selector');
+        const createAccountButton = Array.from(rendered.container.querySelectorAll('button')).find(
+            (button) => (button.textContent || '').includes('Crear cuenta')
+        );
+        const actionGroup = createAccountButton?.closest('.nostr-login-gate-actions');
+
+        expect(selectorSection).not.toBeNull();
+        expect(actionGroup).not.toBeNull();
+        expect(selectorSection?.parentElement).toBe(actionGroup);
     });
 
     test('disables create account entry point when login gate is disabled', async () => {
@@ -71,6 +105,54 @@ describe('LoginGateScreen', () => {
 
         expect(createAccountButton).toBeDefined();
         expect(createAccountButton?.disabled).toBe(true);
+    });
+
+    test('moves the create-account-selector back action into the shell footer without a nested selector card', async () => {
+        const rendered = await renderScreen();
+        mounted.push(rendered);
+
+        const createAccountButton = Array.from(rendered.container.querySelectorAll('button')).find(
+            (button) => (button.textContent || '').includes('Crear cuenta')
+        ) as HTMLButtonElement | undefined;
+        expect(createAccountButton).toBeDefined();
+
+        await act(async () => {
+            createAccountButton?.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+        });
+
+        const footer = rendered.container.querySelector('[data-testid="auth-flow-footer"]');
+        const footerButtons = Array.from(footer?.querySelectorAll('button') ?? []);
+
+        expect(footer).not.toBeNull();
+        expect(footerButtons).toHaveLength(1);
+        expect(footerButtons[0]?.textContent || '').toContain('Volver al login');
+        expect(rendered.container.querySelectorAll('[data-slot="card"]')).toHaveLength(1);
+    });
+
+    test('returns from the create-account-selector footer to the main login view', async () => {
+        const rendered = await renderScreen();
+        mounted.push(rendered);
+
+        const createAccountButton = Array.from(rendered.container.querySelectorAll('button')).find(
+            (button) => (button.textContent || '').includes('Crear cuenta')
+        ) as HTMLButtonElement | undefined;
+        expect(createAccountButton).toBeDefined();
+
+        await act(async () => {
+            createAccountButton?.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+        });
+
+        const backButton = Array.from(rendered.container.querySelectorAll('button')).find(
+            (button) => (button.textContent || '').includes('Volver al login')
+        ) as HTMLButtonElement | undefined;
+        expect(backButton).toBeDefined();
+
+        await act(async () => {
+            backButton?.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+        });
+
+        expect(rendered.container.querySelector('[data-testid="auth-flow-footer"]')).toBeNull();
+        expect(rendered.container.textContent || '').toContain('Metodo de acceso');
     });
 
     test('shows unlock form for locked local sessions and submits passphrase unlock', async () => {
@@ -152,6 +234,19 @@ describe('LoginGateScreen', () => {
         expect(onStartSession).toHaveBeenCalledWith('local', {
             pubkey: 'f'.repeat(64),
         });
+    });
+
+    test('keeps saved local account layout outside the normal main login grouping', async () => {
+        const rendered = await renderScreen({
+            savedLocalAccount: { pubkey: 'f'.repeat(64), mode: 'device' },
+        });
+        mounted.push(rendered);
+
+        const createAccountButton = Array.from(rendered.container.querySelectorAll('button')).find(
+            (button) => (button.textContent || '').includes('Crear cuenta')
+        );
+
+        expect(createAccountButton?.closest('.nostr-login-gate-actions')).toBeNull();
     });
 
     test('shows passphrase re-entry form for saved passphrase-protected local accounts', async () => {

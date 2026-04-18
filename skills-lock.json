@@ -136,6 +136,11 @@
       "sourceType": "github",
       "computedHash": "669c7275f7e1379b06b2bcfa593603aead4c983b951c7e8edbc09640aa38d0a1"
     },
+    "web-design-guidelines": {
+      "source": "vercel-labs/agent-skills",
+      "sourceType": "github",
+      "computedHash": "f3bc47f890f42a44db1007ab390709ec368e4b8c089baee6b0007182236ac474"
+    },
     "websocket-engineer": {
       "source": "jeffallan/claude-skills",
       "sourceType": "github",
