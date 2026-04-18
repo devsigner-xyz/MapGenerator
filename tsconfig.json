@@ -17,7 +17,7 @@
             "@/*": ["src/*"]
         },
         "lib": ["es2018", "DOM", "DOM.Iterable", "ScriptHost"],
-        "types": ["vite/client", "vitest/globals"],
+        "types": ["vite/client", "vitest/globals", "react", "react-dom"],
         "resolveJsonModule": true
     },
     "include": [
