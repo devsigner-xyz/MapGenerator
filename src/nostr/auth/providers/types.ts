@@ -1,3 +1,4 @@
+import type { RelaySettingsState } from '../../relay-settings';
 import type { NostrEvent } from '../../types';
 import {
     defaultCapabilitiesForMethod,
@@ -31,6 +32,13 @@ export interface ProviderResolveInput {
     passphrase?: string;
     pubkey?: string;
     bunkerUri?: string;
+    secretKey?: Uint8Array;
+    profile?: {
+        name?: string;
+        about?: string;
+        picture?: string;
+    };
+    relaySettings?: RelaySettingsState;
 }
 
 export interface ProviderResolvedSession extends Pick<AuthSessionState, 'method' | 'pubkey' | 'readonly' | 'locked' | 'capabilities'> {

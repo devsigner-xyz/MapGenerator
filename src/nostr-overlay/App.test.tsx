@@ -4,8 +4,11 @@ import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vi
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { nip19 } from 'nostr-tools';
+import { generateSecretKey, getPublicKey } from 'nostr-tools/pure';
+import { createLocalKeyStorage } from '../nostr/auth/local-key-storage';
+import { LocalKeyAuthProvider } from '../nostr/auth/providers/local-key-provider';
 import { AUTH_SESSION_STORAGE_KEY } from '../nostr/auth/secure-storage';
-import { RELAY_SETTINGS_STORAGE_KEY } from '../nostr/relay-settings';
+import { loadRelaySettings, RELAY_SETTINGS_STORAGE_KEY } from '../nostr/relay-settings';
 import { UI_SETTINGS_STORAGE_KEY } from '../nostr/ui-settings';
 import { EASTER_EGG_PROGRESS_STORAGE_KEY } from '../nostr/easter-egg-progress';
 import { getBootstrapRelays } from '../nostr/relay-policy';
@@ -5889,6 +5892,106 @@ describe('Nostr overlay App', () => {
         await waitFor(() => (rendered.container.textContent || '').includes(`User-${followerA.slice(0, 4)}`));
     });
 
+    test('imports active profile relay suggestions into local relay settings', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+        const { bridge, triggerOccupiedBuildingClick } = createMapBridgeStub();
+
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async (pubkey: string, kind: number) => {
+                            if (pubkey !== followedPubkey) {
+                                return null;
+                            }
+
+                            if (kind === 10002) {
+                                return {
+                                    id: 'relay-list-active-profile',
+                                    pubkey,
+                                    kind: 10002,
+                                    created_at: 321,
+                                    tags: [
+                                        ['r', 'wss://relay.profile.example'],
+                                        ['r', 'wss://relay.readonly.example', 'read'],
+                                    ],
+                                    content: '',
+                                };
+                            }
+
+                            if (kind === 10050) {
+                                return {
+                                    id: 'relay-list-dm-active-profile',
+                                    pubkey,
+                                    kind: 10050,
+                                    created_at: 322,
+                                    tags: [['relay', 'wss://relay.dm.example']],
+                                    content: '',
+                                };
+                            }
+
+                            return null;
+                        },
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByNpubFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [followedPubkey],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockImplementation(async (pubkeys: string[]) => {
+                        const profiles: Record<string, { pubkey: string; displayName: string }> = {};
+                        for (const pubkey of pubkeys) {
+                            profiles[pubkey] = { pubkey, displayName: `User-${pubkey.slice(0, 4)}` };
+                        }
+                        return profiles;
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+        const form = rendered.container.querySelector('form');
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
+            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('User-ffff'));
+
+        await act(async () => {
+            triggerOccupiedBuildingClick({ buildingIndex: 4, pubkey: followedPubkey });
+        });
+
+        await selectActiveProfileDialogTab('Información');
+        await waitFor(() => (rendered.container.textContent || '').includes('relay.profile.example'));
+
+        const addAllButton = rendered.container.querySelector('button[aria-label="Añadir todos los relays declarados"]') as HTMLButtonElement;
+        expect(addAllButton).toBeDefined();
+
+        await act(async () => {
+            addAllButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const stored = loadRelaySettings({ ownerPubkey });
+        expect(stored.byType.nip65Both).toContain('wss://relay.profile.example');
+        expect(stored.byType.nip65Read).toContain('wss://relay.profile.example');
+        expect(stored.byType.nip65Read).toContain('wss://relay.readonly.example');
+        expect(stored.byType.nip65Write).toContain('wss://relay.profile.example');
+        expect(stored.byType.dmInbox).toContain('wss://relay.dm.example');
+    });
+
     test('shows NIP-65 suggested relays in settings', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const followedPubkey = 'a'.repeat(64);
@@ -6089,6 +6192,130 @@ describe('Nostr overlay App', () => {
         expect(rendered.container.querySelector('.nostr-error')).toBeNull();
 
         delete (window as any).nostr;
+    });
+
+    test('creates a local account from the login gate, signs bootstrap events, and scopes relay settings to the owner', async () => {
+        const { bridge } = createMapBridgeStub();
+        const signEventSpy = vi.spyOn(LocalKeyAuthProvider.prototype, 'signEvent');
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={createBasicOverlayServices('f'.repeat(64), {
+                    fetchFollowsByPubkeyFn: vi.fn().mockImplementation(async (pubkey: string) => ({
+                        ownerPubkey: pubkey,
+                        follows: [],
+                        relayHints: [],
+                    })),
+                    fetchProfilesFn: vi.fn().mockImplementation(async (pubkeys: string[]) => {
+                        const profiles: Record<string, { pubkey: string; displayName: string }> = {};
+                        for (const pubkey of pubkeys) {
+                            profiles[pubkey] = { pubkey, displayName: `User-${pubkey.slice(0, 4)}` };
+                        }
+                        return profiles;
+                    }),
+                })}
+            />,
+        );
+        mounted.push(rendered);
+
+        const clickButton = async (label: string) => {
+            const button = Array.from(rendered.container.querySelectorAll('button')).find((candidate) =>
+                (candidate.textContent || '').includes(label)
+            ) as HTMLButtonElement | undefined;
+            expect(button).toBeDefined();
+            await act(async () => {
+                button?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            });
+        };
+
+        const fillControl = async (selector: string, value: string) => {
+            const input = rendered.container.querySelector(selector) as HTMLInputElement | HTMLTextAreaElement;
+            expect(input).toBeDefined();
+            await act(async () => {
+                const valueSetter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), 'value')?.set;
+                valueSetter?.call(input, value);
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+        };
+
+        await clickButton('Crear cuenta');
+        await clickButton('Crear cuenta en esta app');
+        await clickButton('Continuar');
+
+        const backupCheckbox = rendered.container.querySelector('input[name="confirm-backup"]') as HTMLInputElement;
+        expect(backupCheckbox).toBeDefined();
+        await act(async () => {
+            backupCheckbox.click();
+        });
+
+        await clickButton('Continuar');
+        await fillControl('input[name="profile-name"]', 'Pablo');
+        await fillControl('textarea[name="profile-about"]', 'Mapa y Nostr');
+        await clickButton('Continuar');
+        await clickButton('Crear cuenta ahora');
+
+        await waitFor(() => signEventSpy.mock.calls.length >= 3);
+
+        const signedKinds = signEventSpy.mock.calls.map((call) => call[0]?.kind);
+        expect(signedKinds).toContain(0);
+        expect(signedKinds).toContain(10002);
+        expect(signedKinds).toContain(10050);
+
+        const storedSessionRaw = window.localStorage.getItem(AUTH_SESSION_STORAGE_KEY);
+        expect(storedSessionRaw).not.toBeNull();
+        const storedSession = JSON.parse(storedSessionRaw ?? '{}') as { pubkey: string };
+        const savedRelaySettings = loadRelaySettings({ ownerPubkey: storedSession.pubkey });
+        expect(savedRelaySettings.byType.nip65Both).toContain('wss://relay.damus.io');
+        expect(savedRelaySettings.byType.dmInbox).toContain('wss://relay.snort.social');
+    });
+
+    test('shows the unlock gate when restoring a passphrase-protected local account', async () => {
+        const secretKey = generateSecretKey();
+        const pubkey = getPublicKey(secretKey);
+        const localKeyStorage = createLocalKeyStorage({
+            storage: window.localStorage,
+            deviceKeyStore: {
+                async get() {
+                    return undefined;
+                },
+                async getOrCreate() {
+                    throw new Error('not needed');
+                },
+                async delete() {
+                    return;
+                },
+            },
+        });
+        await localKeyStorage.save({ pubkey, secretKey, passphrase: 'local-passphrase' });
+        window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify({
+            method: 'local',
+            pubkey,
+            readonly: false,
+            locked: false,
+            createdAt: 123,
+        }));
+
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={createBasicOverlayServices(pubkey, {
+                    fetchFollowsByPubkeyFn: vi.fn().mockImplementation(async () => ({
+                        ownerPubkey: pubkey,
+                        follows: [],
+                        relayHints: [],
+                    })),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [pubkey]: { pubkey, displayName: `User-${pubkey.slice(0, 4)}` },
+                    }),
+                })}
+            />,
+        );
+        mounted.push(rendered);
+
+        await waitFor(() => Boolean(rendered.container.querySelector('input[name="unlock-passphrase"]')));
+        expect(rendered.container.querySelector('[data-testid="login-gate-screen"]')).not.toBeNull();
     });
 
     test('keeps logout accessible when session exists but owner graph failed to load', async () => {

@@ -1,3 +1,5 @@
+import { createLocalKeyStorage, type LocalKeyStorage } from './local-key-storage';
+import { LocalKeyAuthProvider } from './providers/local-key-provider';
 import { Nip07AuthProvider } from './providers/nip07-provider';
 import { Nip46AuthProvider } from './providers/nip46-provider';
 import { NpubAuthProvider } from './providers/npub-provider';
@@ -19,6 +21,7 @@ interface AuthServiceOptions {
     storage?: Storage;
     now?: () => number;
     providers?: Partial<Record<LoginMethod, AuthProvider>>;
+    localKeyStorage?: LocalKeyStorage;
 }
 
 type SessionListener = (session: AuthSessionState | undefined) => void;
@@ -30,6 +33,7 @@ interface RestoreSessionInput {
 interface AuthService {
     getSession(): AuthSessionState | undefined;
     getActiveProvider(): AuthProvider | undefined;
+    getSavedLocalAccount(): Promise<{ pubkey: string; mode: 'device' | 'passphrase' } | undefined>;
     subscribe(listener: SessionListener): () => void;
     startSession(method: LoginMethod, input: ProviderResolveInput): Promise<AuthSessionState>;
     restoreSession(input?: RestoreSessionInput): Promise<AuthSessionState | undefined>;
@@ -42,6 +46,7 @@ function buildDefaultProviders(): Record<LoginMethod, AuthProvider> {
         npub: new NpubAuthProvider(),
         nip07: new Nip07AuthProvider(),
         nip46: new Nip46AuthProvider(),
+        local: new LocalKeyAuthProvider(),
     };
 }
 
@@ -66,6 +71,10 @@ export function createAuthService(options: AuthServiceOptions = {}): AuthService
         ...buildDefaultProviders(),
         ...(options.providers ?? {}),
     };
+    const localKeyStorage = options.localKeyStorage ?? createLocalKeyStorage({
+        ...(storage ? { storage } : {}),
+        now,
+    });
     const listeners = new Set<SessionListener>();
 
     let currentSession: AuthSessionState | undefined;
@@ -75,8 +84,15 @@ export function createAuthService(options: AuthServiceOptions = {}): AuthService
         listeners.forEach((listener) => listener(currentSession));
     };
 
-    const persist = (session: AuthSessionState, input: ProviderResolveInput) => {
-        void input;
+    const persist = async (session: AuthSessionState, input: ProviderResolveInput) => {
+        if (session.method === 'local' && input.secretKey instanceof Uint8Array) {
+            await localKeyStorage.save({
+                pubkey: session.pubkey,
+                secretKey: input.secretKey,
+                ...(input.passphrase ? { passphrase: input.passphrase } : {}),
+            });
+        }
+
         saveStoredAuthSession(toStoredSession(session), storage);
     };
 
@@ -87,6 +103,10 @@ export function createAuthService(options: AuthServiceOptions = {}): AuthService
 
         getActiveProvider(): AuthProvider | undefined {
             return activeProvider;
+        },
+
+        async getSavedLocalAccount(): Promise<{ pubkey: string; mode: 'device' | 'passphrase' } | undefined> {
+            return localKeyStorage.inspectSavedAccount();
         },
 
         subscribe(listener: SessionListener): () => void {
@@ -104,7 +124,39 @@ export function createAuthService(options: AuthServiceOptions = {}): AuthService
                 throw new Error(`Unsupported login method: ${method}`);
             }
 
-            const resolved = await provider.resolveSession(input);
+            let resolvedInput = input;
+            if (method === 'local' && !(input.secretKey instanceof Uint8Array)) {
+                const pubkey = input.pubkey ?? currentSession?.pubkey;
+                if (!pubkey) {
+                    throw new Error('No se encontro una cuenta local para desbloquear');
+                }
+
+                let restoredLocalKey;
+                try {
+                    restoredLocalKey = await localKeyStorage.load({
+                        pubkey,
+                        ...(input.passphrase ? { passphrase: input.passphrase } : {}),
+                    });
+                } catch {
+                    throw new Error('No se pudo desbloquear la cuenta local con esa passphrase');
+                }
+
+                if (restoredLocalKey.status === 'locked') {
+                    throw new Error('La cuenta local requiere passphrase para desbloquearse');
+                }
+
+                if (restoredLocalKey.status === 'missing') {
+                    throw new Error('No se encontro material local guardado para esta cuenta');
+                }
+
+                resolvedInput = {
+                    ...input,
+                    pubkey,
+                    secretKey: restoredLocalKey.secretKey,
+                };
+            }
+
+            const resolved = await provider.resolveSession(resolvedInput);
 
             const baseSession = createAuthSession({
                 method: resolved.method,
@@ -122,7 +174,7 @@ export function createAuthService(options: AuthServiceOptions = {}): AuthService
             };
             activeProvider = provider;
 
-            persist(currentSession, input);
+            await persist(currentSession, resolvedInput);
             notify();
 
             return currentSession;
@@ -160,6 +212,44 @@ export function createAuthService(options: AuthServiceOptions = {}): AuthService
             }
 
             if (storedMethod === 'nip46') {
+                clearStoredAuthSession(storage);
+                currentSession = undefined;
+                activeProvider = undefined;
+                notify();
+                return undefined;
+            }
+
+            if (storedMethod === 'local') {
+                const restoredLocalKey = await localKeyStorage.load({
+                    pubkey: stored.pubkey,
+                    ...(input.passphrase ? { passphrase: input.passphrase } : {}),
+                });
+
+                if (restoredLocalKey.status === 'available') {
+                    return this.startSession('local', {
+                        pubkey: stored.pubkey,
+                        secretKey: restoredLocalKey.secretKey,
+                        ...(input.passphrase ? { passphrase: input.passphrase } : {}),
+                    });
+                }
+
+                if (restoredLocalKey.status === 'locked') {
+                    currentSession = {
+                        ...createAuthSession({
+                            method: storedMethod,
+                            pubkey: stored.pubkey,
+                            locked: true,
+                            createdAt: stored.createdAt,
+                            capabilities: defaultCapabilitiesForMethod(storedMethod),
+                        }),
+                        readonly: stored.readonly,
+                        locked: true,
+                    };
+                    activeProvider = undefined;
+                    notify();
+                    return currentSession;
+                }
+
                 clearStoredAuthSession(storage);
                 currentSession = undefined;
                 activeProvider = undefined;

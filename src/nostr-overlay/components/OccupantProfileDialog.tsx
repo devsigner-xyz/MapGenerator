@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode, type UIEvent } fr
 import Lightbox from 'yet-another-react-lightbox';
 import type { Nip05ValidationResult } from '../../nostr/nip05';
 import { encodeHexToNpub } from '../../nostr/npub';
+import { RELAY_TYPES, type RelaySettingsByType, type RelayType } from '../../nostr/relay-settings';
 import type { NostrEvent, NostrProfile } from '../../nostr/types';
 import type { NostrPostPreview } from '../../nostr/posts';
 import { ListLoadingFooter } from './ListLoadingFooter';
@@ -44,6 +45,9 @@ interface OccupantProfileDialogProps {
     onSelectProfile?: (pubkey: string) => void;
     ownerFollows?: string[];
     onFollowProfile?: (pubkey: string) => void | Promise<void>;
+    relaySuggestionsByType?: RelaySettingsByType;
+    onAddRelaySuggestion?: (relayUrl: string, relayTypes: RelayType[]) => void | Promise<void>;
+    onAddAllRelaySuggestions?: (rows: Array<{ relayUrl: string; relayTypes: RelayType[] }>) => void | Promise<void>;
     onResolveProfiles?: (pubkeys: string[]) => Promise<void> | void;
     onSelectEventReference?: (eventId: string) => void;
     onResolveEventReferences?: (
@@ -92,6 +96,36 @@ const NETWORK_PAGE_SIZE = 20;
 const NETWORK_LOAD_DELAY_MS = 120;
 type OccupantProfileTab = 'info' | 'feed' | 'followers' | 'following';
 
+const RELAY_TYPE_LABELS: Record<RelayType, string> = {
+    nip65Both: 'NIP-65 read+write',
+    nip65Read: 'NIP-65 read',
+    nip65Write: 'NIP-65 write',
+    dmInbox: 'NIP-17 DM inbox',
+};
+
+function buildRelaySuggestionRows(relaySuggestionsByType?: RelaySettingsByType): Array<{ relayUrl: string; relayTypes: RelayType[] }> {
+    if (!relaySuggestionsByType) {
+        return [];
+    }
+
+    const relayTypesByUrl = new Map<string, Set<RelayType>>();
+    for (const relayType of RELAY_TYPES) {
+        const relaySet = relaySuggestionsByType[relayType] ?? [];
+        for (const relayUrl of relaySet) {
+            const current = relayTypesByUrl.get(relayUrl) ?? new Set<RelayType>();
+            current.add(relayType);
+            relayTypesByUrl.set(relayUrl, current);
+        }
+    }
+
+    return [...relayTypesByUrl.entries()]
+        .map(([relayUrl, relayTypesSet]) => ({
+            relayUrl,
+            relayTypes: RELAY_TYPES.filter((relayType) => relayTypesSet.has(relayType)),
+        }))
+        .sort((left, right) => left.relayUrl.localeCompare(right.relayUrl));
+}
+
 export function OccupantProfileDialog({
     ownerPubkey,
     pubkey,
@@ -112,6 +146,9 @@ export function OccupantProfileDialog({
     onSelectProfile,
     ownerFollows = [],
     onFollowProfile,
+    relaySuggestionsByType,
+    onAddRelaySuggestion,
+    onAddAllRelaySuggestions,
     onResolveProfiles,
     onSelectEventReference,
     onResolveEventReferences,
@@ -130,16 +167,23 @@ export function OccupantProfileDialog({
     const ownerFollowSet = useMemo(() => new Set(ownerFollows), [ownerFollows]);
     const isNip05Verified = verification?.status === 'verified';
     const displayName = resolveName(pubkey, profile);
+    const relaySuggestionRows = useMemo(
+        () => buildRelaySuggestionRows(relaySuggestionsByType),
+        [relaySuggestionsByType]
+    );
+    const canAddRelaySuggestions = typeof onAddRelaySuggestion === 'function';
+    const canAddAllRelaySuggestions = typeof onAddAllRelaySuggestions === 'function' && relaySuggestionRows.length > 1;
 
-    let npubValue = pubkey;
-    let npubLabel = `${pubkey.slice(0, 10)}...${pubkey.slice(-6)}`;
-    try {
-        npubValue = encodeHexToNpub(pubkey);
-        npubLabel = `${npubValue.slice(0, 14)}...${npubValue.slice(-6)}`;
-    } catch {
-        npubValue = pubkey;
-        npubLabel = `${pubkey.slice(0, 10)}...${pubkey.slice(-6)}`;
-    }
+    const npubValue = useMemo(() => {
+        try {
+            return encodeHexToNpub(pubkey);
+        } catch {
+            return pubkey;
+        }
+    }, [pubkey]);
+    const npubLabel = npubValue.startsWith('npub1')
+        ? `${npubValue.slice(0, 14)}...${npubValue.slice(-6)}`
+        : `${pubkey.slice(0, 10)}...${pubkey.slice(-6)}`;
 
     const copyNpubToClipboard = async (): Promise<void> => {
         if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
@@ -270,6 +314,22 @@ export function OccupantProfileDialog({
                     return next;
                 });
             });
+    };
+
+    const addRelaySuggestion = (relayUrl: string, relayTypes: RelayType[]): void => {
+        if (typeof onAddRelaySuggestion !== 'function' || relayTypes.length === 0) {
+            return;
+        }
+
+        void Promise.resolve(onAddRelaySuggestion(relayUrl, relayTypes));
+    };
+
+    const addAllRelaySuggestions = (): void => {
+        if (typeof onAddAllRelaySuggestions !== 'function' || relaySuggestionRows.length === 0) {
+            return;
+        }
+
+        void Promise.resolve(onAddAllRelaySuggestions(relaySuggestionRows));
     };
 
     const infoRows: Array<{ label: string; value: ReactNode }> = [
@@ -488,6 +548,66 @@ export function OccupantProfileDialog({
                                             </div>
                                         ))}
                                     </dl>
+
+                                    <section>
+                                        <div className="mb-2 flex items-center justify-between gap-2">
+                                            <h5 className="text-sm font-semibold">Relays declarados</h5>
+                                            {canAddAllRelaySuggestions ? (
+                                                <Button
+                                                    type="button"
+                                                    size="xs"
+                                                    variant="outline"
+                                                    aria-label="Añadir todos los relays declarados"
+                                                    onClick={addAllRelaySuggestions}
+                                                >
+                                                    Añadir todos
+                                                </Button>
+                                            ) : null}
+                                        </div>
+
+                                        {relaySuggestionRows.length === 0 ? (
+                                            <p className="text-sm text-muted-foreground">Sin relays declarados por este perfil.</p>
+                                        ) : (
+                                            <ItemGroup className="nostr-profile-network-list">
+                                                {relaySuggestionRows.map((relayRow, index) => (
+                                                    <div key={relayRow.relayUrl} className="nostr-profile-network-item-wrap">
+                                                        <Item variant="default" size="sm" className="gap-2">
+                                                            <ItemContent className="min-w-0 flex-1">
+                                                                <ItemTitle>
+                                                                    <span className="truncate">{relayRow.relayUrl}</span>
+                                                                </ItemTitle>
+                                                                <ItemDescription>
+                                                                    <span className="nostr-relay-nip-badges">
+                                                                        {relayRow.relayTypes.map((relayType) => (
+                                                                            <Badge key={`${relayRow.relayUrl}-${relayType}`} variant="outline">
+                                                                                {RELAY_TYPE_LABELS[relayType]}
+                                                                            </Badge>
+                                                                        ))}
+                                                                    </span>
+                                                                </ItemDescription>
+                                                            </ItemContent>
+
+                                                            {canAddRelaySuggestions ? (
+                                                                <Button
+                                                                    type="button"
+                                                                    size="xs"
+                                                                    variant="outline"
+                                                                    className="shrink-0"
+                                                                    aria-label={`Añadir relay ${relayRow.relayUrl}`}
+                                                                    onClick={() => addRelaySuggestion(relayRow.relayUrl, relayRow.relayTypes)}
+                                                                >
+                                                                    Añadir
+                                                                </Button>
+                                                            ) : null}
+                                                        </Item>
+                                                        {index < relaySuggestionRows.length - 1 ? (
+                                                            <Separator className="nostr-profile-network-separator" />
+                                                        ) : null}
+                                                    </div>
+                                                ))}
+                                            </ItemGroup>
+                                        )}
+                                    </section>
                                 </section>
                             </div>
                         </TabsContent>

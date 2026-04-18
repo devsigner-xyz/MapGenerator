@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { createAuthService } from '../../nostr/auth/auth-service';
+import { bootstrapLocalAccount } from '../../nostr/auth/bootstrap-profile';
 import type { ProviderResolveInput } from '../../nostr/auth/providers/types';
 import {
     isDirectMessagesEnabled,
@@ -19,7 +20,7 @@ import { fetchProfileStats } from '../../nostr/profile-stats';
 import { fetchProfiles } from '../../nostr/profiles';
 import { searchUsers as searchUsersDomain } from '../../nostr/user-search';
 import type { SocialFeedService } from '../../nostr/social-feed-service';
-import { getRelaySetByType, loadRelaySettings, type RelaySettingsByType } from '../../nostr/relay-settings';
+import { getDefaultRelaySettings, getRelaySetByType, loadRelaySettings, saveRelaySettings, type RelaySettingsByType } from '../../nostr/relay-settings';
 import {
     dmInboxRelayListFromKind10050Event,
     getBootstrapRelays,
@@ -44,6 +45,7 @@ import { createFollowerBatcher } from './follower-batcher';
 import type { DirectMessagesService } from '../query/direct-messages.query';
 import type { ActiveProfileQueryService } from '../query/active-profile.query';
 import { nostrOverlayQueryKeys } from '../query/keys';
+import { toast } from 'sonner';
 
 export type OverlayStatus =
     | 'idle'
@@ -61,6 +63,7 @@ export type MapLoaderStage =
 
 interface OverlayData {
     authSession: AuthSessionState | undefined;
+    savedLocalAccount: { pubkey: string; mode: 'device' | 'passphrase' } | undefined;
     ownerPubkey: string | undefined;
     ownerProfile: NostrProfile | undefined;
     ownerBuildingIndex: number | undefined;
@@ -136,6 +139,7 @@ function createEmptyActiveProfileState(): Pick<
 function createInitialData(): OverlayData {
     return {
         authSession: undefined,
+        savedLocalAccount: undefined,
         ownerPubkey: undefined,
         ownerProfile: undefined,
         ownerBuildingIndex: undefined,
@@ -763,6 +767,15 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         void (async () => {
             try {
                 const restored = await authService.restoreSession();
+                const savedLocalAccount = await authService.getSavedLocalAccount();
+                setState((current) => ({
+                    ...current,
+                    data: {
+                        ...current.data,
+                        savedLocalAccount,
+                    },
+                }));
+
                 if (!restored) {
                     return;
                 }
@@ -772,6 +785,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                     data: {
                         ...current.data,
                         authSession: restored,
+                        savedLocalAccount,
                     },
                 }));
 
@@ -1078,6 +1092,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 data: {
                     ownerPubkey: graph.ownerPubkey,
                     authSession: input.session,
+                    savedLocalAccount: latestStateRef.current.data.savedLocalAccount,
                     ownerProfile,
                     ownerBuildingIndex: resolveOwnerBuildingIndex(graph.ownerPubkey, buildings.length, reservedBuildingIndexes),
                     follows,
@@ -1212,6 +1227,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
     const startSession = async (method: LoginMethod, input: ProviderResolveInput): Promise<void> => {
         try {
             const session = await authService.startSession(method, input);
+            const savedLocalAccount = await authService.getSavedLocalAccount();
             const previousOwnerPubkey = latestStateRef.current.data.ownerPubkey;
             const shouldResetOverlayData = Boolean(previousOwnerPubkey && previousOwnerPubkey !== session.pubkey);
             if (shouldResetOverlayData) {
@@ -1222,8 +1238,28 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 data: {
                     ...(shouldResetOverlayData ? createInitialData() : current.data),
                     authSession: session,
+                    savedLocalAccount,
                 },
             }));
+
+            if (method === 'local' && (input.profile || input.relaySettings)) {
+                const ownerInput = createRelaySettingsInput(session.pubkey);
+                const relaySettings = input.relaySettings ?? getDefaultRelaySettings();
+                saveRelaySettings(relaySettings, ownerInput);
+
+                try {
+                    await bootstrapLocalAccount({
+                        writeGateway,
+                        relaySettings,
+                        ...(input.profile ? { profile: input.profile } : {}),
+                    });
+                } catch (error) {
+                    const message = error instanceof Error
+                        ? error.message
+                        : 'No se pudo completar el bootstrap inicial de la cuenta local';
+                    toast.error(message, { duration: 2200 });
+                }
+            }
 
             await loadOwnerGraph({
                 session,
@@ -1247,6 +1283,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
 
     const logoutSession = async (): Promise<void> => {
         await authService.logout();
+        const savedLocalAccount = await authService.getSavedLocalAccount();
         await clearSocialServerState();
         cancelOccupancyAnimation();
         setMapLoaderStage(null);
@@ -1254,7 +1291,10 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         setState({
             status: 'idle',
             error: undefined,
-            data: createInitialData(),
+            data: {
+                ...createInitialData(),
+                savedLocalAccount,
+            },
         });
 
         if (mapBridge) {
@@ -1722,12 +1762,43 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                         follows: [],
                         followers: [],
                         profiles: {},
+                        relaySuggestionsByType: {
+                            nip65Both: [],
+                            nip65Read: [],
+                            nip65Write: [],
+                            dmInbox: [],
+                        },
                     };
                 }
 
                 const client = createClient(resolveOverlayRelays(current.data.relayHints));
 
-                const [followsResult, followersResult] = await Promise.all([
+                const relaySuggestionsByTypePromise = Promise.all([
+                    withTimeout(
+                        client.fetchLatestReplaceableEvent(pubkey, 10002),
+                        RELAY_METADATA_TIMEOUT_MS,
+                        'Relay timeout while fetching active profile relay list (kind 10002)',
+                    ),
+                    withTimeout(
+                        client.fetchLatestReplaceableEvent(pubkey, 10050),
+                        RELAY_METADATA_TIMEOUT_MS,
+                        'Relay timeout while fetching active profile DM relay list (kind 10050)',
+                    ),
+                ]).then(([relayListEvent, dmInboxRelayListEvent]) => {
+                    return {
+                        ...relaySuggestionsByTypeFromKind10002Event(relayListEvent),
+                        dmInbox: dmInboxRelayListFromKind10050Event(dmInboxRelayListEvent),
+                    };
+                }).catch(() => {
+                    return {
+                        nip65Both: [],
+                        nip65Read: [],
+                        nip65Write: [],
+                        dmInbox: [],
+                    };
+                });
+
+                const [followsResult, followersResult, relaySuggestionsByType] = await Promise.all([
                     graphApiService.loadFollows({
                         ownerPubkey,
                         pubkey,
@@ -1737,6 +1808,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                         pubkey,
                         candidateAuthors: current.data.follows,
                     }),
+                    relaySuggestionsByTypePromise,
                 ]);
 
                 const follows = dedupe(followsResult.follows);
@@ -1751,6 +1823,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                     follows,
                     followers,
                     profiles,
+                    relaySuggestionsByType,
                 };
             },
         }),
@@ -1765,6 +1838,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         sessionRestorationResolved,
         error: state.error,
         authSession: state.data.authSession,
+        savedLocalAccount: state.data.savedLocalAccount,
         canWrite: isWriteEnabled(state.data.authSession),
         canEncrypt: isEncryptionEnabled(state.data.authSession),
         canDirectMessages: isDirectMessagesEnabled(state.data.authSession),

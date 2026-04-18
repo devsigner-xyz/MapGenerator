@@ -41,6 +41,14 @@ describe('defaultCapabilitiesForMethod', () => {
             encryptionSchemes: [],
         });
     });
+
+    test('returns signing and nip44 capabilities for local', () => {
+        expect(defaultCapabilitiesForMethod('local')).toEqual({
+            canSign: true,
+            canEncrypt: true,
+            encryptionSchemes: ['nip44'],
+        });
+    });
 });
 
 describe('createAuthSession', () => {

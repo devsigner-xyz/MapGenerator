@@ -352,6 +352,84 @@ describe('OccupantProfileDialog', () => {
         expect(followingDescriptions.some((value) => value.startsWith('npub1'))).toBe(true);
     });
 
+    test('shows active profile relay suggestions in information tab', async () => {
+        const rendered = await renderElement(
+            <OccupantProfileDialog
+                {...buildProps({
+                    relaySuggestionsByType: {
+                        nip65Both: ['wss://relay.both.example'],
+                        nip65Read: ['wss://relay.read.example'],
+                        nip65Write: ['wss://relay.write.example'],
+                        dmInbox: ['wss://relay.dm.example'],
+                    },
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        await selectTab('Información');
+        await waitForCondition(() => (document.body.textContent || '').includes('wss://relay.both.example'));
+
+        const text = document.body.textContent || '';
+        expect(text).toContain('Relays declarados');
+        expect(text).toContain('wss://relay.both.example');
+        expect(text).toContain('wss://relay.read.example');
+        expect(text).toContain('wss://relay.write.example');
+        expect(text).toContain('wss://relay.dm.example');
+        expect(text).toContain('NIP-65 read+write');
+        expect(text).toContain('NIP-65 read');
+        expect(text).toContain('NIP-65 write');
+        expect(text).toContain('NIP-17 DM inbox');
+    });
+
+    test('fires callbacks to add one relay or all relay suggestions', async () => {
+        const onAddRelaySuggestion = vi.fn();
+        const onAddAllRelaySuggestions = vi.fn();
+        const rendered = await renderElement(
+            <OccupantProfileDialog
+                {...buildProps({
+                    relaySuggestionsByType: {
+                        nip65Both: ['wss://relay.both.example'],
+                        nip65Read: ['wss://relay.both.example', 'wss://relay.read.example'],
+                        nip65Write: ['wss://relay.both.example'],
+                        dmInbox: ['wss://relay.dm.example'],
+                    },
+                    onAddRelaySuggestion,
+                    onAddAllRelaySuggestions,
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        await selectTab('Información');
+        await waitForCondition(() => document.body.querySelector('button[aria-label="Añadir relay wss://relay.both.example"]') !== null);
+
+        const addSingleButton = document.body.querySelector('button[aria-label="Añadir relay wss://relay.both.example"]') as HTMLButtonElement;
+        expect(addSingleButton).toBeDefined();
+
+        await act(async () => {
+            addSingleButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onAddRelaySuggestion).toHaveBeenCalledTimes(1);
+        expect(onAddRelaySuggestion).toHaveBeenCalledWith('wss://relay.both.example', ['nip65Both', 'nip65Read', 'nip65Write']);
+
+        const addAllButton = document.body.querySelector('button[aria-label="Añadir todos los relays declarados"]') as HTMLButtonElement;
+        expect(addAllButton).toBeDefined();
+
+        await act(async () => {
+            addAllButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onAddAllRelaySuggestions).toHaveBeenCalledTimes(1);
+        const payload = onAddAllRelaySuggestions.mock.calls[0]?.[0] as Array<{ relayUrl: string }>;
+        expect(payload.map((entry) => entry.relayUrl)).toEqual([
+            'wss://relay.both.example',
+            'wss://relay.dm.example',
+            'wss://relay.read.example',
+        ]);
+    });
+
     test('shows follow action in network tabs and disables already followed people', async () => {
         const onFollowProfile = vi.fn(() => new Promise<void>(() => {}));
         const rendered = await renderElement(

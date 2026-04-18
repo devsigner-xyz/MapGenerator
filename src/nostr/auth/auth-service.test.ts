@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
+import { generateSecretKey } from 'nostr-tools/pure';
 import { createAuthService } from './auth-service';
+import { createLocalKeyStorage } from './local-key-storage';
 import { AUTH_SESSION_STORAGE_KEY } from './secure-storage';
 import { AUTH_PROVIDER_ERROR } from './providers/types';
 
@@ -26,6 +28,33 @@ function createMemoryStorage(): Storage {
         },
         setItem(key, value) {
             values.set(key, value);
+        },
+    };
+}
+
+function createMemoryDeviceKeyStore() {
+    const values = new Map<string, CryptoKey>();
+
+    return {
+        async get(pubkey: string) {
+            return values.get(pubkey);
+        },
+        async getOrCreate(pubkey: string) {
+            const existing = values.get(pubkey);
+            if (existing) {
+                return existing;
+            }
+
+            const created = await crypto.subtle.generateKey(
+                { name: 'AES-GCM', length: 256 },
+                false,
+                ['encrypt', 'decrypt']
+            );
+            values.set(pubkey, created);
+            return created;
+        },
+        async delete(pubkey: string) {
+            values.delete(pubkey);
         },
     };
 }
@@ -227,6 +256,111 @@ describe('createAuthService', () => {
         expect(storage.getItem(AUTH_SESSION_STORAGE_KEY)).toBeNull();
         expect(auth.getSession()).toBeUndefined();
         expect(listener).toHaveBeenCalledTimes(2);
+    });
+
+    test('starts local session with nip44 capabilities and persists it', async () => {
+        const storage = createMemoryStorage();
+        const localKeyStorage = createLocalKeyStorage({ storage, deviceKeyStore: createMemoryDeviceKeyStore(), now: () => 222 });
+        const auth = createAuthService({ storage, localKeyStorage, now: () => 222 });
+
+        const session = await auth.startSession('local', { secretKey: generateSecretKey() });
+
+        expect(session.method).toBe('local');
+        expect(session.readonly).toBe(false);
+        expect(session.capabilities).toEqual({
+            canSign: true,
+            canEncrypt: true,
+            encryptionSchemes: ['nip44'],
+        });
+        expect(session.createdAt).toBe(222);
+
+        const persisted = storage.getItem(AUTH_SESSION_STORAGE_KEY);
+        expect(persisted).toContain('"method":"local"');
+    });
+
+    test('restores local session unlocked when local key material is device-protected', async () => {
+        const storage = createMemoryStorage();
+        const deviceKeyStore = createMemoryDeviceKeyStore();
+        const localKeyStorage = createLocalKeyStorage({ storage, deviceKeyStore, now: () => 222 });
+        const authA = createAuthService({ storage, localKeyStorage, now: () => 222 });
+        await authA.startSession('local', { secretKey: generateSecretKey() });
+
+        const authB = createAuthService({ storage, localKeyStorage: createLocalKeyStorage({ storage, deviceKeyStore }) });
+        const restored = await authB.restoreSession();
+
+        expect(restored?.method).toBe('local');
+        expect(restored?.locked).toBe(false);
+        expect(restored?.capabilities).toEqual({
+            canSign: true,
+            canEncrypt: true,
+            encryptionSchemes: ['nip44'],
+        });
+        expect(authB.getActiveProvider()).toBeDefined();
+    });
+
+    test('restores passphrase-protected local sessions as locked until unlocked explicitly', async () => {
+        const storage = createMemoryStorage();
+        const deviceKeyStore = createMemoryDeviceKeyStore();
+        const localKeyStorage = createLocalKeyStorage({ storage, deviceKeyStore, now: () => 222 });
+        const authA = createAuthService({ storage, localKeyStorage, now: () => 222 });
+        const secretKey = generateSecretKey();
+        await authA.startSession('local', { secretKey, passphrase: 'local-passphrase' });
+
+        const authB = createAuthService({ storage, localKeyStorage: createLocalKeyStorage({ storage, deviceKeyStore }) });
+        const restored = await authB.restoreSession();
+
+        expect(restored?.method).toBe('local');
+        expect(restored?.locked).toBe(true);
+        expect(authB.getActiveProvider()).toBeUndefined();
+        expect(restored?.pubkey).toBeDefined();
+
+        const unlocked = await authB.startSession('local', {
+            pubkey: restored?.pubkey ?? '',
+            passphrase: 'local-passphrase',
+        });
+
+        expect(unlocked.method).toBe('local');
+        expect(unlocked.locked).toBe(false);
+    });
+
+    test('logout clears only session metadata and keeps saved local account available for re-entry', async () => {
+        const storage = createMemoryStorage();
+        const deviceKeyStore = createMemoryDeviceKeyStore();
+        const localKeyStorage = createLocalKeyStorage({ storage, deviceKeyStore, now: () => 222 });
+        const auth = createAuthService({ storage, localKeyStorage, now: () => 222 });
+        const secretKey = generateSecretKey();
+        const session = await auth.startSession('local', { secretKey });
+
+        await auth.logout();
+
+        const authB = createAuthService({ storage, localKeyStorage: createLocalKeyStorage({ storage, deviceKeyStore }) });
+        const restored = await authB.restoreSession();
+        const savedLocalAccount = await authB.getSavedLocalAccount();
+
+        expect(session.method).toBe('local');
+        expect(restored).toBeUndefined();
+        expect(savedLocalAccount).toEqual({
+            pubkey: session.pubkey,
+            mode: 'device',
+        });
+    });
+
+    test('surfaces a stable error when unlocking a local session with the wrong passphrase', async () => {
+        const storage = createMemoryStorage();
+        const deviceKeyStore = createMemoryDeviceKeyStore();
+        const localKeyStorage = createLocalKeyStorage({ storage, deviceKeyStore, now: () => 222 });
+        const authA = createAuthService({ storage, localKeyStorage, now: () => 222 });
+        const secretKey = generateSecretKey();
+        await authA.startSession('local', { secretKey, passphrase: 'local-passphrase' });
+
+        const authB = createAuthService({ storage, localKeyStorage: createLocalKeyStorage({ storage, deviceKeyStore }) });
+        const restored = await authB.restoreSession();
+        expect(restored?.locked).toBe(true);
+
+        await expect(authB.startSession('local', {
+            pubkey: restored?.pubkey ?? '',
+            passphrase: 'incorrect-passphrase',
+        })).rejects.toThrow('No se pudo desbloquear la cuenta local con esa passphrase');
     });
 
 });

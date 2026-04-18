@@ -2,7 +2,7 @@ import type { LoginMethod } from './session';
 
 export const AUTH_SESSION_STORAGE_KEY = 'nostr.overlay.auth.session.v1';
 
-const STORED_AUTH_METHODS = new Set(['npub', 'nip07', 'nip46', 'nsec']);
+const STORED_AUTH_METHODS = new Set(['npub', 'nip07', 'nip46', 'local', 'nsec']);
 
 type StoredAuthMethod = LoginMethod | 'nsec';
 

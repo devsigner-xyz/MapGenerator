@@ -46,7 +46,13 @@ import { extractStreetLabelUsernames } from './domain/street-label-users';
 import { getEasterEggEntry } from './easter-eggs/catalog';
 import { getSpecialBuildingEntry } from './special-buildings/catalog';
 import { EASTER_EGG_MISSIONS } from './easter-eggs/missions';
-import { loadRelaySettings, type RelaySettingsState } from '../nostr/relay-settings';
+import {
+    addRelay,
+    loadRelaySettings,
+    saveRelaySettings,
+    type RelaySettingsState,
+    type RelayType,
+} from '../nostr/relay-settings';
 import type { NostrEvent } from '../nostr/types';
 import { buildSettingsPath, settingsViewFromPathname, type SettingsRouteView } from './settings/settings-routing';
 import { useRelayConnectionSummary } from './hooks/useRelayConnectionSummary';
@@ -139,7 +145,7 @@ export function App({ mapBridge, services }: AppProps) {
     const loginDisabled = overlay.status !== 'idle' && overlay.status !== 'success' && overlay.status !== 'error';
     const mapLoaderText = mapLoaderStageLabel(overlay.mapLoaderStage);
     const sessionRestorationResolved = overlay.sessionRestorationResolved;
-    const isAppReady = Boolean(overlay.authSession) && overlay.status === 'success';
+    const isAppReady = Boolean(overlay.authSession) && overlay.status === 'success' && !overlay.authSession?.locked;
     const showLoginGate = !sessionRestorationResolved || !isAppReady;
     const regenerateDisabled = !mapBridge || overlay.mapLoaderStage !== null;
     const lastErrorToastRef = useRef<string | undefined>(undefined);
@@ -709,6 +715,38 @@ export function App({ mapBridge, services }: AppProps) {
         }
     };
 
+    const addRelaySuggestionToSettings = (relayUrl: string, relayTypes: RelayType[]): void => {
+        const ownerInput = relaySettingsOwnerPubkey ? { ownerPubkey: relaySettingsOwnerPubkey } : undefined;
+        const currentRelaySettings = loadRelaySettings(ownerInput);
+        let nextRelaySettings = currentRelaySettings;
+
+        for (const relayType of relayTypes) {
+            nextRelaySettings = addRelay(nextRelaySettings, relayUrl, relayType);
+        }
+
+        const savedRelaySettings = saveRelaySettings(nextRelaySettings, ownerInput);
+        setRelaySettingsSnapshot(savedRelaySettings);
+    };
+
+    const addAllRelaySuggestionsToSettings = (rows: Array<{ relayUrl: string; relayTypes: RelayType[] }>): void => {
+        if (!rows || rows.length === 0) {
+            return;
+        }
+
+        const ownerInput = relaySettingsOwnerPubkey ? { ownerPubkey: relaySettingsOwnerPubkey } : undefined;
+        const currentRelaySettings = loadRelaySettings(ownerInput);
+        let nextRelaySettings = currentRelaySettings;
+
+        for (const row of rows) {
+            for (const relayType of row.relayTypes) {
+                nextRelaySettings = addRelay(nextRelaySettings, row.relayUrl, relayType);
+            }
+        }
+
+        const savedRelaySettings = saveRelaySettings(nextRelaySettings, ownerInput);
+        setRelaySettingsSnapshot(savedRelaySettings);
+    };
+
     const closeOccupiedContextMenu = (): void => {
         setBuildingContextMenu(null);
     };
@@ -1272,6 +1310,9 @@ export function App({ mapBridge, services }: AppProps) {
                     onSelectHashtag={selectProfilePostHashtag}
                     onSelectProfile={openMentionedProfile}
                     ownerFollows={overlay.follows}
+                    relaySuggestionsByType={activeProfileData.relaySuggestionsByType}
+                    onAddRelaySuggestion={addRelaySuggestionToSettings}
+                    onAddAllRelaySuggestions={addAllRelaySuggestionsToSettings}
                     {...(overlay.canWrite ? { onFollowProfile: followPerson } : {})}
                     onResolveProfiles={resolveMentionProfiles}
                     onResolveEventReferences={resolveEventReferences}
@@ -1291,6 +1332,8 @@ export function App({ mapBridge, services }: AppProps) {
 
             {showLoginGate ? (
                 <LoginGateScreen
+                    authSession={overlay.authSession}
+                    savedLocalAccount={overlay.savedLocalAccount}
                     disabled={loginDisabled || !sessionRestorationResolved}
                     mapLoaderText={mapLoaderText}
                     restoringSession={!sessionRestorationResolved}

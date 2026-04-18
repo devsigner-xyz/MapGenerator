@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import type { RelaySettingsByType } from '../../nostr/relay-settings';
 import type { NostrPostPreview } from '../../nostr/posts';
 import type { NostrProfile } from '../../nostr/types';
 import { createSocialQueryOptions } from './options';
@@ -19,6 +20,7 @@ export interface ActiveProfileNetworkResult {
     follows: string[];
     followers: string[];
     profiles: Record<string, NostrProfile>;
+    relaySuggestionsByType: RelaySettingsByType;
 }
 
 export interface ActiveProfileQueryService {
@@ -45,6 +47,7 @@ interface ActiveProfileQueryState {
     follows: string[];
     followers: string[];
     networkProfiles: Record<string, NostrProfile>;
+    relaySuggestionsByType: RelaySettingsByType;
     networkLoading: boolean;
     networkError?: string;
     loadMorePosts: () => Promise<void>;
@@ -56,6 +59,12 @@ const EMPTY_NETWORK: ActiveProfileNetworkResult = {
     follows: [],
     followers: [],
     profiles: {},
+    relaySuggestionsByType: {
+        nip65Both: [],
+        nip65Read: [],
+        nip65Write: [],
+        dmInbox: [],
+    },
 };
 
 function toErrorMessage(error: unknown, fallback: string): string {
@@ -153,6 +162,7 @@ export function useActiveProfileQuery(input: UseActiveProfileQueryInput): Active
         follows: network.follows,
         followers: network.followers,
         networkProfiles: network.profiles,
+        relaySuggestionsByType: network.relaySuggestionsByType,
         networkLoading: networkQuery.isPending,
         ...(networkQuery.error ? { networkError: toErrorMessage(networkQuery.error, 'No se pudo cargar red social del perfil') } : {}),
         loadMorePosts,

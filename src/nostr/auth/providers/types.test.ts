@@ -39,6 +39,14 @@ describe('capabilitiesForMethod', () => {
             encryptionSchemes: [],
         });
     });
+
+    test('returns signing and nip44 capabilities for local', () => {
+        expect(capabilitiesForMethod('local')).toEqual({
+            canSign: true,
+            canEncrypt: true,
+            encryptionSchemes: ['nip44'],
+        });
+    });
 });
 
 describe('methodSupports', () => {
@@ -49,5 +57,7 @@ describe('methodSupports', () => {
         expect(methodSupports('nip46', 'encrypt')).toBe(false);
         expect(methodSupports('nip07', 'sign')).toBe(true);
         expect(methodSupports('nip07', 'encrypt')).toBe(false);
+        expect(methodSupports('local', 'sign')).toBe(true);
+        expect(methodSupports('local', 'encrypt')).toBe(true);
     });
 });

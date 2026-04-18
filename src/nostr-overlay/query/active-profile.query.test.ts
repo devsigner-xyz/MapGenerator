@@ -4,6 +4,7 @@ import { act, createElement, useEffect, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
+import type { RelaySettingsByType } from '../../nostr/relay-settings';
 import { createNostrOverlayQueryClient } from './query-client';
 import {
     useActiveProfileQuery,
@@ -34,6 +35,7 @@ interface ActiveProfileProbeState {
     networkLoading: boolean;
     followsCount: number;
     followersCount: number;
+    relaySuggestionsByType: RelaySettingsByType;
 }
 
 function ActiveProfileProbe({ pubkey, service, pageSize, onUpdate }: ProbeProps): null {
@@ -125,6 +127,12 @@ function network(follows: string[] = [], followers: string[] = []): ActiveProfil
         follows,
         followers,
         profiles: {},
+        relaySuggestionsByType: {
+            nip65Both: [],
+            nip65Read: [],
+            nip65Write: [],
+            dmInbox: [],
+        },
     };
 }
 
@@ -251,5 +259,43 @@ describe('useActiveProfileQuery', () => {
         const followersCount = current ? current.followersCount : 0;
         expect(followsCount).toBe(2);
         expect(followersCount).toBe(3);
+    });
+
+    test('returns relay suggestions provided by network query', async () => {
+        const expected: RelaySettingsByType = {
+            nip65Both: ['wss://relay.both.example'],
+            nip65Read: ['wss://relay.read.example'],
+            nip65Write: ['wss://relay.write.example'],
+            dmInbox: ['wss://relay.dm.example'],
+        };
+
+        const service: ActiveProfileQueryService = {
+            loadPosts: async () => page([]),
+            loadStats: async () => ({ followsCount: 0, followersCount: 0 }),
+            loadNetwork: async () => ({
+                follows: [],
+                followers: [],
+                profiles: {},
+                relaySuggestionsByType: expected,
+            }),
+        };
+
+        let latest: unknown = null;
+        const rendered = await renderElement(createElement(ActiveProfileProbe, {
+            pubkey: 'alice',
+            service,
+            onUpdate: (next: ActiveProfileProbeState) => {
+                latest = next;
+            },
+        }));
+        mounted.push(rendered);
+
+        await waitFor(() => {
+            const current = latest as ActiveProfileProbeState | null;
+            return current?.networkLoading === false;
+        });
+
+        const current = latest as ActiveProfileProbeState | null;
+        expect(current?.relaySuggestionsByType).toEqual(expected);
     });
 });

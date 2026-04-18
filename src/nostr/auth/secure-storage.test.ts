@@ -104,4 +104,11 @@ describe('secure-storage', () => {
 
         expect(loadStoredAuthSession(storage)).toBeUndefined();
     });
+
+    test('accepts local auth sessions in persisted metadata', () => {
+        const storage = createMemoryStorage();
+        saveStoredAuthSession(buildSession({ method: 'local', locked: true }), storage);
+
+        expect(loadStoredAuthSession(storage)).toEqual(buildSession({ method: 'local', locked: true }));
+    });
 });

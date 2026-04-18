@@ -141,6 +141,8 @@ describe('LoginMethodSelector', () => {
         const content = rendered.container.textContent || '';
         expect(content).not.toContain('Sesion activa');
         expect(content).not.toContain('Bloquear sesion');
+        expect(content).not.toContain('Crear cuenta');
+        expect(content).not.toContain('Crear cuenta en esta app');
     });
 
     test('shows loading state on npub submit while parent loading is active', async () => {

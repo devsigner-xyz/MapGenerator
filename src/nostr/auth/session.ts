@@ -1,4 +1,4 @@
-export type LoginMethod = 'npub' | 'nip07' | 'nip46';
+export type LoginMethod = 'npub' | 'nip07' | 'nip46' | 'local';
 
 export type EncryptionScheme = 'nip04' | 'nip44';
 
@@ -31,6 +31,14 @@ export function defaultCapabilitiesForMethod(method: LoginMethod): SessionCapabi
             canSign: false,
             canEncrypt: false,
             encryptionSchemes: [],
+        };
+    }
+
+    if (method === 'local') {
+        return {
+            canSign: true,
+            canEncrypt: true,
+            encryptionSchemes: ['nip44'],
         };
     }
 
