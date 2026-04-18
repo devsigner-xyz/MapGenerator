@@ -6,7 +6,11 @@ import { useZapSettingsController } from './controllers/useZapSettingsController
 
 export function SettingsZapsRoute() {
     const { ownerPubkey, zapSettings, onZapSettingsChange } = useSettingsRouteContext();
-    const { zapSettingsState, persistZapSettings } = useZapSettingsController({ ownerPubkey, zapSettings, onZapSettingsChange });
+    const { zapSettingsState, persistZapSettings } = useZapSettingsController({
+        ...(ownerPubkey ? { ownerPubkey } : {}),
+        ...(zapSettings ? { zapSettings } : {}),
+        ...(onZapSettingsChange ? { onZapSettingsChange } : {}),
+    });
     const [newZapAmountInput, setNewZapAmountInput] = useState('');
 
     return (

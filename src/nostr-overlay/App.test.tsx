@@ -687,7 +687,7 @@ describe('Nostr overlay App', () => {
 
         const toolbarButtons = Array.from(rendered.container.querySelectorAll('.nostr-panel-toolbar button')) as HTMLButtonElement[];
         expect(toolbarButtons.length).toBeGreaterThanOrEqual(4);
-        expect(toolbarButtons[0].getAttribute('aria-label')).toBe('Abrir mapa');
+        expect(toolbarButtons[0]?.getAttribute('aria-label')).toBe('Abrir mapa');
         expect(toolbarButtons.some((button) => button.getAttribute('aria-label') === 'Abrir estadisticas de la ciudad')).toBe(true);
         expect(toolbarButtons.some((button) => button.getAttribute('aria-label') === 'Abrir descubre')).toBe(true);
         expect(toolbarButtons.some((button) => button.getAttribute('aria-label') === 'Regenerar mapa')).toBe(false);
@@ -1079,7 +1079,7 @@ describe('Nostr overlay App', () => {
         await waitFor(() => (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mock.calls.length >= 2);
 
         const feedCalls = (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mock.calls;
-        expect(feedCalls[0]?.[0]).toMatchObject({ until: undefined });
+        expect(feedCalls[0]?.[0]).not.toHaveProperty('until');
         expect(feedCalls[1]?.[0]).toMatchObject({ until: 90 });
 
         await waitFor(() => Boolean(rendered.container.querySelector('button[aria-label="Responder (0)"]')));
@@ -1102,7 +1102,8 @@ describe('Nostr overlay App', () => {
 
         await waitFor(() => (socialFeed.service.loadThread as ReturnType<typeof vi.fn>).mock.calls.length >= 2);
         const threadCalls = (socialFeed.service.loadThread as ReturnType<typeof vi.fn>).mock.calls;
-        expect(threadCalls[0]?.[0]).toMatchObject({ rootEventId: 'note-1', until: undefined });
+        expect(threadCalls[0]?.[0]).toMatchObject({ rootEventId: 'note-1' });
+        expect(threadCalls[0]?.[0]).not.toHaveProperty('until');
         expect(threadCalls[1]?.[0]).toMatchObject({ rootEventId: 'note-1', until: 70 });
     });
 
@@ -3200,10 +3201,10 @@ describe('Nostr overlay App', () => {
 
         const zoomButtons = Array.from(rendered.container.querySelectorAll('.nostr-map-zoom-controls .nostr-map-zoom-button')) as HTMLButtonElement[];
         expect(zoomButtons.length).toBe(2);
-        expect(zoomButtons[0].getAttribute('aria-label')).toBe('Alejar mapa');
-        expect(zoomButtons[1].getAttribute('aria-label')).toBe('Acercar mapa');
-        expect(zoomButtons[0].className.includes('nostr-map-zoom-button-left')).toBe(true);
-        expect(zoomButtons[1].className.includes('nostr-map-zoom-button-right')).toBe(true);
+        expect(zoomButtons[0]?.getAttribute('aria-label')).toBe('Alejar mapa');
+        expect(zoomButtons[1]?.getAttribute('aria-label')).toBe('Acercar mapa');
+        expect(zoomButtons[0]?.className.includes('nostr-map-zoom-button-left')).toBe(true);
+        expect(zoomButtons[1]?.className.includes('nostr-map-zoom-button-right')).toBe(true);
 
         const regenerateButton = rendered.container.querySelector('.nostr-map-zoom-controls .nostr-map-regenerate-button') as HTMLButtonElement;
         expect(regenerateButton).toBeDefined();
@@ -3429,7 +3430,7 @@ describe('Nostr overlay App', () => {
         });
 
         expect(clipboardWriteText).toHaveBeenCalledTimes(1);
-        expect((clipboardWriteText.mock.calls[0][0] as string).startsWith('npub1')).toBe(true);
+        expect((clipboardWriteText.mock.calls[0]?.[0] as string | undefined)?.startsWith('npub1')).toBe(true);
         await waitFor(() => (rendered.container.textContent || '').includes('npub copiada'));
 
         await openDropdownTrigger(actionsButton);
@@ -3573,7 +3574,7 @@ describe('Nostr overlay App', () => {
             copyFollowingItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
         expect(clipboardWriteText).toHaveBeenCalledTimes(1);
-        expect((clipboardWriteText.mock.calls[0][0] as string).startsWith('npub1')).toBe(true);
+        expect((clipboardWriteText.mock.calls[0]?.[0] as string | undefined)?.startsWith('npub1')).toBe(true);
     });
 
     test('allows following from followers tab and updates row state to following', async () => {
@@ -4267,7 +4268,7 @@ describe('Nostr overlay App', () => {
         });
 
         expect(clipboardWriteText).toHaveBeenCalledTimes(1);
-        expect((clipboardWriteText.mock.calls[0][0] as string).startsWith('npub1')).toBe(true);
+        expect((clipboardWriteText.mock.calls[0]?.[0] as string | undefined)?.startsWith('npub1')).toBe(true);
 
         await act(async () => {
             triggerOccupiedBuildingContextMenu({
@@ -6222,7 +6223,6 @@ describe('Nostr overlay App', () => {
         const notificationsKey = nostrOverlayQueryKeys.notifications({
             ownerPubkey: ownerPubkeyA,
             limit: 200,
-            since: undefined,
         });
         const directMessagesKey = nostrOverlayQueryKeys.directMessagesList({ ownerPubkey: ownerPubkeyA });
         const activeProfilePostsKey = ['nostr-overlay', 'social', 'active-profile', 'posts', {

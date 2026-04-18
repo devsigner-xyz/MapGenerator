@@ -546,13 +546,13 @@ export function OverlaySidebar({
                         onOpenMissions={onOpenMissions}
                     />
                     <SidebarUserMenu
-                        authSession={authSession}
-                        ownerPubkey={ownerPubkey}
-                        ownerProfile={ownerProfile}
-                        onCopyOwnerNpub={onCopyOwnerNpub}
-                        onLocateOwner={onLocateOwner}
-                        onViewOwnerDetails={onViewOwnerDetails}
-                        onLogout={onLogout}
+                        {...(authSession ? { authSession } : {})}
+                        {...(ownerPubkey ? { ownerPubkey } : {})}
+                        {...(ownerProfile ? { ownerProfile } : {})}
+                        {...(onCopyOwnerNpub ? { onCopyOwnerNpub } : {})}
+                        {...(onLocateOwner ? { onLocateOwner } : {})}
+                        {...(onViewOwnerDetails ? { onViewOwnerDetails } : {})}
+                        {...(onLogout ? { onLogout } : {})}
                     />
                 </SidebarFooter>
                 <SidebarRail />

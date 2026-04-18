@@ -29,6 +29,10 @@ export function extractStreetLabelUsernames(input: StreetLabelUsersInput): strin
 
     for (const index of keys) {
         const pubkey = input.occupancyByBuildingIndex[index];
+        if (!pubkey) {
+            continue;
+        }
+
         const username = resolveProfileUsername(input.profiles[pubkey]);
         if (!username) {
             continue;

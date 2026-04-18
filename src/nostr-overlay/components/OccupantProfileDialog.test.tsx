@@ -155,7 +155,7 @@ describe('OccupantProfileDialog', () => {
         });
 
         expect(clipboardWriteText).toHaveBeenCalledTimes(1);
-        expect((clipboardWriteText.mock.calls[0][0] as string).startsWith('npub1')).toBe(true);
+        expect((clipboardWriteText.mock.calls[0]?.[0] as string | undefined)?.startsWith('npub1')).toBe(true);
         expect(toastSuccessMock).toHaveBeenCalledWith('npub copiada', { duration: 1600 });
     });
 
@@ -235,6 +235,9 @@ describe('OccupantProfileDialog', () => {
 
         const feedEmpty = document.body.querySelector('.nostr-profile-posts-empty[data-slot="empty"]') as HTMLElement | null;
         expect(feedEmpty).not.toBeNull();
+        if (!feedEmpty) {
+            throw new Error('Expected feed empty state to be present');
+        }
         expect(feedEmpty.querySelector('[aria-label="Loading"]')).not.toBeNull();
         expect(feedEmpty.textContent || '').toContain('Cargando publicaciones');
 

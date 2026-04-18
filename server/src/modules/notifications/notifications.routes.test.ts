@@ -271,7 +271,7 @@ describe('notifications routes', () => {
     expect(response.body).toContain('data: {');
     expect(response.body).toContain('\n\n');
     expect(lastStreamSignal).toBeDefined();
-    expect(lastStreamSignal?.aborted).toBe(true);
+    expect((lastStreamSignal as AbortSignal | undefined)?.aborted).toBe(true);
   });
 
   it('returns 401 when notifications stream query is valid but auth proof is missing', async () => {

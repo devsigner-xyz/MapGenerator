@@ -40,6 +40,7 @@ import {
     useFollowingFeedInfiniteQuery,
     useThreadInfiniteQuery,
 } from '../query/following-feed.query';
+import type { FollowingFeedQueryInput } from '../query/types';
 import {
     createFollowingFeedReadStateStorage,
     fallbackStorage,
@@ -64,14 +65,14 @@ interface ToggleReactionMutationVariables {
     input: ToggleReactionInput;
     previous: boolean;
     next: boolean;
-    reactionEventId?: string;
+    reactionEventId: string | undefined;
 }
 
 interface ToggleRepostMutationVariables {
     input: ToggleRepostInput;
     previous: boolean;
     next: boolean;
-    repostEventId?: string;
+    repostEventId: string | undefined;
 }
 
 interface PublishPostMutationVariables {
@@ -82,6 +83,12 @@ interface PublishReplyMutationVariables {
     input: PublishReplyInput;
     rootEventId: string;
     content: string;
+}
+
+interface PublishReplyMutationContext {
+    tempId: string;
+    targetEventId: string;
+    threadKey: ReturnType<typeof nostrOverlayQueryKeys.thread>;
 }
 
 const EMPTY_ENGAGEMENT_METRICS: SocialEngagementMetrics = {
@@ -99,6 +106,28 @@ function normalizeHashtag(value: string | undefined): string | undefined {
 
     const normalized = value.trim().replace(/^#+/, '').toLowerCase();
     return normalized.length > 0 ? normalized : undefined;
+}
+
+function buildFollowingFeedQueryInput(input: {
+    ownerPubkey: string | undefined;
+    follows: string[];
+    hashtag: string | undefined;
+    pageSize: number;
+}): FollowingFeedQueryInput {
+    const queryInput: FollowingFeedQueryInput = {
+        follows: input.follows,
+        pageSize: input.pageSize,
+    };
+
+    if (input.ownerPubkey) {
+        queryInput.ownerPubkey = input.ownerPubkey;
+    }
+
+    if (input.hashtag) {
+        queryInput.hashtag = input.hashtag;
+    }
+
+    return queryInput;
 }
 
 export function useFollowingFeedController(options: UseFollowingFeedControllerOptions) {
@@ -133,21 +162,38 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
     const feedPageSize = Math.max(1, options.pageSize ?? 20);
     const threadPageSize = Math.max(1, options.threadPageSize ?? 25);
 
-    const feedQueryKey = useMemo(() => nostrOverlayQueryKeys.followingFeed({
+    const feedQueryInput = useMemo(() => buildFollowingFeedQueryInput({
         ownerPubkey: options.ownerPubkey,
         follows,
         hashtag: activeHashtag,
         pageSize: feedPageSize,
     }), [activeHashtag, feedPageSize, follows, options.ownerPubkey]);
 
-    const feedQuery = useFollowingFeedInfiniteQuery({
-        ownerPubkey: options.ownerPubkey,
-        follows,
-        hashtag: activeHashtag,
-        service: options.service,
-        enabled: Boolean(options.ownerPubkey),
-        pageSize: feedPageSize,
-    });
+    const feedQueryKey = useMemo(
+        () => nostrOverlayQueryKeys.followingFeed(feedQueryInput),
+        [feedQueryInput],
+    );
+
+    const feedQueryOptions = useMemo(() => {
+        const queryOptions: Parameters<typeof useFollowingFeedInfiniteQuery>[0] = {
+            follows,
+            service: options.service,
+            enabled: Boolean(options.ownerPubkey),
+            pageSize: feedPageSize,
+        };
+
+        if (options.ownerPubkey) {
+            queryOptions.ownerPubkey = options.ownerPubkey;
+        }
+
+        if (activeHashtag) {
+            queryOptions.hashtag = activeHashtag;
+        }
+
+        return queryOptions;
+    }, [activeHashtag, feedPageSize, follows, options.ownerPubkey, options.service]);
+
+    const feedQuery = useFollowingFeedInfiniteQuery(feedQueryOptions);
 
     useEffect(() => {
         setActiveThreadRootEventId(null);
@@ -268,6 +314,10 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
             return { tempId };
         },
         onSuccess: (published, _variables, context) => {
+            if (!context?.tempId) {
+                return;
+            }
+
             queryClient.setQueryData<InfiniteData<SocialFeedPage>>(feedQueryKey, (current) => {
                 if (!current || current.pages.length === 0) {
                     return current;
@@ -275,6 +325,9 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
 
                 const publishedItem = toFeedItemFromPublished(published);
                 const firstPage = current.pages[0];
+                if (!firstPage) {
+                    return current;
+                }
                 const withoutTemp = firstPage.items.filter((item) => item.id !== context.tempId);
                 const updatedItems = publishedItem ? mergeFeedItems([publishedItem], withoutTemp) : withoutTemp;
                 return {
@@ -284,12 +337,20 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
             });
         },
         onError: (error, _variables, context) => {
+            if (!context?.tempId) {
+                setPublishError(error instanceof Error ? error.message : 'No se pudo publicar la nota');
+                return;
+            }
+
             queryClient.setQueryData<InfiniteData<SocialFeedPage>>(feedQueryKey, (current) => {
                 if (!current || current.pages.length === 0) {
                     return current;
                 }
 
                 const firstPage = current.pages[0];
+                if (!firstPage) {
+                    return current;
+                }
                 return {
                     pages: [{ ...firstPage, items: firstPage.items.filter((item) => item.id !== context.tempId) }, ...current.pages.slice(1)],
                     pageParams: current.pageParams,
@@ -312,9 +373,18 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
             const tags = buildReplyTags(variables.input, activeThread);
             return options.writeGateway.publishTextNote(variables.content, tags);
         },
-        onMutate: async (variables) => {
+        onMutate: async (variables): Promise<PublishReplyMutationContext> => {
+            const threadKey = nostrOverlayQueryKeys.thread({
+                rootEventId: variables.rootEventId,
+                pageSize: threadPageSize,
+            });
+
             if (!options.ownerPubkey) {
-                return { tempId: '' };
+                return {
+                    tempId: '',
+                    targetEventId: variables.input.targetEventId,
+                    threadKey,
+                };
             }
 
             setPublishError(null);
@@ -328,22 +398,24 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
             );
             applyEngagementDelta(variables.input.targetEventId, 'replies', 1);
 
-            const threadKey = nostrOverlayQueryKeys.thread({
-                rootEventId: variables.rootEventId,
-                pageSize: threadPageSize,
-            });
-
             queryClient.setQueryData<InfiniteData<SocialThreadPage>>(threadKey, (current) => prependReply(current, tempReply));
             return { tempId, targetEventId: variables.input.targetEventId, threadKey };
         },
         onSuccess: (published, _variables, context) => {
-            queryClient.setQueryData<InfiniteData<SocialThreadPage>>(context.threadKey, (current) => {
+            if (!context?.threadKey || !context.tempId) {
+                return;
+            }
+
+            queryClient.setQueryData<InfiniteData<SocialThreadPage>>(context.threadKey as readonly unknown[], (current) => {
                 if (!current || current.pages.length === 0) {
                     return current;
                 }
 
                 const publishedReply = toThreadItemFromPublished(published);
                 const firstPage = current.pages[0];
+                if (!firstPage) {
+                    return current;
+                }
                 const withoutTemp = firstPage.replies.filter((reply) => reply.id !== context.tempId);
                 const updatedReplies = mergeThreadReplies([publishedReply], withoutTemp);
                 return {
@@ -353,13 +425,21 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
             });
         },
         onError: (error, _variables, context) => {
+            if (!context?.threadKey) {
+                setPublishError(error instanceof Error ? error.message : 'No se pudo publicar la respuesta');
+                return;
+            }
+
             applyEngagementDelta(context.targetEventId, 'replies', -1);
-            queryClient.setQueryData<InfiniteData<SocialThreadPage>>(context.threadKey, (current) => {
+            queryClient.setQueryData<InfiniteData<SocialThreadPage>>(context.threadKey as readonly unknown[], (current) => {
                 if (!current || current.pages.length === 0) {
                     return current;
                 }
 
                 const firstPage = current.pages[0];
+                if (!firstPage) {
+                    return current;
+                }
                 return {
                     pages: [{ ...firstPage, replies: firstPage.replies.filter((reply) => reply.id !== context.tempId) }, ...current.pages.slice(1)],
                     pageParams: current.pageParams,
@@ -433,7 +513,9 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
         },
         onError: (error, variables, context) => {
             setReactionByEventId((current) => ({ ...current, [variables.input.eventId]: variables.previous }));
-            applyEngagementDelta(context.eventId, 'reactions', -context.optimisticDelta);
+            if (context) {
+                applyEngagementDelta(context.eventId, 'reactions', -context.optimisticDelta);
+            }
             setPublishError(error instanceof Error ? error.message : 'No se pudo actualizar la reaccion');
         },
         onSettled: () => {
@@ -502,7 +584,9 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
         },
         onError: (error, variables, context) => {
             setRepostByEventId((current) => ({ ...current, [variables.input.eventId]: variables.previous }));
-            applyEngagementDelta(context.eventId, 'reposts', -context.optimisticDelta);
+            if (context) {
+                applyEngagementDelta(context.eventId, 'reposts', -context.optimisticDelta);
+            }
             setPublishError(error instanceof Error ? error.message : 'No se pudo actualizar el repost');
         },
         onSettled: () => {

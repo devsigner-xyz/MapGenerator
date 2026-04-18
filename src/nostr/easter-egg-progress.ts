@@ -102,10 +102,14 @@ export function loadEasterEggProgress(options: EasterEggProgressOptions = {}): E
         return getDefaultState();
     }
 
-    const keys = buildStorageScopeKeys({
-        baseKey: EASTER_EGG_PROGRESS_STORAGE_KEY,
-        ownerPubkey: options.ownerPubkey,
-    });
+    const keys = buildStorageScopeKeys(
+        options.ownerPubkey === undefined
+            ? { baseKey: EASTER_EGG_PROGRESS_STORAGE_KEY }
+            : {
+                baseKey: EASTER_EGG_PROGRESS_STORAGE_KEY,
+                ownerPubkey: options.ownerPubkey,
+            }
+    );
 
     if (!keys.normalizedOwnerPubkey) {
         return getDefaultState();
@@ -141,10 +145,14 @@ export function saveEasterEggProgress(
         return normalizedState;
     }
 
-    const keys = buildStorageScopeKeys({
-        baseKey: EASTER_EGG_PROGRESS_STORAGE_KEY,
-        ownerPubkey: options.ownerPubkey,
-    });
+    const keys = buildStorageScopeKeys(
+        options.ownerPubkey === undefined
+            ? { baseKey: EASTER_EGG_PROGRESS_STORAGE_KEY }
+            : {
+                baseKey: EASTER_EGG_PROGRESS_STORAGE_KEY,
+                ownerPubkey: options.ownerPubkey,
+            }
+    );
 
     if (!keys.normalizedOwnerPubkey) {
         return normalizedState;
@@ -163,11 +171,18 @@ export function markEasterEggDiscovered({
     ownerPubkey,
     storage = getDefaultStorage(),
 }: MarkEasterEggDiscoveredInput): EasterEggProgressState {
+    const saveOptions: EasterEggProgressOptions = {
+        storage,
+    };
+    if (ownerPubkey !== undefined) {
+        saveOptions.ownerPubkey = ownerPubkey;
+    }
+
     if (currentState.discoveredIds.includes(easterEggId)) {
-        return saveEasterEggProgress(currentState, { ownerPubkey, storage });
+        return saveEasterEggProgress(currentState, saveOptions);
     }
 
     return saveEasterEggProgress({
         discoveredIds: [...currentState.discoveredIds, easterEggId],
-    }, { ownerPubkey, storage });
+    }, saveOptions);
 }

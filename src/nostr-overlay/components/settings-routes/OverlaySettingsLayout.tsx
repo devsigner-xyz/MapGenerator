@@ -1,8 +1,7 @@
 import { Outlet } from 'react-router';
 import type { SettingsRouteContextValue } from './settings-route-context';
 
-interface OverlaySettingsLayoutProps extends SettingsRouteContextValue {
-}
+type OverlaySettingsLayoutProps = SettingsRouteContextValue;
 
 export function OverlaySettingsLayout(contextValue: OverlaySettingsLayoutProps) {
     return (

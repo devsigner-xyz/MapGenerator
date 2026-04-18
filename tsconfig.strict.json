@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.frontend.json",
+  "compilerOptions": {
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true
+  }
+}

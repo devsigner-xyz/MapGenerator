@@ -25,6 +25,23 @@ function formatPercent(value: number): string {
     return `${value.toFixed(1)}%`;
 }
 
+function formatTooltipValue(value: unknown): string {
+    if (typeof value === 'number') {
+        return value.toLocaleString();
+    }
+
+    if (typeof value === 'string') {
+        const numeric = Number(value);
+        return Number.isFinite(numeric) ? numeric.toLocaleString() : value;
+    }
+
+    if (Array.isArray(value)) {
+        return value.map((entry) => formatTooltipValue(entry)).join(', ');
+    }
+
+    return String(value ?? '');
+}
+
 export function CityStatsPage({
     buildingsCount,
     occupiedBuildingsCount,
@@ -90,7 +107,7 @@ export function CityStatsPage({
                                                 <Cell key={entry.name} fill={entry.color} />
                                             ))}
                                         </Pie>
-                                        <Tooltip formatter={(value: number) => value.toLocaleString()} />
+                                        <Tooltip formatter={(value) => formatTooltipValue(value)} />
                                     </PieChart>
                                 </ResponsiveContainer>
                             </div>
@@ -103,7 +120,7 @@ export function CityStatsPage({
                                     <BarChart data={populationData} margin={{ top: 8, right: 8, bottom: 6, left: 0 }}>
                                         <XAxis dataKey="label" />
                                         <YAxis allowDecimals={false} />
-                                        <Tooltip formatter={(value: number) => value.toLocaleString()} />
+                                        <Tooltip formatter={(value) => formatTooltipValue(value)} />
                                         <Bar dataKey="value" fill="#4f89a4" radius={[6, 6, 0, 0]} />
                                     </BarChart>
                                 </ResponsiveContainer>
@@ -117,7 +134,7 @@ export function CityStatsPage({
                                     <BarChart data={demographicData} margin={{ top: 8, right: 8, bottom: 6, left: 0 }}>
                                         <XAxis dataKey="label" />
                                         <YAxis allowDecimals={false} />
-                                        <Tooltip formatter={(value: number) => value.toLocaleString()} />
+                                        <Tooltip formatter={(value) => formatTooltipValue(value)} />
                                         <Bar dataKey="value" fill="#86b0c3" radius={[6, 6, 0, 0]} />
                                     </BarChart>
                                 </ResponsiveContainer>

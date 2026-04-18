@@ -7,10 +7,13 @@ import { Spinner } from "@/components/ui/spinner"
 
 const Toaster = ({ ...props }: ToasterProps) => {
   const { theme = "system" } = useTheme()
+  const { theme: _themeProp, ...restProps } = props
+  const resolvedTheme: ToasterProps["theme"] =
+    theme === "light" || theme === "dark" || theme === "system" ? theme : "system"
 
   return (
     <Sonner
-      theme={theme as ToasterProps["theme"]}
+      theme={resolvedTheme}
       className="toaster group"
       icons={{
         success: (
@@ -42,7 +45,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
           toast: "cn-toast",
         },
       }}
-      {...props}
+      {...restProps}
     />
   )
 }

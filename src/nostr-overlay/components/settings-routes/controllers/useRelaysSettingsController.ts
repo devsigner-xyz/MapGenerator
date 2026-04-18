@@ -67,19 +67,21 @@ export function useRelaysSettingsController(input: UseRelaysSettingsControllerIn
         relayConnectionRefreshIntervalMs,
         onRelaySettingsChange,
     } = input;
-    const [relaySettings, setRelaySettings] = useState<RelaySettingsState>(() => loadRelaySettings({ ownerPubkey }));
+    const [relaySettings, setRelaySettings] = useState<RelaySettingsState>(() => loadRelaySettings(
+        ownerPubkey ? { ownerPubkey } : undefined
+    ));
     const [newRelayInput, setNewRelayInput] = useState('');
     const [newRelayType, setNewRelayType] = useState<RelayType>('nip65Both');
     const [invalidRelayInputs, setInvalidRelayInputs] = useState<string[]>([]);
 
     const persistRelaySettings = (nextState: RelaySettingsState): void => {
-        const savedState = saveRelaySettings(nextState, { ownerPubkey });
+        const savedState = saveRelaySettings(nextState, ownerPubkey ? { ownerPubkey } : undefined);
         setRelaySettings(savedState);
         onRelaySettingsChange?.(savedState);
     };
 
     useEffect(() => {
-        setRelaySettings(loadRelaySettings({ ownerPubkey }));
+        setRelaySettings(loadRelaySettings(ownerPubkey ? { ownerPubkey } : undefined));
     }, [ownerPubkey]);
 
     const normalizedSuggestedByType = useMemo<RelaySettingsByType>(() => {
@@ -127,8 +129,8 @@ export function useRelaysSettingsController(input: UseRelaysSettingsControllerIn
 
     const { statusByRelay: configuredRelayConnectionStatusByRelay } = useRelayConnectionSummary(configuredRelayStatusTargets, {
         enabled: true,
-        probe: relayConnectionProbe,
-        refreshIntervalMs: relayConnectionRefreshIntervalMs,
+        ...(relayConnectionProbe ? { probe: relayConnectionProbe } : {}),
+        ...(relayConnectionRefreshIntervalMs !== undefined ? { refreshIntervalMs: relayConnectionRefreshIntervalMs } : {}),
         maxConcurrentProbes: 3,
     });
 
@@ -141,7 +143,7 @@ export function useRelaysSettingsController(input: UseRelaysSettingsControllerIn
 
     const { statusByRelay: suggestedRelayConnectionStatusByRelay } = useRelayConnectionSummary(suggestedRelayStatusTargets, {
         enabled: checkingConfiguredRelays === 0,
-        probe: relayConnectionProbe,
+        ...(relayConnectionProbe ? { probe: relayConnectionProbe } : {}),
         refreshIntervalMs: 0,
         maxConcurrentProbes: 2,
     });

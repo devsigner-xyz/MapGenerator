@@ -1,4 +1,4 @@
-import type { NostrClient } from './types';
+import type { NostrClient, NostrFilter } from './types';
 
 export interface NostrPostPreview {
     id: string;
@@ -26,12 +26,16 @@ export async function fetchLatestPostsByPubkey(input: {
     const limit = Math.max(1, input.limit ?? 20);
 
     await input.client.connect();
-    const events = await input.client.fetchEvents({
+    const filter: NostrFilter = {
         authors: [input.pubkey],
         kinds: [1],
         limit,
-        until: input.until,
-    });
+    };
+    if (typeof input.until === 'number') {
+        filter.until = input.until;
+    }
+
+    const events = await input.client.fetchEvents(filter);
 
     const posts = events
         .filter((event) => event.kind === 1 && event.pubkey === input.pubkey)
@@ -51,7 +55,15 @@ export async function fetchLatestPostsByPubkey(input: {
         };
     }
 
-    const minCreatedAt = posts.reduce((min, post) => Math.min(min, post.createdAt), posts[0].createdAt);
+    const firstPost = posts[0];
+    if (!firstPost) {
+        return {
+            posts: [],
+            hasMore: false,
+        };
+    }
+
+    const minCreatedAt = posts.reduce((min, post) => Math.min(min, post.createdAt), firstPost.createdAt);
     return {
         posts,
         nextUntil: minCreatedAt - 1,

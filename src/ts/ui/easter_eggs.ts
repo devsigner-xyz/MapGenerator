@@ -66,7 +66,12 @@ export function pickEmptyBuildingIndices({
         const normalizedRandom = Number.isFinite(randomValue) ? Math.max(0, Math.min(0.9999999, randomValue)) : 0;
         const j = Math.floor(normalizedRandom * (i + 1));
         const current = emptyBuildingIndices[i];
-        emptyBuildingIndices[i] = emptyBuildingIndices[j];
+        const target = emptyBuildingIndices[j];
+        if (current === undefined || target === undefined) {
+            continue;
+        }
+
+        emptyBuildingIndices[i] = target;
         emptyBuildingIndices[j] = current;
     }
 
@@ -90,7 +95,13 @@ export function buildEasterEggAssignment({
 
     const assignment: Record<number, EasterEggId> = {};
     for (let i = 0; i < selectedBuildingIndices.length; i++) {
-        assignment[selectedBuildingIndices[i]] = easterEggIds[i];
+        const buildingIndex = selectedBuildingIndices[i];
+        const easterEggId = easterEggIds[i];
+        if (buildingIndex === undefined || easterEggId === undefined) {
+            continue;
+        }
+
+        assignment[buildingIndex] = easterEggId;
     }
 
     return assignment;

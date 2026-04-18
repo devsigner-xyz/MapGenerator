@@ -11,6 +11,30 @@ import Vector from '../vector';
 import {BuildingModel} from './buildings';
 import type { StreetLabel } from './street_labels';
 
+interface ResolvedColourScheme {
+    bgColour: string;
+    bgColourIn: string;
+    buildingColour: string;
+    buildingSideColour: string;
+    buildingStroke: string;
+    seaColour: string;
+    grassColour: string;
+    minorRoadColour: string;
+    minorRoadOutline: string;
+    majorRoadColour: string;
+    majorRoadOutline: string;
+    mainRoadColour: string;
+    mainRoadOutline: string;
+    outlineSize: number;
+    minorWidth: number;
+    majorWidth: number;
+    mainWidth: number;
+    zoomBuildings: boolean;
+    buildingModels: boolean;
+    frameColour: string;
+    frameTextColour: string;
+}
+
 export interface ColourScheme {
     bgColour: string;
     bgColourIn?: string;
@@ -55,7 +79,12 @@ function parseRgbTriplet(colour: string): [number, number, number] | null {
         return null;
     }
 
-    return [parsed[0], parsed[1], parsed[2]];
+    const [r, g, b] = parsed;
+    if (r === undefined || g === undefined || b === undefined) {
+        return null;
+    }
+
+    return [r, g, b];
 }
 
 function blendRgb(
@@ -103,6 +132,64 @@ function resolveEasterEggDebugFill(colourScheme: ColourScheme, animationTimeMs: 
     const oscillation = (Math.sin(animationTimeMs / 1100) + 1) / 2;
     const blendAmount = 0.1 + oscillation * 0.26;
     return rgbTripletToString(blendRgb(emptyRgb, occupiedRgb, blendAmount));
+}
+
+function resolveColourScheme(colourScheme: ColourScheme): ResolvedColourScheme {
+    const bgColour = colourScheme.bgColour;
+    const seaColour = colourScheme.seaColour;
+    const minorRoadColour = colourScheme.minorRoadColour;
+    const bgColourIn = colourScheme.bgColourIn ?? bgColour;
+    const buildingColour = colourScheme.buildingColour ?? bgColour;
+    const buildingStroke = colourScheme.buildingStroke ?? bgColour;
+    const grassColour = colourScheme.grassColour ?? bgColour;
+    const minorRoadOutline = colourScheme.minorRoadOutline ?? minorRoadColour;
+    const majorRoadColour = colourScheme.majorRoadColour ?? minorRoadColour;
+    const majorRoadOutline = colourScheme.majorRoadOutline ?? minorRoadOutline;
+    const mainRoadColour = colourScheme.mainRoadColour ?? majorRoadColour;
+    const mainRoadOutline = colourScheme.mainRoadOutline ?? majorRoadOutline;
+    const outlineSize = colourScheme.outlineSize ?? 1;
+    const zoomBuildings = colourScheme.zoomBuildings ?? false;
+    const buildingModels = colourScheme.buildingModels ?? false;
+    const minorWidth = colourScheme.minorWidth ?? 2;
+    const majorWidth = colourScheme.majorWidth ?? 4;
+    const mainWidth = colourScheme.mainWidth ?? 5;
+    const frameColour = colourScheme.frameColour ?? bgColour;
+    const frameTextColour = colourScheme.frameTextColour ?? minorRoadOutline;
+
+    let buildingSideColour = colourScheme.buildingSideColour;
+    if (!buildingSideColour) {
+        const parsedTriplet = parseRgbTriplet(buildingColour);
+        if (parsedTriplet) {
+            const [r, g, b] = parsedTriplet;
+            buildingSideColour = `rgb(${Math.max(0, r - 40)},${Math.max(0, g - 40)},${Math.max(0, b - 40)})`;
+        } else {
+            buildingSideColour = buildingColour;
+        }
+    }
+
+    return {
+        bgColour,
+        bgColourIn,
+        buildingColour,
+        buildingSideColour,
+        buildingStroke,
+        seaColour,
+        grassColour,
+        minorRoadColour,
+        minorRoadOutline,
+        majorRoadColour,
+        majorRoadOutline,
+        mainRoadColour,
+        mainRoadOutline,
+        outlineSize,
+        minorWidth,
+        majorWidth,
+        mainWidth,
+        zoomBuildings,
+        buildingModels,
+        frameColour,
+        frameTextColour,
+    };
 }
 
 export function resolveBuildingRenderColours(
@@ -155,8 +242,9 @@ export function resolveBuildingRenderColours(
  * Controls how screen-space data is drawn
  */
 export default abstract class Style {
-    protected canvas: CanvasWrapper;
+    protected canvas!: CanvasWrapper;
     protected domainController: DomainController = DomainController.getInstance();
+    protected colourScheme: ResolvedColourScheme;
     public abstract createCanvasWrapper(c: HTMLCanvasElement, scale: number, resizeToWindow: boolean): CanvasWrapper;
     public abstract draw(canvas?: CanvasWrapper): void;
 
@@ -179,41 +267,13 @@ export default abstract class Style {
     public coastlineRoads: Vector[][] = [];
     public trafficParticles: TrafficParticleRenderState[] = [];
     public streetLabels: StreetLabel[] = [];
-    public showFrame: boolean;
+    public showFrame = false;
 
-    constructor(protected dragController: DragController, protected colourScheme: ColourScheme) {
+    constructor(protected dragController: DragController, colourScheme: ColourScheme) {
         if (!colourScheme.bgColour) log.error("ColourScheme Error - bgColour not defined");
         if (!colourScheme.seaColour) log.error("ColourScheme Error - seaColour not defined");
         if (!colourScheme.minorRoadColour) log.error("ColourScheme Error - minorRoadColour not defined");
-
-        // Default colourscheme cascade
-        if (!colourScheme.bgColourIn) colourScheme.bgColourIn = colourScheme.bgColour;
-        if (!colourScheme.buildingColour) colourScheme.buildingColour = colourScheme.bgColour;
-        if (!colourScheme.buildingStroke) colourScheme.buildingStroke = colourScheme.bgColour;
-        if (!colourScheme.grassColour) colourScheme.grassColour = colourScheme.bgColour;
-        if (!colourScheme.minorRoadOutline) colourScheme.minorRoadOutline = colourScheme.minorRoadColour;
-        if (!colourScheme.majorRoadColour) colourScheme.majorRoadColour = colourScheme.minorRoadColour;
-        if (!colourScheme.majorRoadOutline) colourScheme.majorRoadOutline = colourScheme.minorRoadOutline;
-        if (!colourScheme.mainRoadColour) colourScheme.mainRoadColour = colourScheme.majorRoadColour;
-        if (!colourScheme.mainRoadOutline) colourScheme.mainRoadOutline = colourScheme.majorRoadOutline;
-        if (!colourScheme.outlineSize) colourScheme.outlineSize = 1;
-        if (!colourScheme.zoomBuildings) colourScheme.zoomBuildings = false;
-        if (!colourScheme.buildingModels) colourScheme.buildingModels = false;
-        if (!colourScheme.minorWidth) colourScheme.minorWidth = 2;
-        if (!colourScheme.majorWidth) colourScheme.majorWidth = 4;
-        if (!colourScheme.mainWidth) colourScheme.mainWidth = 5;
-        if (!colourScheme.mainWidth) colourScheme.mainWidth = 5;
-        if (!colourScheme.frameColour) colourScheme.frameColour = colourScheme.bgColour;
-        if (!colourScheme.frameTextColour) colourScheme.frameTextColour = colourScheme.minorRoadOutline;
-
-        if (!colourScheme.buildingSideColour) {
-            const parsedRgb = Util.parseCSSColor(colourScheme.buildingColour).map(v => Math.max(0, v - 40));
-            if (parsedRgb) {
-                colourScheme.buildingSideColour = `rgb(${parsedRgb[0]},${parsedRgb[1]},${parsedRgb[2]})`;
-            } else {
-                colourScheme.buildingSideColour = colourScheme.buildingColour;
-            }
-        }
+        this.colourScheme = resolveColourScheme(colourScheme);
     }
 
     public set zoomBuildings(b: boolean) {
@@ -353,6 +413,9 @@ export class DefaultStyle extends Style {
                 const animationTimeMs = performance.now();
                 for (let i = 0; i < this.lots.length; i++) {
                     const lot = this.lots[i];
+                    if (!lot) {
+                        continue;
+                    }
                     const state = this.buildingRenderStates[i] || 'empty';
                     const colours = resolveBuildingRenderColours(state, this.colourScheme, animationTimeMs);
                     canvas.setFillStyle(colours.fill);
@@ -368,6 +431,9 @@ export class DefaultStyle extends Style {
                 const animationTimeMs = performance.now();
                 for (let i = 0; i < this.buildingModels.length; i++) {
                     const b = this.buildingModels[i];
+                    if (!b) {
+                        continue;
+                    }
                     const stateIndex = Number.isInteger(b.lotIndex) ? b.lotIndex : i;
                     const state = this.buildingRenderStates[stateIndex] || 'empty';
                     const colours = resolveBuildingRenderColours(state, this.colourScheme, animationTimeMs);
@@ -501,6 +567,9 @@ export class RoughStyle extends Style {
                 const animationTimeMs = performance.now();
                 for (let i = 0; i < this.lots.length; i++) {
                     const lot = this.lots[i];
+                    if (!lot) {
+                        continue;
+                    }
                     const state = this.buildingRenderStates[i] || 'empty';
                     const colours = resolveBuildingRenderColours(state, this.colourScheme, animationTimeMs);
                     canvas.setOptions({
@@ -524,16 +593,21 @@ export class RoughStyle extends Style {
                 });
 
                 // TODO this can be hugely improved
-                const allSidesDistances: any[] = [];
+                const allSidesDistances: Array<[number, Vector[]]> = [];
                 const camera = this.domainController.getCameraPosition();
                 for (const b of this.buildingModels) {
                     for (const s of b.sides) {
-                        const averagePoint = s[0].clone().add(s[1]).divideScalar(2);
+                        const start = s[0];
+                        const end = s[1];
+                        if (!start || !end) {
+                            continue;
+                        }
+                        const averagePoint = start.clone().add(end).divideScalar(2);
                         allSidesDistances.push([averagePoint.distanceToSquared(camera), s]);
                     }
                 }
                 allSidesDistances.sort((a, b) => b[0] - a[0]);
-                for (const p of allSidesDistances) canvas.drawPolygon(p[1]);
+                for (const [, side] of allSidesDistances) canvas.drawPolygon(side);
 
                 canvas.setOptions({
                     roughness: 1.2,

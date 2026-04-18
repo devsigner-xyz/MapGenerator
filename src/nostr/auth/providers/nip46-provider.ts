@@ -118,10 +118,10 @@ export class Nip46AuthProvider implements AuthProvider {
     method = 'nip46' as const;
     supports = capabilitiesForMethod(this.method);
 
-    private readonly createRuntime?: Nip46RuntimeFactory;
+    private readonly createRuntime: Nip46RuntimeFactory | undefined;
     private readonly timeoutMs: number;
     private readonly now: () => number;
-    private readonly makeRequestId?: () => string;
+    private readonly makeRequestId: (() => string) | undefined;
     private requestCounter = 0;
     private activeSession: ActiveNip46Session | undefined;
 

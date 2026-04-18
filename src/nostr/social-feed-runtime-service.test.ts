@@ -383,6 +383,10 @@ describe('social-feed-runtime-service', () => {
             })),
             fetchBackfill: vi.fn(async (filters: Array<{ authors?: string[]; limit?: number; until?: number }>) => {
                 const filter = filters[0];
+                if (!filter) {
+                    return [];
+                }
+
                 const authors = filter.authors ?? [];
                 const limit = filter.limit ?? 24;
 
@@ -443,6 +447,10 @@ describe('social-feed-runtime-service', () => {
             })),
             fetchBackfill: vi.fn(async (filters: Array<{ authors?: string[]; limit?: number; until?: number }>) => {
                 const filter = filters[0];
+                if (!filter) {
+                    return [];
+                }
+
                 const limit = filter.limit ?? 24;
                 const until = typeof filter.until === 'number' ? filter.until : 1000;
 

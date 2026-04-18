@@ -32,12 +32,12 @@ export function useRelayDetailController(input: UseRelayDetailControllerInput) {
         relayConnectionRefreshIntervalMs,
         params,
     } = input;
-    const [relaySettings, setRelaySettings] = useState(() => loadRelaySettings({ ownerPubkey }));
+    const [relaySettings, setRelaySettings] = useState(() => loadRelaySettings(ownerPubkey ? { ownerPubkey } : undefined));
     const [copiedRelayIdentityKey, setCopiedRelayIdentityKey] = useState<string | null>(null);
     const relayCopyResetTimeoutRef = useRef<number | null>(null);
 
     useEffect(() => {
-        setRelaySettings(loadRelaySettings({ ownerPubkey }));
+        setRelaySettings(loadRelaySettings(ownerPubkey ? { ownerPubkey } : undefined));
     }, [ownerPubkey]);
 
     useEffect(() => {
@@ -74,8 +74,8 @@ export function useRelayDetailController(input: UseRelayDetailControllerInput) {
 
     const { statusByRelay: relayConnectionStatusByRelay } = useRelayConnectionSummary([params.relayUrl], {
         enabled: true,
-        probe: relayConnectionProbe,
-        refreshIntervalMs: relayConnectionRefreshIntervalMs,
+        ...(relayConnectionProbe ? { probe: relayConnectionProbe } : {}),
+        ...(relayConnectionRefreshIntervalMs !== undefined ? { refreshIntervalMs: relayConnectionRefreshIntervalMs } : {}),
         maxConcurrentProbes: 1,
     });
 

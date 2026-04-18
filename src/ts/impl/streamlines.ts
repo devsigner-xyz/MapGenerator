@@ -14,7 +14,7 @@ interface StreamlineIntegration {
 }
 
 export interface StreamlineParams {
-    [key: string]: any;
+    [key: string]: unknown;
     dsep: number;  // Streamline seed separating distance
     dtest: number;  // Streamline integration separating distance
     dstep: number;  // Step size
@@ -37,7 +37,7 @@ export default class StreamlineGenerator {
 
     protected majorGrid: GridStorage;
     protected minorGrid: GridStorage;
-    protected paramsSq: StreamlineParams;
+    protected paramsSq!: StreamlineParams;
 
     // How many samples to skip when checking streamline collision with itself
     protected nStreamlineStep: number;
@@ -49,7 +49,7 @@ export default class StreamlineGenerator {
     protected candidateSeedsMinor: Vector[] = [];
 
     protected streamlinesDone = true;
-    protected resolve: () => void;
+    protected resolve: () => void = () => {};
     protected lastStreamlineMajor = true;
 
     public allStreamlines: Vector[][] = [];
@@ -96,22 +96,34 @@ export default class StreamlineGenerator {
         // TODO do in update method
         for (const major of [true, false]) {
             for (const streamline of this.streamlines(major)) {
-                // Ignore circles
-                if (streamline[0].equals(streamline[streamline.length - 1])) {
+                if (streamline.length < 5) {
                     continue;
                 }
 
-                const newStart = this.getBestNextPoint(streamline[0], streamline[4], streamline)
+                const start = streamline[0];
+                const startNeighbour = streamline[4];
+                const end = streamline[streamline.length - 1];
+                const endNeighbour = streamline[streamline.length - 4];
+                if (!start || !startNeighbour || !end || !endNeighbour) {
+                    continue;
+                }
+
+                // Ignore circles
+                if (start.equals(end)) {
+                    continue;
+                }
+
+                const newStart = this.getBestNextPoint(start, startNeighbour, streamline)
                 if (newStart !== null) {
-                    for (const p of this.pointsBetween(streamline[0], newStart, this.params.dstep)) {
+                    for (const p of this.pointsBetween(start, newStart, this.params.dstep)) {
                         streamline.unshift(p);
                         this.grid(major).addSample(p);
                     }
                 }
 
-                const newEnd = this.getBestNextPoint(streamline[streamline.length - 1], streamline[streamline.length - 4], streamline);
+                const newEnd = this.getBestNextPoint(end, endNeighbour, streamline);
                 if (newEnd !== null) {
-                    for (const p of this.pointsBetween(streamline[streamline.length - 1], newEnd, this.params.dstep)) {
+                    for (const p of this.pointsBetween(end, newEnd, this.params.dstep)) {
                         streamline.push(p);
                         this.grid(major).addSample(p);
                     }
@@ -156,12 +168,12 @@ export default class StreamlineGenerator {
      * Gets next best point to join streamline
      * returns null if there are no good candidates
      */
-    getBestNextPoint(point: Vector, previousPoint: Vector, streamline: Vector[]): Vector {
+    getBestNextPoint(point: Vector, previousPoint: Vector, _streamline: Vector[]): Vector | null {
         const nearbyPoints = this.majorGrid.getNearbyPoints(point, this.params.dlookahead);
         nearbyPoints.push(...this.minorGrid.getNearbyPoints(point, this.params.dlookahead));
         const direction = point.clone().sub(previousPoint);
 
-        let closestSample = null;
+        let closestSample: Vector | null = null;
         let closestDistance = Infinity;
 
         for (const sample of nearbyPoints) {
@@ -273,9 +285,11 @@ export default class StreamlineGenerator {
             this.allStreamlinesSimple.push(this.simplifyStreamline(streamline));
 
             // Add candidate seeds
-            if (!streamline[0].equals(streamline[streamline.length - 1])) {
-                this.candidateSeeds(!major).push(streamline[0]);
-                this.candidateSeeds(!major).push(streamline[streamline.length - 1]);
+            const start = streamline[0];
+            const end = streamline[streamline.length - 1];
+            if (start && end && !start.equals(end)) {
+                this.candidateSeeds(!major).push(start);
+                this.candidateSeeds(!major).push(end);
             }
         }
 
@@ -289,8 +303,9 @@ export default class StreamlineGenerator {
     protected setParamsSq(): void {
         this.paramsSq = Object.assign({}, this.params);
         for (const p in this.paramsSq) {
-            if (typeof this.paramsSq[p] === "number") {
-                this.paramsSq[p] *= this.paramsSq[p];
+            const value = this.paramsSq[p];
+            if (typeof value === "number") {
+                this.paramsSq[p] = value * value;
             }
         }
     }
@@ -306,11 +321,14 @@ export default class StreamlineGenerator {
     /**
      * Tries this.candidateSeeds first, then samples using this.samplePoint
      */
-    protected getSeed(major: boolean): Vector {
+    protected getSeed(major: boolean): Vector | null {
         // Candidate seeds first
         if (this.SEED_AT_ENDPOINTS && this.candidateSeeds(major).length > 0) {
             while (this.candidateSeeds(major).length > 0) {
                 const seed = this.candidateSeeds(major).pop();
+                if (!seed) {
+                    continue;
+                }
                 if (this.isValidSample(major, seed, this.paramsSq.dsep)) {
                     return seed;
                 }
@@ -371,14 +389,16 @@ export default class StreamlineGenerator {
         if (streamlineForwards.length > this.nStreamlineLookBack) {
             // Forwards check
             for (let i = 0; i < streamlineForwards.length - this.nStreamlineLookBack; i += this.nStreamlineStep) {
-                if (testSample.distanceToSquared(streamlineForwards[i]) < this.dcollideselfSq) {
+                const forward = streamlineForwards[i];
+                if (forward && testSample.distanceToSquared(forward) < this.dcollideselfSq) {
                     return true;
                 }
             }
 
             // Backwards check
             for (let i = 0; i < streamlineBackwards.length; i += this.nStreamlineStep) {
-                if (testSample.distanceToSquared(streamlineBackwards[i]) < this.dcollideselfSq) {
+                const backward = streamlineBackwards[i];
+                if (backward && testSample.distanceToSquared(backward) < this.dcollideselfSq) {
                     return true;
                 }
             }

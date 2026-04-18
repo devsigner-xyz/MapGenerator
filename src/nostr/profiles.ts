@@ -51,20 +51,47 @@ export function parseProfileMetadata(event: NostrEvent): NostrProfile {
         parsed = {};
     }
 
-    return {
+    const profile: NostrProfile = {
         pubkey: event.pubkey,
-        name: parsed.name,
-        displayName: parsed.display_name,
-        about: parsed.about,
-        picture: parsed.picture,
-        banner: parsed.banner,
-        website: parsed.website,
-        nip05: parsed.nip05,
-        lud16: parsed.lud16,
-        lud06: parsed.lud06,
-        bot: parsed.bot,
-        externalIdentities: extractExternalIdentities(parsed),
     };
+
+    if (parsed.name !== undefined) {
+        profile.name = parsed.name;
+    }
+    if (parsed.display_name !== undefined) {
+        profile.displayName = parsed.display_name;
+    }
+    if (parsed.about !== undefined) {
+        profile.about = parsed.about;
+    }
+    if (parsed.picture !== undefined) {
+        profile.picture = parsed.picture;
+    }
+    if (parsed.banner !== undefined) {
+        profile.banner = parsed.banner;
+    }
+    if (parsed.website !== undefined) {
+        profile.website = parsed.website;
+    }
+    if (parsed.nip05 !== undefined) {
+        profile.nip05 = parsed.nip05;
+    }
+    if (parsed.lud16 !== undefined) {
+        profile.lud16 = parsed.lud16;
+    }
+    if (parsed.lud06 !== undefined) {
+        profile.lud06 = parsed.lud06;
+    }
+    if (parsed.bot !== undefined) {
+        profile.bot = parsed.bot;
+    }
+
+    const externalIdentities = extractExternalIdentities(parsed);
+    if (externalIdentities !== undefined) {
+        profile.externalIdentities = externalIdentities;
+    }
+
+    return profile;
 }
 
 export async function fetchProfiles(pubkeys: string[], client: NostrClient): Promise<Record<string, NostrProfile>> {

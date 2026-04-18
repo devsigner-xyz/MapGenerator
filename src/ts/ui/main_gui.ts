@@ -77,9 +77,9 @@ export default class MainGUI {
     private redraw: boolean = true;
     private occupiedPubkeyByBuildingIndex: Record<number, string> = {};
     private verifiedBuildingIndexSet = new Set<number>();
-    private selectedBuildingIndex: number = null;
-    private hoveredBuildingIndex: number = null;
-    private dialogHighlightedBuildingIndex: number = null;
+    private selectedBuildingIndex: number | null = null;
+    private hoveredBuildingIndex: number | null = null;
+    private dialogHighlightedBuildingIndex: number | null = null;
     private specialBuildingByBuildingIndex: Record<number, SpecialBuildingId> = {};
     private easterEggByBuildingIndex: Record<number, EasterEggId> = {};
     private readonly easterEggDebugEnabled = import.meta.env.DEV;
@@ -265,12 +265,18 @@ export default class MainGUI {
                     // Group in adjacent polygons 
                     const parkIndex = Math.floor(Math.random() * (polygons.length - this.numBigParks));
                     for (let i = parkIndex; i < parkIndex + this.numBigParks; i++) {
-                        this.bigParks.push(polygons[i]);    
+                        const park = polygons[i];
+                        if (park) {
+                            this.bigParks.push(park);
+                        }
                     }
                 } else {
                     for (let i = 0; i < this.numBigParks; i++) {
                         const parkIndex = Math.floor(Math.random() * polygons.length);
-                        this.bigParks.push(polygons[parkIndex]);
+                        const park = polygons[parkIndex];
+                        if (park) {
+                            this.bigParks.push(park);
+                        }
                     }
                 }
             } else {
@@ -281,7 +287,10 @@ export default class MainGUI {
             this.smallParks = [];
             for (let i = 0; i < this.numSmallParks; i++) {
                 const parkIndex = Math.floor(Math.random() * polygons.length);
-                this.smallParks.push(polygons[parkIndex]);
+                const park = polygons[parkIndex];
+                if (park) {
+                    this.smallParks.push(park);
+                }
             }
         }
 

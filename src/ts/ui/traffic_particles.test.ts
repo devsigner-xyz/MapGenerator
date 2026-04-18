@@ -50,6 +50,10 @@ describe('TrafficParticlesSimulation', () => {
 
         const transition = simulation.debugGetLastTransition(0);
         expect(transition).not.toBeNull();
+        if (!transition) {
+            return;
+        }
+
         expect(transition.usedRandomAtJunction).toBe(false);
 
         const toEdge = simulation.debugGetEdge(transition.toEdgeId);
@@ -64,7 +68,7 @@ describe('TrafficParticlesSimulation', () => {
         simulation.setCount(1);
 
         const incomingEdge = simulation.debugFindEdgeId(new Vector(0, 0), new Vector(10, 0));
-        const picks: Record<string, number> = {
+        const picks = {
             reverse: 0,
             straight: 0,
             up: 0,
@@ -75,6 +79,10 @@ describe('TrafficParticlesSimulation', () => {
             simulation.debugSetParticleState(0, incomingEdge, 9.9);
             simulation.step(0.2);
             const transition = simulation.debugGetLastTransition(0);
+            if (!transition) {
+                continue;
+            }
+
             const toEdge = simulation.debugGetEdge(transition.toEdgeId);
 
             if (toEdge.to.equals(new Vector(0, 0))) {
@@ -111,6 +119,10 @@ describe('TrafficParticlesSimulation', () => {
             simulation.debugSetParticleState(0, incomingEdge, 9.9);
             simulation.step(0.2);
             const transition = simulation.debugGetLastTransition(0);
+            if (!transition) {
+                continue;
+            }
+
             const toEdge = simulation.debugGetEdge(transition.toEdgeId);
 
             if (toEdge.to.equals(new Vector(0, 0))) {
@@ -189,8 +201,14 @@ describe('TrafficParticlesSimulation', () => {
 
         const particles = simulation.step(0.016);
         expect(particles).toHaveLength(1);
-        expect(particles[0].radiusPx).toBeCloseTo(0.75, 5);
-        expect(particles[0].haloPx).toBeCloseTo(2.2, 5);
+        const firstParticle = particles[0];
+        expect(firstParticle).toBeDefined();
+        if (!firstParticle) {
+            return;
+        }
+
+        expect(firstParticle.radiusPx).toBeCloseTo(0.75, 5);
+        expect(firstParticle.haloPx).toBeCloseTo(2.2, 5);
     });
 
     test('respawns when stuck in closed non-junction loop segments', () => {

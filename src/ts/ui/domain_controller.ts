@@ -23,7 +23,7 @@ export default class DomainController {
 
     // Ratio of screen pixels to world pixels
     private _zoom: number = 1;
-    private zoomCallback: () => any = () => {};
+    private zoomCallback: () => void = () => {};
     private lastScrolltime = -this.SCROLL_DELAY;
     private refreshedAfterScroll = false;
 
@@ -41,28 +41,30 @@ export default class DomainController {
 
         window.addEventListener('resize', (): void => this.setScreenDimensions());
 
-        window.addEventListener('wheel', (e: any): void => {
-            if (e.target.id === Util.CANVAS_ID) {
-                this.lastScrolltime = Date.now();
-                this.refreshedAfterScroll = false;
-                const delta: number = e.deltaY;
+        window.addEventListener('wheel', (e: WheelEvent): void => {
+            if (!(e.target instanceof HTMLElement) || e.target.id !== Util.CANVAS_ID) {
+                return;
+            }
 
-                if (!Number.isFinite(delta) || delta === 0) {
-                    return;
-                }
+            this.lastScrolltime = Date.now();
+            this.refreshedAfterScroll = false;
+            const delta: number = e.deltaY;
 
-                const deltaMagnitude = Math.abs(delta);
-                const wheelSteps = Math.max(
-                    this.MIN_WHEEL_STEPS,
-                    Math.min(this.MAX_WHEEL_STEPS, deltaMagnitude / this.WHEEL_STEP_BASE),
-                );
-                const zoomFactor = Math.pow(this.ZOOM_SPEED, wheelSteps);
+            if (!Number.isFinite(delta) || delta === 0) {
+                return;
+            }
 
-                if (delta > 0) {
-                    this.zoom = this._zoom * zoomFactor;
-                } else {
-                    this.zoom = this._zoom / zoomFactor;
-                }
+            const deltaMagnitude = Math.abs(delta);
+            const wheelSteps = Math.max(
+                this.MIN_WHEEL_STEPS,
+                Math.min(this.MAX_WHEEL_STEPS, deltaMagnitude / this.WHEEL_STEP_BASE),
+            );
+            const zoomFactor = Math.pow(this.ZOOM_SPEED, wheelSteps);
+
+            if (delta > 0) {
+                this.zoom = this._zoom * zoomFactor;
+            } else {
+                this.zoom = this._zoom / zoomFactor;
             }
         });
 
@@ -227,7 +229,7 @@ export default class DomainController {
         // this.screenDimensions.divideScalar(2);
     }
 
-    setZoomUpdate(callback: () => any): void {
+    setZoomUpdate(callback: () => void): void {
         this.zoomCallback = callback;
     }
 

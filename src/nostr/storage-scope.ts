@@ -12,7 +12,11 @@ function normalizeOwnerPubkey(ownerPubkey?: string): string {
 }
 
 export function buildScopedStorageKey(baseKey: string, ownerPubkey?: string): string {
-    return buildStorageScopeKeys({ baseKey, ownerPubkey }).scopedKey;
+    return buildStorageScopeKeys(
+        ownerPubkey === undefined
+            ? { baseKey }
+            : { baseKey, ownerPubkey }
+    ).scopedKey;
 }
 
 export function buildStorageScopeKeys({ baseKey, ownerPubkey }: ScopedStorageKeyInput): {

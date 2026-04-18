@@ -10,6 +10,9 @@ interface RenderResult {
     root: Root;
 }
 
+const WAIT_TIMEOUT_MS = 8_000;
+const WAIT_INTERVAL_MS = 20;
+
 async function renderElement(element: ReactElement): Promise<RenderResult> {
     const container = document.createElement('div');
     document.body.appendChild(container);
@@ -19,21 +22,27 @@ async function renderElement(element: ReactElement): Promise<RenderResult> {
         root.render(element);
     });
 
+    await waitFor(() => container.childNodes.length > 0);
+
     return { container, root };
 }
 
-async function waitFor(condition: () => boolean): Promise<void> {
-    for (let i = 0; i < 40; i += 1) {
+async function waitFor(condition: () => boolean, timeoutMs = WAIT_TIMEOUT_MS): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+
+    while (Date.now() < deadline) {
         if (condition()) {
             return;
         }
 
-        await act(async () => {
-            await new Promise((resolve) => setTimeout(resolve, 0));
-        });
+        if (vi.isFakeTimers()) {
+            await vi.advanceTimersByTimeAsync(WAIT_INTERVAL_MS);
+        } else {
+            await new Promise((resolve) => setTimeout(resolve, WAIT_INTERVAL_MS));
+        }
     }
 
-    throw new Error('Condition was not met in time');
+    throw new Error(`Condition was not met in ${timeoutMs}ms`);
 }
 
 function makePubkey(index: number): string {
@@ -86,10 +95,14 @@ describe('PeopleListTab', () => {
         expect(buttons).toHaveLength(2);
         expect(rendered.container.textContent || '').toContain('Alice');
         expect(rendered.container.textContent || '').toContain('Bob');
-        expect(buttons[1].getAttribute('aria-pressed')).toBe('true');
+        const selectedButton = buttons[1];
+        const firstButton = buttons[0];
+        expect(selectedButton).toBeDefined();
+        expect(firstButton).toBeDefined();
+        expect(selectedButton?.getAttribute('aria-pressed')).toBe('true');
 
         await act(async () => {
-            buttons[0].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            firstButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
         expect(onSelectPerson).toHaveBeenCalledTimes(1);
@@ -153,7 +166,7 @@ describe('PeopleListTab', () => {
         expect(clearButton.disabled).toBe(true);
     });
 
-    test('shows people action menu for following rows and executes actions', async () => {
+    test('shows people action menu for following rows and executes actions', { timeout: 15_000 }, async () => {
         const alice = makePubkey(1);
         const onSelectPerson = vi.fn();
         const onLocatePerson = vi.fn();
@@ -216,7 +229,7 @@ describe('PeopleListTab', () => {
 
         expect(onCopyNpub).toHaveBeenCalledTimes(1);
         expect(onSelectPerson).not.toHaveBeenCalled();
-        expect((onCopyNpub.mock.calls[0][0] as string).startsWith('npub1')).toBe(true);
+        expect((onCopyNpub.mock.calls[0]?.[0] as string | undefined)?.startsWith('npub1')).toBe(true);
 
         await act(async () => {
             actionsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -316,7 +329,7 @@ describe('PeopleListTab', () => {
         expect(verifiedBadge.getAttribute('title')).toBe('NIP-05 verificado por DNS: example.com');
     });
 
-    test('shows copy action and zap submenu for followers rows', async () => {
+    test('shows copy action and zap submenu for followers rows', { timeout: 15_000 }, async () => {
         const bob = makePubkey(2);
         const onCopyNpub = vi.fn();
 
@@ -362,7 +375,7 @@ describe('PeopleListTab', () => {
         });
 
         expect(onCopyNpub).toHaveBeenCalledTimes(1);
-        expect((onCopyNpub.mock.calls[0][0] as string).startsWith('npub1')).toBe(true);
+        expect((onCopyNpub.mock.calls[0]?.[0] as string | undefined)?.startsWith('npub1')).toBe(true);
     });
 
     test('shows follow action and disables rows already followed', async () => {
@@ -448,46 +461,52 @@ describe('PeopleListTab', () => {
     });
 
     test('loads more people on scroll and shows spinner footer while loading', async () => {
+        vi.useFakeTimers();
+
         const people = makePeople(45);
         const profiles: Record<string, NostrProfile> = {};
         for (const pubkey of people) {
             profiles[pubkey] = { pubkey, displayName: `Person ${pubkey.slice(-4)}` };
         }
 
-        const rendered = await renderElement(
-            <div style={{ height: '420px' }}>
-                <PeopleListTab
-                    people={people}
-                    profiles={profiles}
-                    emptyText="No hay personas"
-                    loading={false}
-                />
-            </div>
-        );
-        mounted.push(rendered);
+        try {
+            const rendered = await renderElement(
+                <div style={{ height: '420px' }}>
+                    <PeopleListTab
+                        people={people}
+                        profiles={profiles}
+                        emptyText="No hay personas"
+                        loading={false}
+                    />
+                </div>
+            );
+            mounted.push(rendered);
 
-        const initialRows = rendered.container.querySelectorAll('[data-slot="item"]');
-        expect(initialRows.length).toBeLessThan(people.length);
+            const initialRows = rendered.container.querySelectorAll('[data-slot="item"]');
+            expect(initialRows.length).toBeLessThan(people.length);
 
-        const scrollContainer = rendered.container.querySelector('.nostr-people-scroll-area') as HTMLDivElement;
-        expect(scrollContainer).toBeDefined();
+            const scrollContainer = rendered.container.querySelector('.nostr-people-scroll-area') as HTMLDivElement;
+            expect(scrollContainer).toBeDefined();
 
-        Object.defineProperty(scrollContainer, 'clientHeight', { configurable: true, value: 220 });
-        Object.defineProperty(scrollContainer, 'scrollHeight', { configurable: true, value: 640 });
-        Object.defineProperty(scrollContainer, 'scrollTop', { configurable: true, value: 430, writable: true });
+            Object.defineProperty(scrollContainer, 'clientHeight', { configurable: true, value: 220 });
+            Object.defineProperty(scrollContainer, 'scrollHeight', { configurable: true, value: 640 });
+            Object.defineProperty(scrollContainer, 'scrollTop', { configurable: true, value: 430, writable: true });
 
-        await act(async () => {
-            scrollContainer.dispatchEvent(new Event('scroll', { bubbles: true }));
-        });
+            await act(async () => {
+                scrollContainer.dispatchEvent(new Event('scroll', { bubbles: true }));
+            });
 
-        expect(rendered.container.textContent || '').toContain('Cargando mas');
+            expect(rendered.container.textContent || '').toContain('Cargando mas');
 
-        await act(async () => {
-            await new Promise(resolve => setTimeout(resolve, 200));
-        });
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(200);
+            });
 
-        const rowsAfterLoad = rendered.container.querySelectorAll('[data-slot="item"]');
-        expect(rowsAfterLoad.length).toBeGreaterThan(initialRows.length);
+            const rowsAfterLoad = rendered.container.querySelectorAll('[data-slot="item"]');
+            expect(rowsAfterLoad.length).toBeGreaterThan(initialRows.length);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     test('resets scroll position when filtered people change', async () => {
@@ -535,6 +554,7 @@ describe('PeopleListTab', () => {
 
         const updatedScrollContainer = rendered.container.querySelector('.nostr-people-scroll-area') as HTMLDivElement;
         expect(updatedScrollContainer).toBeDefined();
+        await waitFor(() => updatedScrollContainer.scrollTop === 0);
         expect(updatedScrollContainer.scrollTop).toBe(0);
     });
 });

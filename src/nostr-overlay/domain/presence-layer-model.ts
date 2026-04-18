@@ -92,14 +92,16 @@ export function buildPresenceLayerEntries(input: BuildPresenceLayerEntriesInput)
         }
 
         const profile = input.profiles[occupancyEntry.pubkey];
+        const displayName = resolveDisplayName(profile);
+        const picture = profile?.picture;
         entries.push({
             key: `${occupancyEntry.pubkey}-${occupancyEntry.index}`,
             pubkey: occupancyEntry.pubkey,
             index: occupancyEntry.index,
             centroid: building.centroid,
-            displayName: resolveDisplayName(profile),
+            ...(displayName !== undefined ? { displayName } : {}),
             initials: resolveInitials(occupancyEntry.pubkey, profile),
-            picture: profile?.picture,
+            ...(picture !== undefined ? { picture } : {}),
         });
     }
 

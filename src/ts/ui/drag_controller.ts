@@ -20,7 +20,7 @@ export default class DragController {
     private readonly MIN_DRAG_DISTANCE = 50;
 
     private draggables: Draggable[] = [];
-    private currentlyDragging: Draggable = null;  // Tensor field
+    private currentlyDragging: Draggable | null = null;  // Tensor field
     private _isDragging = false;
     private disabled: boolean = false;
     private panModeEnabled: boolean = false;
@@ -58,7 +58,7 @@ export default class DragController {
     /**
      * Change cursor style
      */
-    getCursor(action: any, interactable: any, element: any, interacting: boolean): string {
+    getCursor(_action: unknown, _interactable: unknown, _element: unknown, interacting: boolean): string {
         if (this.disabled && !this.panModeEnabled) {
             return 'pointer';
         }
@@ -67,7 +67,7 @@ export default class DragController {
         return 'grab';
     }
 
-    dragStart(event: any): void {
+    dragStart(event: unknown): void {
         if (this.disabled && !this.panModeEnabled) {
             this._isDragging = false;
             this.currentlyDragging = null;
@@ -75,9 +75,14 @@ export default class DragController {
             return;
         }
 
+        const eventData = this.getDragStartEvent(event);
+        if (!eventData) {
+            return;
+        }
+
         this._isDragging = true;
         // Transform screen space to world space
-        const origin = this.domainController.screenToWorld(new Vector(event.x0, event.y0));
+        const origin = this.domainController.screenToWorld(new Vector(eventData.x0, eventData.y0));
         
         let closestDistance = Infinity;
         this.draggables.forEach(draggable => {
@@ -94,7 +99,9 @@ export default class DragController {
         if (closestDistance > scaledDragDistance) {
             this.currentlyDragging = null;
         } else {
-            this.currentlyDragging.startListener();
+            if (this.currentlyDragging) {
+                this.currentlyDragging.startListener();
+            }
         }
 
         this.updateCanvasCursor();
@@ -102,8 +109,13 @@ export default class DragController {
 
     }
 
-    dragMove(event: any): void {
-        const delta = new Vector(event.delta.x, event.delta.y);
+    dragMove(event: unknown): void {
+        const eventData = this.getDragMoveEvent(event);
+        if (!eventData) {
+            return;
+        }
+
+        const delta = new Vector(eventData.deltaX, eventData.deltaY);
         this.domainController.zoomToWorld(delta);
 
         if (!this.disabled && this.currentlyDragging !== null) {
@@ -167,5 +179,39 @@ export default class DragController {
         }
 
         canvas.style.cursor = this._isDragging ? 'grabbing' : 'grab';
+    }
+
+    private getDragStartEvent(event: unknown): { x0: number; y0: number } | null {
+        if (!event || typeof event !== 'object') {
+            return null;
+        }
+
+        const data = event as Partial<{ x0: number; y0: number }>;
+        const x0 = data.x0;
+        const y0 = data.y0;
+        if (typeof x0 !== 'number' || typeof y0 !== 'number' || !Number.isFinite(x0) || !Number.isFinite(y0)) {
+            return null;
+        }
+
+        return {
+            x0,
+            y0,
+        };
+    }
+
+    private getDragMoveEvent(event: unknown): { deltaX: number; deltaY: number } | null {
+        if (!event || typeof event !== 'object') {
+            return null;
+        }
+
+        const data = event as Partial<{ delta: { x: number; y: number } }>;
+        if (!data.delta || !Number.isFinite(data.delta.x) || !Number.isFinite(data.delta.y)) {
+            return null;
+        }
+
+        return {
+            deltaX: data.delta.x,
+            deltaY: data.delta.y,
+        };
     }
 }

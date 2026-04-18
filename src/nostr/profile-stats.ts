@@ -12,13 +12,20 @@ export async function fetchProfileStats(input: {
     client: NostrClient;
     candidateAuthors?: string[];
 }): Promise<ProfileStats> {
-    const [kind3, followerDiscovery] = await Promise.all([
-        input.client.fetchLatestReplaceableEvent(input.pubkey, 3),
-        fetchFollowersBestEffort({
+    const followersInput = input.candidateAuthors === undefined
+        ? {
+            targetPubkey: input.pubkey,
+            client: input.client,
+        }
+        : {
             targetPubkey: input.pubkey,
             client: input.client,
             candidateAuthors: input.candidateAuthors,
-        }),
+        };
+
+    const [kind3, followerDiscovery] = await Promise.all([
+        input.client.fetchLatestReplaceableEvent(input.pubkey, 3),
+        fetchFollowersBestEffort(followersInput),
     ]);
 
     return {

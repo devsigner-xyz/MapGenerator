@@ -29,6 +29,8 @@ const hasRequiredEventShape = (value: unknown): value is SignedNostrEvent => {
   }
 
   const event = value as Partial<SignedNostrEvent>;
+  const kind = event.kind;
+  const createdAt = event.created_at;
   const keys = Object.keys(event);
   if (keys.length !== REQUIRED_EVENT_KEYS.length) {
     return false;
@@ -46,10 +48,12 @@ const hasRequiredEventShape = (value: unknown): value is SignedNostrEvent => {
     typeof event.sig !== 'string' ||
     typeof event.content !== 'string' ||
     event.content.length > MAX_EVENT_CONTENT_LENGTH ||
-    !Number.isInteger(event.kind) ||
-    !Number.isInteger(event.created_at) ||
-    event.kind < 0 ||
-    event.created_at < 0
+    typeof kind !== 'number' ||
+    typeof createdAt !== 'number' ||
+    !Number.isInteger(kind) ||
+    !Number.isInteger(createdAt) ||
+    kind < 0 ||
+    createdAt < 0
   ) {
     return false;
   }

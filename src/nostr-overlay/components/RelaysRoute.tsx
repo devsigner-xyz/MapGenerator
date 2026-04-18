@@ -24,12 +24,12 @@ export function RelaysRoute({
 }: RelaysRouteProps) {
     const navigate = useNavigate();
     const relays = useRelaysSettingsController({
-        ownerPubkey,
-        suggestedRelays,
-        suggestedRelaysByType,
-        relayConnectionProbe,
-        relayConnectionRefreshIntervalMs,
-        onRelaySettingsChange,
+        ...(ownerPubkey ? { ownerPubkey } : {}),
+        ...(suggestedRelays ? { suggestedRelays } : {}),
+        ...(suggestedRelaysByType ? { suggestedRelaysByType } : {}),
+        ...(relayConnectionProbe ? { relayConnectionProbe } : {}),
+        ...(relayConnectionRefreshIntervalMs !== undefined ? { relayConnectionRefreshIntervalMs } : {}),
+        ...(onRelaySettingsChange ? { onRelaySettingsChange } : {}),
     });
 
     return (

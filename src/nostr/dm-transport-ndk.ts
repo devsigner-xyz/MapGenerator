@@ -11,6 +11,10 @@ const CONNECT_RETRY_ATTEMPTS = 3;
 const PUBLISH_RETRY_ATTEMPTS = 2;
 const BASE_RETRY_DELAY_MS = 200;
 
+type NdkEventInput = ConstructorParameters<typeof NDKEvent>[1];
+type NdkSubscribeFilters = Parameters<NDK['subscribe']>[0];
+type NdkFetchEventsFilters = Parameters<NDK['fetchEvents']>[0];
+
 type RelayTier = 'inboxWrite' | 'read' | 'session';
 
 export interface RelayTierSources {
@@ -211,7 +215,7 @@ function createNdkDependencies(relays: string[] = []): NdkDmTransportDependencie
         async publishRelay(relay, event, timeoutMs) {
             await connect();
             const relaySet = NDKRelaySet.fromRelayUrls([relay], ndk, false);
-            const ndkEvent = new NDKEvent(ndk, event as any);
+            const ndkEvent = new NDKEvent(ndk, event as unknown as NdkEventInput);
 
             try {
                 const publishedTo = await withRetry(
@@ -234,7 +238,7 @@ function createNdkDependencies(relays: string[] = []): NdkDmTransportDependencie
         },
 
         subscribe(filters, onEvent) {
-            const subscription = ndk.subscribe(filters as any, {
+            const subscription = ndk.subscribe(filters as unknown as NdkSubscribeFilters, {
                 closeOnEose: false,
                 onEvent(event) {
                     const mapped = toNostrEvent(event);
@@ -251,7 +255,7 @@ function createNdkDependencies(relays: string[] = []): NdkDmTransportDependencie
 
         async fetchBackfill(filters) {
             await connect();
-            const events = await ndk.fetchEvents(filters as any);
+            const events = await ndk.fetchEvents(filters as unknown as NdkFetchEventsFilters);
 
             return [...events]
                 .map((event) => toNostrEvent(event))
@@ -348,6 +352,9 @@ export function createNdkDmTransport(options: CreateNdkDmTransportOptions = {}):
                 while (nextTargetIndex < targets.length) {
                     const relay = targets[nextTargetIndex];
                     nextTargetIndex += 1;
+                    if (!relay) {
+                        continue;
+                    }
                     await publishOne(relay);
                 }
             });

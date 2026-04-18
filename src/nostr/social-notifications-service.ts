@@ -39,7 +39,9 @@ function getTagEntries(tags: string[][], key: string): string[][] {
 }
 
 export function getTagValues(tags: string[][], key: string): string[] {
-    return getTagEntries(tags, key).map((tag) => tag[1]);
+    return getTagEntries(tags, key)
+        .map((tag) => tag[1])
+        .filter((value): value is string => typeof value === 'string');
 }
 
 export function getFirstTagValue(tags: string[][], key: string): string | undefined {

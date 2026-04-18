@@ -19,7 +19,10 @@ export function ProfileTab({
 
     return (
         <div className="nostr-profile-tab">
-            <Nip05Identifier profile={ownerProfile} verification={ownerVerification} />
+            <Nip05Identifier
+                {...(ownerProfile ? { profile: ownerProfile } : {})}
+                {...(ownerVerification ? { verification: ownerVerification } : {})}
+            />
         </div>
     );
 }

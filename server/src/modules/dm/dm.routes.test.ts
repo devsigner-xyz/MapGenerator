@@ -294,7 +294,7 @@ describe('dm routes', () => {
     expect(response.body).not.toContain('"type":"dm"');
     expect(response.body).toContain('\n\n');
     expect(lastStreamSignal).toBeDefined();
-    expect(lastStreamSignal?.aborted).toBe(true);
+    expect((lastStreamSignal as AbortSignal | undefined)?.aborted).toBe(true);
   });
 
   it('accepts dm stream query without since', async () => {

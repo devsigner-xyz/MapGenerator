@@ -143,13 +143,17 @@ export function createRuntimeDirectMessagesService(options: CreateRuntimeDirectM
                 return [];
             }
 
-            return dmService.fetchConversationBackfill({
+            const backfillInput: Parameters<NonNullable<typeof dmService.fetchConversationBackfill>>[0] = {
                 ownerPubkey: input.ownerPubkey,
                 peerPubkey: input.peerPubkey,
                 mode: input.mode ?? 'session_start',
-                since: input.since,
                 sentIndex: input.sentIndex ?? [],
-            });
+            };
+            if (typeof input.since === 'number') {
+                backfillInput.since = input.since;
+            }
+
+            return dmService.fetchConversationBackfill(backfillInput);
         },
     };
 }

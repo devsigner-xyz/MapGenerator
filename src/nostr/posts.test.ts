@@ -70,11 +70,17 @@ describe('fetchLatestPostsByPubkey', () => {
         };
 
         const firstPage = await fetchLatestPostsByPubkey({ pubkey: targetPubkey, client, limit: 2 });
+        const firstPageUntil = firstPage.nextUntil;
+        expect(firstPageUntil).toBeDefined();
+        if (firstPageUntil === undefined) {
+            throw new Error('first page cursor is missing');
+        }
+
         const secondPage = await fetchLatestPostsByPubkey({
             pubkey: targetPubkey,
             client,
             limit: 2,
-            until: firstPage.nextUntil,
+            until: firstPageUntil,
         });
 
         expect(firstPage.posts.map((post) => post.id)).toEqual(['p1', 'p2']);

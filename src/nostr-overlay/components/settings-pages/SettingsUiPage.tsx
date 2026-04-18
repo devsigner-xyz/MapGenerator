@@ -31,7 +31,7 @@ export function SettingsUiPage({ uiSettings, onPersistUiSettings }: SettingsUiPa
                         step={1}
                         value={[uiSettings.occupiedLabelsZoomLevel]}
                         onValueChange={(values) => {
-                            const nextValue = values[0];
+                            const nextValue = values[0] ?? Number.NaN;
                             if (!Number.isFinite(nextValue)) {
                                 return;
                             }
@@ -94,7 +94,7 @@ export function SettingsUiPage({ uiSettings, onPersistUiSettings }: SettingsUiPa
                         disabled={!uiSettings.streetLabelsEnabled}
                         value={[uiSettings.streetLabelsZoomLevel]}
                         onValueChange={(values) => {
-                            const nextValue = values[0];
+                            const nextValue = values[0] ?? Number.NaN;
                             if (!Number.isFinite(nextValue)) {
                                 return;
                             }
@@ -119,7 +119,7 @@ export function SettingsUiPage({ uiSettings, onPersistUiSettings }: SettingsUiPa
                         aria-label="Cars in city"
                         value={[uiSettings.trafficParticlesCount]}
                         onValueChange={(values) => {
-                            const nextValue = values[0];
+                            const nextValue = values[0] ?? Number.NaN;
                             if (!Number.isFinite(nextValue)) {
                                 return;
                             }
@@ -143,7 +143,7 @@ export function SettingsUiPage({ uiSettings, onPersistUiSettings }: SettingsUiPa
                         aria-label="Cars speed"
                         value={[uiSettings.trafficParticlesSpeed]}
                         onValueChange={(values) => {
-                            const nextValue = values[0];
+                            const nextValue = values[0] ?? Number.NaN;
                             if (!Number.isFinite(nextValue)) {
                                 return;
                             }

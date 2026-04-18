@@ -50,6 +50,10 @@ function areBuildingSlotsEqual(left: MapBuildingSlot[], right: MapBuildingSlot[]
     for (let index = 0; index < left.length; index += 1) {
         const leftBuilding = left[index];
         const rightBuilding = right[index];
+        if (!leftBuilding || !rightBuilding) {
+            return false;
+        }
+
         if (
             leftBuilding.index !== rightBuilding.index
             || leftBuilding.centroid.x !== rightBuilding.centroid.x
@@ -70,6 +74,10 @@ function areEasterEggBuildingSlotsEqual(left: EasterEggBuildingSlot[], right: Ea
     for (let index = 0; index < left.length; index += 1) {
         const leftSlot = left[index];
         const rightSlot = right[index];
+        if (!leftSlot || !rightSlot) {
+            return false;
+        }
+
         if (leftSlot.index !== rightSlot.index || leftSlot.easterEggId !== rightSlot.easterEggId) {
             return false;
         }
@@ -86,6 +94,10 @@ function areSpecialBuildingSlotsEqual(left: SpecialBuildingSlot[], right: Specia
     for (let index = 0; index < left.length; index += 1) {
         const leftSlot = left[index];
         const rightSlot = right[index];
+        if (!leftSlot || !rightSlot) {
+            return false;
+        }
+
         if (leftSlot.index !== rightSlot.index || leftSlot.specialBuildingId !== rightSlot.specialBuildingId) {
             return false;
         }

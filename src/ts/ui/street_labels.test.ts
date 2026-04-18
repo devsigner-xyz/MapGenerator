@@ -149,8 +149,14 @@ describe('street_labels', () => {
         });
 
         expect(labels.length).toBeGreaterThan(0);
-        expect(labels[0].text).toMatch(/^Alice\s/);
-        expect(labels[0].angleRad).toBeCloseTo(0, 5);
+        const firstLabel = labels[0];
+        expect(firstLabel).toBeDefined();
+        if (!firstLabel) {
+            return;
+        }
+
+        expect(firstLabel.text).toMatch(/^Alice\s/);
+        expect(firstLabel.angleRad).toBeCloseTo(0, 5);
     });
 
     test('createStreetLabels enforces spacing to avoid dense overlap', () => {
@@ -201,8 +207,16 @@ describe('street_labels', () => {
             minLabelSpacingPx: 120,
         });
 
-        const lowFarRoad = labelsLowZoom.reduce((best, current) => (current.anchor.y > best.anchor.y ? current : best), labelsLowZoom[0]);
-        const highFarRoad = labelsHighZoom.reduce((best, current) => (current.anchor.y > best.anchor.y ? current : best), labelsHighZoom[0]);
+        expect(labelsLowZoom.length).toBeGreaterThan(0);
+        expect(labelsHighZoom.length).toBeGreaterThan(0);
+        const lowFirst = labelsLowZoom[0];
+        const highFirst = labelsHighZoom[0];
+        if (!lowFirst || !highFirst) {
+            return;
+        }
+
+        const lowFarRoad = labelsLowZoom.reduce((best, current) => (current.anchor.y > best.anchor.y ? current : best), lowFirst);
+        const highFarRoad = labelsHighZoom.reduce((best, current) => (current.anchor.y > best.anchor.y ? current : best), highFirst);
 
         expect(lowFarRoad.text).toBe(highFarRoad.text);
     });
@@ -278,6 +292,12 @@ describe('street_labels', () => {
         });
 
         expect(parkLabels).toHaveLength(2);
-        expect(parkLabels[0].text).toMatch(/(Park|Garden)$/);
+        const firstParkLabel = parkLabels[0];
+        expect(firstParkLabel).toBeDefined();
+        if (!firstParkLabel) {
+            return;
+        }
+
+        expect(firstParkLabel.text).toMatch(/(Park|Garden)$/);
     });
 });

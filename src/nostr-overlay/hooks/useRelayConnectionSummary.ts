@@ -154,6 +154,10 @@ export function useRelayConnectionSummary(
                     }
 
                     const relayUrl = relayQueue[nextIndex];
+                    if (!relayUrl) {
+                        continue;
+                    }
+
                     const connected = await probe(relayUrl, timeoutMs).catch(() => false);
                     if (cancelled) {
                         return;

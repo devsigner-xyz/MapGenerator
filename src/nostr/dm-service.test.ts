@@ -153,20 +153,24 @@ describe('dm-service parsing and validation', () => {
             received.push(message);
         });
 
-        onEvent?.(buildLegacyKind4Event({
-            eventId: '1'.repeat(64),
-            authorPubkey: PEER,
-            recipientPubkey: OWNER,
-            ciphertext: 'one',
-            createdAt: 100,
-        }));
-        onEvent?.(buildLegacyKind4Event({
-            eventId: '2'.repeat(64),
-            authorPubkey: 'c'.repeat(64),
-            recipientPubkey: OWNER,
-            ciphertext: 'two',
-            createdAt: 101,
-        }));
+        if (typeof onEvent === 'function') {
+            const emit = onEvent as (event: NostrEvent) => void;
+
+            emit(buildLegacyKind4Event({
+                eventId: '1'.repeat(64),
+                authorPubkey: PEER,
+                recipientPubkey: OWNER,
+                ciphertext: 'one',
+                createdAt: 100,
+            }));
+            emit(buildLegacyKind4Event({
+                eventId: '2'.repeat(64),
+                authorPubkey: 'c'.repeat(64),
+                recipientPubkey: OWNER,
+                ciphertext: 'two',
+                createdAt: 101,
+            }));
+        }
 
         await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -522,8 +526,8 @@ describe('dm-service send, retries and tags', () => {
     test('reuses clientMessageId and rumorEventId across retries', async () => {
         const transport = createTransportMock();
         transport.publishToRelays
-            .mockResolvedValueOnce({ ackedRelays: [], failedRelays: [{ relay: 'wss://relay.session', reason: 'reject' }], timeoutRelays: [] })
-            .mockResolvedValueOnce({ ackedRelays: [], failedRelays: [], timeoutRelays: ['wss://relay.session'] })
+            .mockResolvedValueOnce({ ackedRelays: [], failedRelays: [{ relay: 'wss://relay.session', reason: 'reject' }], timeoutRelays: [] } as any)
+            .mockResolvedValueOnce({ ackedRelays: [], failedRelays: [], timeoutRelays: ['wss://relay.session'] } as any)
             .mockResolvedValueOnce({ ackedRelays: ['wss://relay.session'], failedRelays: [], timeoutRelays: [] });
 
         const wait = vi.fn(async () => {});
@@ -554,9 +558,16 @@ describe('dm-service send, retries and tags', () => {
         expect(result.deliveryState).toBe('sent');
         expect(transport.publishToRelays).toHaveBeenCalledTimes(3);
 
-        const firstAttemptEvent = transport.publishToRelays.mock.calls[0][0] as NostrEvent;
-        const secondAttemptEvent = transport.publishToRelays.mock.calls[1][0] as NostrEvent;
-        const thirdAttemptEvent = transport.publishToRelays.mock.calls[2][0] as NostrEvent;
+        const firstCall = transport.publishToRelays.mock.calls[0];
+        const secondCall = transport.publishToRelays.mock.calls[1];
+        const thirdCall = transport.publishToRelays.mock.calls[2];
+        expect(firstCall).toBeDefined();
+        expect(secondCall).toBeDefined();
+        expect(thirdCall).toBeDefined();
+
+        const firstAttemptEvent = firstCall?.[0] as NostrEvent;
+        const secondAttemptEvent = secondCall?.[0] as NostrEvent;
+        const thirdAttemptEvent = thirdCall?.[0] as NostrEvent;
         expect(firstAttemptEvent.id).toBe(secondAttemptEvent.id);
         expect(secondAttemptEvent.id).toBe(thirdAttemptEvent.id);
         expect(wait).toHaveBeenCalledWith(500);
@@ -588,13 +599,18 @@ describe('dm-service send, retries and tags', () => {
             targetRelays: relaySelection.relays,
         });
 
-        const [rumorUnsigned, sealUnsigned, giftWrapUnsigned] = writeGateway.publishEvent.mock.calls.map((call) => call[0]);
+        const rumorUnsigned = writeGateway.publishEvent.mock.calls[0]?.[0] as NostrEvent | undefined;
+        const sealUnsigned = writeGateway.publishEvent.mock.calls[1]?.[0] as NostrEvent | undefined;
+        const giftWrapUnsigned = writeGateway.publishEvent.mock.calls[2]?.[0] as NostrEvent | undefined;
+        expect(rumorUnsigned).toBeDefined();
+        expect(sealUnsigned).toBeDefined();
+        expect(giftWrapUnsigned).toBeDefined();
 
-        expect(rumorUnsigned.kind).toBe(14);
-        expect(rumorUnsigned.tags).toEqual([['p', PEER]]);
-        expect(sealUnsigned.kind).toBe(13);
-        expect(giftWrapUnsigned.kind).toBe(1059);
-        expect(giftWrapUnsigned.tags).toEqual([['p', PEER]]);
+        expect(rumorUnsigned?.kind).toBe(14);
+        expect(rumorUnsigned?.tags).toEqual([['p', PEER]]);
+        expect(sealUnsigned?.kind).toBe(13);
+        expect(giftWrapUnsigned?.kind).toBe(1059);
+        expect(giftWrapUnsigned?.tags).toEqual([['p', PEER]]);
     });
 });
 
@@ -755,13 +771,17 @@ describe('dm-service backfill strategy A/B/C', () => {
             sentIndex: [],
         });
 
-        const firstFilter = transport.fetchBackfill.mock.calls[0][0][0];
-        const secondFilter = transport.fetchBackfill.mock.calls[1][0][0];
+        const firstFilterSet = transport.fetchBackfill.mock.calls[0]?.[0];
+        const secondFilterSet = transport.fetchBackfill.mock.calls[1]?.[0];
+        const firstFilter = firstFilterSet?.[0];
+        const secondFilter = secondFilterSet?.[0];
+        expect(firstFilter).toBeDefined();
+        expect(secondFilter).toBeDefined();
 
-        expect(firstFilter.since).toBe(1_000_000 - 900);
-        expect(secondFilter.since).toBe(1_000_000 - 900);
-        expect(firstFilter['#p']).toEqual([OWNER]);
-        expect(secondFilter['#p']).toEqual([PEER]);
+        expect(firstFilter?.since).toBe(1_000_000 - 900);
+        expect(secondFilter?.since).toBe(1_000_000 - 900);
+        expect(firstFilter?.['#p']).toEqual([OWNER]);
+        expect(secondFilter?.['#p']).toEqual([PEER]);
     });
 
     test('fetches historical messages across all peers from kind 1059 inbox + outgoing', async () => {

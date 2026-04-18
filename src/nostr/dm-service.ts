@@ -435,7 +435,10 @@ export function createDmService(dependencies: DmServiceDependencies) {
             }
 
             if (attempt < maxAttempts) {
-                await wait(delays[attempt - 1]);
+                const retryDelay = delays[attempt - 1];
+                if (typeof retryDelay === 'number') {
+                    await wait(retryDelay);
+                }
             }
         }
 
@@ -543,26 +546,50 @@ export function createDmService(dependencies: DmServiceDependencies) {
 
         const localSentIndexMessages: DmMessage[] = (input.sentIndex ?? [])
             .filter((item) => item.conversationId === input.peerPubkey)
-            .map((item) => ({
-                id: buildMessageId({
-                    rumorEventId: item.rumorEventId,
-                    sealEventId: item.sealEventId,
-                    giftWrapEventId: item.giftWrapEventId,
+            .map((item) => {
+                const messageIdInput: {
+                    clientMessageId: string;
+                    plaintext: string;
+                    rumorEventId?: string;
+                    sealEventId?: string;
+                    giftWrapEventId?: string;
+                } = {
                     clientMessageId: item.clientMessageId,
                     plaintext: item.plaintext ?? '',
-                }),
-                clientMessageId: item.clientMessageId,
-                conversationId: input.peerPubkey,
-                peerPubkey: input.peerPubkey,
-                direction: 'outgoing' as const,
-                createdAt: clampToEpochSeconds(item.createdAtSec),
-                plaintext: item.plaintext ?? '',
-                eventId: item.giftWrapEventId,
-                giftWrapEventId: item.giftWrapEventId,
-                sealEventId: item.sealEventId,
-                rumorEventId: item.rumorEventId,
-                deliveryState: item.deliveryState,
-            }));
+                };
+                if (item.rumorEventId) {
+                    messageIdInput.rumorEventId = item.rumorEventId;
+                }
+                if (item.sealEventId) {
+                    messageIdInput.sealEventId = item.sealEventId;
+                }
+                if (item.giftWrapEventId) {
+                    messageIdInput.giftWrapEventId = item.giftWrapEventId;
+                }
+
+                const message: DmMessage = {
+                    id: buildMessageId(messageIdInput),
+                    clientMessageId: item.clientMessageId,
+                    conversationId: input.peerPubkey,
+                    peerPubkey: input.peerPubkey,
+                    direction: 'outgoing',
+                    createdAt: clampToEpochSeconds(item.createdAtSec),
+                    plaintext: item.plaintext ?? '',
+                    deliveryState: item.deliveryState,
+                };
+                if (item.giftWrapEventId) {
+                    message.eventId = item.giftWrapEventId;
+                    message.giftWrapEventId = item.giftWrapEventId;
+                }
+                if (item.sealEventId) {
+                    message.sealEventId = item.sealEventId;
+                }
+                if (item.rumorEventId) {
+                    message.rumorEventId = item.rumorEventId;
+                }
+
+                return message;
+            });
 
         return mergeConversationMessages([], [...parsedInbox, ...parsedRelayOutgoing, ...localSentIndexMessages]);
     }
@@ -615,26 +642,50 @@ export function createDmService(dependencies: DmServiceDependencies) {
         }
 
         const localSentIndexMessages: DmMessage[] = (input.sentIndex ?? [])
-            .map((item) => ({
-                id: buildMessageId({
-                    rumorEventId: item.rumorEventId,
-                    sealEventId: item.sealEventId,
-                    giftWrapEventId: item.giftWrapEventId,
+            .map((item) => {
+                const messageIdInput: {
+                    clientMessageId: string;
+                    plaintext: string;
+                    rumorEventId?: string;
+                    sealEventId?: string;
+                    giftWrapEventId?: string;
+                } = {
                     clientMessageId: item.clientMessageId,
                     plaintext: item.plaintext ?? '',
-                }),
-                clientMessageId: item.clientMessageId,
-                conversationId: item.conversationId,
-                peerPubkey: item.conversationId,
-                direction: 'outgoing' as const,
-                createdAt: clampToEpochSeconds(item.createdAtSec),
-                plaintext: item.plaintext ?? '',
-                eventId: item.giftWrapEventId,
-                giftWrapEventId: item.giftWrapEventId,
-                sealEventId: item.sealEventId,
-                rumorEventId: item.rumorEventId,
-                deliveryState: item.deliveryState,
-            }));
+                };
+                if (item.rumorEventId) {
+                    messageIdInput.rumorEventId = item.rumorEventId;
+                }
+                if (item.sealEventId) {
+                    messageIdInput.sealEventId = item.sealEventId;
+                }
+                if (item.giftWrapEventId) {
+                    messageIdInput.giftWrapEventId = item.giftWrapEventId;
+                }
+
+                const message: DmMessage = {
+                    id: buildMessageId(messageIdInput),
+                    clientMessageId: item.clientMessageId,
+                    conversationId: item.conversationId,
+                    peerPubkey: item.conversationId,
+                    direction: 'outgoing',
+                    createdAt: clampToEpochSeconds(item.createdAtSec),
+                    plaintext: item.plaintext ?? '',
+                    deliveryState: item.deliveryState,
+                };
+                if (item.giftWrapEventId) {
+                    message.eventId = item.giftWrapEventId;
+                    message.giftWrapEventId = item.giftWrapEventId;
+                }
+                if (item.sealEventId) {
+                    message.sealEventId = item.sealEventId;
+                }
+                if (item.rumorEventId) {
+                    message.rumorEventId = item.rumorEventId;
+                }
+
+                return message;
+            });
 
         return mergeConversationMessages([], [...parsedInbox, ...parsedOutgoing, ...localSentIndexMessages]);
     }

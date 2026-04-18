@@ -161,7 +161,12 @@ export default class TensorFieldGUI extends TensorField {
         // in addfield and call them (requires making sure they're idempotent)
         for (const fieldFolderName in this.guiFolder.__folders) {
             const fieldFolder = this.guiFolder.__folders[fieldFolderName];
-            (fieldFolder.__controllers[0] as any).initialValue();
+            if (!fieldFolder) {
+                continue;
+            }
+
+            const firstController = fieldFolder.__controllers[0] as { initialValue?: () => void } | undefined;
+            firstController?.initialValue?.();
         }
 
         super.reset();

@@ -21,18 +21,17 @@ export default class ModelGenerator {
     private readonly groundLevel = 20;  // Thickness of groundMesh
 
     private readonly exportSTL = exportSTL;
-    private resolve: (blob: any) => void = b => {};
-    private zip: any;
+    private resolve: (blob: Blob) => void = () => {};
+    private zip = new JSZip();
     private state: ModelGeneratorStates = ModelGeneratorStates.WAITING;
 
-    private groundMesh: THREE.Mesh;
-    private groundBsp: CSG;
+    private groundMesh!: THREE.Mesh;
+    private groundBsp!: CSG;
     private polygonsToProcess: Vector[][] = [];
     private roadsGeometry = new THREE.Geometry();
     private blocksGeometry = new THREE.Geometry();
-    private roadsBsp: CSG;
     private buildingsGeometry = new THREE.Geometry();
-    private buildingsToProcess: BuildingModel[];
+    private buildingsToProcess: BuildingModel[] = [];
 
 
     constructor(private ground: Vector[],
@@ -46,8 +45,8 @@ export default class ModelGenerator {
                 private blocks: Vector[][]) {
     }
 
-    public async getSTL(): Promise<any> {
-        return new Promise<any>(resolve => {
+    public async getSTL(): Promise<Blob> {
+        return new Promise<Blob>(resolve => {
             this.resolve = resolve;
             this.zip = new JSZip();
             this.zip.file("model/README.txt", "For a tutorial on putting these models together to create a city, go to https://maps.probabletrain.com/#/stl");
@@ -115,6 +114,9 @@ export default class ModelGenerator {
                 }
 
                 const road = this.polygonsToProcess.pop();
+                if (!road) {
+                    break;
+                }
                 const roadsMesh = this.polygonToMesh(road, 0);
                 this.roadsGeometry.merge(roadsMesh.geometry as THREE.Geometry, this.groundMesh.matrix);
                 break;
@@ -132,6 +134,9 @@ export default class ModelGenerator {
                 }
 
                 const block = this.polygonsToProcess.pop();
+                if (!block) {
+                    break;
+                }
                 const blockMesh = this.polygonToMesh(block, 1);
                 this.blocksGeometry.merge(blockMesh.geometry as THREE.Geometry, this.groundMesh.matrix);
                 break;
@@ -147,12 +152,15 @@ export default class ModelGenerator {
                 }
 
                 const b = this.buildingsToProcess.pop();
+                if (!b) {
+                    break;
+                }
                 const buildingMesh = this.polygonToMesh(b.lotScreen, b.height);
                 this.buildingsGeometry.merge(buildingMesh.geometry as THREE.Geometry, this.groundMesh.matrix);
                 break;
             }
             case ModelGeneratorStates.CREATE_ZIP: {
-                this.zip.generateAsync({type:"blob"}).then((blob: any) => this.resolve(blob));
+                this.zip.generateAsync({ type: "blob" }).then((blob: Blob) => this.resolve(blob));
                 this.setState(ModelGeneratorStates.WAITING);
                 break;
             }
@@ -177,14 +185,24 @@ export default class ModelGenerator {
     private polygonToMesh(polygon: Vector[], height: number): THREE.Mesh {
         if (polygon.length < 3) {
             log.error("Tried to export empty polygon as OBJ");
-            return null;
+            return new THREE.Mesh(new THREE.Geometry());
         }
+
+        const firstPoint = polygon[0];
+        if (!firstPoint) {
+            return new THREE.Mesh(new THREE.Geometry());
+        }
+
         const shape = new THREE.Shape();
-        shape.moveTo(polygon[0].x, polygon[0].y);
+        shape.moveTo(firstPoint.x, firstPoint.y);
         for (let i = 1; i < polygon.length; i++) {
-            shape.lineTo(polygon[i].x, polygon[i].y);
+            const point = polygon[i];
+            if (!point) {
+                continue;
+            }
+            shape.lineTo(point.x, point.y);
         }
-        shape.lineTo(polygon[0].x, polygon[0].y);
+        shape.lineTo(firstPoint.x, firstPoint.y);
 
         if (height === 0) {
             return new THREE.Mesh(new THREE.ShapeGeometry(shape));

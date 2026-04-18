@@ -50,9 +50,9 @@ export function useFollowingFeedInfiniteQuery(options: UseFollowingFeedInfiniteQ
 
     return useInfiniteQuery<SocialFeedPage, Error>(createSocialQueryOptions({
         queryKey: nostrOverlayQueryKeys.followingFeed({
-            ownerPubkey: options.ownerPubkey,
+            ...(options.ownerPubkey ? { ownerPubkey: options.ownerPubkey } : {}),
             follows,
-            hashtag,
+            ...(hashtag ? { hashtag } : {}),
             pageSize,
         }),
         queryFn: ({ pageParam }: { pageParam: unknown }) => {
@@ -61,20 +61,20 @@ export function useFollowingFeedInfiniteQuery(options: UseFollowingFeedInfiniteQ
                 return options.service.loadHashtagFeed({
                     hashtag,
                     limit: pageSize,
-                    until,
+                    ...(until !== undefined ? { until } : {}),
                 });
             }
 
             return options.service.loadFollowingFeed({
                 follows,
                 limit: pageSize,
-                until,
+                ...(until !== undefined ? { until } : {}),
             });
         },
         enabled: options.enabled && (Boolean(hashtag) || follows.length > 0),
         initialPageParam: undefined,
         getNextPageParam: (lastPage: SocialFeedPage) => (lastPage.hasMore ? lastPage.nextUntil : undefined),
-    }) as any);
+    }));
 }
 
 export function useThreadInfiniteQuery(options: UseThreadInfiniteQueryOptions) {
@@ -92,20 +92,21 @@ export function useThreadInfiniteQuery(options: UseThreadInfiniteQueryOptions) {
                     root: null,
                     replies: [],
                     hasMore: false,
-                    nextUntil: undefined,
                 });
             }
+
+            const until = typeof pageParam === 'number' ? pageParam : undefined;
 
             return options.service.loadThread({
                 rootEventId,
                 limit: pageSize,
-                until: typeof pageParam === 'number' ? pageParam : undefined,
+                ...(until !== undefined ? { until } : {}),
             });
         },
         enabled: options.enabled && Boolean(rootEventId),
         initialPageParam: undefined,
         getNextPageParam: (lastPage: SocialThreadPage) => (lastPage.hasMore ? lastPage.nextUntil : undefined),
-    }) as any);
+    }));
 }
 
 export function useFollowingFeedEngagementQuery(options: UseFollowingFeedEngagementQueryOptions) {

@@ -53,7 +53,7 @@ function profileInitials(pubkey: string, profile: NostrProfile | undefined): str
 
     const words = label.split(/\s+/).filter(Boolean);
     if (words.length === 1) {
-        return words[0].slice(0, 2).toUpperCase();
+        return (words[0] ?? '').slice(0, 2).toUpperCase();
     }
 
     return `${words[0]?.[0] || ''}${words[1]?.[0] || ''}`.toUpperCase();
@@ -207,6 +207,15 @@ export function NoteCard({
     const isDeepNested = note.nestingLevel >= 2;
     const profile = profilesByPubkey[note.pubkey];
     const { visibleEntries, hiddenReferencesCount } = buildVisibleNestedEntries(note);
+    const noteCardSharedProps = {
+        ...(onCopyNoteId ? { onCopyNoteId } : {}),
+        ...(onSelectHashtag ? { onSelectHashtag } : {}),
+        ...(onSelectProfile ? { onSelectProfile } : {}),
+        ...(onResolveProfiles ? { onResolveProfiles } : {}),
+        ...(onSelectEventReference ? { onSelectEventReference } : {}),
+        ...(onResolveEventReferences ? { onResolveEventReferences } : {}),
+        ...(eventReferencesById ? { eventReferencesById } : {}),
+    };
 
     const renderNestedReference = (eventId: string, event: NostrEvent | undefined, nestingLevel: number): ReactNode => {
         if (!event) {
@@ -242,13 +251,7 @@ export function NoteCard({
                 <NoteCard
                     note={nestedNote}
                     profilesByPubkey={profilesByPubkey}
-                    onCopyNoteId={onCopyNoteId}
-                    onSelectHashtag={onSelectHashtag}
-                    onSelectProfile={onSelectProfile}
-                    onResolveProfiles={onResolveProfiles}
-                    onSelectEventReference={onSelectEventReference}
-                    onResolveEventReferences={onResolveEventReferences}
-                    eventReferencesById={eventReferencesById}
+                    {...noteCardSharedProps}
                 />
                 {onSelectEventReference ? (
                     <Button
@@ -271,13 +274,7 @@ export function NoteCard({
                 key={key}
                 note={nestedNote}
                 profilesByPubkey={profilesByPubkey}
-                onCopyNoteId={onCopyNoteId}
-                onSelectHashtag={onSelectHashtag}
-                onSelectProfile={onSelectProfile}
-                onResolveProfiles={onResolveProfiles}
-                onSelectEventReference={onSelectEventReference}
-                onResolveEventReferences={onResolveEventReferences}
-                eventReferencesById={eventReferencesById}
+                {...noteCardSharedProps}
             />
         );
     };
@@ -286,7 +283,11 @@ export function NoteCard({
         <article>
             <Card size={note.variant === 'nested' ? 'sm' : 'default'}>
                 <CardHeader>
-                    <NoteHeaderItem note={note} profile={profile} onCopyNoteId={onCopyNoteId} />
+                    <NoteHeaderItem
+                        note={note}
+                        profile={profile}
+                        {...(onCopyNoteId ? { onCopyNoteId } : {})}
+                    />
                 </CardHeader>
 
                 <CardContent>
@@ -311,12 +312,12 @@ export function NoteCard({
                         <RichNostrContent
                             content={note.content}
                             tags={note.tags}
-                            onSelectHashtag={onSelectHashtag}
-                            onSelectProfile={onSelectProfile}
-                            onResolveProfiles={onResolveProfiles}
-                            onSelectEventReference={onSelectEventReference}
-                            onResolveEventReferences={onResolveEventReferences}
-                            eventReferencesById={eventReferencesById}
+                            {...(onSelectHashtag ? { onSelectHashtag } : {})}
+                            {...(onSelectProfile ? { onSelectProfile } : {})}
+                            {...(onResolveProfiles ? { onResolveProfiles } : {})}
+                            {...(onSelectEventReference ? { onSelectEventReference } : {})}
+                            {...(onResolveEventReferences ? { onResolveEventReferences } : {})}
+                            {...(eventReferencesById ? { eventReferencesById } : {})}
                             renderEventReferenceCard={({ eventId, event }) => renderNestedReference(eventId, event, note.nestingLevel + 1)}
                             profilesByPubkey={profilesByPubkey}
                             emptyFallback={<p>(sin contenido)</p>}

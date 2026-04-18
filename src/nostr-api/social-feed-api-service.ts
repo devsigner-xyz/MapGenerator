@@ -65,20 +65,30 @@ function mapFeedResponse(dto: FollowingFeedResponseDto): SocialFeedPage {
         .map((item) => toSocialFeedItem(toNostrEvent(item)))
         .filter((item): item is NonNullable<typeof item> => Boolean(item));
 
-    return {
+    const page: SocialFeedPage = {
         items,
         hasMore: dto.hasMore,
-        nextUntil: dto.nextUntil ?? undefined,
     };
+
+    if (typeof dto.nextUntil === 'number') {
+        page.nextUntil = dto.nextUntil;
+    }
+
+    return page;
 }
 
 function mapThreadResponse(dto: ThreadResponseDto): SocialThreadPage {
-    return {
+    const page: SocialThreadPage = {
         root: dto.root ? toSocialThreadItem(toNostrEvent(dto.root)) : null,
         replies: dto.replies.map((item) => toSocialThreadItem(toNostrEvent(item))),
         hasMore: dto.hasMore,
-        nextUntil: dto.nextUntil ?? undefined,
     };
+
+    if (typeof dto.nextUntil === 'number') {
+        page.nextUntil = dto.nextUntil;
+    }
+
+    return page;
 }
 
 function resolveOwnerPubkeyOrThrow(resolveOwnerPubkey?: () => string | undefined): string {
@@ -100,7 +110,6 @@ export function createSocialFeedApiService(options: CreateSocialFeedApiServiceOp
                 return {
                     items: [],
                     hasMore: false,
-                    nextUntil: undefined,
                 };
             }
 

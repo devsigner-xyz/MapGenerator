@@ -102,7 +102,7 @@ function formatCreatedAt(createdAt: number): string {
     return new Date(createdAt * 1000).toLocaleString();
 }
 
-function summarizeEventContent(content: string): string {
+function summarizeEventContent(content: string): string | null {
     const normalized = content.trim();
     if (!normalized) {
         return null;
@@ -219,8 +219,8 @@ function parseImetaEntries(tags: string[][]): Record<string, ImetaEntry> {
         }
 
         byUrl[url] = {
-            mime,
-            alt,
+            ...(mime !== undefined ? { mime } : {}),
+            ...(alt !== undefined ? { alt } : {}),
         };
     }
 
@@ -269,11 +269,13 @@ function extractMediaAttachments(content: string, tags: string[][]): RichMediaAt
         }
 
         seen.add(url);
-        attachments.push({
-            url,
-            kind: mediaKind,
-            alt: imeta?.alt,
-        });
+        attachments.push(
+            {
+                url,
+                kind: mediaKind,
+                ...(imeta?.alt !== undefined ? { alt: imeta.alt } : {}),
+            }
+        );
     }
 
     return attachments;
@@ -505,7 +507,10 @@ export function RichNostrContent({
     const imageSlides = useMemo(
         () => mediaAttachments
             .filter((attachment) => attachment.kind === 'image')
-            .map((attachment) => ({ src: attachment.url, alt: attachment.alt })),
+            .map((attachment) => ({
+                src: attachment.url,
+                ...(attachment.alt !== undefined ? { alt: attachment.alt } : {}),
+            })),
         [mediaAttachments]
     );
     const [lightboxIndex, setLightboxIndex] = useState<number>(-1);

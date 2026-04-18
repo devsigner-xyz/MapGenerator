@@ -23,14 +23,29 @@ interface ProbeProps {
     pubkey?: string;
     service: ActiveProfileQueryService;
     pageSize?: number;
-    onUpdate: (next: ReturnType<typeof useActiveProfileQuery>) => void;
+    onUpdate: (next: ActiveProfileProbeState) => void;
+}
+
+interface ActiveProfileProbeState {
+    posts: Array<{ id: string }>;
+    hasMorePosts: boolean;
+    loadMorePosts: () => Promise<void>;
+    statsError?: string;
+    networkLoading: boolean;
+    followsCount: number;
+    followersCount: number;
 }
 
 function ActiveProfileProbe({ pubkey, service, pageSize, onUpdate }: ProbeProps): null {
-    const state = useActiveProfileQuery({ pubkey, service, pageSize });
+    const queryInput = {
+        service,
+        ...(pubkey === undefined ? {} : { pubkey }),
+        ...(pageSize === undefined ? {} : { pageSize }),
+    };
+    const state = useActiveProfileQuery(queryInput);
 
     useEffect(() => {
-        onUpdate(state);
+        onUpdate(state as ActiveProfileProbeState);
     }, [onUpdate, state]);
 
     return null;
@@ -88,7 +103,7 @@ afterEach(async () => {
 });
 
 function page(posts: string[], hasMore = false, nextUntil?: number): ActiveProfilePostsPage {
-    return {
+    const result: ActiveProfilePostsPage = {
         posts: posts.map((id, index) => ({
             id,
             pubkey: 'a'.repeat(64),
@@ -96,8 +111,13 @@ function page(posts: string[], hasMore = false, nextUntil?: number): ActiveProfi
             content: id,
         })),
         hasMore,
-        nextUntil,
     };
+
+    if (nextUntil !== undefined) {
+        result.nextUntil = nextUntil;
+    }
+
+    return result;
 }
 
 function network(follows: string[] = [], followers: string[] = []): ActiveProfileNetworkResult {
@@ -115,35 +135,44 @@ describe('useActiveProfileQuery', () => {
         const loadNetwork = vi.fn(async (): Promise<ActiveProfileNetworkResult> => network());
         const service: ActiveProfileQueryService = { loadPosts, loadStats, loadNetwork };
 
-        let latest: ReturnType<typeof useActiveProfileQuery> | null = null;
+        let latest: unknown = null;
         const rendered = await renderElement(createElement(ActiveProfileProbe, {
             pubkey: 'alice',
             service,
-            onUpdate: (next: ReturnType<typeof useActiveProfileQuery>) => {
+            onUpdate: (next: ActiveProfileProbeState) => {
                 latest = next;
             },
         }));
         mounted.push(rendered);
 
-        await waitFor(() => Boolean(latest?.posts.some((post) => post.id === 'alice-post')));
+        await waitFor(() => {
+            const current = latest as ActiveProfileProbeState | null;
+            return Boolean(current?.posts.some((post) => post.id === 'alice-post'));
+        });
 
         await rendered.rerender(createElement(ActiveProfileProbe, {
             pubkey: 'bob',
             service,
-            onUpdate: (next: ReturnType<typeof useActiveProfileQuery>) => {
+            onUpdate: (next: ActiveProfileProbeState) => {
                 latest = next;
             },
         }));
-        await waitFor(() => Boolean(latest?.posts.some((post) => post.id === 'bob-post')));
+        await waitFor(() => {
+            const current = latest as ActiveProfileProbeState | null;
+            return Boolean(current?.posts.some((post) => post.id === 'bob-post'));
+        });
 
         await rendered.rerender(createElement(ActiveProfileProbe, {
             pubkey: 'alice',
             service,
-            onUpdate: (next: ReturnType<typeof useActiveProfileQuery>) => {
+            onUpdate: (next: ActiveProfileProbeState) => {
                 latest = next;
             },
         }));
-        await waitFor(() => Boolean(latest?.posts.some((post) => post.id === 'alice-post')));
+        await waitFor(() => {
+            const current = latest as ActiveProfileProbeState | null;
+            return Boolean(current?.posts.some((post) => post.id === 'alice-post'));
+        });
 
         const aliceCalls = loadPosts.mock.calls.filter((args) => args[0].pubkey === 'alice');
         expect(aliceCalls).toHaveLength(1);
@@ -163,24 +192,33 @@ describe('useActiveProfileQuery', () => {
             loadNetwork: async () => network(),
         };
 
-        let latest: ReturnType<typeof useActiveProfileQuery> | null = null;
+        let latest: unknown = null;
         const rendered = await renderElement(createElement(ActiveProfileProbe, {
             pubkey: 'alice',
             service,
-            onUpdate: (next: ReturnType<typeof useActiveProfileQuery>) => {
+            onUpdate: (next: ActiveProfileProbeState) => {
                 latest = next;
             },
         }));
         mounted.push(rendered);
 
-        await waitFor(() => Boolean(latest && latest.posts.length === 2 && latest.hasMorePosts));
-
-        await act(async () => {
-            await latest?.loadMorePosts();
+        await waitFor(() => {
+            const current = latest as ActiveProfileProbeState | null;
+            return Boolean(current && current.posts.length === 2 && current.hasMorePosts);
         });
 
-        await waitFor(() => Boolean(latest && latest.posts.length === 3 && !latest.hasMorePosts));
-        expect(latest?.posts.map((post) => post.id)).toEqual(['post-3', 'post-2', 'post-1']);
+        await act(async () => {
+            const current = latest as ActiveProfileProbeState | null;
+            await current?.loadMorePosts();
+        });
+
+        await waitFor(() => {
+            const current = latest as ActiveProfileProbeState | null;
+            return Boolean(current && current.posts.length === 3 && !current.hasMorePosts);
+        });
+        const current = latest as ActiveProfileProbeState | null;
+        const postIds = current ? current.posts.map((post: { id: string }) => post.id) : [];
+        expect(postIds).toEqual(['post-3', 'post-2', 'post-1']);
         expect(loadPosts).toHaveBeenNthCalledWith(1, { pubkey: 'alice', limit: 10, until: undefined });
         expect(loadPosts).toHaveBeenNthCalledWith(2, { pubkey: 'alice', limit: 10, until: 123 });
     });
@@ -194,18 +232,24 @@ describe('useActiveProfileQuery', () => {
             loadNetwork: async () => network(['p1', 'p2'], ['p3', 'p4', 'p5']),
         };
 
-        let latest: ReturnType<typeof useActiveProfileQuery> | null = null;
+        let latest: unknown = null;
         const rendered = await renderElement(createElement(ActiveProfileProbe, {
             pubkey: 'alice',
             service,
-            onUpdate: (next: ReturnType<typeof useActiveProfileQuery>) => {
+            onUpdate: (next: ActiveProfileProbeState) => {
                 latest = next;
             },
         }));
         mounted.push(rendered);
 
-        await waitFor(() => latest?.statsError === 'stats unavailable' && latest?.networkLoading === false);
-        expect(latest?.followsCount).toBe(2);
-        expect(latest?.followersCount).toBe(3);
+        await waitFor(() => {
+            const current = latest as ActiveProfileProbeState | null;
+            return current?.statsError === 'stats unavailable' && current?.networkLoading === false;
+        });
+        const current = latest as ActiveProfileProbeState | null;
+        const followsCount = current ? current.followsCount : 0;
+        const followersCount = current ? current.followersCount : 0;
+        expect(followsCount).toBe(2);
+        expect(followersCount).toBe(3);
     });
 });

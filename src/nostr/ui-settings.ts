@@ -44,44 +44,44 @@ function getDefaultStorage(): StorageLike | null {
     }
 }
 
-function normalizeOccupiedLabelsZoomLevel(value: number): number {
-    if (!Number.isFinite(value)) {
+function normalizeOccupiedLabelsZoomLevel(value: number | undefined): number {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
         return DEFAULT_OCCUPIED_LABELS_ZOOM_LEVEL;
     }
 
     return Math.max(1, Math.min(20, Math.round(value)));
 }
 
-function normalizeStreetLabelsZoomLevel(value: number): number {
-    if (!Number.isFinite(value)) {
+function normalizeStreetLabelsZoomLevel(value: number | undefined): number {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
         return DEFAULT_STREET_LABELS_ZOOM_LEVEL;
     }
 
     return Math.max(1, Math.min(20, Math.round(value)));
 }
 
-function normalizeStreetLabelsEnabled(value: boolean): boolean {
+function normalizeStreetLabelsEnabled(value: boolean | undefined): boolean {
     return typeof value === 'boolean' ? value : DEFAULT_STREET_LABELS_ENABLED;
 }
 
-function normalizeSpecialMarkersEnabled(value: boolean): boolean {
+function normalizeSpecialMarkersEnabled(value: boolean | undefined): boolean {
     return typeof value === 'boolean' ? value : DEFAULT_SPECIAL_MARKERS_ENABLED;
 }
 
-function normalizeVerifiedBuildingsOverlayEnabled(value: boolean): boolean {
+function normalizeVerifiedBuildingsOverlayEnabled(value: boolean | undefined): boolean {
     return typeof value === 'boolean' ? value : DEFAULT_VERIFIED_BUILDINGS_OVERLAY_ENABLED;
 }
 
-function normalizeTrafficParticlesCount(value: number): number {
-    if (!Number.isFinite(value)) {
+function normalizeTrafficParticlesCount(value: number | undefined): number {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
         return DEFAULT_TRAFFIC_PARTICLES_COUNT;
     }
 
     return Math.max(0, Math.min(50, Math.round(value)));
 }
 
-function normalizeTrafficParticlesSpeed(value: number): number {
-    if (!Number.isFinite(value)) {
+function normalizeTrafficParticlesSpeed(value: number | undefined): number {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
         return DEFAULT_TRAFFIC_PARTICLES_SPEED;
     }
 

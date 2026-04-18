@@ -78,7 +78,7 @@ export class NdkClient implements NostrClient {
             return null;
         }
 
-        return events[0];
+        return events[0] ?? null;
     }
 }
 

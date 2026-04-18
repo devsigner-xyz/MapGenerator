@@ -66,10 +66,10 @@ function resolveInitials(pubkey: string, profile?: NostrProfile): string {
 
     const parts = name.split(/\s+/).filter((part) => part.length > 0);
     if (parts.length === 1) {
-        return parts[0].slice(0, 2).toUpperCase();
+        return (parts[0] ?? '').slice(0, 2).toUpperCase();
     }
 
-    return `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase();
+    return `${parts[0]?.[0] || ''}${parts[1]?.[0] || ''}`.toUpperCase();
 }
 
 function pubkeyToNpub(pubkey: string): string {
@@ -280,7 +280,12 @@ export function OccupantProfileDialog({
         {
             label: 'NIP-05',
             value: profile?.nip05
-                ? <Nip05Identifier profile={profile} verification={verification} />
+                ? (
+                    <Nip05Identifier
+                        {...(profile ? { profile } : {})}
+                        {...(verification ? { verification } : {})}
+                    />
+                )
                 : 'No declarado',
         },
         {
@@ -380,6 +385,14 @@ export function OccupantProfileDialog({
                 ) : null}
             </Item>
         );
+    };
+    const noteCardSharedProps = {
+        ...(onSelectHashtag ? { onSelectHashtag } : {}),
+        ...(onSelectProfile ? { onSelectProfile } : {}),
+        ...(onResolveProfiles ? { onResolveProfiles } : {}),
+        ...(onSelectEventReference ? { onSelectEventReference } : {}),
+        ...(onResolveEventReferences ? { onResolveEventReferences } : {}),
+        ...(eventReferencesById ? { eventReferencesById } : {}),
     };
 
     return (
@@ -516,12 +529,7 @@ export function OccupantProfileDialog({
                                                         note={note}
                                                         profilesByPubkey={profilesByPubkey || {}}
                                                         onCopyNoteId={copyNoteIdToClipboard}
-                                                        onSelectHashtag={onSelectHashtag}
-                                                        onSelectProfile={onSelectProfile}
-                                                        onResolveProfiles={onResolveProfiles}
-                                                        onSelectEventReference={onSelectEventReference}
-                                                        onResolveEventReferences={onResolveEventReferences}
-                                                        eventReferencesById={eventReferencesById}
+                                                        {...noteCardSharedProps}
                                                     />
                                                 );
                                             })}

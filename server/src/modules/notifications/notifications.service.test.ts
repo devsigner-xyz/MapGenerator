@@ -19,6 +19,7 @@ const TARGET_EVENT_ID = 'c'.repeat(64);
 const makeEvent = (event: { id: string; createdAt: number }) => ({
   id: event.id,
   pubkey: ACTOR_PUBKEY,
+  sig: 'f'.repeat(128),
   kind: 1,
   created_at: event.createdAt,
   tags: [
@@ -53,7 +54,7 @@ describe('notifications service list behavior', () => {
     const idA = '1'.repeat(64);
     const idB = '2'.repeat(64);
     const idC = '3'.repeat(64);
-    const querySyncSpy = vi.fn(async () => [
+    const querySyncSpy = vi.fn<SimplePool['querySync']>(async () => [
       makeEvent({ id: idB, createdAt: 40 }),
       makeEvent({ id: idC, createdAt: 50 }),
       makeEvent({ id: idA, createdAt: 40 }),
@@ -75,16 +76,18 @@ describe('notifications service list behavior', () => {
       since: 0,
     });
 
-    const listFilter = querySyncSpy.mock.calls[0]?.[1] as Record<string, unknown>;
+    const firstListCall = querySyncSpy.mock.calls[0];
+    expect(firstListCall).toBeDefined();
+    const listFilter = firstListCall?.[1] as Record<string, unknown> | undefined;
 
     expect(result.items.map((item) => item.id)).toEqual([idC, idA]);
     expect(result.hasMore).toBe(true);
     expect(result.nextSince).toBe(39);
-    expect(listFilter.until).toBeUndefined();
+    expect(listFilter?.until).toBeUndefined();
   });
 
   it('returns hasMore false and nextSince null when page size does not exceed limit', async () => {
-    const querySyncSpy = vi.fn(async () => [
+    const querySyncSpy = vi.fn<SimplePool['querySync']>(async () => [
       makeEvent({ id: '4'.repeat(64), createdAt: 30 }),
       makeEvent({ id: '5'.repeat(64), createdAt: 20 }),
     ]);
@@ -104,11 +107,13 @@ describe('notifications service list behavior', () => {
       since: 55,
     });
 
-    const listFilter = querySyncSpy.mock.calls[0]?.[1] as Record<string, unknown>;
+    const firstListCall = querySyncSpy.mock.calls[0];
+    expect(firstListCall).toBeDefined();
+    const listFilter = firstListCall?.[1] as Record<string, unknown> | undefined;
 
     expect(result.hasMore).toBe(false);
     expect(result.nextSince).toBeNull();
-    expect(listFilter.until).toBe(55);
+    expect(listFilter?.until).toBe(55);
   });
 });
 

@@ -60,10 +60,10 @@ export type MapLoaderStage =
     | 'building_map';
 
 interface OverlayData {
-    authSession?: AuthSessionState;
-    ownerPubkey?: string;
-    ownerProfile?: NostrProfile;
-    ownerBuildingIndex?: number;
+    authSession: AuthSessionState | undefined;
+    ownerPubkey: string | undefined;
+    ownerProfile: NostrProfile | undefined;
+    ownerBuildingIndex: number | undefined;
     follows: string[];
     featuredPubkeys: string[];
     profiles: Record<string, NostrProfile>;
@@ -73,17 +73,17 @@ interface OverlayData {
     assignments: AssignmentResult;
     buildingsCount: number;
     parkCount: number;
-    selectedPubkey?: string;
+    selectedPubkey: string | undefined;
     relayHints: string[];
     suggestedRelays: string[];
     suggestedRelaysByType: RelaySettingsByType;
-    activeProfilePubkey?: string;
-    activeProfileBuildingIndex?: number;
+    activeProfilePubkey: string | undefined;
+    activeProfileBuildingIndex: number | undefined;
 }
 
 interface OverlayState {
     status: OverlayStatus;
-    error?: string;
+    error: string | undefined;
     data: OverlayData;
 }
 
@@ -136,6 +136,8 @@ function createEmptyActiveProfileState(): Pick<
 function createInitialData(): OverlayData {
     return {
         authSession: undefined,
+        ownerPubkey: undefined,
+        ownerProfile: undefined,
         ownerBuildingIndex: undefined,
         follows: [],
         featuredPubkeys: FEATURED_OCCUPANT_PUBKEYS,
@@ -159,8 +161,50 @@ function createInitialData(): OverlayData {
             nip65Write: [],
             dmInbox: [],
         },
+        selectedPubkey: undefined,
         ...createEmptyActiveProfileState(),
     };
+}
+
+function createMapOccupancyInput(input: {
+    byBuildingIndex: Record<number, string>;
+    selectedBuildingIndex: number | undefined;
+}): { byBuildingIndex: Record<number, string>; selectedBuildingIndex?: number } {
+    if (input.selectedBuildingIndex === undefined) {
+        return { byBuildingIndex: input.byBuildingIndex };
+    }
+
+    return {
+        byBuildingIndex: input.byBuildingIndex,
+        selectedBuildingIndex: input.selectedBuildingIndex,
+    };
+}
+
+function createBuildOccupancyInput(input: {
+    buildingsCount: number;
+    assignments: AssignmentResult['assignments'];
+    selectedPubkey: string | undefined;
+}): { buildingsCount: number; assignments: AssignmentResult['assignments']; selectedPubkey?: string } {
+    if (input.selectedPubkey === undefined) {
+        return {
+            buildingsCount: input.buildingsCount,
+            assignments: input.assignments,
+        };
+    }
+
+    return {
+        buildingsCount: input.buildingsCount,
+        assignments: input.assignments,
+        selectedPubkey: input.selectedPubkey,
+    };
+}
+
+function createRelaySettingsInput(ownerPubkey: string | undefined): { ownerPubkey?: string } {
+    if (ownerPubkey === undefined) {
+        return {};
+    }
+
+    return { ownerPubkey };
 }
 
 function resolveOwnerBuildingIndex(
@@ -355,6 +399,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
     );
     const [state, setState] = useState<OverlayState>({
         status: 'idle',
+        error: undefined,
         data: createInitialData(),
     });
     const [mapLoaderStage, setMapLoaderStage] = useState<MapLoaderStage | null>(null);
@@ -420,7 +465,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 const result = await fetchFollowersBestEffortFn({
                     targetPubkey: input.pubkey,
                     client,
-                    candidateAuthors: input.candidateAuthors,
+                    ...(input.candidateAuthors !== undefined ? { candidateAuthors: input.candidateAuthors } : {}),
                 });
                 return {
                     followers: result.followers,
@@ -432,8 +477,8 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 return fetchLatestPostsByPubkeyFn({
                     pubkey: input.pubkey,
                     client,
-                    limit: input.limit,
-                    until: input.until,
+                    ...(input.limit !== undefined ? { limit: input.limit } : {}),
+                    ...(input.until !== undefined ? { until: input.until } : {}),
                 });
             },
             async loadProfileStats(input) {
@@ -441,7 +486,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 return fetchProfileStatsFn({
                     pubkey: input.pubkey,
                     client,
-                    candidateAuthors: input.candidateAuthors,
+                    ...(input.candidateAuthors !== undefined ? { candidateAuthors: input.candidateAuthors } : {}),
                 });
             },
         };
@@ -484,7 +529,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
     }, [fetchProfilesFn, identityApiService, services?.fetchProfilesFn]);
     const scopedRelayOwnerPubkey = state.data.authSession?.pubkey;
     const runtimeDmRelays = useMemo(() => {
-        const loadedSettings = loadRelaySettings({ ownerPubkey: scopedRelayOwnerPubkey });
+        const loadedSettings = loadRelaySettings(createRelaySettingsInput(scopedRelayOwnerPubkey));
         const configuredDmInboxRelays = getRelaySetByType(loadedSettings, 'dmInbox');
         const configuredNip65ReadRelays = getRelaySetByType(loadedSettings, 'nip65Read');
         const configuredNip65BothRelays = getRelaySetByType(loadedSettings, 'nip65Both');
@@ -506,7 +551,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         ), DM_INBOX_RELAY_CAP);
     }, [scopedRelayOwnerPubkey, state.data.relayHints, state.data.suggestedRelaysByType]);
     const runtimeDmOutboxRelays = useMemo(() => {
-        const loadedSettings = loadRelaySettings({ ownerPubkey: scopedRelayOwnerPubkey });
+        const loadedSettings = loadRelaySettings(createRelaySettingsInput(scopedRelayOwnerPubkey));
         const configuredNip65WriteRelays = getRelaySetByType(loadedSettings, 'nip65Write');
         const configuredNip65BothRelays = getRelaySetByType(loadedSettings, 'nip65Both');
         const configuredRelaysByProtocol = mergeRelaySets(configuredNip65WriteRelays, configuredNip65BothRelays);
@@ -573,7 +618,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                         const apiUnsubscribe = apiService.subscribeInbox(input, onMessage);
                         return typeof apiUnsubscribe === 'function' ? apiUnsubscribe : () => {};
                     },
-                    sendDm: apiService.sendDm,
+                    ...(apiService.sendDm ? { sendDm: apiService.sendDm } : {}),
                     async loadInitialConversations(input) {
                         if (!apiService.loadInitialConversations) {
                             return [];
@@ -642,10 +687,10 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             .sort((a, b) => a.index - b.index);
 
         const staged: Record<number, string> = {};
-        mapBridge.applyOccupancy({
+        mapBridge.applyOccupancy(createMapOccupancyInput({
             byBuildingIndex: { ...staged },
             selectedBuildingIndex: undefined,
-        });
+        }));
 
         for (let i = 0; i < entries.length; i++) {
             if (token !== occupancyAnimationTokenRef.current || shouldStop()) {
@@ -653,6 +698,9 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             }
 
             const entry = entries[i];
+            if (!entry) {
+                continue;
+            }
             staged[entry.index] = entry.pubkey;
 
             const shouldFlush = i === entries.length - 1 || ((i + 1) % OCCUPANCY_BATCH_SIZE) === 0;
@@ -660,10 +708,10 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 continue;
             }
 
-            mapBridge.applyOccupancy({
+            mapBridge.applyOccupancy(createMapOccupancyInput({
                 byBuildingIndex: { ...staged },
                 selectedBuildingIndex: undefined,
-            });
+            }));
 
             if (i < entries.length - 1) {
                 await new Promise<void>((resolve) => {
@@ -676,15 +724,15 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             return;
         }
 
-        mapBridge.applyOccupancy({
+        mapBridge.applyOccupancy(createMapOccupancyInput({
             byBuildingIndex: { ...staged },
             selectedBuildingIndex: input.selectedBuildingIndex,
-        });
+        }));
     };
 
     const resolveOverlayRelays = (relayHints: string[]): string[] => {
         const configuredRelays = (() => {
-            const loaded = loadRelaySettings({ ownerPubkey: scopedRelayOwnerPubkey });
+            const loaded = loadRelaySettings(createRelaySettingsInput(scopedRelayOwnerPubkey));
             const protocolRelays = mergeRelaySets(
                 getRelaySetByType(loaded, 'nip65Write'),
                 getRelaySetByType(loaded, 'nip65Both'),
@@ -766,16 +814,16 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                     excludedBuildingIndexes: reservedBuildingIndexes,
                 });
 
-                const occupancy = buildOccupancyState({
+                const occupancy = buildOccupancyState(createBuildOccupancyInput({
                     buildingsCount: buildings.length,
                     assignments: assignments.assignments,
                     selectedPubkey: current.data.selectedPubkey,
-                });
+                }));
 
-                mapBridge.applyOccupancy({
+                mapBridge.applyOccupancy(createMapOccupancyInput({
                     byBuildingIndex: occupancy.byBuildingIndex,
                     selectedBuildingIndex: occupancy.selectedBuildingIndex,
-                });
+                }));
 
                 if (occupancy.selectedBuildingIndex !== undefined) {
                     mapBridge.focusBuilding(occupancy.selectedBuildingIndex);
@@ -826,10 +874,10 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 selectedPubkey: pubkey,
             });
 
-            mapBridge.applyOccupancy({
+            mapBridge.applyOccupancy(createMapOccupancyInput({
                 byBuildingIndex: occupancy.byBuildingIndex,
                 selectedBuildingIndex: occupancy.selectedBuildingIndex,
-            });
+            }));
             mapBridge.focusBuilding(buildingIndex);
 
             setState((prev) => {
@@ -1012,8 +1060,10 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
 
             await applyOccupancyProgressively({
                 byBuildingIndex: occupancy.byBuildingIndex,
-                selectedBuildingIndex: occupancy.selectedBuildingIndex,
                 shouldStop: () => requestIdRef.current !== requestId,
+                ...(occupancy.selectedBuildingIndex !== undefined
+                    ? { selectedBuildingIndex: occupancy.selectedBuildingIndex }
+                    : {}),
             });
 
             if (requestIdRef.current !== requestId) {
@@ -1024,6 +1074,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
 
             setState({
                 status: 'loading_followers',
+                error: undefined,
                 data: {
                     ownerPubkey: graph.ownerPubkey,
                     authSession: input.session,
@@ -1041,6 +1092,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                     relayHints: graph.relayHints,
                     suggestedRelays,
                     suggestedRelaysByType,
+                    selectedPubkey: undefined,
                     ...createEmptyActiveProfileState(),
                 },
             });
@@ -1176,7 +1228,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             await loadOwnerGraph({
                 session,
                 method,
-                credential: input.credential,
+                ...(input.credential !== undefined ? { credential: input.credential } : {}),
             });
         } catch (error) {
             setMapLoaderStage(null);
@@ -1201,14 +1253,15 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
 
         setState({
             status: 'idle',
+            error: undefined,
             data: createInitialData(),
         });
 
         if (mapBridge) {
-            mapBridge.applyOccupancy({
+            mapBridge.applyOccupancy(createMapOccupancyInput({
                 byBuildingIndex: {},
                 selectedBuildingIndex: undefined,
-            });
+            }));
             mapBridge.setDialogBuildingHighlight(undefined);
         }
     };
@@ -1242,15 +1295,17 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 excludedBuildingIndexes: reservedBuildingIndexes,
             });
 
-            const occupancy = buildOccupancyState({
+            const occupancy = buildOccupancyState(createBuildOccupancyInput({
                 buildingsCount: buildings.length,
                 assignments: assignments.assignments,
                 selectedPubkey: current.data.selectedPubkey,
-            });
+            }));
 
             await applyOccupancyProgressively({
                 byBuildingIndex: occupancy.byBuildingIndex,
-                selectedBuildingIndex: occupancy.selectedBuildingIndex,
+                ...(occupancy.selectedBuildingIndex !== undefined
+                    ? { selectedBuildingIndex: occupancy.selectedBuildingIndex }
+                    : {}),
             });
 
             if (occupancy.selectedBuildingIndex !== undefined) {
@@ -1292,16 +1347,16 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         }
 
         const selectedPubkey = state.data.selectedPubkey === pubkey ? undefined : pubkey;
-        const occupancy = buildOccupancyState({
+        const occupancy = buildOccupancyState(createBuildOccupancyInput({
             buildingsCount: state.data.buildingsCount,
             assignments: state.data.assignments.assignments,
             selectedPubkey,
-        });
+        }));
 
-        mapBridge.applyOccupancy({
+        mapBridge.applyOccupancy(createMapOccupancyInput({
             byBuildingIndex: occupancy.byBuildingIndex,
             selectedBuildingIndex: occupancy.selectedBuildingIndex,
-        });
+        }));
 
         if (occupancy.selectedBuildingIndex !== undefined) {
             mapBridge.focusBuilding(occupancy.selectedBuildingIndex);
@@ -1369,16 +1424,16 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                     excludedBuildingIndexes: reservedBuildingIndexes,
                 });
 
-                const occupancy = buildOccupancyState({
+                const occupancy = buildOccupancyState(createBuildOccupancyInput({
                     buildingsCount: buildings.length,
                     assignments: assignments.assignments,
                     selectedPubkey: nextState.data.selectedPubkey,
-                });
+                }));
 
-                mapBridge.applyOccupancy({
+                mapBridge.applyOccupancy(createMapOccupancyInput({
                     byBuildingIndex: occupancy.byBuildingIndex,
                     selectedBuildingIndex: occupancy.selectedBuildingIndex,
-                });
+                }));
 
                 ownerBuildingIndex = resolveOwnerBuildingIndex(nextState.data.ownerPubkey, buildings.length, reservedBuildingIndexes);
                 buildingsCount = buildings.length;
@@ -1413,10 +1468,10 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             selectedPubkey: pubkey,
         });
 
-        mapBridge.applyOccupancy({
+        mapBridge.applyOccupancy(createMapOccupancyInput({
             byBuildingIndex: occupancy.byBuildingIndex,
             selectedBuildingIndex: occupancy.selectedBuildingIndex,
-        });
+        }));
 
         const focusIndex = buildingIndex ?? occupancy.selectedBuildingIndex;
         if (focusIndex !== undefined) {
@@ -1632,7 +1687,6 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 if (!ownerPubkey) {
                     return {
                         posts: [],
-                        nextUntil: undefined,
                         hasMore: false,
                     };
                 }
@@ -1640,8 +1694,8 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 return graphApiService.loadPosts({
                     ownerPubkey,
                     pubkey,
-                    limit,
-                    until,
+                    ...(limit !== undefined ? { limit } : {}),
+                    ...(until !== undefined ? { until } : {}),
                 });
             },
             loadStats: async ({ pubkey }) => {

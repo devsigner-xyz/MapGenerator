@@ -19,7 +19,11 @@ export default class Util {
         }
         if (gui.__folders) {
             for (const folderName in gui.__folders) {
-                this.updateGui(gui.__folders[folderName]);
+                const folder = gui.__folders[folderName];
+                if (!folder) {
+                    continue;
+                }
+                this.updateGui(folder);
             }
         }
     }
@@ -27,7 +31,11 @@ export default class Util {
     static removeAllFolders(gui: dat.GUI): void {
         if (gui.__folders) {
             for (const folderName in gui.__folders) {
-                gui.removeFolder(gui.__folders[folderName]);
+                const folder = gui.__folders[folderName];
+                if (!folder) {
+                    continue;
+                }
+                gui.removeFolder(folder);
             }
         }
     }
@@ -62,7 +70,7 @@ export default class Util {
     // IN THE SOFTWARE.
 
     // http://www.w3.org/TR/css3-color/
-    private static kCSSColorTable: any = {
+    private static kCSSColorTable: Record<string, number[]> = {
         "transparent": [0,0,0,0], "aliceblue": [240,248,255,1],
         "antiquewhite": [250,235,215,1], "aqua": [0,255,255,1],
         "aquamarine": [127,255,212,1], "azure": [240,255,255,1],
@@ -175,27 +183,28 @@ export default class Util {
         var str = css_str.replace(/ /g, '').toLowerCase();
 
         // Color keywords (and transparent) lookup.
-        if (str in Util.kCSSColorTable) return Util.kCSSColorTable[str].slice();  // dup.
+        const keywordColour = Util.kCSSColorTable[str];
+        if (keywordColour) return keywordColour.slice();  // dup.
 
         // #abc and #abc123 syntax.
         if (str[0] === '#') {
             if (str.length === 4) {
                 var iv = parseInt(str.substr(1), 16);  // TODO(deanm): Stricter parsing.
-                if (!(iv >= 0 && iv <= 0xfff)) return null;  // Covers NaN.
+                if (!(iv >= 0 && iv <= 0xfff)) return [];  // Covers NaN.
                 return [((iv & 0xf00) >> 4) | ((iv & 0xf00) >> 8),
                       (iv & 0xf0) | ((iv & 0xf0) >> 4),
                       (iv & 0xf) | ((iv & 0xf) << 4),
                       1];
             } else if (str.length === 7) {
                 var iv = parseInt(str.substr(1), 16);  // TODO(deanm): Stricter parsing.
-                if (!(iv >= 0 && iv <= 0xffffff)) return null;  // Covers NaN.
+                if (!(iv >= 0 && iv <= 0xffffff)) return [];  // Covers NaN.
                 return [(iv & 0xff0000) >> 16,
                       (iv & 0xff00) >> 8,
                       iv & 0xff,
                       1];
             }
 
-            return null;
+            return [];
         }
 
         var op = str.indexOf('('), ep = str.indexOf(')');
@@ -205,37 +214,65 @@ export default class Util {
             var alpha = 1;  // To allow case fallthrough.
             switch (fname) {
                 case 'rgba':
-                    if (params.length !== 4) return null;
-                    alpha = Util.parse_css_float(params.pop());
+                    if (params.length !== 4) return [];
+                    {
+                        const alphaParam = params.pop();
+                        if (!alphaParam) {
+                            return [];
+                        }
+                        alpha = Util.parse_css_float(alphaParam);
+                    }
                     // Fall through.
                 case 'rgb':
-                    if (params.length !== 3) return null;
-                    return [Util.parse_css_int(params[0]),
-                            Util.parse_css_int(params[1]),
-                            Util.parse_css_int(params[2]),
-                            alpha];
+                    if (params.length !== 3) return [];
+                    {
+                        const red = params[0];
+                        const green = params[1];
+                        const blue = params[2];
+                        if (!red || !green || !blue) {
+                            return [];
+                        }
+                        return [Util.parse_css_int(red),
+                                Util.parse_css_int(green),
+                                Util.parse_css_int(blue),
+                                alpha];
+                    }
                     case 'hsla':
-                    if (params.length !== 4) return null;
-                    alpha = Util.parse_css_float(params.pop());
+                    if (params.length !== 4) return [];
+                    {
+                        const alphaParam = params.pop();
+                        if (!alphaParam) {
+                            return [];
+                        }
+                        alpha = Util.parse_css_float(alphaParam);
+                    }
                     // Fall through.
                 case 'hsl':
-                    if (params.length !== 3) return null;
-                    var h = (((parseFloat(params[0]) % 360) + 360) % 360) / 360;  // 0 .. 1
+                    if (params.length !== 3) return [];
+                    {
+                        const hue = params[0];
+                        const saturation = params[1];
+                        const lightness = params[2];
+                        if (!hue || !saturation || !lightness) {
+                            return [];
+                        }
+                        var h = (((parseFloat(hue) % 360) + 360) % 360) / 360;  // 0 .. 1
                     // NOTE(deanm): According to the CSS spec s/l should only be
                     // percentages, but we don't bother and let float or percentage.
-                    var s = Util.parse_css_float(params[1]);
-                    var l = Util.parse_css_float(params[2]);
-                    var m2 = l <= 0.5 ? l * (s + 1) : l + s - l * s;
-                    var m1 = l * 2 - m2;
-                    return [Util.clamp_css_byte(Util.css_hue_to_rgb(m1, m2, h+1/3) * 255),
-                            Util.clamp_css_byte(Util.css_hue_to_rgb(m1, m2, h) * 255),
-                            Util.clamp_css_byte(Util.css_hue_to_rgb(m1, m2, h-1/3) * 255),
-                            alpha];
+                        var s = Util.parse_css_float(saturation);
+                        var l = Util.parse_css_float(lightness);
+                        var m2 = l <= 0.5 ? l * (s + 1) : l + s - l * s;
+                        var m1 = l * 2 - m2;
+                        return [Util.clamp_css_byte(Util.css_hue_to_rgb(m1, m2, h+1/3) * 255),
+                                Util.clamp_css_byte(Util.css_hue_to_rgb(m1, m2, h) * 255),
+                                Util.clamp_css_byte(Util.css_hue_to_rgb(m1, m2, h-1/3) * 255),
+                                alpha];
+                    }
                 default:
-                    return null;
+                    return [];
             }
         }
 
-        return null;
+        return [];
     }
 }

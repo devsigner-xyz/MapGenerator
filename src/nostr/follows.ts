@@ -30,6 +30,10 @@ export function parseFollowsFromKind3(event: NostrEvent): string[] {
         }
 
         const pubkey = tag[1];
+        if (typeof pubkey !== 'string') {
+            continue;
+        }
+
         if (isHexPubkey(pubkey)) {
             follows.add(pubkey);
         }
@@ -59,8 +63,9 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string)
 
 function relayHintsFromKind3Event(event: NostrEvent): string[] {
     const fromTags = event.tags
-        .filter((tag) => tag[0] === 'p' && typeof tag[2] === 'string' && tag[2].length > 0)
-        .map((tag) => tag[2]);
+        .filter((tag) => tag[0] === 'p')
+        .map((tag) => tag[2])
+        .filter((value): value is string => typeof value === 'string' && value.length > 0);
 
     return [...new Set([...fromTags, ...relayHintsFromKind3Content(event.content)])];
 }

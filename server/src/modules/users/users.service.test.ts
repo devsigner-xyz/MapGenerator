@@ -27,6 +27,7 @@ const makeMetadataEvent = ({
 }) => ({
   id,
   pubkey,
+  sig: 'f'.repeat(128),
   kind: 0,
   created_at: createdAt,
   tags: [],
@@ -35,7 +36,7 @@ const makeMetadataEvent = ({
 
 describe('users service', () => {
   it('includes exact npub match even when no metadata is found', async () => {
-    const querySyncSpy = vi.fn(async () => []);
+    const querySyncSpy = vi.fn<SimplePool['querySync']>(async () => []);
     const pool = {
       querySync: querySyncSpy,
     } as unknown as SimplePool;
@@ -58,14 +59,14 @@ describe('users service', () => {
       createdAt: 0,
     });
 
-    const exactFilter = querySyncSpy.mock.calls.find(
-      (call) => Array.isArray((call[1] as Record<string, unknown>).authors),
-    )?.[1] as Record<string, unknown> | undefined;
+    const exactFilter = querySyncSpy.mock.calls
+      .map((call) => call[1] as Record<string, unknown> | undefined)
+      .find((candidate) => Array.isArray(candidate?.authors));
     expect(exactFilter?.authors).toEqual([EXACT_PUBKEY]);
   });
 
   it('uses normalized query text for relay search filter', async () => {
-    const querySyncSpy = vi.fn(async () => []);
+    const querySyncSpy = vi.fn<SimplePool['querySync']>(async () => []);
     const pool = {
       querySync: querySyncSpy,
     } as unknown as SimplePool;
@@ -81,8 +82,10 @@ describe('users service', () => {
       limit: 5,
     });
 
-    const searchFilter = querySyncSpy.mock.calls[0]?.[1] as Record<string, unknown>;
-    expect(searchFilter.search).toBe('alice');
+    const firstSearchCall = querySyncSpy.mock.calls[0];
+    expect(firstSearchCall).toBeDefined();
+    const searchFilter = firstSearchCall?.[1] as Record<string, unknown> | undefined;
+    expect(searchFilter?.search).toBe('alice');
   });
 
   it('keeps exact matches first and ranks text matches by recency', async () => {

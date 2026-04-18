@@ -3,6 +3,32 @@ import * as PolyK from 'polyk';
 import Vector from '../vector';
 import * as jsts from 'jsts';
 
+interface JstsPolygonizer {
+    add(geometry: jsts.geom.Geometry): void;
+    getPolygons(): {
+        iterator(): {
+            hasNext(): boolean;
+            next(): jsts.geom.Polygon;
+        };
+    };
+}
+
+interface JstsPolygonizeOperation {
+    polygonize: {
+        Polygonizer: new () => JstsPolygonizer;
+    };
+}
+
+interface JstsBufferOperation {
+    operation: {
+        buffer: {
+            BufferParameters: {
+                CAP_FLAT: number;
+            };
+        };
+    };
+}
+
 export default class PolygonUtil {
     private static geometryFactory = new jsts.geom.GeometryFactory();
 
@@ -17,13 +43,19 @@ export default class PolygonUtil {
             origin.x, origin.y + worldDimensions.y,
         ];
         const sliced = PolyK.Slice(rectangle, p1.x, p1.y, p2.x, p2.y).map(p => PolygonUtil.polygonArrayToPolygon(p));
-        const minArea = PolygonUtil.calcPolygonArea(sliced[0]);
-
-        if (sliced.length > 1 && PolygonUtil.calcPolygonArea(sliced[1]) < minArea) {
-            return sliced[1];
+        const firstSlice = sliced[0];
+        if (!firstSlice) {
+            return [];
         }
 
-        return sliced[0];
+        const minArea = PolygonUtil.calcPolygonArea(firstSlice);
+        const secondSlice = sliced[1];
+
+        if (secondSlice && PolygonUtil.calcPolygonArea(secondSlice) < minArea) {
+            return secondSlice;
+        }
+
+        return firstSlice;
     }
 
     /**
@@ -39,7 +71,8 @@ export default class PolygonUtil {
         ];
         const boundingPoly = PolygonUtil.polygonToJts(bounds);
         const union = boundingPoly.getExteriorRing().union(jstsLine);
-        const polygonizer = new (jsts.operation as any).polygonize.Polygonizer();
+        const operation = jsts.operation as unknown as JstsPolygonizeOperation;
+        const polygonizer = new operation.polygonize.Polygonizer();
         polygonizer.add(union);
         const polygons = polygonizer.getPolygons();
 
@@ -55,17 +88,23 @@ export default class PolygonUtil {
         }
 
         if (!smallestPoly) return [];
-        return smallestPoly.getCoordinates().map((c: any) => new Vector(c.x, c.y));
+        return smallestPoly.getCoordinates().map((c: jsts.geom.Coordinate) => new Vector(c.x, c.y));
     }
 
     public static calcPolygonArea(polygon: Vector[]): number {
         let total = 0;
 
         for (let i = 0; i < polygon.length; i++) {
-          const addX = polygon[i].x;
-          const addY = polygon[i == polygon.length - 1 ? 0 : i + 1].y;
-          const subX = polygon[i == polygon.length - 1 ? 0 : i + 1].x;
-          const subY = polygon[i].y;
+          const current = polygon[i];
+          const next = polygon[i == polygon.length - 1 ? 0 : i + 1];
+          if (!current || !next) {
+              continue;
+          }
+
+          const addX = current.x;
+          const addY = next.y;
+          const subX = next.x;
+          const subY = current.y;
 
           total += (addX * addY * 0.5);
           total -= (subX * subY * 0.5);
@@ -78,23 +117,39 @@ export default class PolygonUtil {
      * Recursively divide a polygon by its longest side until the minArea stopping condition is met
      */
     public static subdividePolygon(p: Vector[], minArea: number): Vector[][] {
+        if (p.length < 2) {
+            return [];
+        }
+
         const area = PolygonUtil.calcPolygonArea(p);
         if (area < 0.5 * minArea) {
             return [];
         }
         const divided: Vector[][] = [];  // Array of polygons
 
+        const first = p[0];
+        const second = p[1];
+        if (!first || !second) {
+            return [];
+        }
+
         let longestSideLength = 0;
-        let longestSide = [p[0], p[1]];
+        let longestSide: [Vector, Vector] = [first, second];
 
         let perimeter = 0;
 
         for (let i = 0; i < p.length; i++) {
-            const sideLength = p[i].clone().sub(p[(i+1) % p.length]).length();
+            const current = p[i];
+            const next = p[(i + 1) % p.length];
+            if (!current || !next) {
+                continue;
+            }
+
+            const sideLength = current.clone().sub(next).length();
             perimeter += sideLength;
             if (sideLength > longestSideLength) {
                 longestSideLength = sideLength;
-                longestSide = [p[i], p[(i+1) % p.length]];
+                longestSide = [current, next];
             }
         }
 
@@ -118,7 +173,7 @@ export default class PolygonUtil {
             .normalize()
             .multiplyScalar(100);
 
-        const bisect = [averagePoint.clone().add(perpVector), averagePoint.clone().sub(perpVector)];
+        const bisect: [Vector, Vector] = [averagePoint.clone().add(perpVector), averagePoint.clone().sub(perpVector)];
 
         // Array of polygons
         try {
@@ -141,7 +196,8 @@ export default class PolygonUtil {
     public static resizeGeometry(geometry: Vector[], spacing: number, isPolygon=true): Vector[] {
         try {
             const jstsGeometry = isPolygon? PolygonUtil.polygonToJts(geometry) : PolygonUtil.lineToJts(geometry);
-            const resized = jstsGeometry.buffer(spacing, undefined, (jsts as any).operation.buffer.BufferParameters.CAP_FLAT);
+            const bufferOperation = jsts as unknown as JstsBufferOperation;
+            const resized = jstsGeometry.buffer(spacing, 8, bufferOperation.operation.buffer.BufferParameters.CAP_FLAT);
             if (!resized.isSimple()) {
                 return [];
             }
@@ -171,8 +227,14 @@ export default class PolygonUtil {
 
         let inside = false;
         for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-            const xi = polygon[i].x, yi = polygon[i].y;
-            const xj = polygon[j].x, yj = polygon[j].y;
+            const current = polygon[i];
+            const previous = polygon[j];
+            if (!current || !previous) {
+                continue;
+            }
+
+            const xi = current.x, yi = current.y;
+            const xj = previous.x, yj = previous.y;
 
             const intersect = ((yi > point.y) != (yj > point.y))
                 && (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);
@@ -193,7 +255,12 @@ export default class PolygonUtil {
 
     private static polygonToJts(polygon: Vector[]): jsts.geom.Polygon {
         const geoInput = polygon.map(v => new jsts.geom.Coordinate(v.x, v.y));
-        geoInput.push(geoInput[0]);  // Create loop
+        const firstCoordinate = geoInput[0];
+        if (!firstCoordinate) {
+            return PolygonUtil.geometryFactory.createPolygon();
+        }
+
+        geoInput.push(firstCoordinate);  // Create loop
         return PolygonUtil.geometryFactory.createPolygon(PolygonUtil.geometryFactory.createLinearRing(geoInput), []);
     }
 
@@ -213,9 +280,15 @@ export default class PolygonUtil {
      * [ v.x, v.y, v.x, v.y ]...
      */
     private static polygonArrayToPolygon(p: number[]): Vector[] {
-        const outP = [];
+        const outP: Vector[] = [];
         for (let i = 0; i < p.length / 2; i++) {
-            outP.push(new Vector(p[2*i], p[2*i + 1]));
+            const x = p[2 * i];
+            const y = p[2 * i + 1];
+            if (x === undefined || y === undefined) {
+                continue;
+            }
+
+            outP.push(new Vector(x, y));
         }
         return outP;
     }

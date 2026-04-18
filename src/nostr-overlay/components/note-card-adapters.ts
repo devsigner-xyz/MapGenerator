@@ -46,6 +46,8 @@ export function fromFeedItem(item: SocialFeedItem, actions?: NoteActionState): N
         return null;
     }
 
+    const label = kindLabel({ variant: 'default', isRepost: item.kind === 'repost' });
+
     return {
         id: item.id,
         pubkey: item.pubkey,
@@ -53,10 +55,10 @@ export function fromFeedItem(item: SocialFeedItem, actions?: NoteActionState): N
         content: item.content || '',
         tags: safeTags(item.rawEvent?.tags),
         variant: 'default',
-        kindLabel: kindLabel({ variant: 'default', isRepost: item.kind === 'repost' }),
+        ...(label !== undefined ? { kindLabel: label } : {}),
         showCopyId: true,
         nestingLevel: 0,
-        actions,
+        ...(actions !== undefined ? { actions } : {}),
     };
 }
 
@@ -69,6 +71,8 @@ export function fromThreadItem(
         return null;
     }
 
+    const label = kindLabel({ variant });
+
     return {
         id: item.id,
         pubkey: item.pubkey,
@@ -76,10 +80,10 @@ export function fromThreadItem(
         content: item.content || '',
         tags: safeTags(item.rawEvent?.tags),
         variant,
-        kindLabel: kindLabel({ variant }),
+        ...(label !== undefined ? { kindLabel: label } : {}),
         showCopyId: true,
         nestingLevel: 0,
-        actions,
+        ...(actions !== undefined ? { actions } : {}),
     };
 }
 

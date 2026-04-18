@@ -38,7 +38,7 @@ export default class Tensor {
     }
 
     add(tensor: Tensor, smooth: boolean): Tensor {
-        this.matrix = this.matrix.map((v, i) => v * this.r + tensor.matrix[i] * tensor.r);
+        this.matrix = this.matrix.map((v, i) => v * this.r + (tensor.matrix[i] ?? 0) * tensor.r);
 
         if (smooth) {
             this.r = Math.hypot(...this.matrix);
@@ -98,6 +98,9 @@ export default class Tensor {
         if (this.r === 0) {
             return 0;
         }
-        return Math.atan2(this.matrix[1] / this.r, this.matrix[0] / this.r) / 2;
+
+        const y = this.matrix[1] ?? 0;
+        const x = this.matrix[0] ?? 0;
+        return Math.atan2(y / this.r, x / this.r) / 2;
     }
 }

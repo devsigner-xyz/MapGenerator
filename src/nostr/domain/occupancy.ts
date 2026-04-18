@@ -37,9 +37,14 @@ export function buildOccupancyState(input: {
             ? pubkeyToBuildingIndex[input.selectedPubkey]
             : undefined;
 
-    return {
+    const state: OccupancyState = {
         byBuildingIndex,
         pubkeyToBuildingIndex,
-        selectedBuildingIndex,
     };
+
+    if (typeof selectedBuildingIndex === 'number') {
+        state.selectedBuildingIndex = selectedBuildingIndex;
+    }
+
+    return state;
 }

@@ -44,15 +44,20 @@ export function parseEventFromJson(value: string): NostrEvent | null {
         return null;
     }
 
-    return {
+    const normalizedEvent: NostrEvent = {
         id: event.id,
-        sig: typeof event.sig === 'string' ? event.sig : undefined,
         pubkey: event.pubkey,
         kind: event.kind,
         created_at: event.created_at,
         tags: normalizedTags,
         content: event.content,
     };
+
+    if (typeof event.sig === 'string') {
+        normalizedEvent.sig = event.sig;
+    }
+
+    return normalizedEvent;
 }
 
 export function getSinglePTag(tags: string[][]): string | null {
@@ -61,7 +66,8 @@ export function getSinglePTag(tags: string[][]): string | null {
         return null;
     }
 
-    return pTags[0][1];
+    const onlyTag = pTags[0];
+    return typeof onlyTag?.[1] === 'string' ? onlyTag[1] : null;
 }
 
 export function hashContent(content: string): string {

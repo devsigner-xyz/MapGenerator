@@ -89,11 +89,18 @@ export function parseNip46Response(payload: string): Nip46RpcResponse {
     const result = typeof object.result === 'string' ? object.result : undefined;
     const error = typeof object.error === 'string' ? object.error : undefined;
 
-    return {
+    const response: Nip46RpcResponse = {
         id,
-        result,
-        error,
     };
+
+    if (result !== undefined) {
+        response.result = result;
+    }
+    if (error !== undefined) {
+        response.error = error;
+    }
+
+    return response;
 }
 
 export function createNip46ResponseClassifier(

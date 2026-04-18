@@ -34,16 +34,33 @@ export interface CreateUserSearchApiServiceOptions {
 }
 
 function mapProfile(dto: UserProfileDto): NostrProfile {
-    return {
+    const profile: NostrProfile = {
         pubkey: dto.pubkey,
-        name: dto.name,
-        displayName: dto.displayName,
-        about: dto.about,
-        picture: dto.picture,
-        banner: dto.banner,
-        nip05: dto.nip05,
-        lud16: dto.lud16,
     };
+
+    if (dto.name !== undefined) {
+        profile.name = dto.name;
+    }
+    if (dto.displayName !== undefined) {
+        profile.displayName = dto.displayName;
+    }
+    if (dto.about !== undefined) {
+        profile.about = dto.about;
+    }
+    if (dto.picture !== undefined) {
+        profile.picture = dto.picture;
+    }
+    if (dto.banner !== undefined) {
+        profile.banner = dto.banner;
+    }
+    if (dto.nip05 !== undefined) {
+        profile.nip05 = dto.nip05;
+    }
+    if (dto.lud16 !== undefined) {
+        profile.lud16 = dto.lud16;
+    }
+
+    return profile;
 }
 
 export function createUserSearchApiService(options: CreateUserSearchApiServiceOptions = {}): UserSearchApiService {

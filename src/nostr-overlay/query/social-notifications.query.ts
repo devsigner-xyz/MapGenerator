@@ -84,16 +84,21 @@ function toItem(event: SocialNotificationEvent): SocialNotificationItem | null {
         return null;
     }
 
+    const targetEventId = getLastTagValue(event.tags, 'e');
+    const targetPubkey = getLastTagValue(event.tags, 'p');
+    const targetKind = getNumericTagValue(event.tags, 'k');
+    const targetAddress = getLastTagValue(event.tags, 'a');
+
     return {
         id: event.id,
         kind,
         actorPubkey: event.pubkey,
         createdAt: normalizeToEpochSeconds(event.created_at),
         content: event.content,
-        targetEventId: getLastTagValue(event.tags, 'e'),
-        targetPubkey: getLastTagValue(event.tags, 'p'),
-        targetKind: getNumericTagValue(event.tags, 'k'),
-        targetAddress: getLastTagValue(event.tags, 'a'),
+        ...(targetEventId ? { targetEventId } : {}),
+        ...(targetPubkey ? { targetPubkey } : {}),
+        ...(targetKind !== undefined ? { targetKind } : {}),
+        ...(targetAddress ? { targetAddress } : {}),
         rawEvent: event,
     };
 }
@@ -147,7 +152,6 @@ export function useSocialNotificationsController(
     const queryKey = useMemo(() => nostrOverlayQueryKeys.notifications({
         ownerPubkey: options.ownerPubkey || '',
         limit: maxItems,
-        since: undefined,
     }), [maxItems, options.ownerPubkey]);
 
     const notificationsQuery = useQuery(createSocialQueryOptions({

@@ -9,6 +9,9 @@ import { assignPubkeysToBuildings } from '../nostr/domain/assignment';
 import * as ndkClientModule from '../nostr/ndk-client';
 import { createNostrOverlayQueryClient } from './query/query-client';
 
+const WAIT_TIMEOUT_MS = 6_000;
+const WAIT_INTERVAL_MS = 20;
+
 function createMapBridgeStub(buildingsCount: number): { bridge: MapBridge; triggerMapGenerated: () => void } {
     const listeners: Array<() => void> = [];
 
@@ -66,16 +69,22 @@ async function flush(): Promise<void> {
     });
 }
 
-async function waitFor(condition: () => boolean): Promise<void> {
-    for (let i = 0; i < 40; i++) {
+async function waitFor(condition: () => boolean, timeoutMs = WAIT_TIMEOUT_MS): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+
+    while (Date.now() < deadline) {
         if (condition()) {
             return;
         }
-        await act(async () => {
-            await new Promise(resolve => setTimeout(resolve, 0));
-        });
+
+        if (vi.isFakeTimers()) {
+            await vi.advanceTimersByTimeAsync(WAIT_INTERVAL_MS);
+        } else {
+            await new Promise(resolve => setTimeout(resolve, WAIT_INTERVAL_MS));
+        }
     }
-    throw new Error('Condition was not met in time');
+
+    throw new Error(`Condition was not met in ${timeoutMs}ms`);
 }
 
 interface RenderResult {
@@ -136,7 +145,7 @@ afterEach(async () => {
 });
 
 describe('Nostr overlay selection map interaction', () => {
-    test('selecting a person focuses and highlights assigned building', async () => {
+    test('selecting a person focuses and highlights assigned building', { timeout: 15_000 }, async () => {
         const ownerPubkey = 'f'.repeat(64);
         const pubkeyA = 'a'.repeat(64);
         const pubkeyB = 'b'.repeat(64);

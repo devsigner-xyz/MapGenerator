@@ -125,9 +125,15 @@ export function useRelayMetadataByUrlQuery(input: UseRelayMetadataByUrlQueryInpu
             enabled: input.enabled && fetchAvailable,
         })),
         combine: (queryResults) => {
+            const typedQueryResults = queryResults as Array<{
+                error?: unknown;
+                data?: RelayInformationDocument;
+                isPending?: boolean;
+                isFetching?: boolean;
+            }>;
             const relayInfoByUrl: Record<string, RelayInfoState> = {};
             for (const [index, entry] of relayEntries.entries()) {
-                const query = queryResults[index];
+                const query = typedQueryResults[index];
                 if (!query) {
                     continue;
                 }

@@ -19,14 +19,15 @@ async function renderSelector(input: RenderSelectorInput = {}): Promise<RenderRe
     const root = createRoot(container);
 
     const onStartSession = vi.fn().mockResolvedValue(undefined);
+    const selectorProps = {
+        disabled: input.disabled ?? false,
+        onStartSession,
+        ...(input.initialMethod === undefined ? {} : { initialMethod: input.initialMethod }),
+    };
 
     await act(async () => {
         root.render(
-            <LoginMethodSelector
-                disabled={input.disabled ?? false}
-                onStartSession={onStartSession}
-                initialMethod={input.initialMethod}
-            />
+            <LoginMethodSelector {...selectorProps} />
         );
     });
 

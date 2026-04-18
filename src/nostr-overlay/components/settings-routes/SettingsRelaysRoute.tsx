@@ -14,11 +14,11 @@ export function SettingsRelaysRoute() {
         relayConnectionRefreshIntervalMs,
     } = useSettingsRouteContext();
     const relays = useRelaysSettingsController({
-        ownerPubkey,
-        suggestedRelays,
-        suggestedRelaysByType,
-        relayConnectionProbe,
-        relayConnectionRefreshIntervalMs,
+        ...(ownerPubkey ? { ownerPubkey } : {}),
+        ...(suggestedRelays ? { suggestedRelays } : {}),
+        ...(suggestedRelaysByType ? { suggestedRelaysByType } : {}),
+        ...(relayConnectionProbe ? { relayConnectionProbe } : {}),
+        ...(relayConnectionRefreshIntervalMs !== undefined ? { relayConnectionRefreshIntervalMs } : {}),
     });
 
     return (

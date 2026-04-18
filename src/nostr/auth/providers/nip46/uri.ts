@@ -75,12 +75,17 @@ export function parseNip46Uri(input: string): ParsedNip46Uri {
 
     if (parsed.protocol === 'bunker:') {
         const secret = parsed.searchParams.get('secret') || undefined;
-        return {
+        const bunkerUri: ParsedBunkerUri = {
             type: 'bunker',
             remoteSignerPubkey: pubkey,
             relays,
-            secret,
         };
+
+        if (secret !== undefined) {
+            bunkerUri.secret = secret;
+        }
+
+        return bunkerUri;
     }
 
     const secret = parsed.searchParams.get('secret');
@@ -92,14 +97,23 @@ export function parseNip46Uri(input: string): ParsedNip46Uri {
     const url = parsed.searchParams.get('url') || undefined;
     const image = parsed.searchParams.get('image') || undefined;
 
-    return {
+    const nostrConnectUri: ParsedNostrConnectUri = {
         type: 'nostrconnect',
         clientPubkey: pubkey,
         relays,
         secret,
         perms: parsePerms(parsed.searchParams),
-        name,
-        url,
-        image,
     };
+
+    if (name !== undefined) {
+        nostrConnectUri.name = name;
+    }
+    if (url !== undefined) {
+        nostrConnectUri.url = url;
+    }
+    if (image !== undefined) {
+        nostrConnectUri.image = image;
+    }
+
+    return nostrConnectUri;
 }

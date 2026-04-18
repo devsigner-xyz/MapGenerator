@@ -72,16 +72,33 @@ interface ResolveProfilesResponseDto {
 }
 
 function mapProfile(dto: ResolveProfilesResponseDto['profiles'][string]): NostrProfile {
-    return {
+    const profile: NostrProfile = {
         pubkey: dto.pubkey,
-        name: dto.name,
-        displayName: dto.displayName,
-        about: dto.about,
-        nip05: dto.nip05,
-        picture: dto.picture,
-        banner: dto.banner,
-        lud16: dto.lud16,
     };
+
+    if (dto.name !== undefined) {
+        profile.name = dto.name;
+    }
+    if (dto.displayName !== undefined) {
+        profile.displayName = dto.displayName;
+    }
+    if (dto.about !== undefined) {
+        profile.about = dto.about;
+    }
+    if (dto.nip05 !== undefined) {
+        profile.nip05 = dto.nip05;
+    }
+    if (dto.picture !== undefined) {
+        profile.picture = dto.picture;
+    }
+    if (dto.banner !== undefined) {
+        profile.banner = dto.banner;
+    }
+    if (dto.lud16 !== undefined) {
+        profile.lud16 = dto.lud16;
+    }
+
+    return profile;
 }
 
 export function createIdentityApiService(options: CreateIdentityApiServiceOptions = {}): IdentityApiService {
@@ -105,17 +122,27 @@ export function createIdentityApiService(options: CreateIdentityApiServiceOption
                     },
                 });
 
-                aggregatedResults.push(...response.results.map((item) => ({
-                    pubkey: item.pubkey,
-                    result: {
+                aggregatedResults.push(...response.results.map((item) => {
+                    const result: Nip05ValidationResult = {
                         status: item.status,
                         identifier: item.identifier,
-                        displayIdentifier: item.displayIdentifier,
-                        resolvedPubkey: item.resolvedPubkey,
-                        error: item.error,
                         checkedAt: item.checkedAt,
-                    },
-                })));
+                    };
+                    if (item.displayIdentifier !== undefined) {
+                        result.displayIdentifier = item.displayIdentifier;
+                    }
+                    if (item.resolvedPubkey !== undefined) {
+                        result.resolvedPubkey = item.resolvedPubkey;
+                    }
+                    if (item.error !== undefined) {
+                        result.error = item.error;
+                    }
+
+                    return {
+                        pubkey: item.pubkey,
+                        result,
+                    };
+                }));
             }
 
             return aggregatedResults;

@@ -181,10 +181,14 @@ export function loadRelaySettings(input?: RelaySettingsInput): RelaySettingsStat
         return getDefaultRelaySettings();
     }
 
-    const keys = buildStorageScopeKeys({
-        baseKey: RELAY_SETTINGS_STORAGE_KEY,
-        ownerPubkey: options.ownerPubkey,
-    });
+    const keys = buildStorageScopeKeys(
+        options.ownerPubkey === undefined
+            ? { baseKey: RELAY_SETTINGS_STORAGE_KEY }
+            : {
+                baseKey: RELAY_SETTINGS_STORAGE_KEY,
+                ownerPubkey: options.ownerPubkey,
+            }
+    );
 
     if (!keys.normalizedOwnerPubkey) {
         return parseRelaySettings(storage.getItem(RELAY_SETTINGS_STORAGE_KEY)) ?? getDefaultRelaySettings();
@@ -220,10 +224,14 @@ export function saveRelaySettings(
         return nextState;
     }
 
-    const keys = buildStorageScopeKeys({
-        baseKey: RELAY_SETTINGS_STORAGE_KEY,
-        ownerPubkey: options.ownerPubkey,
-    });
+    const keys = buildStorageScopeKeys(
+        options.ownerPubkey === undefined
+            ? { baseKey: RELAY_SETTINGS_STORAGE_KEY }
+            : {
+                baseKey: RELAY_SETTINGS_STORAGE_KEY,
+                ownerPubkey: options.ownerPubkey,
+            }
+    );
 
     const payload: RelaySettingsPayload = {
         relays: nextState.relays,

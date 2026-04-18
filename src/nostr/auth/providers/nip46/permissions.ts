@@ -18,16 +18,17 @@ export function parseNip46Permissions(tokens: string[]): Nip46Permission[] {
             if (separatorIndex === -1) {
                 return {
                     method: token,
-                    constraint: undefined,
                 };
             }
 
             const method = token.slice(0, separatorIndex).trim();
             const constraint = token.slice(separatorIndex + 1).trim();
-            return {
-                method,
-                constraint: constraint.length > 0 ? constraint : undefined,
-            };
+
+            if (constraint.length === 0) {
+                return { method };
+            }
+
+            return { method, constraint };
         });
 }
 

@@ -63,6 +63,12 @@ describe('createDmApiService', () => {
             defaultLimit: 1000,
         });
 
+        expect(service.loadInitialConversations).toBeDefined();
+        expect(service.loadConversationMessages).toBeDefined();
+        if (!service.loadInitialConversations || !service.loadConversationMessages) {
+            throw new Error('DM api service backfill loaders are required for this test');
+        }
+
         await service.loadInitialConversations({ ownerPubkey });
         await service.loadConversationMessages({ ownerPubkey, peerPubkey });
 
@@ -102,6 +108,11 @@ describe('createDmApiService', () => {
             client,
             decryptDm,
         });
+
+        expect(service.loadConversationMessages).toBeDefined();
+        if (!service.loadConversationMessages) {
+            throw new Error('loadConversationMessages should be defined');
+        }
 
         const messages = await service.loadConversationMessages({
             ownerPubkey,
@@ -179,6 +190,11 @@ describe('createDmApiService', () => {
             client,
             decryptDm,
         });
+
+        expect(service.loadInitialConversations).toBeDefined();
+        if (!service.loadInitialConversations) {
+            throw new Error('loadInitialConversations should be defined');
+        }
 
         const messages = await service.loadInitialConversations({ ownerPubkey });
 

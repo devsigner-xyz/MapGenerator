@@ -44,7 +44,9 @@ export function resolveConservativeSocialRelaySets(
 ): ConservativeRelayResolution {
     const loadSettings = input.loadSettings ?? loadRelaySettings;
     const bootstrapRelays = normalizeRelaySet(input.bootstrapRelays ?? getBootstrapRelays());
-    const state = loadSettings({ ownerPubkey: input.ownerPubkey });
+    const state = input.ownerPubkey === undefined
+        ? loadSettings()
+        : loadSettings({ ownerPubkey: input.ownerPubkey });
     const primaryCandidate = resolvePrimarySocialRelays(state, input.additionalReadRelays ?? []);
     const primary = primaryCandidate.length > 0 ? primaryCandidate : bootstrapRelays;
     const fallback = hasSameRelaySet(primary, bootstrapRelays) ? [] : bootstrapRelays;

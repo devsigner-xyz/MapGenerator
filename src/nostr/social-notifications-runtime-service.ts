@@ -6,6 +6,7 @@ import type {
 } from './social-notifications-service';
 import type { DmTransport } from './dm-transport';
 import { createTransportPool, type TransportPool } from './transport-pool';
+import type { NostrFilter } from './types';
 
 const SOCIAL_NOTIFICATION_KINDS = [1, 6, 7, 9735] as const;
 const DEFAULT_INITIAL_LIMIT = 120;
@@ -139,13 +140,17 @@ export function createRuntimeSocialNotificationsService(
         async loadInitialSocial(input) {
             return withRelayFallback(async (transport) => {
                 const limit = Math.max(1, input.limit ?? DEFAULT_INITIAL_LIMIT);
+                const filter: NostrFilter = {
+                    kinds: [...SOCIAL_NOTIFICATION_KINDS],
+                    '#p': [input.ownerPubkey],
+                    limit,
+                };
+                if (typeof input.since === 'number') {
+                    filter.since = input.since;
+                }
+
                 const events = await transport.fetchBackfill([
-                    {
-                        kinds: [...SOCIAL_NOTIFICATION_KINDS],
-                        '#p': [input.ownerPubkey],
-                        limit,
-                        since: input.since,
-                    },
+                    filter,
                 ]);
 
                 return sortAndDedupe(events as SocialNotificationEvent[]).slice(0, limit);

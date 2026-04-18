@@ -53,6 +53,16 @@ function createBridgeStub(): MapBridge {
 }
 
 function buildSettingsRoutes(props: SettingsPageProps): ReactElement {
+    const relaysRouteProps = {
+        ...(props.ownerPubkey === undefined ? {} : { ownerPubkey: props.ownerPubkey }),
+        ...(props.suggestedRelays === undefined ? {} : { suggestedRelays: props.suggestedRelays }),
+        ...(props.suggestedRelaysByType === undefined ? {} : { suggestedRelaysByType: props.suggestedRelaysByType }),
+        ...(props.relayConnectionProbe === undefined ? {} : { relayConnectionProbe: props.relayConnectionProbe }),
+        ...(props.relayConnectionRefreshIntervalMs === undefined
+            ? {}
+            : { relayConnectionRefreshIntervalMs: props.relayConnectionRefreshIntervalMs }),
+    };
+
     return (
         <Routes>
             <Route path="/settings" element={<SettingsPage {...props} />}>
@@ -65,19 +75,11 @@ function buildSettingsRoutes(props: SettingsPageProps): ReactElement {
                 <Route path="*" element={<Navigate to="ui" replace />} />
             </Route>
             <Route path="/relays" element={<RelaysRoute
-                ownerPubkey={props.ownerPubkey}
-                suggestedRelays={props.suggestedRelays}
-                suggestedRelaysByType={props.suggestedRelaysByType}
-                relayConnectionProbe={props.relayConnectionProbe}
-                relayConnectionRefreshIntervalMs={props.relayConnectionRefreshIntervalMs}
+                {...relaysRouteProps}
             />}
             />
             <Route path="/relays/detail" element={<RelayDetailRoute
-                ownerPubkey={props.ownerPubkey}
-                suggestedRelays={props.suggestedRelays}
-                suggestedRelaysByType={props.suggestedRelaysByType}
-                relayConnectionProbe={props.relayConnectionProbe}
-                relayConnectionRefreshIntervalMs={props.relayConnectionRefreshIntervalMs}
+                {...relaysRouteProps}
             />}
             />
             <Route path="/settings/relays" element={<Navigate to="/relays" replace />} />

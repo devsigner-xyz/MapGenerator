@@ -52,6 +52,9 @@ describe('probeRelayConnection', () => {
         const socket = MockWebSocket.instances[0];
 
         expect(socket).toBeDefined();
+        if (!socket) {
+            throw new Error('Expected probe socket instance');
+        }
         socket.onerror?.(new Event('error'));
 
         await expect(probe).resolves.toBe(false);
@@ -63,6 +66,9 @@ describe('probeRelayConnection', () => {
         const socket = MockWebSocket.instances[0];
 
         expect(socket).toBeDefined();
+        if (!socket) {
+            throw new Error('Expected probe socket instance');
+        }
         socket.readyState = MockWebSocket.OPEN;
         socket.onopen?.(new Event('open'));
 
@@ -77,6 +83,9 @@ describe('probeRelayConnection', () => {
             const socket = MockWebSocket.instances[0];
 
             expect(socket).toBeDefined();
+            if (!socket) {
+                throw new Error('Expected probe socket instance');
+            }
             vi.advanceTimersByTime(300);
 
             await expect(probe).resolves.toBe(false);

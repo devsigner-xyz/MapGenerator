@@ -233,8 +233,12 @@ function pickSuffix(input: {
     seed: string;
     suffixes: string[];
 }): string {
+    if (input.suffixes.length === 0) {
+        return 'Street';
+    }
+
     const suffixIndex = fnv1aHash(`${input.seed}:suffix:${input.key}:${input.index}`) % input.suffixes.length;
-    return input.suffixes[suffixIndex];
+    return input.suffixes[suffixIndex] || 'Street';
 }
 
 export function buildStreetNames(input: BuildStreetNamesInput): string[] {
@@ -261,6 +265,10 @@ export function buildStreetNames(input: BuildStreetNamesInput): string[] {
 
     for (let i = 0; i < usernames.length && names.length < desiredCount; i++) {
         const username = usernames[i];
+        if (!username) {
+            continue;
+        }
+
         const suffix = pickSuffix({
             key: username,
             index: i,
@@ -326,6 +334,10 @@ function measureRoadPlacement(road: Vector[], minRoadLengthPx: number, roadIndex
     for (let i = 1; i < road.length; i++) {
         const previous = road[i - 1];
         const current = road[i];
+        if (!previous || !current) {
+            continue;
+        }
+
         const dx = current.x - previous.x;
         const dy = current.y - previous.y;
         const segmentLength = Math.sqrt((dx * dx) + (dy * dy));
@@ -374,10 +386,16 @@ function pointInsidePolygon(point: Vector, polygon: Vector[]): boolean {
 
     let inside = false;
     for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-        const xi = polygon[i].x;
-        const yi = polygon[i].y;
-        const xj = polygon[j].x;
-        const yj = polygon[j].y;
+        const pointI = polygon[i];
+        const pointJ = polygon[j];
+        if (!pointI || !pointJ) {
+            continue;
+        }
+
+        const xi = pointI.x;
+        const yi = pointI.y;
+        const xj = pointJ.x;
+        const yj = pointJ.y;
 
         const intersects = ((yi > point.y) !== (yj > point.y))
             && (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);
@@ -409,17 +427,24 @@ export function createStreetLabels(input: CreateStreetLabelsInput): StreetLabel[
     const minLabelSpacingPx = Math.max(1, (input.minLabelSpacingPx || DEFAULT_MIN_LABEL_SPACING_PX) * zoomStabilityScale);
     const maxLabels = Math.max(1, Math.floor(input.maxLabels || DEFAULT_MAX_LABELS));
     const parks = input.parks || [];
-
-    const namesByRoadIndex = buildStreetNames({
+    const namesInput: BuildStreetNamesInput = {
         usernames: input.usernames || [],
         desiredCount: input.roads.length,
         seed: resolveSeed(input.seed),
-        pool: input.pool,
-    });
+    };
+    if (input.pool) {
+        namesInput.pool = input.pool;
+    }
+
+    const namesByRoadIndex = buildStreetNames(namesInput);
 
     const candidates: RoadPlacement[] = [];
     for (let roadIndex = 0; roadIndex < input.roads.length; roadIndex++) {
         const road = input.roads[roadIndex];
+        if (!road) {
+            continue;
+        }
+
         const placement = measureRoadPlacement(road, minRoadLengthPx, roadIndex);
         if (!placement) {
             continue;
@@ -469,11 +494,15 @@ function createAreaLabel(input: {
         return null;
     }
 
-    const names = buildStreetNames({
+    const namesInput: BuildStreetNamesInput = {
         desiredCount: 1,
         seed: `${resolveSeed(input.seed)}:${input.namespace}`,
-        pool: input.pool,
-    });
+    };
+    if (input.pool) {
+        namesInput.pool = input.pool;
+    }
+
+    const names = buildStreetNames(namesInput);
 
     const text = names[0];
     if (!text) {
@@ -488,12 +517,23 @@ function createAreaLabel(input: {
 }
 
 export function createWaterLabel(input: CreateWaterLabelInput): MapLabel | null {
-    return createAreaLabel({
+    const waterInput: {
+        polygon: Vector[];
+        seed?: string;
+        pool?: LabelNamePool;
+        namespace: string;
+    } = {
         polygon: input.polygon,
-        seed: input.seed,
-        pool: input.pool,
         namespace: 'water',
-    });
+    };
+    if (input.seed) {
+        waterInput.seed = input.seed;
+    }
+    if (input.pool) {
+        waterInput.pool = input.pool;
+    }
+
+    return createAreaLabel(waterInput);
 }
 
 export function createBigParkLabels(input: CreateBigParkLabelsInput): MapLabel[] {
@@ -502,11 +542,15 @@ export function createBigParkLabels(input: CreateBigParkLabelsInput): MapLabel[]
         return [];
     }
 
-    const names = buildStreetNames({
+    const namesInput: BuildStreetNamesInput = {
         desiredCount: validPolygons.length,
         seed: `${resolveSeed(input.seed)}:parks`,
-        pool: input.pool,
-    });
+    };
+    if (input.pool) {
+        namesInput.pool = input.pool;
+    }
+
+    const names = buildStreetNames(namesInput);
 
     return validPolygons.map((polygon, index) => ({
         text: names[index] || `Park ${index + 1}`,

@@ -182,8 +182,9 @@ export function useDirectMessagesController(options: UseDirectMessagesController
 
             const currentMessages = queryClient.getQueryData<DirectMessageItem[]>(listQueryKey) ?? [];
             const currentConversationMessages = currentMessages.filter((message) => message.conversationId === activeConversationId);
+            const firstConversationMessage = currentConversationMessages[0];
             const oldestCreatedAt = currentConversationMessages.length > 0
-                ? normalizeToEpochSeconds(currentConversationMessages[0].createdAt)
+                ? normalizeToEpochSeconds(firstConversationMessage?.createdAt ?? 0)
                 : 0;
             const sentIndex = storage.getSentIndex(options.ownerPubkey);
             const existingCount = conversationBackfillCountRef.current[activeConversationId] ?? 0;
@@ -290,6 +291,10 @@ export function useDirectMessagesController(options: UseDirectMessagesController
             };
         },
         onSuccess: (result, _input, context) => {
+            if (!context) {
+                return;
+            }
+
             const normalized = normalizeMessage(result);
             queryClient.setQueryData<DirectMessageItem[]>(listQueryKey, (current = []) => {
                 const filtered = current.filter((message) => message.id !== context.optimisticId);
@@ -303,9 +308,9 @@ export function useDirectMessagesController(options: UseDirectMessagesController
                 const nextIndex: SentIndexItem = {
                     clientMessageId: normalized.clientMessageId || context.clientMessageId,
                     conversationId: normalized.conversationId,
-                    rumorEventId: normalized.rumorEventId,
-                    sealEventId: normalized.sealEventId,
-                    giftWrapEventId: normalized.giftWrapEventId,
+                    ...(normalized.rumorEventId ? { rumorEventId: normalized.rumorEventId } : {}),
+                    ...(normalized.sealEventId ? { sealEventId: normalized.sealEventId } : {}),
+                    ...(normalized.giftWrapEventId ? { giftWrapEventId: normalized.giftWrapEventId } : {}),
                     createdAtSec: normalizeToEpochSeconds(normalized.createdAt),
                     deliveryState: normalized.deliveryState,
                     targetRelays: [],
@@ -315,6 +320,10 @@ export function useDirectMessagesController(options: UseDirectMessagesController
             }
         },
         onError: (_error, input, context) => {
+            if (!context) {
+                return;
+            }
+
             queryClient.setQueryData<DirectMessageItem[]>(listQueryKey, (current = []) =>
                 current.map((message) => {
                     if (message.id !== context.optimisticId) {

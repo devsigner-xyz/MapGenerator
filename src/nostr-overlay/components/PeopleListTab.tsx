@@ -72,10 +72,10 @@ function personInitials(pubkey: string, profile: NostrProfile | undefined): stri
 
     const parts = name.split(/\s+/).filter((part) => part.length > 0);
     if (parts.length === 1) {
-        return parts[0].slice(0, 2).toUpperCase();
+        return (parts[0] ?? '').slice(0, 2).toUpperCase();
     }
 
-    return `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase();
+    return `${parts[0]?.[0] || ''}${parts[1]?.[0] || ''}`.toUpperCase();
 }
 
 function pubkeyToNpub(pubkey: string): string {
@@ -254,6 +254,17 @@ export function PeopleListTab({
         const followDisabled = isFollowed || isFollowPending;
         const followLabel = followDisabled ? 'Siguiendo' : 'Seguir';
         const followAriaLabel = followDisabled ? `Ya sigues a ${display}` : `Seguir a ${display}`;
+        const nip05IdentifierProps = {
+            ...(profile ? { profile } : {}),
+            ...(verification ? { verification } : {}),
+            mode: 'icon' as const,
+        };
+        const contextMenuActionProps = {
+            ...(canLocate ? { onLocateOnMap: () => onLocatePerson?.(pubkey) } : {}),
+            ...(canCopy ? { onCopyNpub: () => onCopyNpub?.(pubkeyToNpub(pubkey)) } : {}),
+            ...(canSendMessage ? { onSendMessage: () => onSendMessage?.(pubkey) } : {}),
+            ...(canViewDetails ? { onViewDetails: () => onViewDetails?.(pubkey) } : {}),
+        };
 
         return (
             <Item
@@ -280,7 +291,7 @@ export function PeopleListTab({
                         <ItemContent className="min-w-0">
                             <ItemTitle className="nostr-identity-row">
                                 <span className="truncate">{display}</span>
-                                <Nip05Identifier profile={profile} verification={verification} mode="icon" />
+                                <Nip05Identifier {...nip05IdentifierProps} />
                             </ItemTitle>
                             <ItemDescription className="truncate">{npubLabel}</ItemDescription>
                         </ItemContent>
@@ -298,7 +309,7 @@ export function PeopleListTab({
                         <ItemContent className="min-w-0">
                             <ItemTitle className="nostr-identity-row">
                                 <span className="truncate">{display}</span>
-                                <Nip05Identifier profile={profile} verification={verification} mode="icon" />
+                                <Nip05Identifier {...nip05IdentifierProps} />
                             </ItemTitle>
                             <ItemDescription className="truncate">{npubLabel}</ItemDescription>
                         </ItemContent>
@@ -335,12 +346,7 @@ export function PeopleListTab({
                         </ContextMenuTrigger>
                         <ContextMenuContent className="w-48">
                             <ContextMenuGroup>
-                                <PersonContextMenuItems
-                                    onLocateOnMap={canLocate ? () => onLocatePerson?.(pubkey) : undefined}
-                                    onCopyNpub={canCopy ? () => onCopyNpub?.(pubkeyToNpub(pubkey)) : undefined}
-                                    onSendMessage={canSendMessage ? () => onSendMessage?.(pubkey) : undefined}
-                                    onViewDetails={canViewDetails ? () => onViewDetails?.(pubkey) : undefined}
-                                />
+                                <PersonContextMenuItems {...contextMenuActionProps} />
                             </ContextMenuGroup>
                             <ContextMenuSeparator />
                             <ContextMenuSub>
@@ -354,7 +360,7 @@ export function PeopleListTab({
                                         </ContextMenuItem>
                                     ))}
                                     <ContextMenuSeparator />
-                                    <ContextMenuItem onSelect={onConfigureZapAmounts}>
+                                    <ContextMenuItem {...(onConfigureZapAmounts ? { onSelect: onConfigureZapAmounts } : {})}>
                                         Configurar cantidades
                                     </ContextMenuItem>
                                 </ContextMenuSubContent>

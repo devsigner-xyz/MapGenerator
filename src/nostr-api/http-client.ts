@@ -49,10 +49,16 @@ export class HttpClientError extends Error {
         this.code = options.code;
         this.method = options.method;
         this.url = options.url;
-        this.requestId = options.requestId;
-        this.details = options.details;
         this.isTimeout = Boolean(options.isTimeout);
-        this.retryAfterSeconds = options.retryAfterSeconds;
+        if (options.requestId !== undefined) {
+            this.requestId = options.requestId;
+        }
+        if (options.details !== undefined) {
+            this.details = options.details;
+        }
+        if (options.retryAfterSeconds !== undefined) {
+            this.retryAfterSeconds = options.retryAfterSeconds;
+        }
 
         if (options.cause !== undefined) {
             (this as Error & { cause?: unknown }).cause = options.cause;
@@ -165,12 +171,18 @@ function normalizeStatusCodeError(status: number): string {
 
 function normalizeErrorEnvelope(response: Response, payload: unknown): NormalizedBackendError {
     if (isBackendErrorEnvelope(payload)) {
-        return {
+        const normalized: NormalizedBackendError = {
             code: payload.error.code,
             message: payload.error.message,
-            requestId: payload.error.requestId,
-            details: payload.error.details,
         };
+        if (payload.error.requestId !== undefined) {
+            normalized.requestId = payload.error.requestId;
+        }
+        if (payload.error.details !== undefined) {
+            normalized.details = payload.error.details;
+        }
+
+        return normalized;
     }
 
     if (payload && typeof payload === 'object') {
@@ -277,13 +289,19 @@ export function createHttpClient(config: HttpClientConfig = {}): HttpClient {
         }
 
         if (options.includeAuth && config.getAuthHeaders) {
-            const authHeaders = await config.getAuthHeaders({
+            const authContext: HttpClientAuthContext = {
                 method: upperMethod,
                 path,
                 url,
-                query: options.query,
-                body: options.body,
-            });
+            };
+            if (options.query !== undefined) {
+                authContext.query = options.query;
+            }
+            if (options.body !== undefined) {
+                authContext.body = options.body;
+            }
+
+            const authHeaders = await config.getAuthHeaders(authContext);
 
             if (authHeaders) {
                 Object.assign(headers, authHeaders);
@@ -291,12 +309,16 @@ export function createHttpClient(config: HttpClientConfig = {}): HttpClient {
         }
 
         try {
-            const response = await fetchImpl(url, {
+            const requestInit: RequestInit = {
                 method: upperMethod,
                 headers,
-                body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
                 signal: controller.signal,
-            });
+            };
+            if (options.body !== undefined) {
+                requestInit.body = JSON.stringify(options.body);
+            }
+
+            const response = await fetchImpl(url, requestInit);
 
             if (response.ok) {
                 return response;
@@ -310,16 +332,25 @@ export function createHttpClient(config: HttpClientConfig = {}): HttpClient {
             }
 
             const normalizedError = normalizeErrorEnvelope(response, payload);
-            throw new HttpClientError({
+            const retryAfterSeconds = parseRetryAfterSeconds(response.headers.get('retry-after'));
+            const errorOptions: HttpClientErrorOptions = {
                 status: response.status,
                 code: normalizedError.code,
                 message: normalizedError.message,
                 method: upperMethod,
                 url,
-                requestId: normalizedError.requestId,
-                details: normalizedError.details,
-                retryAfterSeconds: parseRetryAfterSeconds(response.headers.get('retry-after')),
-            });
+            };
+            if (normalizedError.requestId !== undefined) {
+                errorOptions.requestId = normalizedError.requestId;
+            }
+            if (normalizedError.details !== undefined) {
+                errorOptions.details = normalizedError.details;
+            }
+            if (retryAfterSeconds !== undefined) {
+                errorOptions.retryAfterSeconds = retryAfterSeconds;
+            }
+
+            throw new HttpClientError(errorOptions);
         } catch (error) {
             if (error instanceof HttpClientError) {
                 throw error;

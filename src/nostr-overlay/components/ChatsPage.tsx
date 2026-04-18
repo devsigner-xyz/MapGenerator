@@ -93,13 +93,13 @@ export function ChatsPage({
 
                             <div className="nostr-chat-detail-panel">
                                 <ChatConversationDetail
-                                    conversation={activeConversation}
+                                    {...(activeConversation ? { conversation: activeConversation } : {})}
                                     messages={messages}
                                     onBackToList={onBackToList}
                                     onSendMessage={onSendMessage}
-                                    composerAutoFocusKey={composerAutoFocusKey}
+                                    {...(composerAutoFocusKey ? { composerAutoFocusKey } : {})}
                                     canSend={canSend}
-                                    disabledReason={disabledReason}
+                                    {...(disabledReason ? { disabledReason } : {})}
                                 />
                             </div>
                         </div>

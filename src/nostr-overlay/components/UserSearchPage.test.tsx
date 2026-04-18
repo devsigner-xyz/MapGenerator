@@ -394,7 +394,14 @@ describe('UserSearchPage', () => {
             alice: createDeferred(),
             bob: createDeferred(),
         };
-        const onSearch = vi.fn(async (term: string) => deferredByTerm[term].promise);
+        const onSearch = vi.fn(async (term: string) => {
+            const deferred = deferredByTerm[term];
+            if (!deferred) {
+                throw new Error(`Missing deferred for term: ${term}`);
+            }
+
+            return deferred.promise;
+        });
 
         try {
             const rendered = await renderElement(
@@ -417,7 +424,12 @@ describe('UserSearchPage', () => {
             expect(onSearch).toHaveBeenCalledWith('bob');
 
             await act(async () => {
-                deferredByTerm.bob.resolve({
+                const bobDeferred = deferredByTerm.bob;
+                if (!bobDeferred) {
+                    throw new Error('Missing deferred for bob');
+                }
+
+                bobDeferred.resolve({
                     pubkeys: [bobPubkey],
                     profiles: {
                         [bobPubkey]: { pubkey: bobPubkey, displayName: 'Bob' },
@@ -431,7 +443,12 @@ describe('UserSearchPage', () => {
             });
 
             await act(async () => {
-                deferredByTerm.alice.resolve({
+                const aliceDeferred = deferredByTerm.alice;
+                if (!aliceDeferred) {
+                    throw new Error('Missing deferred for alice');
+                }
+
+                aliceDeferred.resolve({
                     pubkeys: [alicePubkey],
                     profiles: {
                         [alicePubkey]: { pubkey: alicePubkey, displayName: 'Alice' },

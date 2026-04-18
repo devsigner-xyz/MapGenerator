@@ -104,7 +104,7 @@ describe('Nip46AuthProvider', () => {
         expect(session.capabilities.canEncrypt).toBe(true);
 
         expect(runtime.calls.map((call) => call.method)).toEqual(['connect', 'get_public_key', 'switch_relays']);
-        expect(runtime.calls[0].params).toEqual(['d'.repeat(64), 'session-secret']);
+        expect(runtime.calls[0]?.params).toEqual(['d'.repeat(64), 'session-secret']);
     });
 
     test('fails when nostrconnect secret does not match connect response', async () => {
@@ -151,7 +151,12 @@ describe('Nip46AuthProvider', () => {
                     return { id: request.id, result: 'null' };
                 }
                 if (request.method === 'sign_event') {
-                    const payload = JSON.parse(request.params[0]) as {
+                    const payloadJson = request.params[0];
+                    if (typeof payloadJson !== 'string') {
+                        return { id: request.id, error: 'missing event payload' };
+                    }
+
+                    const payload = JSON.parse(payloadJson) as {
                         kind: number;
                         content: string;
                         created_at: number;
@@ -221,7 +226,8 @@ describe('Nip46AuthProvider', () => {
                     return { id: request.id, result: `enc:${request.params[1]}` };
                 }
                 if (request.method === 'nip44_decrypt') {
-                    return { id: request.id, result: request.params[1].replace('enc:', '') };
+                    const ciphertext = request.params[1];
+                    return { id: request.id, result: typeof ciphertext === 'string' ? ciphertext.replace('enc:', '') : '' };
                 }
 
                 return { id: request.id, error: `unexpected method ${request.method}` };

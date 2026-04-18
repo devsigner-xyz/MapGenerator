@@ -72,21 +72,22 @@ export function useActiveProfileQuery(input: UseActiveProfileQueryInput): Active
             if (!pubkey) {
                 return Promise.resolve({
                     posts: [],
-                    nextUntil: undefined,
                     hasMore: false,
                 });
             }
 
+            const until = typeof pageParam === 'number' ? pageParam : undefined;
+
             return input.service.loadPosts({
                 pubkey,
                 limit: pageSize,
-                until: typeof pageParam === 'number' ? pageParam : undefined,
+                ...(until !== undefined ? { until } : {}),
             });
         },
         enabled: Boolean(pubkey),
         initialPageParam: undefined,
         getNextPageParam: (lastPage: ActiveProfilePostsPage) => (lastPage.hasMore ? lastPage.nextUntil : undefined),
-    }) as any);
+    }));
 
     const statsQuery = useQuery(createSocialQueryOptions({
         queryKey: ['nostr-overlay', 'social', 'active-profile', 'stats', { pubkey: pubkey || '__none__' }] as const,
@@ -143,17 +144,17 @@ export function useActiveProfileQuery(input: UseActiveProfileQueryInput): Active
     return {
         posts,
         postsLoading: postsQuery.isPending || postsQuery.isFetchingNextPage,
-        postsError: postsQuery.error ? toErrorMessage(postsQuery.error, 'No se pudieron cargar publicaciones') : undefined,
+        ...(postsQuery.error ? { postsError: toErrorMessage(postsQuery.error, 'No se pudieron cargar publicaciones') } : {}),
         hasMorePosts: Boolean(postsQuery.hasNextPage),
         followsCount,
         followersCount,
         statsLoading: statsQuery.isPending,
-        statsError: statsQuery.error ? toErrorMessage(statsQuery.error, 'No se pudo cargar estadisticas del perfil') : undefined,
+        ...(statsQuery.error ? { statsError: toErrorMessage(statsQuery.error, 'No se pudo cargar estadisticas del perfil') } : {}),
         follows: network.follows,
         followers: network.followers,
         networkProfiles: network.profiles,
         networkLoading: networkQuery.isPending,
-        networkError: networkQuery.error ? toErrorMessage(networkQuery.error, 'No se pudo cargar red social del perfil') : undefined,
+        ...(networkQuery.error ? { networkError: toErrorMessage(networkQuery.error, 'No se pudo cargar red social del perfil') } : {}),
         loadMorePosts,
     };
 }

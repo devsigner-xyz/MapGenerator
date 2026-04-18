@@ -26,7 +26,7 @@ interface Intersection {
  */
 export class Node {
     public segments = new Set<Segment>();
-    public adj: Node[];
+    public adj: Node[] = [];
 
     constructor(public value: Vector, public neighbors=new Set<Node>()) {}
 
@@ -58,13 +58,20 @@ export default class Graph {
         // Add all segment start and endpoints
         for (const streamline of streamlines) {
             for (let i = 0; i < streamline.length; i++) {
-                const node = new Node(streamline[i]);
-                if (i > 0) {
-                    node.addSegment(this.vectorsToSegment(streamline[i - 1], streamline[i]));
+                const current = streamline[i];
+                if (!current) {
+                    continue;
                 }
 
-                if (i < streamline.length - 1) {
-                    node.addSegment(this.vectorsToSegment(streamline[i], streamline[i + 1]));
+                const node = new Node(current);
+                const previous = i > 0 ? streamline[i - 1] : undefined;
+                if (previous) {
+                    node.addSegment(this.vectorsToSegment(previous, current));
+                }
+
+                const next = i < streamline.length - 1 ? streamline[i + 1] : undefined;
+                if (next) {
+                    node.addSegment(this.vectorsToSegment(current, next));
                 }
 
                 this.fuzzyAddToQuadtree(quadtree, node, nodeAddRadius);
@@ -81,12 +88,24 @@ export default class Graph {
         // For each simplified streamline, build list of nodes in order along streamline
         for (const streamline of streamlines) {
             for (let i = 0; i < streamline.length - 1; i++) {
+                const from = streamline[i];
+                const to = streamline[i + 1];
+                if (!from || !to) {
+                    continue;
+                }
+
                 const nodesAlongSegment =
-                    this.getNodesAlongSegment(this.vectorsToSegment(streamline[i], streamline[i + 1]), quadtree, nodeAddRadius, dstep);
+                    this.getNodesAlongSegment(this.vectorsToSegment(from, to), quadtree, nodeAddRadius, dstep);
                 
                 if (nodesAlongSegment.length > 1) {
                     for (let j = 0; j < nodesAlongSegment.length - 1; j++) {
-                        nodesAlongSegment[j].addNeighbor(nodesAlongSegment[j+1]);
+                        const current = nodesAlongSegment[j];
+                        const next = nodesAlongSegment[j + 1];
+                        if (!current || !next) {
+                            continue;
+                        }
+
+                        current.addNeighbor(next);
                     }
                 } else {
                     log.error("Error Graph.js: segment with less than 2 nodes");
@@ -218,7 +237,12 @@ export default class Graph {
         const out: Segment[] = [];
         for (const s of streamlines) {
             for (let i = 0; i < s.length - 1; i++) {
-                out.push(this.vectorsToSegment(s[i], s[i + 1]));
+                const from = s[i];
+                const to = s[i + 1];
+                if (!from || !to) {
+                    continue;
+                }
+                out.push(this.vectorsToSegment(from, to));
             }
         }
 

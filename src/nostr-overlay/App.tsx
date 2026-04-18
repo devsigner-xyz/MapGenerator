@@ -105,16 +105,16 @@ function normalizeHashtag(value: string | null): string | undefined {
 export function App({ mapBridge, services }: AppProps) {
     const navigate = useNavigate();
     const location = useLocation();
-    const overlay = useNostrOverlay({ mapBridge, services });
+    const overlay = useNostrOverlay(services ? { mapBridge, services } : { mapBridge });
     const activeProfileData = useActiveProfileQuery({
-        pubkey: overlay.activeProfilePubkey,
+        ...(overlay.activeProfilePubkey ? { pubkey: overlay.activeProfilePubkey } : {}),
         service: overlay.activeProfileService,
     });
     const relaySettingsOwnerPubkey = overlay.authSession?.pubkey;
     const [sidebarOpen, setSidebarOpen] = useState(true);
-    const [relaySettingsSnapshot, setRelaySettingsSnapshot] = useState<RelaySettingsState>(() => loadRelaySettings({
-        ownerPubkey: relaySettingsOwnerPubkey,
-    }));
+    const [relaySettingsSnapshot, setRelaySettingsSnapshot] = useState<RelaySettingsState>(() => loadRelaySettings(
+        relaySettingsOwnerPubkey ? { ownerPubkey: relaySettingsOwnerPubkey } : undefined
+    ));
     const [uiSettings, setUiSettings] = useState<UiSettingsState>(() => loadUiSettings());
     const [zapSettings, setZapSettings] = useState<ZapSettingsState>(() => loadZapSettings());
     const [easterEggProgress, setEasterEggProgress] = useState<EasterEggProgressState>(() => loadEasterEggProgress());
@@ -189,7 +189,7 @@ export function App({ mapBridge, services }: AppProps) {
         overlay.activeProfilePubkey,
     ]);
     const verificationByPubkey = useNip05Verification({
-        ownerPubkey: overlay.ownerPubkey,
+        ...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {}),
         profilesByPubkey: verificationProfilesByPubkey,
         targetPubkeys: verificationTargetPubkeys,
     });
@@ -209,11 +209,13 @@ export function App({ mapBridge, services }: AppProps) {
     );
 
     useEffect(() => {
-        setEasterEggProgress(loadEasterEggProgress({ ownerPubkey: overlay.ownerPubkey }));
+        setEasterEggProgress(loadEasterEggProgress(
+            overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : undefined
+        ));
     }, [overlay.ownerPubkey]);
 
     useEffect(() => {
-        setZapSettings(loadZapSettings({ ownerPubkey: overlay.ownerPubkey }));
+        setZapSettings(loadZapSettings(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : undefined));
     }, [overlay.ownerPubkey]);
 
     useEffect(() => {
@@ -321,7 +323,7 @@ export function App({ mapBridge, services }: AppProps) {
             setEasterEggProgress((currentProgress) => markEasterEggDiscovered({
                 easterEggId: payload.easterEggId,
                 currentState: currentProgress,
-                ownerPubkey: overlay.ownerPubkey,
+                ...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {}),
             }));
             easterEggNonceRef.current += 1;
             setActiveEasterEgg({
@@ -383,14 +385,14 @@ export function App({ mapBridge, services }: AppProps) {
     };
 
     const directMessages = useDirectMessagesController({
-        ownerPubkey: overlay.ownerPubkey,
+        ...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {}),
         dmService: overlay.directMessagesService,
     });
     const chatState = directMessages;
     const openChatStateList = chatState.openList;
     const openChatStateConversation = chatState.openConversation;
     const socialNotifications = useSocialNotificationsController({
-        ownerPubkey: overlay.ownerPubkey,
+        ...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {}),
         service: overlay.socialNotificationsService,
     });
     const socialState = socialNotifications;
@@ -403,12 +405,12 @@ export function App({ mapBridge, services }: AppProps) {
         return normalizeHashtag(search.get('tag'));
     }, [location.pathname, location.search]);
     const followingFeed = useFollowingFeedController({
-        ownerPubkey: overlay.ownerPubkey,
+        ...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {}),
         follows: overlay.follows,
-        hashtag: activeAgoraHashtag,
+        ...(activeAgoraHashtag ? { hashtag: activeAgoraHashtag } : {}),
         canWrite: overlay.canWrite,
         service: overlay.socialFeedService,
-        writeGateway: overlay.writeGateway,
+        ...(overlay.writeGateway ? { writeGateway: overlay.writeGateway } : {}),
     });
     const richContentProfilesByPubkey = useMemo(() => ({
         ...overlay.followerProfiles,
@@ -435,14 +437,17 @@ export function App({ mapBridge, services }: AppProps) {
             .map((conversation) => {
                 const lastMessage = conversation.messages[conversation.messages.length - 1];
                 const profile = overlay.profiles[conversation.id] || overlay.followerProfiles[conversation.id];
+                const verification = verificationByPubkey[conversation.id];
                 const title = profile?.displayName ?? profile?.name ?? `${conversation.id.slice(0, 10)}...${conversation.id.slice(-6)}`;
 
                 return {
                     id: conversation.id,
                     peerPubkey: conversation.id,
                     title,
-                    profile,
-                    verification: verificationByPubkey[conversation.id],
+                    ...(profile ? { profile } : {}),
+                    ...(verification !== undefined
+                        ? { verification }
+                        : {}),
                     lastMessagePreview: lastMessage?.plaintext || '',
                     lastMessageAt: lastMessage?.createdAt || 0,
                     hasUnread: conversation.hasUnread,
@@ -452,13 +457,16 @@ export function App({ mapBridge, services }: AppProps) {
 
         if (chatPinnedConversationId && !summaries.some((conversation) => conversation.id === chatPinnedConversationId)) {
             const profile = overlay.profiles[chatPinnedConversationId] || overlay.followerProfiles[chatPinnedConversationId];
+            const verification = verificationByPubkey[chatPinnedConversationId];
             const title = profile?.displayName ?? profile?.name ?? `${chatPinnedConversationId.slice(0, 10)}...${chatPinnedConversationId.slice(-6)}`;
             summaries.unshift({
                 id: chatPinnedConversationId,
                 peerPubkey: chatPinnedConversationId,
                 title,
-                profile,
-                verification: verificationByPubkey[chatPinnedConversationId],
+                ...(profile ? { profile } : {}),
+                ...(verification !== undefined
+                    ? { verification }
+                    : {}),
                 lastMessagePreview: '',
                 lastMessageAt: 0,
                 hasUnread: false,
@@ -486,7 +494,9 @@ export function App({ mapBridge, services }: AppProps) {
             plaintext: message.plaintext,
             createdAt: message.createdAt,
             deliveryState: message.deliveryState,
-            isUndecryptable: message.isUndecryptable,
+            ...(message.isUndecryptable !== undefined
+                ? { isUndecryptable: message.isUndecryptable }
+                : {}),
         }));
     }, [chatState, chatActiveConversationId]);
 
@@ -508,6 +518,9 @@ export function App({ mapBridge, services }: AppProps) {
     const isNotificationsRoute = location.pathname === '/notificaciones';
     const followingFeedHasUnread = !followingFeed.isOpen && followingFeed.hasUnread;
     const canSendChatMessages = canAccessDirectMessages;
+    const activeProfileVerification = overlay.activeProfilePubkey
+        ? verificationByPubkey[overlay.activeProfilePubkey]
+        : undefined;
 
     useEffect(() => {
         if (isAgoraRoute && canAccessFollowingFeed) {
@@ -584,7 +597,9 @@ export function App({ mapBridge, services }: AppProps) {
     ]);
 
     useEffect(() => {
-        setRelaySettingsSnapshot(loadRelaySettings({ ownerPubkey: relaySettingsOwnerPubkey }));
+        setRelaySettingsSnapshot(loadRelaySettings(
+            relaySettingsOwnerPubkey ? { ownerPubkey: relaySettingsOwnerPubkey } : undefined
+        ));
     }, [relaySettingsOwnerPubkey]);
 
     useEffect(() => {
@@ -904,9 +919,9 @@ export function App({ mapBridge, services }: AppProps) {
                 <OverlaySidebar
                     open={sidebarOpen}
                     onOpenChange={setSidebarOpen}
-                    authSession={overlay.authSession}
-                    ownerPubkey={overlay.ownerPubkey}
-                    ownerProfile={overlay.ownerProfile}
+                    {...(overlay.authSession ? { authSession: overlay.authSession } : {})}
+                    {...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {})}
+                    {...(overlay.ownerProfile ? { ownerProfile: overlay.ownerProfile } : {})}
                     canAccessDirectMessages={canAccessDirectMessages}
                     canAccessSocialNotifications={canAccessSocialNotifications}
                     canAccessFollowingFeed={canAccessFollowingFeed}
@@ -936,18 +951,18 @@ export function App({ mapBridge, services }: AppProps) {
                     onOpenMissions={() => navigate('/descubre')}
                 >
                     <SocialSidebar
-                        ownerPubkey={overlay.ownerPubkey}
-                        ownerProfile={overlay.ownerProfile}
+                        {...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {})}
+                        {...(overlay.ownerProfile ? { ownerProfile: overlay.ownerProfile } : {})}
                         follows={overlay.follows}
                         profiles={overlay.profiles}
                         followers={overlay.followers}
                         followerProfiles={overlay.followerProfiles}
                         followersLoading={overlay.followersLoading}
-                        selectedFollowingPubkey={overlay.selectedPubkey}
+                        {...(overlay.selectedPubkey ? { selectedFollowingPubkey: overlay.selectedPubkey } : {})}
                         onSelectFollowing={selectSidebarPerson}
                         onLocateFollowing={locateFollowingOnMap}
-                        onMessagePerson={canAccessDirectMessages ? openDmFromContextMenu : undefined}
-                        onFollowPerson={overlay.canWrite ? followPerson : undefined}
+                        {...(canAccessDirectMessages ? { onMessagePerson: openDmFromContextMenu } : {})}
+                        {...(overlay.canWrite ? { onFollowPerson: followPerson } : {})}
                         onViewPersonDetails={(pubkey) => overlay.openActiveProfile(pubkey)}
                         zapAmounts={zapSettings.amounts}
                         onConfigureZapAmounts={() => openSettingsPage('zaps')}
@@ -992,7 +1007,9 @@ export function App({ mapBridge, services }: AppProps) {
                             <PersonContextMenuItems
                                 testIdPrefix="context"
                                 onCopyNpub={() => copyOwnerIdentifier(encodePubkeyAsNpub(buildingContextMenu.pubkey))}
-                                onSendMessage={canAccessDirectMessages ? () => openDmFromContextMenu(buildingContextMenu.pubkey) : undefined}
+                                {...(canAccessDirectMessages
+                                    ? { onSendMessage: () => openDmFromContextMenu(buildingContextMenu.pubkey) }
+                                    : {})}
                                 onViewDetails={() => overlay.openActiveProfile(buildingContextMenu.pubkey, buildingContextMenu.buildingIndex)}
                                 closeMenu={closeOccupiedContextMenu}
                             />
@@ -1055,8 +1072,8 @@ export function App({ mapBridge, services }: AppProps) {
                             hasFollows={followingFeed.hasFollows}
                             profilesByPubkey={richContentProfilesByPubkey}
                             engagementByEventId={followingFeed.engagementByEventId}
-                            activeHashtag={followingFeed.activeHashtag}
-                            onClearHashtag={followingFeed.activeHashtag ? clearFollowingFeedHashtagFilter : undefined}
+                            {...(followingFeed.activeHashtag ? { activeHashtag: followingFeed.activeHashtag } : {})}
+                            {...(followingFeed.activeHashtag ? { onClearHashtag: clearFollowingFeedHashtagFilter } : {})}
                             onSelectHashtag={selectFollowingFeedHashtag}
                             onSelectProfile={openMentionedProfile}
                             onResolveProfiles={resolveMentionProfiles}
@@ -1124,11 +1141,11 @@ export function App({ mapBridge, services }: AppProps) {
                             activeConversationId={chatActiveConversationId}
                             composerAutoFocusKey={chatComposerFocusKey}
                             canSend={canSendChatMessages}
-                            disabledReason={!overlay.ownerPubkey
-                                ? 'Inicia sesión para enviar mensajes privados.'
+                            {...(!overlay.ownerPubkey
+                                ? { disabledReason: 'Inicia sesión para enviar mensajes privados.' }
                                 : !overlay.canDirectMessages
-                                    ? 'Tu sesión no permite mensajería privada (requiere firma y NIP-44).'
-                                        : undefined}
+                                    ? { disabledReason: 'Tu sesión no permite mensajería privada (requiere firma y NIP-44).' }
+                                    : {})}
                             onOpenConversation={(conversationId) => openChatConversation(conversationId)}
                             onBackToList={openChatList}
                             onSendMessage={async (plaintext) => {
@@ -1145,7 +1162,7 @@ export function App({ mapBridge, services }: AppProps) {
                     path="/relays"
                     element={(
                         <RelaysRoute
-                            ownerPubkey={overlay.ownerPubkey}
+                            {...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {})}
                             suggestedRelays={overlay.suggestedRelays}
                             suggestedRelaysByType={overlay.suggestedRelaysByType}
                             onRelaySettingsChange={setRelaySettingsSnapshot}
@@ -1156,7 +1173,7 @@ export function App({ mapBridge, services }: AppProps) {
                     path="/relays/detail"
                     element={(
                         <RelayDetailRoute
-                            ownerPubkey={overlay.ownerPubkey}
+                            {...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {})}
                             suggestedRelays={overlay.suggestedRelays}
                             suggestedRelaysByType={overlay.suggestedRelaysByType}
                         />
@@ -1179,7 +1196,7 @@ export function App({ mapBridge, services }: AppProps) {
                             onSelectUser={(pubkey) => {
                                 overlay.openActiveProfile(pubkey);
                             }}
-                            onMessageUser={canAccessDirectMessages ? openDmFromContextMenu : undefined}
+                            {...(canAccessDirectMessages ? { onMessageUser: openDmFromContextMenu } : {})}
                         />
                     )}
                 />
@@ -1191,7 +1208,7 @@ export function App({ mapBridge, services }: AppProps) {
                             suggestedRelays={overlay.suggestedRelays}
                             suggestedRelaysByType={overlay.suggestedRelaysByType}
                             onUiSettingsChange={setUiSettings}
-                            ownerPubkey={overlay.ownerPubkey}
+                            {...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {})}
                             zapSettings={zapSettings}
                             onZapSettingsChange={setZapSettings}
                             onClose={() => navigate('/')}
@@ -1221,9 +1238,9 @@ export function App({ mapBridge, services }: AppProps) {
                 occupancyByBuildingIndex={overlay.occupancyByBuildingIndex}
                 discoveredEasterEggIds={easterEggProgress.discoveredIds}
                 profiles={overlay.profiles}
-                ownerPubkey={overlay.ownerPubkey}
-                ownerProfile={overlay.ownerProfile}
-                ownerBuildingIndex={overlay.ownerBuildingIndex}
+                {...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {})}
+                {...(overlay.ownerProfile ? { ownerProfile: overlay.ownerProfile } : {})}
+                {...(overlay.ownerBuildingIndex !== undefined ? { ownerBuildingIndex: overlay.ownerBuildingIndex } : {})}
                 occupiedLabelsZoomLevel={uiSettings.occupiedLabelsZoomLevel}
                 alwaysVisiblePubkeys={overlay.alwaysVisiblePubkeys}
                 specialMarkersEnabled={uiSettings.specialMarkersEnabled}
@@ -1231,29 +1248,31 @@ export function App({ mapBridge, services }: AppProps) {
 
             {overlay.activeProfilePubkey ? (
                 <OccupantProfileDialog
-                    ownerPubkey={overlay.ownerPubkey}
+                    {...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {})}
                     pubkey={overlay.activeProfilePubkey}
-                    profile={overlay.activeProfile}
+                    {...(overlay.activeProfile ? { profile: overlay.activeProfile } : {})}
                     followsCount={activeProfileData.followsCount}
                     followersCount={activeProfileData.followersCount}
                     statsLoading={activeProfileData.statsLoading}
-                    statsError={activeProfileData.statsError}
+                    {...(activeProfileData.statsError ? { statsError: activeProfileData.statsError } : {})}
                     posts={activeProfileData.posts}
                     postsLoading={activeProfileData.postsLoading}
-                    postsError={activeProfileData.postsError}
+                    {...(activeProfileData.postsError ? { postsError: activeProfileData.postsError } : {})}
                     hasMorePosts={activeProfileData.hasMorePosts}
                     follows={activeProfileData.follows}
                     followers={activeProfileData.followers}
                     networkProfiles={activeProfileData.networkProfiles}
                     profilesByPubkey={richContentProfilesByPubkey}
                     networkLoading={activeProfileData.networkLoading}
-                    networkError={activeProfileData.networkError}
-                    verification={verificationByPubkey[overlay.activeProfilePubkey]}
+                    {...(activeProfileData.networkError ? { networkError: activeProfileData.networkError } : {})}
+                    {...(activeProfileVerification !== undefined
+                        ? { verification: activeProfileVerification }
+                        : {})}
                     onLoadMorePosts={activeProfileData.loadMorePosts}
                     onSelectHashtag={selectProfilePostHashtag}
                     onSelectProfile={openMentionedProfile}
                     ownerFollows={overlay.follows}
-                    onFollowProfile={overlay.canWrite ? followPerson : undefined}
+                    {...(overlay.canWrite ? { onFollowProfile: followPerson } : {})}
                     onResolveProfiles={resolveMentionProfiles}
                     onResolveEventReferences={resolveEventReferences}
                     eventReferencesById={eventReferencesById}

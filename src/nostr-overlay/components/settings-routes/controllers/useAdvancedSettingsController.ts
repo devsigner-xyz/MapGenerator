@@ -13,13 +13,15 @@ export function useAdvancedSettingsController(input: UseAdvancedSettingsControll
     const settingsHostRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
-        if (!input.mapBridge || !settingsHostRef.current) {
+        const mapBridge = input.mapBridge;
+        const host = settingsHostRef.current;
+        if (!mapBridge || !host) {
             return;
         }
 
-        input.mapBridge.mountSettingsPanel(settingsHostRef.current);
+        mapBridge.mountSettingsPanel(host);
         return () => {
-            input.mapBridge.mountSettingsPanel(null);
+            mapBridge.mountSettingsPanel(null);
         };
     }, [input.mapBridge]);
 

@@ -110,13 +110,15 @@ export function toFeedItemFromPublished(event: PublishEventResult): SocialFeedIt
         return null;
     }
 
+    const targetEventId = event.tags.find((tag) => tag[0] === 'e')?.[1];
+
     return {
         id: event.id,
         pubkey: event.pubkey,
         createdAt: event.created_at,
         content: event.content,
         kind: event.kind === 1 ? 'note' : 'repost',
-        targetEventId: event.tags.find((tag) => tag[0] === 'e')?.[1],
+        ...(targetEventId ? { targetEventId } : {}),
         rawEvent: {
             ...event,
         },
@@ -124,13 +126,15 @@ export function toFeedItemFromPublished(event: PublishEventResult): SocialFeedIt
 }
 
 export function toThreadItemFromPublished(event: PublishEventResult): SocialThreadItem {
+    const targetEventId = event.tags.find((tag) => tag[0] === 'e')?.[1];
+
     return {
         id: event.id,
         pubkey: event.pubkey,
         createdAt: event.created_at,
         eventKind: event.kind,
         content: event.content,
-        targetEventId: event.tags.find((tag) => tag[0] === 'e')?.[1],
+        ...(targetEventId ? { targetEventId } : {}),
         rawEvent: {
             ...event,
         },
@@ -146,6 +150,10 @@ export function updateInfiniteFeedData(
     }
 
     const firstPage = current.pages[0];
+    if (!firstPage) {
+        return current;
+    }
+
     const updatedFirstPage: SocialFeedPage = {
         ...firstPage,
         items: updater(firstPage.items),
@@ -166,6 +174,10 @@ export function updateInfiniteThreadData(
     }
 
     const firstPage = current.pages[0];
+    if (!firstPage) {
+        return current;
+    }
+
     const updatedFirstPage: SocialThreadPage = {
         ...firstPage,
         replies: updater(firstPage.replies),

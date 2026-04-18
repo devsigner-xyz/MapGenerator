@@ -34,14 +34,16 @@ function DirectMessagesProbe({ ownerPubkey, enabled, failedRetryIntervalMs, stor
         version: 'v1',
     }), [storageBackend]);
 
-    const state = useDirectMessagesController({
-        ownerPubkey,
-        enabled,
-        failedRetryIntervalMs,
+    const controllerOptions = {
         dmService,
         storage: readStateStorage,
         now: FIXED_NOW,
-    });
+        ...(ownerPubkey === undefined ? {} : { ownerPubkey }),
+        ...(enabled === undefined ? {} : { enabled }),
+        ...(failedRetryIntervalMs === undefined ? {} : { failedRetryIntervalMs }),
+    };
+
+    const state = useDirectMessagesController(controllerOptions);
 
     useEffect(() => {
         onUpdate(state);

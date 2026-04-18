@@ -32,11 +32,11 @@ export function RelayDetailRoute({
     };
 
     const relayDetail = useRelayDetailController({
-        ownerPubkey,
-        suggestedRelays,
-        suggestedRelaysByType,
-        relayConnectionProbe,
-        relayConnectionRefreshIntervalMs,
+        ...(ownerPubkey ? { ownerPubkey } : {}),
+        ...(suggestedRelays ? { suggestedRelays } : {}),
+        ...(suggestedRelaysByType ? { suggestedRelaysByType } : {}),
+        ...(relayConnectionProbe ? { relayConnectionProbe } : {}),
+        ...(relayConnectionRefreshIntervalMs !== undefined ? { relayConnectionRefreshIntervalMs } : {}),
         params: fallbackParams,
     });
 
@@ -54,12 +54,12 @@ export function RelayDetailRoute({
                     <SettingsRelayDetailPage
                         selectedRelay={relayDetail.selectedRelay}
                         selectedRelayDetails={relayDetail.selectedRelayDetails}
-                        selectedRelayInfo={relayDetail.selectedRelayInfo}
-                        selectedRelayDocument={relayDetail.selectedRelayDocument}
+                        {...(relayDetail.selectedRelayInfo ? { selectedRelayInfo: relayDetail.selectedRelayInfo } : {})}
+                        {...(relayDetail.selectedRelayDocument ? { selectedRelayDocument: relayDetail.selectedRelayDocument } : {})}
                         selectedRelayAdminIdentity={relayDetail.selectedRelayAdminIdentity}
                         selectedRelayConnectionStatus={relayDetail.selectedRelayConnectionStatus}
                         relayHasNip11Metadata={relayDetail.relayHasNip11Metadata}
-                        relayEventLimit={relayDetail.relayEventLimit}
+                        {...(relayDetail.relayEventLimit !== undefined ? { relayEventLimit: relayDetail.relayEventLimit } : {})}
                         relayHasFees={relayDetail.relayHasFees}
                         copiedRelayIdentityKey={relayDetail.copiedRelayIdentityKey}
                         relayTypeLabels={relayDetail.relayTypeLabels}

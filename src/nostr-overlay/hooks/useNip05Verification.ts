@@ -19,9 +19,9 @@ export function useNip05Verification({
     identityApiService,
 }: UseNip05VerificationInput): Record<string, Nip05ValidationResult | undefined> {
     return useNip05VerificationQueries({
-        ownerPubkey,
+        ...(ownerPubkey ? { ownerPubkey } : {}),
         profilesByPubkey,
         targetPubkeys,
-        identityApiService,
+        ...(identityApiService ? { identityApiService } : {}),
     });
 }

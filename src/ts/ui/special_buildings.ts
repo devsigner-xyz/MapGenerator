@@ -60,7 +60,12 @@ export function pickReservedBuildingIndices({
         const normalizedRandom = Number.isFinite(randomValue) ? Math.max(0, Math.min(0.9999999, randomValue)) : 0;
         const j = Math.floor(normalizedRandom * (i + 1));
         const current = availableBuildingIndexes[i];
-        availableBuildingIndexes[i] = availableBuildingIndexes[j];
+        const target = availableBuildingIndexes[j];
+        if (current === undefined || target === undefined) {
+            continue;
+        }
+
+        availableBuildingIndexes[i] = target;
         availableBuildingIndexes[j] = current;
     }
 
@@ -82,7 +87,13 @@ export function buildSpecialBuildingAssignment({
 
     const assignment: Record<number, SpecialBuildingId> = {};
     for (let i = 0; i < reservedBuildingIndexes.length; i += 1) {
-        assignment[reservedBuildingIndexes[i]] = specialBuildingIds[i];
+        const buildingIndex = reservedBuildingIndexes[i];
+        const specialBuildingId = specialBuildingIds[i];
+        if (buildingIndex === undefined || specialBuildingId === undefined) {
+            continue;
+        }
+
+        assignment[buildingIndex] = specialBuildingId;
     }
 
     return assignment;

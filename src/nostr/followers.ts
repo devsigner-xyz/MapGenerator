@@ -1,6 +1,6 @@
 import { createTtlCache } from './cache';
 import { parseFollowsFromKind3 } from './follows';
-import type { NostrClient } from './types';
+import type { NostrClient, NostrFilter } from './types';
 
 interface FetchFollowersBestEffortInput {
     targetPubkey: string;
@@ -100,14 +100,24 @@ export async function fetchFollowersBestEffort(
     const candidateAuthors = [...new Set(input.candidateAuthors ?? [])].filter((pubkey) => pubkey !== input.targetPubkey);
     let until = input.startUntil;
 
-    const cacheKey = followersCacheKey({
-        targetPubkey: input.targetPubkey,
-        candidateAuthors,
-        maxBatches,
-        batchLimit,
-        candidateAuthorBatchSize,
-        startUntil: input.startUntil,
-    });
+    const cacheKey = followersCacheKey(
+        input.startUntil === undefined
+            ? {
+                targetPubkey: input.targetPubkey,
+                candidateAuthors,
+                maxBatches,
+                batchLimit,
+                candidateAuthorBatchSize,
+            }
+            : {
+                targetPubkey: input.targetPubkey,
+                candidateAuthors,
+                maxBatches,
+                batchLimit,
+                candidateAuthorBatchSize,
+                startUntil: input.startUntil,
+            }
+    );
     const cached = followersCache.get(cacheKey);
     if (cached) {
         if (cached.followers.length > 0) {
@@ -131,12 +141,16 @@ export async function fetchFollowersBestEffort(
     await input.client.connect();
 
     for (let batchIndex = 0; batchIndex < maxBatches; batchIndex++) {
-        const events = await input.client.fetchEvents({
+        const filter: NostrFilter = {
             kinds: [3],
             '#p': [input.targetPubkey],
-            until,
             limit: batchLimit,
-        });
+        };
+        if (typeof until === 'number') {
+            filter.until = until;
+        }
+
+        const events = await input.client.fetchEvents(filter);
 
         if (events.length === 0) {
             exhaustedTagSearch = true;

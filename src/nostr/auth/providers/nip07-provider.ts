@@ -24,6 +24,8 @@ interface Nip07Window {
     };
 }
 
+type EventHashInput = Parameters<typeof getEventHash>[0];
+
 function getNip07Extension(): Nip07Window | undefined {
     return (window as unknown as { nostr?: Nip07Window }).nostr;
 }
@@ -59,10 +61,10 @@ export class Nip07AuthProvider implements AuthProvider {
         this.activePubkey = pubkey;
 
         const encryptionSchemes: EncryptionScheme[] = [];
-        if (extension.nip04?.encrypt && extension.nip04?.decrypt) {
+        if (extension.nip04) {
             encryptionSchemes.push('nip04');
         }
-        if (extension.nip44?.encrypt && extension.nip44?.decrypt) {
+        if (extension.nip44) {
             encryptionSchemes.push('nip44');
         }
 
@@ -100,7 +102,7 @@ export class Nip07AuthProvider implements AuthProvider {
         const signedId =
             typeof (signed as { id?: unknown }).id === 'string'
                 ? ((signed as { id: string }).id)
-                : getEventHash(eventWithPubkey as any);
+                : getEventHash(eventWithPubkey as unknown as EventHashInput);
 
         return {
             ...eventWithPubkey,

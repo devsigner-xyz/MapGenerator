@@ -55,16 +55,18 @@ export default class WaterGenerator extends StreamlineGenerator {
     }
 
     createCoast(): void {
-        let coastStreamline;
-        let seed;
-        let major;
+        let coastStreamline: Vector[] = [];
+        let major = false;
 
         if (this.params.coastNoise.noiseEnabled) {
             this.tensorField.enableGlobalNoise(this.params.coastNoise.noiseAngle, this.params.coastNoise.noiseSize);    
         }
         for (let i = 0; i < this.TRIES; i++) {
             major = Math.random() < 0.5;
-            seed = this.getSeed(major);
+            const seed = this.getSeed(major);
+            if (!seed) {
+                continue;
+            }
             coastStreamline = this.extendStreamline(this.integrateStreamline(seed, major));
 
             if (this.reachesEdges(coastStreamline)) {
@@ -72,6 +74,11 @@ export default class WaterGenerator extends StreamlineGenerator {
             }
         }
         this.tensorField.disableGlobalNoise();
+
+        if (coastStreamline.length < 2) {
+            log.error('Failed to find coast reaching edge');
+            return;
+        }
 
         this._coastline = coastStreamline;
         this.coastlineMajor = major;
@@ -89,8 +96,7 @@ export default class WaterGenerator extends StreamlineGenerator {
     }
 
     createRiver(): void {
-        let riverStreamline;
-        let seed;
+        let riverStreamline: Vector[] = [];
 
         // Need to ignore sea when integrating for edge check
         const oldSea = this.tensorField.sea;
@@ -99,7 +105,10 @@ export default class WaterGenerator extends StreamlineGenerator {
             this.tensorField.enableGlobalNoise(this.params.riverNoise.noiseAngle, this.params.riverNoise.noiseSize);    
         }        
         for (let i = 0; i < this.TRIES; i++) {
-            seed = this.getSeed(!this.coastlineMajor);
+            const seed = this.getSeed(!this.coastlineMajor);
+            if (!seed) {
+                continue;
+            }
             riverStreamline = this.extendStreamline(this.integrateStreamline(seed, !this.coastlineMajor));
 
             if (this.reachesEdges(riverStreamline)) {
@@ -111,13 +120,21 @@ export default class WaterGenerator extends StreamlineGenerator {
         this.tensorField.sea = oldSea;
         this.tensorField.disableGlobalNoise();
 
+        if (riverStreamline.length < 2) {
+            return;
+        }
+
         // Create river roads
         const expandedNoisy = this.complexifyStreamline(PolygonUtil.resizeGeometry(riverStreamline, this.params.riverSize, false));
         this._riverPolygon = PolygonUtil.resizeGeometry(riverStreamline, this.params.riverSize - this.params.riverBankSize, false);
         // Make sure riverPolygon[0] is off screen
         const firstOffScreen = expandedNoisy.findIndex(v => this.vectorOffScreen(v));
         for (let i = 0; i < firstOffScreen; i++) {
-            expandedNoisy.push(expandedNoisy.shift());
+            const shifted = expandedNoisy.shift();
+            if (!shifted) {
+                break;
+            }
+            expandedNoisy.push(shifted);
         }
 
         // Create river roads
@@ -135,7 +152,13 @@ export default class WaterGenerator extends StreamlineGenerator {
 
         if (road1.length === 0 || road2.length === 0) return;
 
-        if (road1[0].distanceToSquared(road2[0]) < road1[0].distanceToSquared(road2[road2.length - 1])) {
+        const road1Start = road1[0];
+        const road2Start = road2[0];
+        const road2End = road2[road2.length - 1];
+
+        if (!road1Start || !road2Start || !road2End) return;
+
+        if (road1Start.distanceToSquared(road2Start) < road1Start.distanceToSquared(road2End)) {
             road2Simple.reverse();
         }
 
@@ -203,7 +226,12 @@ export default class WaterGenerator extends StreamlineGenerator {
     private complexifyStreamline(s: Vector[]): Vector[] {
         const out: Vector[] = [];
         for (let i = 0; i < s.length - 1; i++) {
-            out.push(...this.complexifyStreamlineRecursive(s[i], s[i+1]));
+            const start = s[i];
+            const end = s[i + 1];
+            if (!start || !end) {
+                continue;
+            }
+            out.push(...this.complexifyStreamlineRecursive(start, end));
         }
         return out;
     }
@@ -224,15 +252,31 @@ export default class WaterGenerator extends StreamlineGenerator {
      * Mutates streamline
      */
     private extendStreamline(streamline: Vector[]): Vector[] {
-            streamline.unshift(streamline[0].clone().add(
-                streamline[0].clone().sub(streamline[1]).setLength(this.params.dstep * 5)));
-            streamline.push(streamline[streamline.length - 1].clone().add(
-                streamline[streamline.length - 1].clone().sub(streamline[streamline.length - 2]).setLength(this.params.dstep * 5)));
+        if (streamline.length < 2) {
             return streamline;
         }
 
+        const first = streamline[0];
+        const second = streamline[1];
+        const last = streamline[streamline.length - 1];
+        const beforeLast = streamline[streamline.length - 2];
+
+        if (!first || !second || !last || !beforeLast) {
+            return streamline;
+        }
+
+        streamline.unshift(first.clone().add(first.clone().sub(second).setLength(this.params.dstep * 5)));
+        streamline.push(last.clone().add(last.clone().sub(beforeLast).setLength(this.params.dstep * 5)));
+        return streamline;
+    }
+
     private reachesEdges(streamline: Vector[]): boolean {
-        return this.vectorOffScreen(streamline[0]) && this.vectorOffScreen(streamline[streamline.length - 1]);
+        const first = streamline[0];
+        const last = streamline[streamline.length - 1];
+        if (!first || !last) {
+            return false;
+        }
+        return this.vectorOffScreen(first) && this.vectorOffScreen(last);
     }
 
     private vectorOffScreen(v: Vector): boolean {

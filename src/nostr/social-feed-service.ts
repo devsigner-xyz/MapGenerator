@@ -158,25 +158,37 @@ export function toSocialFeedItem(event: NostrEvent): SocialFeedItem | null {
         return null;
     }
 
-    return {
+    const item: SocialFeedItem = {
         id: event.id,
         pubkey: event.pubkey,
         createdAt: event.created_at,
         content: event.content,
         kind: event.kind === 1 ? 'note' : 'repost',
-        targetEventId: extractTargetEventId(event),
         rawEvent: event,
     };
+
+    const targetEventId = extractTargetEventId(event);
+    if (targetEventId !== undefined) {
+        item.targetEventId = targetEventId;
+    }
+
+    return item;
 }
 
 export function toSocialThreadItem(event: NostrEvent): SocialThreadItem {
-    return {
+    const item: SocialThreadItem = {
         id: event.id,
         pubkey: event.pubkey,
         createdAt: event.created_at,
         eventKind: event.kind,
         content: event.content,
-        targetEventId: extractTargetEventId(event),
         rawEvent: event,
     };
+
+    const targetEventId = extractTargetEventId(event);
+    if (targetEventId !== undefined) {
+        item.targetEventId = targetEventId;
+    }
+
+    return item;
 }

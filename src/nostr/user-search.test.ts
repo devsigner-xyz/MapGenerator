@@ -66,8 +66,8 @@ describe('searchUsers', () => {
         });
 
         expect(result.pubkeys).toEqual([targetPubkey, otherPubkey]);
-        expect(result.profiles[targetPubkey].displayName).toBe('Target New');
-        expect(result.profiles[otherPubkey].name).toBe('Other');
+        expect(result.profiles[targetPubkey]?.displayName).toBe('Target New');
+        expect(result.profiles[otherPubkey]?.name).toBe('Other');
     });
 
     test('handles relay errors and keeps exact match fallback', async () => {

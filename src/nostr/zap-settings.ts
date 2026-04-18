@@ -90,10 +90,14 @@ export function loadZapSettings(options: ZapSettingsOptions = {}): ZapSettingsSt
         return getDefaultZapSettings();
     }
 
-    const keys = buildStorageScopeKeys({
-        baseKey: ZAP_SETTINGS_STORAGE_KEY,
-        ownerPubkey: options.ownerPubkey,
-    });
+    const keys = buildStorageScopeKeys(
+        options.ownerPubkey === undefined
+            ? { baseKey: ZAP_SETTINGS_STORAGE_KEY }
+            : {
+                baseKey: ZAP_SETTINGS_STORAGE_KEY,
+                ownerPubkey: options.ownerPubkey,
+            }
+    );
 
     if (!keys.normalizedOwnerPubkey) {
         return parseState(storage.getItem(ZAP_SETTINGS_STORAGE_KEY));
@@ -128,10 +132,14 @@ export function saveZapSettings(
         return nextState;
     }
 
-    const keys = buildStorageScopeKeys({
-        baseKey: ZAP_SETTINGS_STORAGE_KEY,
-        ownerPubkey: options.ownerPubkey,
-    });
+    const keys = buildStorageScopeKeys(
+        options.ownerPubkey === undefined
+            ? { baseKey: ZAP_SETTINGS_STORAGE_KEY }
+            : {
+                baseKey: ZAP_SETTINGS_STORAGE_KEY,
+                ownerPubkey: options.ownerPubkey,
+            }
+    );
     const payload: ZapSettingsPayload = {
         amounts: nextState.amounts,
     };

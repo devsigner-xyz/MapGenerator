@@ -45,15 +45,20 @@ function getTagValue(tags: string[][], key: string): string | null {
 }
 
 function toNostrEvent(event: DmEventDto): NostrEvent {
-    return {
+    const nostrEvent: NostrEvent = {
         id: event.id,
-        sig: event.sig,
         pubkey: event.pubkey,
         kind: event.kind,
         created_at: event.createdAt,
         tags: event.tags,
         content: event.content,
     };
+
+    if (typeof event.sig === 'string' && event.sig.length > 0) {
+        nostrEvent.sig = event.sig;
+    }
+
+    return nostrEvent;
 }
 
 function shouldVerifyEventSignature(event: NostrEvent): boolean {
@@ -73,7 +78,7 @@ function toUndecryptablePlaceholder(
     const peerPubkey = isOutgoing ? (hintedPeer ?? ownerPubkey) : event.pubkey;
     const kind = Number.isFinite(event.kind) ? event.kind : 0;
 
-    return {
+    const message: DirectMessageItem = {
         id: event.id,
         clientMessageId: event.id,
         conversationId: peerPubkey,
@@ -82,10 +87,15 @@ function toUndecryptablePlaceholder(
         createdAt: event.createdAt,
         plaintext: '',
         eventId: event.id,
-        giftWrapEventId: kind === 1059 ? event.id : undefined,
         deliveryState: 'sent',
         isUndecryptable: true,
     };
+
+    if (kind === 1059) {
+        message.giftWrapEventId = event.id;
+    }
+
+    return message;
 }
 
 async function parseKind4EventForOwner(
@@ -279,7 +289,13 @@ export function createDmApiService(options: CreateDmApiServiceOptions = {}): Dir
     const client = options.client ?? createHttpClient();
     const defaultLimit = clampApiLimit(options.defaultLimit ?? API_MAX_LIMIT);
     const reconnectDelayMs = Math.max(250, Math.floor(options.reconnectDelayMs ?? 1_500));
-    const verifyDmEvent = options.verifyDmEvent ?? verifyEvent;
+    const verifyDmEvent = (event: NostrEvent): boolean => {
+        if (options.verifyDmEvent) {
+            return options.verifyDmEvent(event);
+        }
+
+        return verifyEvent(event as Parameters<typeof verifyEvent>[0]);
+    };
 
     const mapEventToMessage: EventMapper = options.mapEventToMessage
         ?? (async (event, ownerPubkey) => {
@@ -310,7 +326,7 @@ export function createDmApiService(options: CreateDmApiServiceOptions = {}): Dir
             return toUndecryptablePlaceholder(event, ownerPubkey);
         });
 
-    return {
+    const service: DirectMessagesService = {
         subscribeInbox(input, onMessage) {
             let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
             let activeConnectionAbort: AbortController | null = null;
@@ -450,7 +466,11 @@ export function createDmApiService(options: CreateDmApiServiceOptions = {}): Dir
 
             return mapped.filter((item): item is DirectMessageItem => Boolean(item));
         },
-
-        sendDm: options.sendDm,
     };
+
+    if (options.sendDm) {
+        service.sendDm = options.sendDm;
+    }
+
+    return service;
 }

@@ -22,7 +22,7 @@ describe('buildPresenceLayerEntries', () => {
         });
 
         expect(entries).toHaveLength(1);
-        expect(entries[0].pubkey).toBe(ALICE);
+        expect(entries[0]?.pubkey).toBe(ALICE);
     });
 
     test('at zoom threshold keeps all occupied entries with valid buildings', () => {

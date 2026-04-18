@@ -25,7 +25,12 @@ export function findBuildingHit({
     footprints,
 }: FindBuildingHitInput): BuildingHit | null {
     for (let i = footprints.length - 1; i >= 0; i--) {
-        if (insidePolygon(point, footprints[i])) {
+        const footprint = footprints[i];
+        if (!footprint) {
+            continue;
+        }
+
+        if (insidePolygon(point, footprint)) {
             return { index: i };
         }
     }
@@ -39,7 +44,8 @@ export function findOccupiedBuildingHit({
     occupiedPubkeyByBuildingIndex,
 }: FindOccupiedBuildingHitInput): OccupiedBuildingHit | null {
     for (let i = footprints.length - 1; i >= 0; i--) {
-        if (!insidePolygon(point, footprints[i])) {
+        const footprint = footprints[i];
+        if (!footprint || !insidePolygon(point, footprint)) {
             continue;
         }
 
@@ -64,10 +70,16 @@ function insidePolygon(point: Vector, polygon: Vector[]): boolean {
 
     let inside = false;
     for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-        const xi = polygon[i].x;
-        const yi = polygon[i].y;
-        const xj = polygon[j].x;
-        const yj = polygon[j].y;
+        const pointI = polygon[i];
+        const pointJ = polygon[j];
+        if (!pointI || !pointJ) {
+            continue;
+        }
+
+        const xi = pointI.x;
+        const yi = pointI.y;
+        const xj = pointJ.x;
+        const yj = pointJ.y;
 
         const intersect = ((yi > point.y) !== (yj > point.y))
             && (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);

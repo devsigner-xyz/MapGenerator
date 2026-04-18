@@ -51,28 +51,41 @@ describe('assignPubkeysToBuildings', () => {
         expect(Object.keys(result.byBuildingIndex)).toHaveLength(2);
         expect(result.unassignedPubkeys).toHaveLength(2);
 
-        const occupancy = buildOccupancyState({
-            buildingsCount: 5,
-            assignments: result.assignments,
-            selectedPubkey: result.assignments[0]?.pubkey,
-        });
+        const selectedPubkey = result.assignments[0]?.pubkey;
+        const occupancy = buildOccupancyState(
+            selectedPubkey === undefined
+                ? {
+                    buildingsCount: 5,
+                    assignments: result.assignments,
+                }
+                : {
+                    buildingsCount: 5,
+                    assignments: result.assignments,
+                    selectedPubkey,
+                }
+        );
 
         expect(Object.keys(occupancy.byBuildingIndex)).toHaveLength(2);
         expect(occupancy.selectedBuildingIndex).toBeDefined();
     });
 
     test('priority pubkeys are assigned first when capacity is limited', () => {
+        const priorityOne = PUBKEYS[2] ?? '3'.repeat(64);
+        const priorityTwo = PUBKEYS[3] ?? '4'.repeat(64);
+        const firstPubkey = PUBKEYS[0] ?? '1'.repeat(64);
+        const secondPubkey = PUBKEYS[1] ?? '2'.repeat(64);
+
         const result = assignPubkeysToBuildings({
             pubkeys: PUBKEYS,
             buildingsCount: 2,
             seed: 'owner-pubkey',
-            priorityPubkeys: [PUBKEYS[2], PUBKEYS[3]],
+            priorityPubkeys: [priorityOne, priorityTwo],
         });
 
-        expect(result.pubkeyToBuildingIndex[PUBKEYS[2]]).toBeDefined();
-        expect(result.pubkeyToBuildingIndex[PUBKEYS[3]]).toBeDefined();
-        expect(result.unassignedPubkeys).toContain(PUBKEYS[0]);
-        expect(result.unassignedPubkeys).toContain(PUBKEYS[1]);
+        expect(result.pubkeyToBuildingIndex[priorityOne]).toBeDefined();
+        expect(result.pubkeyToBuildingIndex[priorityTwo]).toBeDefined();
+        expect(result.unassignedPubkeys).toContain(firstPubkey);
+        expect(result.unassignedPubkeys).toContain(secondPubkey);
     });
 
     test('never assigns pubkeys to excluded building indexes', () => {

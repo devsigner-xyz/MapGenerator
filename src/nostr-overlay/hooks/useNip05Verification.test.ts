@@ -25,12 +25,20 @@ interface ProbeProps {
 }
 
 function VerificationProbe({ ownerPubkey, profilesByPubkey, targetPubkeys, identityApiService, onUpdate }: ProbeProps): null {
-    const verificationByPubkey = useNip05Verification({
-        ownerPubkey,
-        profilesByPubkey,
-        targetPubkeys,
-        identityApiService,
-    });
+    const verificationInput = ownerPubkey === undefined
+        ? {
+            profilesByPubkey,
+            targetPubkeys,
+            identityApiService,
+        }
+        : {
+            ownerPubkey,
+            profilesByPubkey,
+            targetPubkeys,
+            identityApiService,
+        };
+
+    const verificationByPubkey = useNip05Verification(verificationInput);
 
     useEffect(() => {
         onUpdate(verificationByPubkey);

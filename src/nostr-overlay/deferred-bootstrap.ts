@@ -13,10 +13,11 @@ export interface MountNostrOverlayDeferredOptions {
 }
 
 const defaultScheduler: DeferredBootstrapScheduler = {
-    requestIdleCallback:
+    ...(
         typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function'
-            ? (callback: IdleRequestCallback) => window.requestIdleCallback(callback)
-            : undefined,
+            ? { requestIdleCallback: (callback: IdleRequestCallback) => window.requestIdleCallback(callback) }
+            : {}
+    ),
     setTimeout: (handler: () => void, timeout = 0) => window.setTimeout(handler, timeout),
 };
 

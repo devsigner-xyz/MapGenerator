@@ -139,11 +139,12 @@ function hasRootTag(event: NostrEvent, rootEventId: string): boolean {
 }
 
 function nextUntilFromItems(items: Array<{ createdAt: number }>): number | undefined {
-    if (items.length === 0) {
+    const lastItem = items[items.length - 1];
+    if (!lastItem) {
         return undefined;
     }
 
-    return items[items.length - 1].createdAt - 1;
+    return lastItem.createdAt - 1;
 }
 
 function createEmptyEngagementMetrics(): SocialEngagementMetrics {
@@ -165,30 +166,53 @@ function normalizeHashtag(hashtag: string): string {
 }
 
 function getTagValues(event: NostrEvent, key: string): string[] {
-    return event.tags
-        .filter((tag) => Array.isArray(tag) && tag[0] === key && typeof tag[1] === 'string' && tag[1].length > 0)
-        .map((tag) => tag[1]);
+    const values: string[] = [];
+    for (const tag of event.tags) {
+        if (!Array.isArray(tag) || tag[0] !== key) {
+            continue;
+        }
+
+        const value = tag[1];
+        if (typeof value === 'string' && value.length > 0) {
+            values.push(value);
+        }
+    }
+
+    return values;
 }
 
 function getTargetByMarkers(event: NostrEvent, targetSet: Set<string>): string | undefined {
-    const eTags = event.tags.filter((tag) => Array.isArray(tag) && tag[0] === 'e' && typeof tag[1] === 'string' && tag[1].length > 0);
+    const eTags: Array<{ value: string; marker?: string }> = [];
+    for (const tag of event.tags) {
+        if (!Array.isArray(tag) || tag[0] !== 'e') {
+            continue;
+        }
+
+        const value = tag[1];
+        if (typeof value !== 'string' || value.length === 0) {
+            continue;
+        }
+
+        const marker = typeof tag[3] === 'string' && tag[3].length > 0 ? tag[3] : undefined;
+        eTags.push(marker ? { value, marker } : { value });
+    }
 
     for (const tag of eTags) {
-        if (tag[3] === 'reply' && targetSet.has(tag[1])) {
-            return tag[1];
+        if (tag.marker === 'reply' && targetSet.has(tag.value)) {
+            return tag.value;
         }
     }
 
     for (const tag of eTags) {
-        if (tag[3] === 'root' && targetSet.has(tag[1])) {
-            return tag[1];
+        if (tag.marker === 'root' && targetSet.has(tag.value)) {
+            return tag.value;
         }
     }
 
     for (let index = eTags.length - 1; index >= 0; index -= 1) {
-        const candidate = eTags[index][1];
-        if (targetSet.has(candidate)) {
-            return candidate;
+        const candidate = eTags[index];
+        if (candidate && targetSet.has(candidate.value)) {
+            return candidate.value;
         }
     }
 
@@ -199,8 +223,9 @@ function resolveEngagementTargetEventId(event: NostrEvent, targetSet: Set<string
     if (event.kind === 6 || event.kind === 16) {
         const qTags = getTagValues(event, 'q');
         for (let index = qTags.length - 1; index >= 0; index -= 1) {
-            if (targetSet.has(qTags[index])) {
-                return qTags[index];
+            const candidate = qTags[index];
+            if (candidate && targetSet.has(candidate)) {
+                return candidate;
             }
         }
     }
@@ -227,6 +252,10 @@ function parseZapMsatsFromDescription(event: NostrEvent): number {
     }
 
     const latest = descriptionValues[descriptionValues.length - 1];
+    if (!latest) {
+        return 0;
+    }
+
     try {
         const parsed = JSON.parse(latest) as { tags?: unknown };
         if (!parsed || !Array.isArray(parsed.tags)) {
@@ -361,12 +390,16 @@ export function createRuntimeSocialFeedService(
                     let maxChunkOldest: number | null = null;
 
                     for (const authorChunk of authorChunks) {
-                        const events = await fetchBackfillWithTimeout(transport, [{
+                        const filter: NostrFilter = {
                             authors: authorChunk,
                             kinds: [...MAIN_FEED_KINDS],
                             limit: queryLimit,
-                            until: cursorUntil,
-                        }], backfillTimeoutMs);
+                        };
+                        if (typeof cursorUntil === 'number') {
+                            filter.until = cursorUntil;
+                        }
+
+                        const events = await fetchBackfillWithTimeout(transport, [filter], backfillTimeoutMs);
 
                         const chunkEvents = sortAndDedupe(events as NostrEvent[]);
                         if (chunkEvents.length >= queryLimit) {
@@ -380,7 +413,7 @@ export function createRuntimeSocialFeedService(
                         batchEvents.push(...chunkEvents);
 
                         const chunkOldest = chunkEvents[chunkEvents.length - 1]?.created_at;
-                        if (Number.isFinite(chunkOldest)) {
+                        if (typeof chunkOldest === 'number' && Number.isFinite(chunkOldest)) {
                             if (maxChunkOldest === null || chunkOldest > maxChunkOldest) {
                                 maxChunkOldest = chunkOldest;
                             }
@@ -409,7 +442,7 @@ export function createRuntimeSocialFeedService(
                         }
                     }
 
-                    if (!Number.isFinite(maxChunkOldest)) {
+                    if (maxChunkOldest === null || !Number.isFinite(maxChunkOldest)) {
                         reachedSourceEnd = true;
                         break;
                     }
@@ -443,11 +476,16 @@ export function createRuntimeSocialFeedService(
                         ? nextUntilFromItems(pageItems)
                         : cursorUntil;
 
-                return {
+                const result: SocialFeedPage = {
                     items: pageItems,
                     hasMore,
-                    nextUntil,
                 };
+
+                if (typeof nextUntil === 'number') {
+                    result.nextUntil = nextUntil;
+                }
+
+                return result;
             });
         },
 
@@ -472,12 +510,16 @@ export function createRuntimeSocialFeedService(
                 while (collected.size < limit + 1 && pass < MAX_MAIN_FEED_PASSES) {
                     pass += 1;
 
-                    const events = await fetchBackfillWithTimeout(transport, [{
+                    const filter: NostrFilter = {
                         kinds: [...MAIN_FEED_KINDS],
                         '#t': [hashtag],
                         limit: queryLimit,
-                        until: cursorUntil,
-                    }], backfillTimeoutMs);
+                    };
+                    if (typeof cursorUntil === 'number') {
+                        filter.until = cursorUntil;
+                    }
+
+                    const events = await fetchBackfillWithTimeout(transport, [filter], backfillTimeoutMs);
 
                     const sorted = sortAndDedupe(events as NostrEvent[]);
                     if (sorted.length === 0) {
@@ -502,7 +544,7 @@ export function createRuntimeSocialFeedService(
                     }
 
                     const oldest = sorted[sorted.length - 1]?.created_at;
-                    if (!Number.isFinite(oldest)) {
+                    if (typeof oldest !== 'number' || !Number.isFinite(oldest)) {
                         reachedSourceEnd = true;
                         break;
                     }
@@ -535,11 +577,16 @@ export function createRuntimeSocialFeedService(
                         ? nextUntilFromItems(pageItems)
                         : cursorUntil;
 
-                return {
+                const result: SocialFeedPage = {
                     items: pageItems,
                     hasMore,
-                    nextUntil,
                 };
+
+                if (typeof nextUntil === 'number') {
+                    result.nextUntil = nextUntil;
+                }
+
+                return result;
             });
         },
 
@@ -557,17 +604,21 @@ export function createRuntimeSocialFeedService(
                 const limit = clampLimit(input.limit, DEFAULT_THREAD_LIMIT);
                 const queryLimit = resolveQueryLimit(limit);
 
+                const threadReplyFilter: NostrFilter = {
+                    kinds: [...THREAD_REPLY_KINDS],
+                    '#e': [rootEventId],
+                    limit: queryLimit,
+                };
+                if (typeof input.until === 'number') {
+                    threadReplyFilter.until = input.until;
+                }
+
                 const events = await fetchBackfillWithTimeout(transport, [
                     {
                         ids: [rootEventId],
                         limit: 1,
                     },
-                    {
-                        kinds: [...THREAD_REPLY_KINDS],
-                        '#e': [rootEventId],
-                        limit: queryLimit,
-                        until: input.until,
-                    },
+                    threadReplyFilter,
                 ], backfillTimeoutMs);
 
                 const sorted = sortAndDedupe(events as NostrEvent[]);
@@ -594,12 +645,18 @@ export function createRuntimeSocialFeedService(
                 const pagedReplies = replies.slice(0, limit);
                 const hasMore = replies.length > limit;
 
-                return {
+                const result: SocialThreadPage = {
                     root,
                     replies: pagedReplies,
                     hasMore,
-                    nextUntil: hasMore ? nextUntilFromItems(pagedReplies) : undefined,
                 };
+
+                const nextUntil = hasMore ? nextUntilFromItems(pagedReplies) : undefined;
+                if (typeof nextUntil === 'number') {
+                    result.nextUntil = nextUntil;
+                }
+
+                return result;
             });
         },
 
@@ -622,18 +679,23 @@ export function createRuntimeSocialFeedService(
                 const filters: NostrFilter[] = [];
 
                 for (const chunk of eventIdChunks) {
-                    filters.push({
+                    const eFilter: NostrFilter = {
                         kinds: [...ENGAGEMENT_KINDS],
                         '#e': chunk,
                         limit,
-                        until: input.until,
-                    });
-                    filters.push({
+                    };
+                    const qFilter: NostrFilter = {
                         kinds: [6, 16],
                         '#q': chunk,
                         limit,
-                        until: input.until,
-                    });
+                    };
+                    if (typeof input.until === 'number') {
+                        eFilter.until = input.until;
+                        qFilter.until = input.until;
+                    }
+
+                    filters.push(eFilter);
+                    filters.push(qFilter);
                 }
 
                 const events = await fetchBackfillWithTimeout(transport, filters, backfillTimeoutMs);

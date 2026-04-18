@@ -106,8 +106,14 @@ export class TrafficParticlesSimulation {
         };
 
         const addDirectedEdge = (fromNodeId: number, toNodeId: number): void => {
-            const from = this.nodes[fromNodeId].point;
-            const to = this.nodes[toNodeId].point;
+            const fromNode = this.nodes[fromNodeId];
+            const toNode = this.nodes[toNodeId];
+            if (!fromNode || !toNode) {
+                return;
+            }
+
+            const from = fromNode.point;
+            const to = toNode.point;
             const length = from.distanceTo(to);
             if (length < MIN_EDGE_LENGTH) {
                 return;
@@ -122,8 +128,8 @@ export class TrafficParticlesSimulation {
                 to: to.clone(),
                 length,
             });
-            this.nodes[fromNodeId].outEdgeIds.push(edgeId);
-            this.nodes[fromNodeId].neighbourNodeIds.add(toNodeId);
+            fromNode.outEdgeIds.push(edgeId);
+            fromNode.neighbourNodeIds.add(toNodeId);
         };
 
         for (const polyline of polylines || []) {
@@ -134,6 +140,10 @@ export class TrafficParticlesSimulation {
             for (let i = 1; i < polyline.length; i++) {
                 const from = polyline[i - 1];
                 const to = polyline[i];
+                if (!from || !to) {
+                    continue;
+                }
+
                 const fromNodeId = getOrCreateNodeId(from);
                 const toNodeId = getOrCreateNodeId(to);
                 addDirectedEdge(fromNodeId, toNodeId);
@@ -198,6 +208,10 @@ export class TrafficParticlesSimulation {
 
         for (let i = 0; i < this.particles.length; i++) {
             const particle = this.particles[i];
+            if (!particle) {
+                continue;
+            }
+
             particle.lastStepUsedCarryOver = false;
             particle.lastTransition = null;
 
@@ -210,6 +224,10 @@ export class TrafficParticlesSimulation {
             while (travelDistance > 0 && safety < 16) {
                 safety += 1;
                 const currentEdge = this.edges[particle.edgeId];
+                if (!currentEdge) {
+                    this.respawnParticle(i);
+                    break;
+                }
                 const remaining = currentEdge.length - particle.distanceOnEdge;
 
                 if (travelDistance < remaining) {
@@ -257,7 +275,11 @@ export class TrafficParticlesSimulation {
             let position = this.getParticleWorldPosition(particle);
             if (!this.isWithinWorldBounds(position)) {
                 this.respawnParticle(i);
-                position = this.getParticleWorldPosition(this.particles[i]);
+                const respawnedParticle = this.particles[i];
+                if (!respawnedParticle) {
+                    continue;
+                }
+                position = this.getParticleWorldPosition(respawnedParticle);
             }
 
             renderParticles.push({
@@ -281,7 +303,8 @@ export class TrafficParticlesSimulation {
     }
 
     debugSetParticleState(index: number, edgeId: number, distanceOnEdge: number): void {
-        if (!this.particles[index]) {
+        const particle = this.particles[index];
+        if (!particle) {
             throw new Error(`Particle index out of range: ${index}`);
         }
         if (!this.isValidEdgeId(edgeId)) {
@@ -289,13 +312,17 @@ export class TrafficParticlesSimulation {
         }
 
         const edge = this.edges[edgeId];
-        this.particles[index].edgeId = edgeId;
-        this.particles[index].distanceOnEdge = Math.max(0, Math.min(edge.length, distanceOnEdge));
-        this.particles[index].speedFactor = 1;
-        this.particles[index].lastTransition = null;
-        this.particles[index].lastStepUsedCarryOver = false;
-        this.particles[index].visitedEdgesSinceJunction.clear();
-        this.particles[index].visitedEdgesSinceJunction.add(edgeId);
+        if (!edge) {
+            throw new Error(`Invalid edge id: ${edgeId}`);
+        }
+
+        particle.edgeId = edgeId;
+        particle.distanceOnEdge = Math.max(0, Math.min(edge.length, distanceOnEdge));
+        particle.speedFactor = 1;
+        particle.lastTransition = null;
+        particle.lastStepUsedCarryOver = false;
+        particle.visitedEdgesSinceJunction.clear();
+        particle.visitedEdgesSinceJunction.add(edgeId);
     }
 
     debugGetLastTransition(index: number): TrafficParticleTransition | null {
@@ -307,7 +334,12 @@ export class TrafficParticlesSimulation {
             throw new Error(`Invalid edge id: ${edgeId}`);
         }
 
-        return this.edges[edgeId];
+        const edge = this.edges[edgeId];
+        if (!edge) {
+            throw new Error(`Invalid edge id: ${edgeId}`);
+        }
+
+        return edge;
     }
 
     debugGetRespawnCount(index: number): number {
@@ -343,6 +375,12 @@ export class TrafficParticlesSimulation {
         }
 
         const edge = this.edges[this.randomIndex(this.edges.length)];
+        if (!edge) {
+            particle.edgeId = -1;
+            particle.distanceOnEdge = 0;
+            return;
+        }
+
         particle.edgeId = edge.id;
         particle.distanceOnEdge = this.random() * edge.length;
         particle.speedFactor = 0.85 + this.random() * 0.3;
@@ -470,7 +508,8 @@ export class TrafficParticlesSimulation {
             }
         }
 
-        return weightedCandidates[weightedCandidates.length - 1].edgeId;
+        const fallbackCandidate = weightedCandidates[weightedCandidates.length - 1];
+        return fallbackCandidate ? fallbackCandidate.edgeId : null;
     }
 
     private getParticleWorldPosition(particle: TrafficParticle): Vector {

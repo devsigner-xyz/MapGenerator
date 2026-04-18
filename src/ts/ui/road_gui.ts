@@ -14,8 +14,8 @@ export default class RoadGUI {
     protected streamlines: StreamlineGenerator;
     private existingStreamlines: RoadGUI[] = [];
     protected domainController = DomainController.getInstance();
-    protected preGenerateCallback: () => any = () => {};
-    protected postGenerateCallback: () => any = () => {};
+    protected preGenerateCallback: () => void = () => {};
+    protected postGenerateCallback: () => void = () => {};
 
     private streamlinesInProgress: boolean = false;
 
@@ -80,11 +80,11 @@ export default class RoadGUI {
         this.existingStreamlines = existingStreamlines;
     }
 
-    setPreGenerateCallback(callback: () => any) {
+    setPreGenerateCallback(callback: () => void): void {
         this.preGenerateCallback = callback;
     }
 
-    setPostGenerateCallback(callback: () => any) {
+    setPostGenerateCallback(callback: () => void): void {
         this.postGenerateCallback = callback;
     }
 

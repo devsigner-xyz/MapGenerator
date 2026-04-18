@@ -26,6 +26,10 @@ class BuildingModels {
     constructor(lots: Vector[][]) {  // Lots in world space
         for (let lotIndex = 0; lotIndex < lots.length; lotIndex++) {
             const lot = lots[lotIndex];
+            if (!lot) {
+                continue;
+            }
+
             this._buildingModels.push({
                 lotIndex,
                 height: Math.random() * 20 + 20,
@@ -72,7 +76,15 @@ class BuildingModels {
         const polygons: Vector[][] = [];
         for (let i = 0; i < b.lotScreen.length; i++) {
             const next = (i + 1) % b.lotScreen.length;
-            polygons.push([b.lotScreen[i], b.lotScreen[next], b.roof[next], b.roof[i]]);
+            const lotCurrent = b.lotScreen[i];
+            const lotNext = b.lotScreen[next];
+            const roofNext = b.roof[next];
+            const roofCurrent = b.roof[i];
+            if (!lotCurrent || !lotNext || !roofNext || !roofCurrent) {
+                continue;
+            }
+
+            polygons.push([lotCurrent, lotNext, roofNext, roofCurrent]);
         }
         return polygons;
     }
@@ -85,8 +97,8 @@ export default class Buildings {
     private polygonFinder: PolygonFinder;
     private allStreamlines: Vector[][] = [];
     private domainController = DomainController.getInstance();
-    private preGenerateCallback: () => any = () => {};
-    private postGenerateCallback: () => any = () => {};
+    private preGenerateCallback: () => void = () => {};
+    private postGenerateCallback: () => void = () => {};
     private _models: BuildingModels = new BuildingModels([]);
     private _blocks: Vector[][] = [];
 
@@ -182,11 +194,11 @@ export default class Buildings {
         this.postGenerateCallback();
     }
 
-    setPreGenerateCallback(callback: () => any): void {
+    setPreGenerateCallback(callback: () => void): void {
         this.preGenerateCallback = callback;
     }
 
-    setPostGenerateCallback(callback: () => any): void {
+    setPostGenerateCallback(callback: () => void): void {
         this.postGenerateCallback = callback;
     }
 

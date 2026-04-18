@@ -68,7 +68,7 @@ class Main {
     // Style options
     private canvas: HTMLCanvasElement;
     private tensorCanvas: DefaultCanvasWrapper;
-    private _style: Style;
+    private _style!: Style;
     private colourScheme: string = "Google";  // See colour_schemes.json
     private zoomBuildings: boolean = false;  // Show buildings only when zoomed in?
     private buildingModels: boolean = false;  // Draw pseudo-3D buildings?
@@ -388,9 +388,14 @@ class Main {
      * @param {string} scheme Matches a scheme name in colour_schemes.json
      */
     changeColourScheme(scheme: string): void {
-        const colourScheme: ColourScheme = (ColourSchemes as any)[scheme];
-        this.zoomBuildings = colourScheme.zoomBuildings;
-        this.buildingModels = colourScheme.buildingModels;
+        const colourScheme = (ColourSchemes as Record<string, ColourScheme | undefined>)[scheme];
+        if (!colourScheme) {
+            log.warn(`Unknown colour scheme: ${scheme}`);
+            return;
+        }
+
+        this.zoomBuildings = Boolean(colourScheme.zoomBuildings);
+        this.buildingModels = Boolean(colourScheme.buildingModels);
         Util.updateGui(this.styleFolder);
         if (scheme.startsWith("Drawn")) {
             this._style = new RoughStyle(this.canvas, this.dragController, Object.assign({}, colourScheme));
@@ -445,7 +450,7 @@ class Main {
         });
     }
 
-    private downloadFile(filename: string, file: any): void {
+    private downloadFile(filename: string, file: Blob | string): void {
         saveAs(file, filename);
     }
 
@@ -466,7 +471,7 @@ class Main {
 
         const link = document.createElement('a');
         link.download = 'map.png';
-        link.href = (document.getElementById(Util.IMG_CANVAS_ID) as any).toDataURL();
+        link.href = c.toDataURL();
         link.click();
     }
 
@@ -487,6 +492,9 @@ class Main {
     downloadSVG(): void {
         const c = document.getElementById(Util.IMG_CANVAS_ID) as HTMLCanvasElement;
         const svgElement = document.getElementById(Util.SVG_ID);
+        if (!(svgElement instanceof SVGElement)) {
+            return;
+        }
 
         if (this.showTensorField()) {
             const imgCanvas = new DefaultCanvasWrapper(c, 1, false);
@@ -811,10 +819,15 @@ class Main {
     }
 }
 
+type WindowWithLog = Window & {
+    log?: typeof log;
+};
+
 // Add log to window so we can use log.setlevel from the console
-(window as any).log = log;
+const mapWindow = window as WindowWithLog;
+mapWindow.log = log;
 window.addEventListener('load', (): void => {
     const main = new Main();
-    (window as any).mapGeneratorMain = main;
+    window.mapGeneratorMain = main;
     mountNostrOverlay();
 });

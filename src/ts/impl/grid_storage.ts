@@ -20,10 +20,11 @@ export default class GridStorage {
         this.gridDimensions = worldDimensions.clone().divideScalar(this.dsep);
         this.grid = [];
         for (let x = 0; x < this.gridDimensions.x; x++) {
-            this.grid.push([]);
+            const row: Vector[][] = [];
             for (let y = 0; y < this.gridDimensions.y; y++) {
-                this.grid[x].push([]);
+                row.push([]);
             }
+            this.grid.push(row);
         }
     }
 
@@ -54,7 +55,18 @@ export default class GridStorage {
         if (!coords) {
             coords = this.getSampleCoords(v);
         }
-        this.grid[coords.x][coords.y].push(v);
+
+        const row = this.grid[coords.x];
+        if (!row) {
+            return;
+        }
+
+        const cell = row[coords.y];
+        if (!cell) {
+            return;
+        }
+
+        cell.push(v);
     }
 
     /**
@@ -74,7 +86,13 @@ export default class GridStorage {
             for (let y = -1; y <= 1; y++) {
                 const cell = coords.clone().add(new Vector(x, y));
                 if (!this.vectorOutOfBounds(cell, this.gridDimensions)) {
-                    if (!this.vectorFarFromVectors(v, this.grid[cell.x][cell.y], dSq)) {
+                    const row = this.grid[cell.x];
+                    const samples = row ? row[cell.y] : undefined;
+                    if (!samples) {
+                        continue;
+                    }
+
+                    if (!this.vectorFarFromVectors(v, samples, dSq)) {
                         return false;
                     }
                 }
@@ -116,7 +134,13 @@ export default class GridStorage {
             for (let y = -1 * radius; y <= 1 * radius; y++) {
                 const cell = coords.clone().add(new Vector(x, y));
                 if (!this.vectorOutOfBounds(cell, this.gridDimensions)) {
-                    for (const v2 of this.grid[cell.x][cell.y]) {
+                    const row = this.grid[cell.x];
+                    const samples = row ? row[cell.y] : undefined;
+                    if (!samples) {
+                        continue;
+                    }
+
+                    for (const v2 of samples) {
                         out.push(v2);
                     }
                 }

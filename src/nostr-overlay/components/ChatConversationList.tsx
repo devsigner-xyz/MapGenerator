@@ -20,10 +20,10 @@ function conversationInitials(title: string, peerPubkey: string): string {
 
     const words = normalizedTitle.split(/\s+/).filter((word) => word.length > 0);
     if (words.length === 1) {
-        return words[0].slice(0, 2).toUpperCase();
+        return (words[0] ?? '').slice(0, 2).toUpperCase();
     }
 
-    return `${words[0][0] || ''}${words[1][0] || ''}`.toUpperCase();
+    return `${words[0]?.[0] || ''}${words[1]?.[0] || ''}`.toUpperCase();
 }
 
 export function ChatConversationList({ conversations, loading, activeConversationId, onOpenConversation }: ChatConversationListProps) {
@@ -78,7 +78,11 @@ export function ChatConversationList({ conversations, loading, activeConversatio
                                     <ItemTitle className="nostr-chat-conversation-title-row">
                                         <span className="nostr-chat-conversation-title-content">
                                             <span className="nostr-chat-conversation-title">{conversation.title}</span>
-                                            <Nip05Identifier profile={conversation.profile} verification={conversation.verification} mode="icon" />
+                                            <Nip05Identifier
+                                                {...(conversation.profile ? { profile: conversation.profile } : {})}
+                                                {...(conversation.verification ? { verification: conversation.verification } : {})}
+                                                mode="icon"
+                                            />
                                         </span>
                                         {conversation.hasUnread ? <span className="nostr-chat-conversation-unread" aria-hidden="true" /> : null}
                                     </ItemTitle>

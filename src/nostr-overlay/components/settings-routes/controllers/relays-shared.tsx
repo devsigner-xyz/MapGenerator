@@ -60,7 +60,7 @@ export function relayAvatarFallback(details: RelayDetails, document?: RelayInfor
     const source = document?.name || details.host || details.relayUrl;
     const parts = source.split(/[^a-zA-Z0-9]+/).filter((part) => part.length > 0);
     if (parts.length >= 2) {
-        return `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase();
+        return `${parts[0]?.[0] || ''}${parts[1]?.[0] || ''}`.toUpperCase();
     }
 
     return source.slice(0, 2).toUpperCase();

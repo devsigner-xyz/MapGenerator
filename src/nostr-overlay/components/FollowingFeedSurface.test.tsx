@@ -43,7 +43,6 @@ function buildProps(overrides: Partial<Parameters<typeof FollowingFeedSurface>[0
         hasFollows: true,
         profilesByPubkey: {},
         engagementByEventId: {},
-        activeHashtag: undefined,
         isLoadingFeed: false,
         feedError: null,
         hasMoreFeed: false,

@@ -19,9 +19,9 @@ export default class PolygonFinder {
     private _shrunkPolygons: Vector[][] = [];
     private _dividedPolygons: Vector[][] = [];
     private toShrink: Vector[][] = [];
-    private resolveShrink: () => void;
+    private resolveShrink: () => void = () => {};
     private toDivide: Vector[][] = [];
-    private resolveDivide: () => void;
+    private resolveDivide: () => void = () => {};
 
     constructor(private nodes: Node[], private params: PolygonParams, private tensorField: TensorField) {}
 
@@ -49,7 +49,8 @@ export default class PolygonFinder {
         let change = false;
         if (this.toShrink.length > 0) {
             const resolve = this.toShrink.length === 1;
-            if (this.stepShrink(this.toShrink.pop())) {
+            const polygon = this.toShrink.pop();
+            if (polygon && this.stepShrink(polygon)) {
                 change = true;
             }
             
@@ -58,7 +59,8 @@ export default class PolygonFinder {
 
         if (this.toDivide.length > 0) {
             const resolve = this.toDivide.length === 1;
-            if (this.stepDivide(this.toDivide.pop())) {
+            const polygon = this.toDivide.pop();
+            if (polygon && this.stepDivide(polygon)) {
                 change = true;
             }
 
@@ -187,6 +189,9 @@ export default class PolygonFinder {
         for (let i = 0; i < polygon.length; i++) {
             const current = polygon[i];
             const next = polygon[(i + 1) % polygon.length];
+            if (!current || !next) {
+                continue;
+            }
 
             const index = current.adj.indexOf(next);
             if (index >= 0) {
@@ -197,10 +202,16 @@ export default class PolygonFinder {
         }
     }
 
-    private recursiveWalk(visited: Node[], count=0): Node[] {
+    private recursiveWalk(visited: Node[], count=0): Node[] | null {
         if (count >= this.params.maxLength) return null;
         // TODO backtracking to find polygons with dead end roads inside them
-        const nextNode = this.getRightmostNode(visited[visited.length - 2], visited[visited.length - 1]);
+        const previous = visited[visited.length - 2];
+        const current = visited[visited.length - 1];
+        if (!previous || !current) {
+            return null;
+        }
+
+        const nextNode = this.getRightmostNode(previous, current);
         if (nextNode === null) {
             return null;  // Currently ignores polygons with dead end inside
         }
@@ -210,11 +221,11 @@ export default class PolygonFinder {
             return visited.slice(visitedIndex);
         } else {
             visited.push(nextNode);
-            return this.recursiveWalk(visited, count++);
+            return this.recursiveWalk(visited, count + 1);
         }
     }
 
-    private getRightmostNode(nodeFrom: Node, nodeTo: Node): Node {
+    private getRightmostNode(nodeFrom: Node, nodeTo: Node): Node | null {
         // We want to turn right at every junction
         if (nodeTo.adj.length === 0) return null;
 

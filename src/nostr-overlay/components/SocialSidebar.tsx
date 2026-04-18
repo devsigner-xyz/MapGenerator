@@ -87,6 +87,7 @@ export function SocialSidebar({
 
         return followerPeople.filter((pubkey) => matchesSearch(pubkey, followerProfiles[pubkey], query));
     }, [followerPeople, followerProfiles, followersSearch]);
+    const ownerVerification = ownerPubkey ? verificationByPubkey[ownerPubkey] : undefined;
 
     return (
         <div className="nostr-social-sidebar" aria-label="Panel social">
@@ -104,9 +105,9 @@ export function SocialSidebar({
 
                 <TabsContent value="profile" className="nostr-tab-panel">
                     <ProfileTab
-                        ownerPubkey={ownerPubkey}
-                        ownerProfile={ownerProfile}
-                        ownerVerification={ownerPubkey ? verificationByPubkey[ownerPubkey] : undefined}
+                        {...(ownerPubkey ? { ownerPubkey } : {})}
+                        {...(ownerProfile ? { ownerProfile } : {})}
+                        {...(ownerVerification ? { ownerVerification } : {})}
                     />
                 </TabsContent>
 
@@ -116,17 +117,17 @@ export function SocialSidebar({
                         profiles={profiles}
                         emptyText={followingSearch ? 'No hay resultados para esta busqueda.' : 'No hay cuentas seguidas todavía.'}
                         loading={false}
-                        selectedPubkey={selectedFollowingPubkey}
-                        onSelectPerson={onSelectFollowing}
-                        onLocatePerson={onLocateFollowing}
-                        onCopyNpub={onCopyOwnerNpub}
-                        onSendMessage={onMessagePerson}
-                        onViewDetails={onViewPersonDetails}
+                        {...(selectedFollowingPubkey !== undefined ? { selectedPubkey: selectedFollowingPubkey } : {})}
+                        {...(onSelectFollowing ? { onSelectPerson: onSelectFollowing } : {})}
+                        {...(onLocateFollowing ? { onLocatePerson: onLocateFollowing } : {})}
+                        {...(onCopyOwnerNpub ? { onCopyNpub: onCopyOwnerNpub } : {})}
+                        {...(onMessagePerson ? { onSendMessage: onMessagePerson } : {})}
+                        {...(onViewPersonDetails ? { onViewDetails: onViewPersonDetails } : {})}
                         zapAmounts={zapAmounts}
-                        onConfigureZapAmounts={onConfigureZapAmounts}
-                        searchQuery={followingPeople.length > 0 ? followingSearch : undefined}
-                        onSearchQueryChange={followingPeople.length > 0 ? setFollowingSearch : undefined}
-                        searchAriaLabel={followingPeople.length > 0 ? 'Buscar en seguidos' : undefined}
+                        {...(onConfigureZapAmounts ? { onConfigureZapAmounts } : {})}
+                        {...(followingPeople.length > 0 ? { searchQuery: followingSearch } : {})}
+                        {...(followingPeople.length > 0 ? { onSearchQueryChange: setFollowingSearch } : {})}
+                        {...(followingPeople.length > 0 ? { searchAriaLabel: 'Buscar en seguidos' } : {})}
                         verificationByPubkey={verificationByPubkey}
                     />
                 </TabsContent>
@@ -137,19 +138,19 @@ export function SocialSidebar({
                         profiles={followerProfiles}
                         emptyText={followersSearch ? 'No hay resultados para esta busqueda.' : 'No se encontraron seguidores aún.'}
                         loading={followersLoading}
-                        selectedPubkey={selectedFollowingPubkey}
-                        onSelectPerson={onSelectFollowing}
-                        onLocatePerson={onLocateFollowing}
-                        onCopyNpub={onCopyOwnerNpub}
-                        onSendMessage={onMessagePerson}
-                        onViewDetails={onViewPersonDetails}
+                        {...(selectedFollowingPubkey !== undefined ? { selectedPubkey: selectedFollowingPubkey } : {})}
+                        {...(onSelectFollowing ? { onSelectPerson: onSelectFollowing } : {})}
+                        {...(onLocateFollowing ? { onLocatePerson: onLocateFollowing } : {})}
+                        {...(onCopyOwnerNpub ? { onCopyNpub: onCopyOwnerNpub } : {})}
+                        {...(onMessagePerson ? { onSendMessage: onMessagePerson } : {})}
+                        {...(onViewPersonDetails ? { onViewDetails: onViewPersonDetails } : {})}
                         zapAmounts={zapAmounts}
-                        onConfigureZapAmounts={onConfigureZapAmounts}
+                        {...(onConfigureZapAmounts ? { onConfigureZapAmounts } : {})}
                         followedPubkeys={followingPeople}
-                        onFollowPerson={onFollowPerson}
-                        searchQuery={followerPeople.length > 0 ? followersSearch : undefined}
-                        onSearchQueryChange={followerPeople.length > 0 ? setFollowersSearch : undefined}
-                        searchAriaLabel={followerPeople.length > 0 ? 'Buscar en seguidores' : undefined}
+                        {...(onFollowPerson ? { onFollowPerson } : {})}
+                        {...(followerPeople.length > 0 ? { searchQuery: followersSearch } : {})}
+                        {...(followerPeople.length > 0 ? { onSearchQueryChange: setFollowersSearch } : {})}
+                        {...(followerPeople.length > 0 ? { searchAriaLabel: 'Buscar en seguidores' } : {})}
                         verificationByPubkey={verificationByPubkey}
                     />
                 </TabsContent>

@@ -14,14 +14,16 @@ interface ZapSettingsController {
 
 export function useZapSettingsController(input: UseZapSettingsControllerInput): ZapSettingsController {
     const { ownerPubkey, zapSettings, onZapSettingsChange } = input;
-    const [zapSettingsState, setZapSettingsState] = useState<ZapSettingsState>(() => zapSettings ?? loadZapSettings({ ownerPubkey }));
+    const [zapSettingsState, setZapSettingsState] = useState<ZapSettingsState>(() => zapSettings ?? loadZapSettings(
+        ownerPubkey ? { ownerPubkey } : undefined
+    ));
 
     useEffect(() => {
-        setZapSettingsState(zapSettings ?? loadZapSettings({ ownerPubkey }));
+        setZapSettingsState(zapSettings ?? loadZapSettings(ownerPubkey ? { ownerPubkey } : undefined));
     }, [ownerPubkey, zapSettings]);
 
     const persistZapSettings = (nextState: ZapSettingsState): void => {
-        const savedState = saveZapSettings(nextState, { ownerPubkey });
+        const savedState = saveZapSettings(nextState, ownerPubkey ? { ownerPubkey } : undefined);
         setZapSettingsState(savedState);
         onZapSettingsChange?.(savedState);
     };

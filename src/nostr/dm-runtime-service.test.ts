@@ -34,7 +34,7 @@ describe('dm-runtime-service', () => {
 
         const service = createRuntimeDirectMessagesService({
             writeGateway: createWriteGatewayMock() as any,
-            createDmService,
+            createDmService: createDmService as any,
             createTransport: () => createTransportMock() as any,
             resolveRelays: () => ['wss://relay.one'],
         });
@@ -65,7 +65,7 @@ describe('dm-runtime-service', () => {
 
         const service = createRuntimeDirectMessagesService({
             writeGateway: createWriteGatewayMock() as any,
-            createDmService,
+            createDmService: createDmService as any,
             createTransport: () => createTransportMock() as any,
             resolveRelays: () => ['wss://relay.one'],
         });
@@ -92,7 +92,7 @@ describe('dm-runtime-service', () => {
 
         const service = createRuntimeDirectMessagesService({
             writeGateway: createWriteGatewayMock() as any,
-            createDmService,
+            createDmService: createDmService as any,
             createTransport: () => createTransportMock() as any,
             resolveRelays: () => ['wss://relay.one'],
         });
@@ -119,7 +119,7 @@ describe('dm-runtime-service', () => {
 
         const service = createRuntimeDirectMessagesService({
             writeGateway: createWriteGatewayMock() as any,
-            createDmService,
+            createDmService: createDmService as any,
             createTransport: () => createTransportMock() as any,
             resolveRelays: () => ['wss://relay.one'],
         });
@@ -164,7 +164,7 @@ describe('dm-runtime-service', () => {
 
         const service = createRuntimeDirectMessagesService({
             writeGateway: createWriteGatewayMock() as any,
-            createDmService,
+            createDmService: createDmService as any,
             createTransport: () => createTransportMock() as any,
             resolveRelays: () => ['wss://relay.one'],
         });
@@ -179,7 +179,6 @@ describe('dm-runtime-service', () => {
             ownerPubkey: OWNER,
             peerPubkey: PEER,
             mode: 'reconnect',
-            since: undefined,
             sentIndex: [],
         });
     });

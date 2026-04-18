@@ -88,7 +88,7 @@ async function renderNoteCard(note: NoteCardModel = defaultNoteFixture) {
 }
 
 function createNestedNote(input: Partial<NoteCardModel> & { id: string }): NoteCardModel {
-    return {
+    const note: NoteCardModel = {
         id: input.id,
         pubkey: input.pubkey ?? 'c'.repeat(64),
         createdAt: input.createdAt ?? 200,
@@ -97,11 +97,22 @@ function createNestedNote(input: Partial<NoteCardModel> & { id: string }): NoteC
         variant: input.variant ?? 'nested',
         showCopyId: input.showCopyId ?? true,
         nestingLevel: input.nestingLevel ?? 1,
-        kindLabel: input.kindLabel,
-        actions: input.actions,
-        embedded: input.embedded,
-        referencedNotes: input.referencedNotes,
     };
+
+    if (input.kindLabel !== undefined) {
+        note.kindLabel = input.kindLabel;
+    }
+    if (input.actions !== undefined) {
+        note.actions = input.actions;
+    }
+    if (input.embedded !== undefined) {
+        note.embedded = input.embedded;
+    }
+    if (input.referencedNotes !== undefined) {
+        note.referencedNotes = input.referencedNotes;
+    }
+
+    return note;
 }
 
 describe('NoteCard', () => {

@@ -21,18 +21,26 @@ function Slider({
     [value, defaultValue, min, max]
   )
 
+  const sliderProps: React.ComponentProps<typeof SliderPrimitive.Root> = {
+    min,
+    max,
+    ...props,
+  }
+  if (defaultValue !== undefined) {
+    sliderProps.defaultValue = defaultValue
+  }
+  if (value !== undefined) {
+    sliderProps.value = value
+  }
+
   return (
     <SliderPrimitive.Root
       data-slot="slider"
-      defaultValue={defaultValue}
-      value={value}
-      min={min}
-      max={max}
       className={cn(
         "relative flex w-full touch-none items-center select-none data-disabled:opacity-50 data-vertical:h-full data-vertical:min-h-40 data-vertical:w-auto data-vertical:flex-col",
         className
       )}
-      {...props}
+      {...sliderProps}
     >
       <SliderPrimitive.Track
         data-slot="slider-track"

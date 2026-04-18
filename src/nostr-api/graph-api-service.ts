@@ -94,11 +94,16 @@ export function createGraphApiService(options: CreateGraphApiServiceOptions = {}
                 },
             });
 
-            return {
+            const result: FetchLatestPostsByPubkeyResult = {
                 posts: response.posts,
-                nextUntil: response.nextUntil ?? undefined,
                 hasMore: response.hasMore,
             };
+
+            if (typeof response.nextUntil === 'number') {
+                result.nextUntil = response.nextUntil;
+            }
+
+            return result;
         },
 
         async loadProfileStats(input) {
