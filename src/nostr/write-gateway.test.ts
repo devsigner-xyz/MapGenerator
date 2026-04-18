@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import { AUTH_PROVIDER_ERROR, AuthProviderError, type AuthProvider } from './auth/providers/types';
+import { AUTH_PROVIDER_ERROR, type AuthProvider } from './auth/providers/types';
 import { createWriteGateway } from './write-gateway';
 import type { AuthSessionState } from './auth/session';
 import type { NostrEvent } from './types';

@@ -218,52 +218,6 @@ function createMapBridgeStub(buildingsCount = 0): MapBridgeStub {
     };
 }
 
-function createWrappedDmEvent(input: {
-    ownerPubkey: string;
-    rumorPubkey: string;
-    rumorRecipient: string;
-    rumorContent: string;
-    rumorCreatedAt: number;
-}): {
-    id: string;
-    pubkey: string;
-    kind: number;
-    created_at: number;
-    tags: string[][];
-    content: string;
-    sig: string;
-} {
-    const rumor = {
-        id: 'r'.repeat(64),
-        pubkey: input.rumorPubkey,
-        kind: 14,
-        created_at: input.rumorCreatedAt,
-        tags: [['p', input.rumorRecipient]],
-        content: input.rumorContent,
-        sig: '1'.repeat(128),
-    };
-
-    const seal = {
-        id: 's'.repeat(64),
-        pubkey: input.rumorPubkey,
-        kind: 13,
-        created_at: input.rumorCreatedAt,
-        tags: [] as string[][],
-        content: JSON.stringify(rumor),
-        sig: '2'.repeat(128),
-    };
-
-    return {
-        id: 'g'.repeat(64),
-        pubkey: 'c'.repeat(64),
-        kind: 1059,
-        created_at: input.rumorCreatedAt,
-        tags: [['p', input.ownerPubkey]],
-        content: JSON.stringify(seal),
-        sig: '3'.repeat(128),
-    };
-}
-
 function createSocialNotificationsServiceMock() {
     let listener: ((event: SocialNotificationEvent) => void) | null = null;
     const service: SocialNotificationsService = {
@@ -2508,7 +2462,7 @@ describe('Nostr overlay App', () => {
 
         const createRuntimeServiceSpy = vi.spyOn(runtimeDmServiceModule, 'createRuntimeDirectMessagesService').mockReturnValue(runtimeReadService as any);
         const createDmApiServiceSpy = vi.spyOn(dmApiServiceModule, 'createDmApiService').mockReturnValue(apiReadService as any);
-        const createTransportSpy = createNdkDmTransportClientSpy!.mockImplementation(() => ({
+        createNdkDmTransportClientSpy!.mockImplementation(() => ({
             publishToRelays: vi.fn(async () => ({
                 ackedRelays: ['wss://relay.one'],
                 failedRelays: [],
@@ -2521,7 +2475,7 @@ describe('Nostr overlay App', () => {
             })),
             fetchBackfill: vi.fn(async () => []),
         } as any));
-        const createWriteGatewaySpy = vi.spyOn(writeGatewayModule, 'createWriteGateway').mockReturnValue({
+        vi.spyOn(writeGatewayModule, 'createWriteGateway').mockReturnValue({
             publishEvent: vi.fn(async () => {
                 throw new Error('not-used');
             }),
@@ -3463,7 +3417,7 @@ describe('Nostr overlay App', () => {
             },
         });
 
-        const { bridge, triggerOccupiedBuildingClick } = createMapBridgeStub(6);
+        const { bridge } = createMapBridgeStub(6);
         const rendered = await renderApp(
             <App
                 mapBridge={bridge}
@@ -3754,7 +3708,7 @@ describe('Nostr overlay App', () => {
         const profilesDeferred = createDeferred<Record<string, { pubkey: string; displayName: string }>>();
         const mapDeferred = createDeferred<void>();
 
-        const { bridge, triggerOccupiedBuildingClick } = createMapBridgeStub(6);
+        const { bridge } = createMapBridgeStub(6);
         (bridge.ensureGenerated as any).mockImplementation(() => mapDeferred.promise);
 
         const rendered = await renderApp(

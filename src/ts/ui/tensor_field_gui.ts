@@ -1,4 +1,3 @@
-import * as log from 'loglevel';
 import {DefaultCanvasWrapper} from './canvas_wrapper';
 import DomainController from './domain_controller';
 import DragController from './drag_controller';

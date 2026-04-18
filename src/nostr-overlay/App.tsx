@@ -147,7 +147,6 @@ export function App({ mapBridge, services }: AppProps) {
     const sessionRestorationResolved = overlay.sessionRestorationResolved;
     const isAppReady = Boolean(overlay.authSession) && overlay.status === 'success' && !overlay.authSession?.locked;
     const showLoginGate = !sessionRestorationResolved || !isAppReady;
-    const regenerateDisabled = !mapBridge || overlay.mapLoaderStage !== null;
     const lastErrorToastRef = useRef<string | undefined>(undefined);
     const streetLabelUsernames = useMemo(() => extractStreetLabelUsernames({
         occupancyByBuildingIndex: overlay.occupancyByBuildingIndex,

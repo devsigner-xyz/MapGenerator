@@ -33,7 +33,6 @@ import {
     normalizeEventIds,
     selectFeedItemsFromPages,
     selectThreadViewFromPages,
-    type FollowingFeedThreadView,
 } from '../query/following-feed.selectors';
 import {
     useFollowingFeedEngagementQuery,

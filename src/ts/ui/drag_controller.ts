@@ -1,4 +1,3 @@
-import * as log from 'loglevel';
 import interact from 'interactjs';
 import Util from '../util';
 import Vector from '../vector';

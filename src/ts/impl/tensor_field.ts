@@ -1,4 +1,3 @@
-import * as log from 'loglevel';
 // import * as noise from 'noisejs';
 import { createNoise2D } from 'simplex-noise';
 import Tensor from './tensor';

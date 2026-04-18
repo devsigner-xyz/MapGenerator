@@ -110,14 +110,12 @@ async function renderApp(element: ReactElement): Promise<RenderResult> {
 }
 
 let mounted: RenderResult[] = [];
-let createNdkDmTransportClientSpy: ReturnType<typeof vi.spyOn> | null = null;
-
 beforeAll(() => {
     (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 });
 
 beforeEach(() => {
-    createNdkDmTransportClientSpy = vi.spyOn(ndkClientModule, 'createNdkDmTransportClient').mockReturnValue({
+    vi.spyOn(ndkClientModule, 'createNdkDmTransportClient').mockReturnValue({
         publishToRelays: vi.fn(async () => ({
             ackedRelays: [],
             failedRelays: [],
@@ -141,7 +139,6 @@ afterEach(async () => {
     }
     mounted = [];
     vi.restoreAllMocks();
-    createNdkDmTransportClientSpy = null;
 });
 
 describe('Nostr overlay selection map interaction', () => {

@@ -1,10 +1,7 @@
 import * as log from 'loglevel';
-import TensorFieldGUI from './tensor_field_gui';
-import {NoiseParams} from '../impl/tensor_field';
 import CanvasWrapper from './canvas_wrapper';
 import {DefaultCanvasWrapper, RoughCanvasWrapper} from './canvas_wrapper';
 import Util from '../util';
-import PolygonUtil from '../impl/polygon_util';
 import DragController from './drag_controller';
 import DomainController from './domain_controller';
 import Vector from '../vector';

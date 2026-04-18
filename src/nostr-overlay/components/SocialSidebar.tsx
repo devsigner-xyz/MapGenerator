@@ -57,7 +57,7 @@ export function SocialSidebar({
     const matchesSearch = (pubkey: string, profile: NostrProfile | undefined, query: string): boolean => {
         const displayName = profile?.displayName || '';
         const name = profile?.name || '';
-        let npub = '';
+        let npub: string;
         try {
             npub = encodeHexToNpub(pubkey);
         } catch {

@@ -1,8 +1,6 @@
-import * as log from 'loglevel';
 import DomainController from './domain_controller';
 import TensorField from '../impl/tensor_field';
 import {RK4Integrator} from '../impl/integrator';
-import FieldIntegrator from '../impl/integrator';
 import {StreamlineParams} from '../impl/streamlines';
 import {WaterParams} from '../impl/water_generator';
 import Graph from '../impl/graph';
@@ -10,9 +8,6 @@ import RoadGUI from './road_gui';
 import WaterGUI from './water_gui';
 import Vector from '../vector';
 import PolygonFinder from '../impl/polygon_finder';
-import {PolygonParams} from '../impl/polygon_finder';
-import StreamlineGenerator from '../impl/streamlines';
-import WaterGenerator from '../impl/water_generator';
 import Style from './style';
 import {BuildingRenderState, DefaultStyle, RoughStyle} from './style';
 import CanvasWrapper from './canvas_wrapper';

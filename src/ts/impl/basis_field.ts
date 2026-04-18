@@ -121,7 +121,7 @@ export class Grid extends BasisField {
         thetaController.onChange(theta => this._theta = theta * (Math.PI / 180));
     }
 
-    getTensor(point: Vector): Tensor {
+    getTensor(_point: Vector): Tensor {
         const cos = Math.cos(2 * this._theta);
         const sin = Math.sin(2 * this._theta);
         return new Tensor(1, [cos, sin]);

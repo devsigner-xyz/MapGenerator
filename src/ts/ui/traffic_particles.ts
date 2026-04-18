@@ -232,7 +232,6 @@ export class TrafficParticlesSimulation {
 
                 if (travelDistance < remaining) {
                     particle.distanceOnEdge += travelDistance;
-                    travelDistance = 0;
                     break;
                 }
 
@@ -482,15 +481,11 @@ export class TrafficParticlesSimulation {
             outgoingDirection.normalize();
 
             const angleAbs = Math.abs(Vector.angleBetween(outgoingDirection, incomingDirection));
-            let weight = 1;
-
-            if (angleAbs < Math.PI / 6) {
-                weight = 0.25;
-            } else if (angleAbs > Math.PI * 0.85) {
-                weight = 0.1;
-            } else {
-                weight = 1 + (angleAbs / Math.PI) * 0.2;
-            }
+            const weight = angleAbs < Math.PI / 6
+                ? 0.25
+                : angleAbs > Math.PI * 0.85
+                    ? 0.1
+                    : 1 + (angleAbs / Math.PI) * 0.2;
 
             totalWeight += weight;
             weightedCandidates.push({ edgeId, weight });

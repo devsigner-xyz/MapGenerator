@@ -1,4 +1,3 @@
-import * as log from 'loglevel';
 import Vector from '../vector';
 import { SVG } from '@svgdotjs/svg.js';
 import rough from 'roughjs/bundled/rough.esm.js';
@@ -76,7 +75,7 @@ export default abstract class CanvasWrapper {
 
     abstract drawFrame(left: number, right: number, up: number, down: number): void;
 
-    drawRotatedText(text: string, center: Vector, angleRad: number, fontPx: number): void {
+    drawRotatedText(_text: string, _center: Vector, _angleRad: number, _fontPx: number): void {
         return;
     }
 
@@ -340,11 +339,11 @@ export class RoughCanvasWrapper extends CanvasWrapper {
         this.rc = rough.svg(this.svgNode as unknown as SVGSVGElement) as unknown as RoughRenderer;
     }
 
-    drawFrame(left: number, right: number, up: number, down: number): void {
+    drawFrame(_left: number, _right: number, _up: number, _down: number): void {
 
     }
 
-    drawRotatedText(text: string, center: Vector, angleRad: number, fontPx: number): void {
+    drawRotatedText(_text: string, _center: Vector, _angleRad: number, _fontPx: number): void {
         return;
     }
 

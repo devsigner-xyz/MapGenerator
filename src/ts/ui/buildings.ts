@@ -1,4 +1,3 @@
-import * as log from 'loglevel';
 import DomainController from './domain_controller';
 import TensorField from '../impl/tensor_field';
 import Graph from '../impl/graph';

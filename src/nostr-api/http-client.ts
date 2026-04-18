@@ -1,6 +1,3 @@
-type JsonPrimitive = string | number | boolean | null;
-type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: unknown };
-
 type QueryValue = string | number | boolean | null | undefined;
 
 interface BackendErrorEnvelope {

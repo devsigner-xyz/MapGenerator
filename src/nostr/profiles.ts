@@ -43,7 +43,7 @@ function extractExternalIdentities(parsed: MetadataContent): string[] | undefine
 }
 
 export function parseProfileMetadata(event: NostrEvent): NostrProfile {
-    let parsed: MetadataContent = {};
+    let parsed: MetadataContent;
 
     try {
         parsed = JSON.parse(event.content) as MetadataContent;

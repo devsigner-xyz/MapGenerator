@@ -477,7 +477,7 @@ export function createStreetLabels(input: CreateStreetLabelsInput): StreetLabel[
         acceptedPlacements.push(candidate);
     }
 
-    return acceptedPlacements.map((placement, index) => ({
+    return acceptedPlacements.map((placement) => ({
         text: namesByRoadIndex[placement.roadIndex] || `Relay Street ${placement.roadIndex + 1}`,
         anchor: placement.anchor,
         angleRad: placement.angleRad,
