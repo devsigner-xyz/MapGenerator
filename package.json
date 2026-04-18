@@ -8,7 +8,11 @@
     "dev:lan": "vite --host 0.0.0.0 --port 5173",
     "bff:dev": "tsx watch server/src/main.ts",
     "bff:start": "tsx server/src/main.ts",
-    "build": "vite build",
+    "build": "pnpm build:app && pnpm docs:build",
+    "build:app": "vite build",
+    "docs:dev": "vitepress dev docs --port 5174",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs --port 4174",
     "preview": "vite preview",
     "lint": "pnpm lint:full",
     "lint:frontend": "eslint \"src/**/*.{ts,tsx}\"",
@@ -101,6 +105,7 @@
     "typescript": "^6.0.2",
     "typescript-eslint": "^8.58.2",
     "vite": "^8.0.7",
+    "vitepress": "^1.6.4",
     "vitest": "^4.1.3"
   }
 }

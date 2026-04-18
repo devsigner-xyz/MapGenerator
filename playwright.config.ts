@@ -5,12 +5,12 @@ export default defineConfig({
   timeout: 120_000,
   retries: 0,
   use: {
-    baseURL: 'http://127.0.0.1:4173',
+    baseURL: 'http://127.0.0.1:4273',
     headless: true,
   },
   webServer: {
-    command: 'pnpm preview --host 127.0.0.1 --port 4173',
-    url: 'http://127.0.0.1:4173',
+    command: 'pnpm preview --host 127.0.0.1 --port 4273',
+    url: 'http://127.0.0.1:4273',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

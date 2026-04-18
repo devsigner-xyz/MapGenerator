@@ -17,7 +17,7 @@
     <a href="https://probabletrain.itch.io/city-generator"><strong>Open Generator »</strong></a>
     <br />
     <br />
-    <a href="https://maps.probabletrain.com" target="_blank">Read the Docs</a>
+    <a href="https://maps.probabletrain.com/docs/" target="_blank">Read the Docs</a>
     ·
     <a href="https://github.com/probabletrain/mapgenerator/issues">Report Bug</a>
     ·
@@ -107,7 +107,7 @@ pnpm preview
 
 ## Usage
 
-See the [documentation](https://maps.probabletrain.com).
+See the [documentation](https://maps.probabletrain.com/docs/).
 
 ### Local development (frontend + BFF)
 

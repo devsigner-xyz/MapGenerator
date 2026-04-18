@@ -49,7 +49,7 @@ export default class ModelGenerator {
         return new Promise<Blob>(resolve => {
             this.resolve = resolve;
             this.zip = new JSZip();
-            this.zip.file("model/README.txt", "For a tutorial on putting these models together to create a city, go to https://maps.probabletrain.com/#/stl");
+            this.zip.file("model/README.txt", "For a tutorial on working with these exported STL files, go to https://maps.probabletrain.com/docs/empezar/exportacion-y-stl");
 
             this.groundMesh = this.polygonToMesh(this.ground, this.groundLevel);
             this.groundBsp = CSG.fromMesh(this.groundMesh);
