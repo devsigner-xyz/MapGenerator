@@ -789,8 +789,6 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                     },
                 }));
 
-                setSessionRestorationResolved(true);
-
                 await loadOwnerGraph({
                     session: restored,
                     method: restored.method,
@@ -1112,7 +1110,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 },
             });
 
-            void (async () => {
+            await (async () => {
                 const followerSet = new Set<string>();
                 const nextFollowerProfiles: Record<string, NostrProfile> = {};
                 const followerBatcher = createFollowerBatcher(async (newFollowers: string[]) => {

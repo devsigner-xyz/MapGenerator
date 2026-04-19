@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 
 interface LoginMethodSelectorProps {
     disabled?: boolean;
+    loadingText?: string;
     onStartSession: (method: LoginMethod, input: ProviderResolveInput) => Promise<void> | void;
     initialMethod?: SelectorMethod;
 }
@@ -33,6 +34,7 @@ const selectorMethodLabels: Record<SelectorMethod, string> = {
 
 export function LoginMethodSelector({
     disabled = false,
+    loadingText,
     onStartSession,
     initialMethod = 'npub',
 }: LoginMethodSelectorProps) {
@@ -66,6 +68,7 @@ export function LoginMethodSelector({
     };
 
     const isBusy = disabled || isSubmitting;
+    const busyLabel = loadingText && loadingText.trim().length > 0 ? loadingText : 'Cargando...';
 
     const handleNip46Submit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -118,7 +121,7 @@ export function LoginMethodSelector({
                         {isBusy ? (
                             <>
                                 <Spinner data-icon="inline-start" />
-                                Cargando...
+                                {busyLabel}
                             </>
                         ) : 'Acceder'}
                     </Button>
@@ -141,7 +144,7 @@ export function LoginMethodSelector({
                         {isBusy ? (
                             <>
                                 <Spinner data-icon="inline-start" />
-                                Cargando...
+                                {busyLabel}
                             </>
                         ) : 'Continuar con extension'}
                     </Button>
@@ -164,7 +167,12 @@ export function LoginMethodSelector({
                     />
 
                     <Button type="submit" className="nostr-login-method-actions mt-2 w-full" disabled={isBusy || bunkerUri.trim().length === 0}>
-                        Conectar bunker
+                        {isBusy ? (
+                            <>
+                                <Spinner data-icon="inline-start" />
+                                {busyLabel}
+                            </>
+                        ) : 'Conectar bunker'}
                     </Button>
                 </form>
             ) : null}

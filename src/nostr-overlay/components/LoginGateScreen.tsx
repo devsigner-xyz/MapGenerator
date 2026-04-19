@@ -7,6 +7,7 @@ import { LoginMethodSelector } from './LoginMethodSelector';
 import { AuthFlowFooter } from './AuthFlowFooter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
@@ -18,8 +19,6 @@ interface LoginGateScreenProps {
     disabled?: boolean;
     mapLoaderText?: string | null;
     restoringSession?: boolean;
-    showLogout?: boolean;
-    onLogout?: () => Promise<void> | void;
     onStartSession: (method: LoginMethod, input: ProviderResolveInput) => Promise<void> | void;
 }
 
@@ -29,8 +28,6 @@ export function LoginGateScreen({
     disabled = false,
     mapLoaderText,
     restoringSession = false,
-    showLogout = false,
-    onLogout,
     onStartSession,
 }: LoginGateScreenProps) {
     const [panel, setPanel] = useState<'login' | 'create-account-selector' | 'create-account-flow'>('login');
@@ -46,6 +43,7 @@ export function LoginGateScreen({
     const showUnlockLocalAccount = Boolean(authSession && authSession.method === 'local' && authSession.locked);
     const lockedLocalPubkey = authSession?.method === 'local' && authSession.locked ? authSession.pubkey : undefined;
     const [savedLocalPassphrase, setSavedLocalPassphrase] = useState('');
+    const restorationSubtitle = mapLoaderText && mapLoaderText.trim().length > 0 ? mapLoaderText : 'Preparando acceso...';
 
     return (
         <div className="nostr-login-screen nostr-login-screen-dialog" data-testid="login-gate-screen" role="main" aria-label="Pantalla de login">
@@ -56,18 +54,16 @@ export function LoginGateScreen({
                             <img src={loginCover} alt="Nostr City cover" className="nostr-login-cover" />
                         </div>
 
-                        {mapLoaderText ? (
-                            <div className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground" role="status" aria-live="polite">
-                                <Spinner />
-                                <p className="m-0">{mapLoaderText}</p>
-                            </div>
-                        ) : null}
-
                         {restoringSession ? (
-                            <div className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground" role="status" aria-live="polite">
-                                <Spinner />
-                                <p className="m-0">Restaurando sesion...</p>
-                            </div>
+                            <Empty className="min-h-48 border-0 p-0" role="status" aria-live="polite">
+                                <EmptyHeader>
+                                    <EmptyMedia variant="icon">
+                                        <Spinner />
+                                    </EmptyMedia>
+                                    <EmptyTitle>Recuperando sesión</EmptyTitle>
+                                    <EmptyDescription>{restorationSubtitle}</EmptyDescription>
+                                </EmptyHeader>
+                            </Empty>
                         ) : showUnlockLocalAccount ? (
                             <form
                                 data-testid="unlock-local-account-form"
@@ -133,6 +129,7 @@ export function LoginGateScreen({
                                 {savedLocalAccount ? (
                                     <LoginMethodSelector
                                         disabled={disabled}
+                                        loadingText={mapLoaderText ?? undefined}
                                         onStartSession={async (method, input) => {
                                             await onStartSession(method, input);
                                         }}
@@ -141,6 +138,7 @@ export function LoginGateScreen({
                                     <div className="nostr-login-gate-actions grid gap-3" data-testid="login-gate-actions">
                                         <LoginMethodSelector
                                             disabled={disabled}
+                                            loadingText={mapLoaderText ?? undefined}
                                             onStartSession={async (method, input) => {
                                                 await onStartSession(method, input);
                                             }}
@@ -197,17 +195,6 @@ export function LoginGateScreen({
                             </>
                         )}
 
-                        {showLogout ? (
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => {
-                                    void onLogout?.();
-                                }}
-                            >
-                                Cerrar sesion
-                            </Button>
-                        ) : null}
                     </CardContent>
                 </Card>
             </div>

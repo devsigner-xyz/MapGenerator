@@ -657,9 +657,10 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await waitFor(() => (rendered.container.textContent || '').includes('Restaurando sesion...'));
+        await waitFor(() => (rendered.container.textContent || '').includes('Recuperando sesión'));
         expect(rendered.container.textContent || '').not.toContain('Metodo de acceso');
         expect(rendered.container.querySelector('input[name="npub"]')).toBeNull();
+        expect(rendered.container.textContent || '').toContain('Conectando a relay...');
 
         await act(async () => {
             followsDeferred.resolve({
@@ -682,7 +683,7 @@ describe('Nostr overlay App', () => {
 
         await waitFor(() => rendered.container.querySelector('[data-testid="login-gate-screen"]') !== null);
         expect(rendered.container.textContent || '').toContain('Metodo de acceso');
-        expect(rendered.container.textContent || '').not.toContain('Restaurando sesion...');
+        expect(rendered.container.textContent || '').not.toContain('Recuperando sesión');
     });
 
     test('returns to the login form when a restored session fails to load', async () => {
@@ -719,7 +720,7 @@ describe('Nostr overlay App', () => {
         mounted.push(rendered);
 
         await waitFor(() => (rendered.container.textContent || '').includes('Metodo de acceso'));
-        expect(rendered.container.textContent || '').not.toContain('Restaurando sesion...');
+        expect(rendered.container.textContent || '').not.toContain('Recuperando sesión');
         expect(rendered.container.querySelector('input[name="npub"]')).not.toBeNull();
     });
 

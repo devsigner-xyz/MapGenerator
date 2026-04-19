@@ -11,6 +11,7 @@ interface RenderResult {
 interface RenderSelectorInput {
     disabled?: boolean;
     initialMethod?: 'npub' | 'nip07' | 'nip46';
+    loadingText?: string;
 }
 
 async function renderSelector(input: RenderSelectorInput = {}): Promise<RenderResult> {
@@ -22,6 +23,7 @@ async function renderSelector(input: RenderSelectorInput = {}): Promise<RenderRe
     const selectorProps = {
         disabled: input.disabled ?? false,
         onStartSession,
+        ...(input.loadingText === undefined ? {} : { loadingText: input.loadingText }),
         ...(input.initialMethod === undefined ? {} : { initialMethod: input.initialMethod }),
     };
 
@@ -166,6 +168,46 @@ describe('LoginMethodSelector', () => {
         expect(submitButton.textContent || '').toContain('Cargando');
         const spinner = submitButton.querySelector('[aria-label="Loading"]');
         expect(spinner).toBeDefined();
+    });
+
+    test('falls back to generic loading copy when loading text is blank', async () => {
+        const rendered = await renderSelector({ disabled: true, loadingText: '   ' });
+        mounted.push(rendered);
+
+        const submitButton = rendered.container.querySelector('button[type="submit"]') as HTMLButtonElement;
+        expect(submitButton).toBeDefined();
+        expect(submitButton.textContent || '').toContain('Cargando...');
+    });
+
+    test('shows specific progress copy on npub submit when loading text is provided', async () => {
+        const rendered = await renderSelector({ disabled: true, loadingText: 'Construyendo mapa...' });
+        mounted.push(rendered);
+
+        const submitButton = rendered.container.querySelector('button[type="submit"]') as HTMLButtonElement;
+        expect(submitButton).toBeDefined();
+        expect(submitButton.textContent || '').toContain('Construyendo mapa...');
+        expect(submitButton.textContent || '').not.toContain('Cargando...');
+    });
+
+    test('shows specific progress copy on nip07 submit when loading text is provided', async () => {
+        const rendered = await renderSelector({ disabled: true, initialMethod: 'nip07', loadingText: 'Conectando a relay...' });
+        mounted.push(rendered);
+
+        const submitButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Conectando a relay...')
+        ) as HTMLButtonElement | undefined;
+        expect(submitButton).toBeDefined();
+        expect(submitButton?.textContent || '').not.toContain('Cargando...');
+    });
+
+    test('shows specific progress copy on nip46 submit when loading text is provided', async () => {
+        const rendered = await renderSelector({ disabled: true, initialMethod: 'nip46', loadingText: 'Conectando a relay...' });
+        mounted.push(rendered);
+
+        const submitButton = rendered.container.querySelector('button[type="submit"]') as HTMLButtonElement;
+        expect(submitButton).toBeDefined();
+        expect(submitButton.textContent || '').toContain('Conectando a relay...');
+        expect(submitButton.textContent || '').not.toContain('Conectar bunker');
     });
 
     test('layers shared utility spacing onto the npub primary action button', async () => {

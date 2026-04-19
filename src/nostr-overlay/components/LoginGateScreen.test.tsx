@@ -13,6 +13,8 @@ async function renderScreen(options: {
     disabled?: boolean;
     authSession?: AuthSessionState;
     savedLocalAccount?: { pubkey: string; mode: 'device' | 'passphrase' };
+    mapLoaderText?: string;
+    restoringSession?: boolean;
 } = {}): Promise<RenderResult> {
     const container = document.createElement('div');
     document.body.appendChild(container);
@@ -24,6 +26,8 @@ async function renderScreen(options: {
                 authSession={options.authSession}
                 savedLocalAccount={options.savedLocalAccount}
                 disabled={options.disabled ?? false}
+                mapLoaderText={options.mapLoaderText}
+                restoringSession={options.restoringSession ?? false}
                 onStartSession={vi.fn()}
             />
         );
@@ -284,5 +288,55 @@ describe('LoginGateScreen', () => {
             pubkey: 'f'.repeat(64),
             passphrase: 'local-passphrase',
         });
+    });
+
+    test('does not render a logout action inside the login gate', async () => {
+        const activeSession: AuthSessionState = {
+            method: 'npub',
+            pubkey: 'f'.repeat(64),
+            readonly: true,
+            locked: false,
+            createdAt: 1,
+            capabilities: {
+                canSign: false,
+                canEncrypt: false,
+                encryptionSchemes: [],
+            },
+        };
+        const rendered = await renderScreen({ authSession: activeSession });
+        mounted.push(rendered);
+
+        expect(rendered.container.textContent || '').not.toContain('Cerrar sesion');
+    });
+
+    test('does not render map loader text above the login form', async () => {
+        const rendered = await renderScreen({ mapLoaderText: 'Construyendo mapa...' });
+        mounted.push(rendered);
+
+        expect(rendered.container.textContent || '').not.toContain('Construyendo mapa...');
+    });
+
+    test('shows only the restoration state while restoring a session', async () => {
+        const rendered = await renderScreen({ restoringSession: true });
+        mounted.push(rendered);
+
+        const content = rendered.container.textContent || '';
+        expect(rendered.container.querySelector('[data-slot="empty"]')).not.toBeNull();
+        expect(content).toContain('Recuperando sesión');
+        expect(content).toContain('Preparando acceso...');
+        expect(content).not.toContain('Restaurando sesion');
+        expect(content).not.toContain('Metodo de acceso');
+        expect(rendered.container.querySelector('input[name="npub"]')).toBeNull();
+        expect(rendered.container.querySelector('[data-slot="empty-icon"] [aria-label="Loading"]')).not.toBeNull();
+    });
+
+    test('shows dynamic restoration subtitle from map loader text', async () => {
+        const rendered = await renderScreen({ restoringSession: true, mapLoaderText: 'Construyendo mapa...' });
+        mounted.push(rendered);
+
+        const content = rendered.container.textContent || '';
+        expect(content).toContain('Recuperando sesión');
+        expect(content).toContain('Construyendo mapa...');
+        expect(content).not.toContain('Preparando acceso...');
     });
 });
