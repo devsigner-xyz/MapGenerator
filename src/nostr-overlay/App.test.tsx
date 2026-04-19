@@ -616,9 +616,111 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await waitFor(() => (rendered.container.textContent || '').includes('User-ffff'));
+        await waitFor(() => rendered.container.querySelector('[data-testid="login-gate-screen"]') === null);
         expect(rendered.container.querySelector('[data-testid="login-gate-screen"]')).toBeNull();
         expect(rendered.container.querySelector('.nostr-panel-toolbar')).not.toBeNull();
+    });
+
+    test('keeps the restoration state visible while a restored session is still loading', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const followsDeferred = createDeferred<{ ownerPubkey: string; follows: string[]; relayHints: string[] }>();
+        window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify({
+            method: 'npub',
+            pubkey: ownerPubkey,
+            readonly: true,
+            locked: false,
+            createdAt: Date.now(),
+        }));
+
+        const { bridge } = createMapBridgeStub(4);
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockImplementation(async () => followsDeferred.promise),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />,
+            { initialEntries: ['/login'] }
+        );
+        mounted.push(rendered);
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Restaurando sesion...'));
+        expect(rendered.container.textContent || '').not.toContain('Metodo de acceso');
+        expect(rendered.container.querySelector('input[name="npub"]')).toBeNull();
+
+        await act(async () => {
+            followsDeferred.resolve({
+                ownerPubkey,
+                follows: [],
+                relayHints: [],
+            });
+        });
+
+        await waitFor(() => rendered.container.querySelector('[data-testid="login-gate-screen"]') === null);
+    });
+
+    test('shows the login form once restoration resolves without a persisted session', async () => {
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App mapBridge={bridge} />,
+            { initialEntries: ['/login'] }
+        );
+        mounted.push(rendered);
+
+        await waitFor(() => rendered.container.querySelector('[data-testid="login-gate-screen"]') !== null);
+        expect(rendered.container.textContent || '').toContain('Metodo de acceso');
+        expect(rendered.container.textContent || '').not.toContain('Restaurando sesion...');
+    });
+
+    test('returns to the login form when a restored session fails to load', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify({
+            method: 'npub',
+            pubkey: ownerPubkey,
+            readonly: true,
+            locked: false,
+            createdAt: Date.now(),
+        }));
+
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockRejectedValue(new Error('restore failed')),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({}),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />,
+            { initialEntries: ['/login'] }
+        );
+        mounted.push(rendered);
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Metodo de acceso'));
+        expect(rendered.container.textContent || '').not.toContain('Restaurando sesion...');
+        expect(rendered.container.querySelector('input[name="npub"]')).not.toBeNull();
     });
 
     test('redirects direct internal routes to /login when session is missing', async () => {
@@ -726,7 +828,7 @@ describe('Nostr overlay App', () => {
         mounted.push(rendered);
 
         await loginWithNip07(rendered.container);
-        await waitFor(() => (rendered.container.textContent || '').includes('User-ffff'));
+        await waitFor(() => rendered.container.querySelector('[data-testid="login-gate-screen"]') === null);
 
         const toolbarButtons = Array.from(rendered.container.querySelectorAll('.nostr-panel-toolbar button')) as HTMLButtonElement[];
         expect(toolbarButtons.length).toBeGreaterThanOrEqual(4);
@@ -3337,8 +3439,18 @@ describe('Nostr overlay App', () => {
         expect((bridge.setStreetLabelsEnabled as any).mock.calls.at(-1)?.[0]).toBe(true);
         await waitFor(() => (document.body.textContent || '').includes('Etiquetas de calles activadas'));
         const saved = JSON.parse(window.localStorage.getItem(UI_SETTINGS_STORAGE_KEY) || '{}');
-        expect(saved.streetLabelsZoomLevel).toBe(1);
-        expect((bridge.setStreetLabelsZoomLevel as any).mock.calls.at(-1)?.[0]).toBe(1);
+        expect(saved.streetLabelsZoomLevel).toBe(2);
+        expect((bridge.setStreetLabelsZoomLevel as any).mock.calls.at(-1)?.[0]).toBe(2);
+    });
+
+    test('uses street label zoom default 2 on mount when no setting is stored', async () => {
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(<App mapBridge={bridge} services={createBasicOverlayServices()} />);
+        mounted.push(rendered);
+
+        await waitFor(() => (bridge.setStreetLabelsZoomLevel as any).mock.calls.length > 0);
+
+        expect((bridge.setStreetLabelsZoomLevel as any).mock.calls.at(-1)?.[0]).toBe(2);
     });
 
     test('toggles cars from floating controls restoring previous count', async () => {
@@ -5920,7 +6032,7 @@ describe('Nostr overlay App', () => {
             form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
         });
 
-        await waitFor(() => (rendered.container.textContent || '').includes('User-ffff'));
+        await waitFor(() => rendered.container.querySelector('[data-testid="login-gate-screen"]') === null);
 
         await act(async () => {
             triggerOccupiedBuildingClick({ buildingIndex: 4, pubkey: followedPubkey });
@@ -5984,7 +6096,7 @@ describe('Nostr overlay App', () => {
         mounted.push(rendered);
 
         await loginWithNip07(rendered.container);
-        await waitFor(() => (rendered.container.textContent || '').includes('User-ffff'));
+        await waitFor(() => rendered.container.querySelector('[data-testid="login-gate-screen"]') === null);
 
         await act(async () => {
             triggerOccupiedBuildingClick({ buildingIndex: 4, pubkey: followedPubkey });
@@ -6437,7 +6549,7 @@ describe('Nostr overlay App', () => {
         expect(rendered.container.querySelector('[data-testid="login-gate-screen"]')).not.toBeNull();
     });
 
-    test('keeps logout accessible when session exists but owner graph failed to load', async () => {
+    test('keeps the login gate available without logout when owner graph fails to load', async () => {
         const { bridge } = createMapBridgeStub();
         const rendered = await renderApp(
             <App
@@ -6468,21 +6580,8 @@ describe('Nostr overlay App', () => {
             form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
         });
 
-        await waitFor(() => rendered.container.querySelector('button') !== null && (rendered.container.textContent || '').includes('Cerrar sesion'));
-
-        const logoutButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
-            (button.textContent || '').includes('Cerrar sesion')
-        ) as HTMLButtonElement;
-        expect(logoutButton).toBeDefined();
-
-        await act(async () => {
-            logoutButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
-
         await waitFor(() => rendered.container.querySelector('input[name="npub"]') !== null);
-        expect(Array.from(rendered.container.querySelectorAll('button')).some((button) =>
-            (button.textContent || '').includes('Cerrar sesion')
-        )).toBe(false);
+        expect(rendered.container.textContent || '').not.toContain('Cerrar sesion');
     });
 
     test('clears logout session cache for active profile agora dm notifications before next account login', async () => {

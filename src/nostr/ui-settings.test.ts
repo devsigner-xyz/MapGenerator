@@ -18,7 +18,7 @@ describe('ui-settings', () => {
         expect(state.streetLabelsEnabled).toBe(true);
         expect(state.specialMarkersEnabled).toBe(true);
         expect(state.verifiedBuildingsOverlayEnabled).toBe(false);
-        expect(state.streetLabelsZoomLevel).toBe(10);
+        expect(state.streetLabelsZoomLevel).toBe(2);
         expect(state.trafficParticlesCount).toBe(12);
         expect(state.trafficParticlesSpeed).toBe(1);
     });
@@ -85,6 +85,18 @@ describe('ui-settings', () => {
 
         const loaded = loadUiSettings(window.localStorage);
         expect(loaded.streetLabelsEnabled).toBe(true);
+    });
+
+    test('falls back to street label zoom default 2 when persisted value is malformed', () => {
+        window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({
+            occupiedLabelsZoomLevel: 8,
+            streetLabelsEnabled: true,
+            specialMarkersEnabled: true,
+            streetLabelsZoomLevel: 'bad-value',
+        }));
+
+        const loaded = loadUiSettings(window.localStorage);
+        expect(loaded.streetLabelsZoomLevel).toBe(2);
     });
 
     test('normalizes verified buildings overlay flag when payload is malformed', () => {

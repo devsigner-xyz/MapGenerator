@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router';
-import { getDefaultUiSettings, loadUiSettings, saveUiSettings, type UiSettingsState } from '../nostr/ui-settings';
+import {
+    DEFAULT_STREET_LABELS_ZOOM_LEVEL,
+    getDefaultUiSettings,
+    loadUiSettings,
+    saveUiSettings,
+    type UiSettingsState,
+} from '../nostr/ui-settings';
 import { loadZapSettings, type ZapSettingsState } from '../nostr/zap-settings';
 import {
     loadEasterEggProgress,
@@ -920,7 +926,10 @@ export function App({ mapBridge, services }: AppProps) {
             streetLabelsZoomLevel: enabled
                 ? Math.min(
                     currentSettings.streetLabelsZoomLevel,
-                    Math.max(1, Math.min(20, Math.floor(mapBridge?.getZoom() ?? 1)))
+                    Math.max(
+                        DEFAULT_STREET_LABELS_ZOOM_LEVEL,
+                        Math.max(1, Math.min(20, Math.floor(mapBridge?.getZoom() ?? 1)))
+                    )
                 )
                 : currentSettings.streetLabelsZoomLevel,
         }));
@@ -1379,8 +1388,6 @@ export function App({ mapBridge, services }: AppProps) {
                     disabled={loginDisabled || !sessionRestorationResolved}
                     mapLoaderText={mapLoaderText}
                     restoringSession={!sessionRestorationResolved}
-                    showLogout={Boolean(overlay.authSession)}
-                    onLogout={handleLogout}
                     onStartSession={overlay.startSession}
                 />
             ) : null}

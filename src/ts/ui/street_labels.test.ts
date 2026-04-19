@@ -133,6 +133,28 @@ describe('street_labels', () => {
         })).toEqual([]);
     });
 
+    test('createStreetLabels becomes eligible exactly at zoom 2 when threshold is 2', () => {
+        const roads = [[new Vector(0, 0), new Vector(300, 0)]];
+
+        expect(createStreetLabels({
+            enabled: true,
+            zoom: 1,
+            zoomThreshold: 2,
+            roads,
+            pool: POOL.street,
+            minRoadLengthPx: 100,
+        })).toEqual([]);
+
+        expect(createStreetLabels({
+            enabled: true,
+            zoom: 2,
+            zoomThreshold: 2,
+            roads,
+            pool: POOL.street,
+            minRoadLengthPx: 100,
+        })).toHaveLength(1);
+    });
+
     test('createStreetLabels creates longitudinal labels when enabled and zoom threshold met', () => {
         const labels = createStreetLabels({
             enabled: true,
