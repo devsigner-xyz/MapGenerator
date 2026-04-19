@@ -11,6 +11,7 @@ export interface NoteActionState {
     reposts: number;
     zapSats: number;
     onReply: () => void;
+    onViewDetail?: () => void;
     onToggleReaction: () => Promise<boolean>;
     onToggleRepost: () => Promise<boolean>;
 }

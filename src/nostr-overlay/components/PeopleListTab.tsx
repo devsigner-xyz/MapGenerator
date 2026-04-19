@@ -23,7 +23,6 @@ import {
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item';
-import { Separator } from '@/components/ui/separator';
 
 const VIRTUALIZATION_THRESHOLD = 120;
 const VIRTUAL_ROW_HEIGHT_PX = 68;
@@ -268,7 +267,7 @@ export function PeopleListTab({
 
         return (
             <Item
-                variant={active ? 'outline' : 'default'}
+                variant="outline"
                 size="sm"
                 data-active={active ? 'true' : 'false'}
                 className={selectable ? 'cursor-pointer gap-2' : undefined}
@@ -281,7 +280,7 @@ export function PeopleListTab({
                         onClick={() => onSelectPerson?.(pubkey)}
                     >
                         <ItemMedia>
-                            <Avatar className="size-8">
+                            <Avatar className="size-9">
                                 {profile?.picture ? (
                                     <AvatarImage src={profile.picture} alt={display} />
                                 ) : null}
@@ -299,7 +298,7 @@ export function PeopleListTab({
                 ) : (
                     <>
                         <ItemMedia>
-                            <Avatar className="size-8">
+                            <Avatar className="size-9">
                                 {profile?.picture ? (
                                     <AvatarImage src={profile.picture} alt={display} />
                                 ) : null}
@@ -413,7 +412,6 @@ export function PeopleListTab({
                                 }}
                             >
                                 {renderPersonItem(pubkey)}
-                                {virtualItem.index < visiblePeople.length - 1 ? <Separator className="nostr-people-separator" /> : null}
                             </div>
                         );
                     })}
@@ -423,10 +421,9 @@ export function PeopleListTab({
         ) : (
             <div className="nostr-people-scroll-area" onScroll={handleScroll}>
                 <ItemGroup className="nostr-people-list">
-                    {visiblePeople.map((pubkey, index) => (
+                    {visiblePeople.map((pubkey) => (
                         <div key={pubkey} className="nostr-people-item-wrap">
                             {renderPersonItem(pubkey)}
-                            {index < visiblePeople.length - 1 ? <Separator className="nostr-people-separator" /> : null}
                         </div>
                     ))}
                 </ItemGroup>

@@ -35,7 +35,6 @@ interface ChatsPageProps {
     messages: ChatDetailMessage[];
     activeConversationId: string | null;
     onOpenConversation: (conversationId: string) => void;
-    onBackToList: () => void;
     onSendMessage: (plaintext: string) => Promise<void> | void;
     composerAutoFocusKey?: string;
     canSend?: boolean;
@@ -49,7 +48,6 @@ export function ChatsPage({
     messages,
     activeConversationId,
     onOpenConversation,
-    onBackToList,
     onSendMessage,
     composerAutoFocusKey,
     canSend = true,
@@ -76,15 +74,15 @@ export function ChatsPage({
                         </Empty>
                     </div>
                 ) : (
-                    <div className="nostr-chats-page nostr-routed-surface-panel nostr-page-layout" data-chat-source="query">
+                    <div className="nostr-chats-page nostr-routed-surface-panel nostr-page-layout h-full" data-chat-source="query">
                         <OverlayPageHeader
                             title="Chats"
                             indicator={hasUnreadGlobal ? <OverlayUnreadIndicator className="nostr-chat-unread-dot" srLabel="Hay chats sin leer" /> : null}
                         />
 
                         <div className="nostr-chat-layout">
-                            <Card variant="elevated" size="sm" className="nostr-chat-list-panel gap-0 overflow-hidden py-0">
-                                <CardContent className="min-h-0 flex-1 px-3 py-3">
+                            <Card variant="default" size="sm" className="nostr-chat-list-panel h-full gap-0 overflow-hidden py-0 shadow-none">
+                                <CardContent className="flex h-full min-h-0 flex-1 flex-col px-3 py-3">
                                 <ChatConversationList
                                     conversations={conversations}
                                     loading={isLoadingConversations}
@@ -94,12 +92,11 @@ export function ChatsPage({
                                 </CardContent>
                             </Card>
 
-                            <Card variant="elevated" size="sm" className="nostr-chat-detail-panel gap-0 overflow-hidden py-0">
-                                <CardContent className="min-h-0 flex-1 px-3 py-3">
+                            <Card variant="default" size="sm" className="nostr-chat-detail-panel h-full gap-0 overflow-hidden py-0 shadow-none">
+                                <CardContent className="flex h-full min-h-0 flex-1 flex-col px-3 py-3">
                                 <ChatConversationDetail
                                     {...(activeConversation ? { conversation: activeConversation } : {})}
                                     messages={messages}
-                                    onBackToList={onBackToList}
                                     onSendMessage={onSendMessage}
                                     {...(composerAutoFocusKey ? { composerAutoFocusKey } : {})}
                                     canSend={canSend}

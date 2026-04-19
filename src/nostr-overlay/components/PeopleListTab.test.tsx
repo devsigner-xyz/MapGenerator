@@ -97,9 +97,15 @@ describe('PeopleListTab', () => {
         expect(rendered.container.textContent || '').toContain('Bob');
         const selectedButton = buttons[1];
         const firstButton = buttons[0];
+        const avatars = rendered.container.querySelectorAll('[data-slot="avatar"]');
         expect(selectedButton).toBeDefined();
         expect(firstButton).toBeDefined();
+        expect(Array.from(avatars).every((avatar) => avatar.classList.contains('size-9'))).toBe(true);
         expect(selectedButton?.getAttribute('aria-pressed')).toBe('true');
+        const items = rendered.container.querySelectorAll('[data-slot="item"]');
+        expect(items).toHaveLength(2);
+        expect(Array.from(items).every((item) => item.getAttribute('data-variant') === 'outline')).toBe(true);
+        expect(items[1]?.getAttribute('data-active')).toBe('true');
 
         await act(async () => {
             firstButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -420,7 +426,7 @@ describe('PeopleListTab', () => {
         expect((followAliceButton.textContent || '').trim()).toBe('Siguiendo');
     });
 
-    test('renders separators between people rows', async () => {
+    test('renders bordered people rows without separators', async () => {
         const people = [makePubkey(1), makePubkey(2), makePubkey(3)];
         const rendered = await renderElement(
             <PeopleListTab
@@ -432,8 +438,10 @@ describe('PeopleListTab', () => {
         );
         mounted.push(rendered);
 
-        const separators = rendered.container.querySelectorAll('[data-slot="separator"]');
-        expect(separators).toHaveLength(2);
+        const items = rendered.container.querySelectorAll('[data-slot="item"]');
+        expect(items).toHaveLength(3);
+        expect(rendered.container.querySelectorAll('[data-slot="separator"]')).toHaveLength(0);
+        expect(Array.from(items).every((item) => item.getAttribute('data-variant') === 'outline')).toBe(true);
     });
 
     test('virtualizes large people lists', async () => {

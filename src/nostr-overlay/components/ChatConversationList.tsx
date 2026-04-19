@@ -48,16 +48,16 @@ export function ChatConversationList({ conversations, loading, activeConversatio
     }
 
     return (
-        <ul className="nostr-chat-conversation-list">
+        <ul className="nostr-chat-conversation-list content-start min-w-0">
             {conversations.map((conversation) => {
                 const isActive = activeConversationId === conversation.id;
                 return (
-                    <li key={conversation.id}>
+                    <li key={conversation.id} className="w-full min-w-0">
                         <Item
-                            variant={isActive ? 'outline' : 'default'}
+                            variant="outline"
                             size="sm"
                             data-active={isActive ? 'true' : 'false'}
-                            className={`nostr-chat-conversation-item${isActive ? ' is-active' : ''}`}
+                            className={`nostr-chat-conversation-item w-full min-w-0${isActive ? ' is-active' : ''}`}
                         >
                             <button
                                 type="button"
@@ -66,7 +66,7 @@ export function ChatConversationList({ conversations, loading, activeConversatio
                                 onClick={() => onOpenConversation(conversation.id)}
                             >
                                 <ItemMedia>
-                                    <Avatar className="size-8">
+                                    <Avatar className="size-10">
                                         {conversation.profile?.picture ? (
                                             <AvatarImage src={conversation.profile.picture} alt={conversation.title} />
                                         ) : null}
@@ -86,7 +86,7 @@ export function ChatConversationList({ conversations, loading, activeConversatio
                                         </span>
                                         {conversation.hasUnread ? <span className="nostr-chat-conversation-unread" aria-hidden="true" /> : null}
                                     </ItemTitle>
-                                    <ItemDescription className="nostr-chat-conversation-preview">
+                                    <ItemDescription className="nostr-chat-conversation-preview truncate">
                                         {conversation.lastMessagePreview || 'Sin mensajes'}
                                     </ItemDescription>
                                 </ItemContent>

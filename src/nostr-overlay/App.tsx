@@ -38,6 +38,8 @@ import { PersonContextMenuItems } from './components/PersonContextMenuItems';
 import { useNostrOverlay, type MapLoaderStage, type NostrOverlayServices } from './hooks/useNostrOverlay';
 import { useNip05Verification } from './hooks/useNip05Verification';
 import { useFollowingFeedController } from './hooks/useFollowingFeedController';
+import { useFollowingFeedEngagementQuery } from './query/following-feed.query';
+import { createEmptyEngagementByEventIds } from './query/following-feed.selectors';
 import { useSocialNotificationsController } from './query/social-notifications.query';
 import { useDirectMessagesController } from './query/direct-messages.query';
 import { useActiveProfileQuery } from './query/active-profile.query';
@@ -417,6 +419,26 @@ export function App({ mapBridge, services }: AppProps) {
         service: overlay.socialFeedService,
         ...(overlay.writeGateway ? { writeGateway: overlay.writeGateway } : {}),
     });
+    const activeProfilePostEventIds = useMemo(
+        () => activeProfileData.posts.map((post) => post.id),
+        [activeProfileData.posts]
+    );
+    const activeProfileEngagementQuery = useFollowingFeedEngagementQuery({
+        eventIds: activeProfilePostEventIds,
+        service: overlay.socialFeedService,
+        enabled: Boolean(overlay.activeProfilePubkey),
+    });
+    const activeProfileEngagementByEventId = useMemo(() => {
+        const fallback = createEmptyEngagementByEventIds(activeProfilePostEventIds);
+        if (!activeProfileEngagementQuery.data) {
+            return fallback;
+        }
+
+        return {
+            ...fallback,
+            ...activeProfileEngagementQuery.data,
+        };
+    }, [activeProfileEngagementQuery.data, activeProfilePostEventIds]);
     const richContentProfilesByPubkey = useMemo(() => ({
         ...overlay.followerProfiles,
         ...overlay.profiles,
@@ -816,6 +838,16 @@ export function App({ mapBridge, services }: AppProps) {
         navigate(`/agora?tag=${encodeURIComponent(normalized)}`);
     };
 
+    const openThreadFromProfileDialog = (eventId: string): void => {
+        if (!eventId) {
+            return;
+        }
+
+        overlay.closeActiveProfileDialog();
+        openFollowingFeed();
+        void followingFeed.openThread(eventId);
+    };
+
     const openMentionedProfile = (pubkey: string): void => {
         if (!pubkey) {
             return;
@@ -936,6 +968,7 @@ export function App({ mapBridge, services }: AppProps) {
             return;
         }
 
+        overlay.closeActiveProfileDialog();
         openChatConversation(pubkey, true);
     };
 
@@ -1184,7 +1217,6 @@ export function App({ mapBridge, services }: AppProps) {
                                     ? { disabledReason: 'Tu sesión no permite mensajería privada (requiere firma y NIP-44).' }
                                     : {})}
                             onOpenConversation={(conversationId) => openChatConversation(conversationId)}
-                            onBackToList={openChatList}
                             onSendMessage={async (plaintext) => {
                                 if (!chatActiveConversationId || !canSendChatMessages) {
                                     return;
@@ -1293,6 +1325,7 @@ export function App({ mapBridge, services }: AppProps) {
                     statsLoading={activeProfileData.statsLoading}
                     {...(activeProfileData.statsError ? { statsError: activeProfileData.statsError } : {})}
                     posts={activeProfileData.posts}
+                    engagementByEventId={activeProfileEngagementByEventId}
                     postsLoading={activeProfileData.postsLoading}
                     {...(activeProfileData.postsError ? { postsError: activeProfileData.postsError } : {})}
                     hasMorePosts={activeProfileData.hasMorePosts}
@@ -1308,11 +1341,21 @@ export function App({ mapBridge, services }: AppProps) {
                     onLoadMorePosts={activeProfileData.loadMorePosts}
                     onSelectHashtag={selectProfilePostHashtag}
                     onSelectProfile={openMentionedProfile}
+                    onCopyNpub={copyOwnerIdentifier}
                     ownerFollows={overlay.follows}
                     relaySuggestionsByType={activeProfileData.relaySuggestionsByType}
                     onAddRelaySuggestion={addRelaySuggestionToSettings}
                     onAddAllRelaySuggestions={addAllRelaySuggestionsToSettings}
                     {...(overlay.canWrite ? { onFollowProfile: followPerson } : {})}
+                    {...(canAccessDirectMessages ? { onSendMessage: openDmFromContextMenu } : {})}
+                    canWrite={overlay.canWrite}
+                    reactionByEventId={followingFeed.reactionByEventId}
+                    repostByEventId={followingFeed.repostByEventId}
+                    pendingReactionByEventId={followingFeed.pendingReactionByEventId}
+                    pendingRepostByEventId={followingFeed.pendingRepostByEventId}
+                    onOpenThread={openThreadFromProfileDialog}
+                    onToggleReaction={followingFeed.toggleReaction}
+                    onToggleRepost={followingFeed.toggleRepost}
                     onResolveProfiles={resolveMentionProfiles}
                     onResolveEventReferences={resolveEventReferences}
                     eventReferencesById={eventReferencesById}

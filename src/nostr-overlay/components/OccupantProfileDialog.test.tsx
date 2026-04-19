@@ -82,9 +82,18 @@ function buildProps(overrides: Partial<Parameters<typeof OccupantProfileDialog>[
         profilesByPubkey: {},
         networkLoading: false,
         onLoadMorePosts: vi.fn(async () => {}),
+        engagementByEventId: {},
         onSelectProfile: vi.fn(),
         onResolveProfiles: vi.fn(async () => {}),
         onSelectEventReference: vi.fn(),
+        canWrite: true,
+        reactionByEventId: {},
+        repostByEventId: {},
+        pendingReactionByEventId: {},
+        pendingRepostByEventId: {},
+        onOpenThread: vi.fn(),
+        onToggleReaction: vi.fn(async () => true),
+        onToggleRepost: vi.fn(async () => true),
         onResolveEventReferences: vi.fn(async () => {}),
         eventReferencesById: {},
         onClose: vi.fn(),
@@ -336,6 +345,11 @@ describe('OccupantProfileDialog', () => {
         await selectTab('Seguidores');
 
         await waitForCondition(() => (document.body.textContent || '').includes('Dave'));
+        const activeFollowersPanel = document.body.querySelector('[data-slot="tabs-content"][data-state="active"]') as HTMLElement;
+        const followerItems = activeFollowersPanel.querySelectorAll('.nostr-profile-network-list [data-slot="item"]');
+        expect(followerItems.length).toBeGreaterThan(0);
+        expect(activeFollowersPanel.querySelectorAll('.nostr-profile-network-list [data-slot="separator"]')).toHaveLength(0);
+        expect(Array.from(followerItems).every((item) => item.getAttribute('data-variant') === 'outline')).toBe(true);
         const followerDescriptions = Array.from(document.body.querySelectorAll('.nostr-profile-network-list [data-slot="item-description"]'))
             .map((node) => (node.textContent || '').trim())
             .filter((value) => value.length > 0);
@@ -347,6 +361,11 @@ describe('OccupantProfileDialog', () => {
             const text = document.body.textContent || '';
             return text.includes('Bob') && text.includes('Carol');
         });
+        const activeFollowingPanel = document.body.querySelector('[data-slot="tabs-content"][data-state="active"]') as HTMLElement;
+        const followingItems = activeFollowingPanel.querySelectorAll('.nostr-profile-network-list [data-slot="item"]');
+        expect(followingItems.length).toBeGreaterThan(0);
+        expect(activeFollowingPanel.querySelectorAll('.nostr-profile-network-list [data-slot="separator"]')).toHaveLength(0);
+        expect(Array.from(followingItems).every((item) => item.getAttribute('data-variant') === 'outline')).toBe(true);
         const followingDescriptions = Array.from(document.body.querySelectorAll('.nostr-profile-network-list [data-slot="item-description"]'))
             .map((node) => (node.textContent || '').trim())
             .filter((value) => value.length > 0);
@@ -475,6 +494,72 @@ describe('OccupantProfileDialog', () => {
         expect(followCarolButton).toBeDefined();
         expect(followCarolButton.disabled).toBe(false);
         expect((followCarolButton.textContent || '').trim()).toBe('Seguir');
+    });
+
+    test('shows action menu in network tabs and executes copy, message, and details actions', async () => {
+        const onSelectProfile = vi.fn();
+        const onCopyNpub = vi.fn();
+        const onSendMessage = vi.fn();
+        const rendered = await renderElement(
+            <OccupantProfileDialog
+                {...buildProps({
+                    onSelectProfile,
+                    onCopyNpub,
+                    onSendMessage,
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        await selectTab('Seguidores');
+        await waitForCondition(() => (document.body.textContent || '').includes('Dave'));
+
+        const actionsButton = document.body.querySelector('button[aria-label="Abrir acciones para Dave"]') as HTMLButtonElement;
+        expect(actionsButton).toBeDefined();
+
+        await act(async () => {
+            actionsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitForCondition(() => (document.body.textContent || '').includes('Copiar npub'));
+        const menuItems = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]'));
+        const copyItem = menuItems.find((item) => (item.textContent || '').trim() === 'Copiar npub') as HTMLElement;
+        const messageItem = menuItems.find((item) => (item.textContent || '').trim() === 'Enviar mensaje') as HTMLElement;
+        const detailsItem = menuItems.find((item) => (item.textContent || '').trim() === 'Ver detalles') as HTMLElement;
+
+        expect(copyItem).toBeDefined();
+        expect(messageItem).toBeDefined();
+        expect(detailsItem).toBeDefined();
+
+        await act(async () => {
+            copyItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+        const copiedNpub = onCopyNpub.mock.calls[0]?.[0] as string;
+        expect(copiedNpub.startsWith('npub1')).toBe(true);
+
+        await act(async () => {
+            actionsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+        await waitForCondition(() => (document.body.textContent || '').includes('Enviar mensaje'));
+        const messageMenuItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Enviar mensaje'
+        ) as HTMLElement;
+        await act(async () => {
+            messageMenuItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+        expect(onSendMessage).toHaveBeenCalledWith('d'.repeat(64));
+
+        await act(async () => {
+            actionsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+        await waitForCondition(() => (document.body.textContent || '').includes('Ver detalles'));
+        const detailsMenuItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Ver detalles'
+        ) as HTMLElement;
+        await act(async () => {
+            detailsMenuItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+        expect(onSelectProfile).toHaveBeenCalledWith('d'.repeat(64));
     });
 
     test('keeps header and tabs fixed while only tab panels are scrollable', async () => {
@@ -615,6 +700,22 @@ describe('OccupantProfileDialog', () => {
         const rendered = await renderElement(
             <OccupantProfileDialog
                 {...buildProps({
+                    engagementByEventId: {
+                        'post-event-ref-1': {
+                            replies: 4,
+                            reposts: 2,
+                            reactions: 3,
+                            zaps: 1,
+                            zapSats: 210,
+                        },
+                        [referencedEventId]: {
+                            replies: 1,
+                            reposts: 0,
+                            reactions: 7,
+                            zaps: 0,
+                            zapSats: 21,
+                        },
+                    },
                     profilesByPubkey: {
                         [referencedAuthorPubkey]: {
                             pubkey: referencedAuthorPubkey,
@@ -651,11 +752,12 @@ describe('OccupantProfileDialog', () => {
         expect(document.body.querySelector('time[datetime]')).not.toBeNull();
         expect(document.body.querySelectorAll('article').length).toBeGreaterThanOrEqual(2);
         expect(document.body.querySelectorAll('time[datetime]').length).toBeGreaterThanOrEqual(2);
-        expect(document.body.querySelector('button[aria-label^="Reaccionar ("]')).toBeNull();
-        expect(document.body.querySelector('button[aria-label^="Repostear ("]')).toBeNull();
-        expect(document.body.querySelector('button[aria-label^="Responder ("]')).toBeNull();
-        expect(document.body.querySelector('button[aria-label="Copiar identificador de nota post-event-ref-1"]')).not.toBeNull();
-        expect(document.body.querySelector(`button[aria-label="Copiar identificador de nota ${referencedEventId}"]`)).not.toBeNull();
+        expect(document.body.querySelector('button[aria-label="Reaccionar (3)"]')).not.toBeNull();
+        expect(document.body.querySelector('button[aria-label="Repostear (2)"]')).not.toBeNull();
+        expect(document.body.querySelector('button[aria-label="Responder (4)"]')).not.toBeNull();
+        expect(document.body.querySelector('[aria-label="Sats recibidos: 210"]')).not.toBeNull();
+        expect(document.body.querySelector('button[aria-label="Abrir acciones para la nota post-event-ref-1"]')).not.toBeNull();
+        expect(document.body.querySelector(`button[aria-label="Abrir acciones para la nota ${referencedEventId}"]`)).not.toBeNull();
 
         const text = document.body.textContent || '';
         expect(text).not.toContain('Nota referenciada');

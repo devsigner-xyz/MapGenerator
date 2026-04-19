@@ -68,7 +68,6 @@ describe('ChatsPage', () => {
                 messages={[buildMessage()]}
                 activeConversationId="peer-1"
                 onOpenConversation={() => {}}
-                onBackToList={() => {}}
                 onSendMessage={async () => {}}
             />
         );
@@ -86,7 +85,6 @@ describe('ChatsPage', () => {
                 messages={[]}
                 activeConversationId={null}
                 onOpenConversation={() => {}}
-                onBackToList={() => {}}
                 onSendMessage={async () => {}}
             />
         );
@@ -108,7 +106,6 @@ describe('ChatsPage', () => {
                 messages={[]}
                 activeConversationId={null}
                 onOpenConversation={() => {}}
-                onBackToList={() => {}}
                 onSendMessage={async () => {}}
             />
         );
@@ -137,7 +134,6 @@ describe('ChatsPage', () => {
                 messages={[buildMessage()]}
                 activeConversationId={null}
                 onOpenConversation={onOpenConversation}
-                onBackToList={() => {}}
                 onSendMessage={async () => {}}
             />
         );
@@ -169,7 +165,6 @@ describe('ChatsPage', () => {
                 messages={[buildMessage()]}
                 activeConversationId={null}
                 onOpenConversation={() => {}}
-                onBackToList={() => {}}
                 onSendMessage={async () => {}}
             />
         );
@@ -179,10 +174,20 @@ describe('ChatsPage', () => {
         expect(rowButton).not.toBeNull();
 
         const avatarFallback = rowButton.querySelector('[data-slot="avatar-fallback"]') as HTMLElement;
+        const avatar = rowButton.querySelector('[data-slot="avatar"]') as HTMLElement;
+        const preview = rowButton.querySelector('.nostr-chat-conversation-preview') as HTMLElement;
+        const list = rendered.container.querySelector('.nostr-chat-conversation-list') as HTMLElement;
+        const item = rendered.container.querySelector('.nostr-chat-conversation-item') as HTMLElement;
         expect(avatarFallback).not.toBeNull();
+        expect(avatar.classList.contains('size-10')).toBe(true);
         expect(avatarFallback.textContent || '').toContain('AL');
         expect(rendered.container.textContent || '').toContain('Hola');
         expect(rendered.container.querySelector('button[aria-label="Abrir acciones para Alice"]')).toBeNull();
+        expect(preview.classList.contains('truncate')).toBe(true);
+        expect(list.classList.contains('content-start')).toBe(true);
+        expect(list.classList.contains('min-w-0')).toBe(true);
+        expect(item.classList.contains('w-full')).toBe(true);
+        expect(item.classList.contains('min-w-0')).toBe(true);
     });
 
     test('shows undecryptable placeholder in detail view', async () => {
@@ -193,7 +198,6 @@ describe('ChatsPage', () => {
                 messages={[buildMessage({ isUndecryptable: true, plaintext: '' })]}
                 activeConversationId="peer-1"
                 onOpenConversation={() => {}}
-                onBackToList={() => {}}
                 onSendMessage={async () => {}}
             />
         );
@@ -210,41 +214,59 @@ describe('ChatsPage', () => {
                 messages={[buildMessage()]}
                 activeConversationId="peer-1"
                 onOpenConversation={() => {}}
-                onBackToList={() => {}}
                 onSendMessage={async () => {}}
             />
         );
         mounted.push(rendered);
 
         const pageContent = rendered.container.querySelector('.nostr-chats-page');
+        const layout = rendered.container.querySelector('.nostr-chat-layout');
         const listPanel = rendered.container.querySelector('.nostr-chat-list-panel[data-slot="card"]');
         const detailPanel = rendered.container.querySelector('.nostr-chat-detail-panel[data-slot="card"]');
         expect(pageContent).not.toBeNull();
         expect(listPanel).not.toBeNull();
         expect(detailPanel).not.toBeNull();
-        expect(listPanel?.getAttribute('data-variant')).toBe('elevated');
-        expect(detailPanel?.getAttribute('data-variant')).toBe('elevated');
+        expect(layout?.className).toContain('nostr-chat-layout');
+        expect(pageContent?.className).toContain('h-full');
+        expect(listPanel?.className).toContain('h-full');
+        expect(listPanel?.className).toContain('shadow-none');
+        expect(detailPanel?.className).toContain('h-full');
+        expect(detailPanel?.className).toContain('shadow-none');
         expect(rendered.container.querySelector('[data-slot="dialog-content"]')).toBeNull();
     });
 
-    test('renders outgoing delivery states in conversation detail', async () => {
+    test('renders compact messages with sender labels, timestamps, and outgoing delivery states', async () => {
+        const expectedIncomingTimestamp = new Intl.DateTimeFormat('es-ES', {
+            dateStyle: 'short',
+            timeStyle: 'short',
+        }).format(new Date(100 * 1000));
+        const expectedOutgoingTimestamp = new Intl.DateTimeFormat('es-ES', {
+            dateStyle: 'short',
+            timeStyle: 'short',
+        }).format(new Date(120 * 1000));
+
         const rendered = await renderElement(
             <ChatsPage
                 hasUnreadGlobal={false}
                 conversations={[buildConversation()]}
                 messages={[
-                    buildMessage({ id: 'm-pending', direction: 'outgoing', deliveryState: 'pending', plaintext: 'uno' }),
+                    buildMessage({ id: 'm-incoming', direction: 'incoming', deliveryState: 'sent', plaintext: 'hola', createdAt: 100 }),
+                    buildMessage({ id: 'm-pending', direction: 'outgoing', deliveryState: 'pending', plaintext: 'uno', createdAt: 120 }),
                     buildMessage({ id: 'm-sent', direction: 'outgoing', deliveryState: 'sent', plaintext: 'dos' }),
                     buildMessage({ id: 'm-failed', direction: 'outgoing', deliveryState: 'failed', plaintext: 'tres' }),
                 ]}
                 activeConversationId="peer-1"
                 onOpenConversation={() => {}}
-                onBackToList={() => {}}
                 onSendMessage={async () => {}}
             />
         );
         mounted.push(rendered);
 
+        expect(rendered.container.textContent || '').not.toContain('Volver');
+        expect(rendered.container.textContent || '').toContain('Alice');
+        expect(rendered.container.textContent || '').toContain('Yo');
+        expect(rendered.container.textContent || '').toContain(expectedIncomingTimestamp);
+        expect(rendered.container.textContent || '').toContain(expectedOutgoingTimestamp);
         expect(rendered.container.textContent || '').toContain('Enviando...');
         expect(rendered.container.textContent || '').toContain('Enviado');
         expect(rendered.container.textContent || '').toContain('Error de entrega');

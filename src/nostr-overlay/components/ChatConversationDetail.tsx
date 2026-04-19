@@ -7,7 +7,6 @@ import { Textarea } from '@/components/ui/textarea';
 interface ChatConversationDetailProps {
     conversation?: ChatConversationSummary;
     messages: ChatDetailMessage[];
-    onBackToList: () => void;
     onSendMessage: (plaintext: string) => Promise<void> | void;
     composerAutoFocusKey?: string;
     canSend?: boolean;
@@ -26,10 +25,16 @@ function deliveryStatusLabel(state: 'pending' | 'sent' | 'failed'): string {
     return 'Enviado';
 }
 
+function formatMessageTimestamp(createdAt: number): string {
+    return new Intl.DateTimeFormat('es-ES', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+    }).format(new Date(createdAt * 1000));
+}
+
 export function ChatConversationDetail({
     conversation,
     messages,
-    onBackToList,
     onSendMessage,
     composerAutoFocusKey,
     canSend = true,
@@ -62,9 +67,6 @@ export function ChatConversationDetail({
     return (
         <div className="nostr-chat-detail">
             <div className="nostr-chat-detail-header">
-                <Button type="button" variant="ghost" className="nostr-chat-back" onClick={onBackToList}>
-                    Volver
-                </Button>
                 <p className="nostr-chat-detail-title">{conversation.title}</p>
             </div>
 
@@ -81,7 +83,13 @@ export function ChatConversationDetail({
                 ) : null}
                 {messages.map((message) => (
                     <li key={message.id} className={`nostr-chat-message ${message.direction === 'outgoing' ? 'is-outgoing' : 'is-incoming'}`}>
-                        <p>
+                        <div className="nostr-chat-message-header">
+                            <strong className="nostr-chat-message-author">
+                                {message.direction === 'outgoing' ? 'Yo' : conversation.title}
+                            </strong>
+                            <span className="nostr-chat-message-timestamp">{formatMessageTimestamp(message.createdAt)}</span>
+                        </div>
+                        <p className="nostr-chat-message-body">
                             {message.isUndecryptable ? 'No se pudo desencriptar este mensaje' : message.plaintext}
                         </p>
                         {message.direction === 'outgoing' ? (

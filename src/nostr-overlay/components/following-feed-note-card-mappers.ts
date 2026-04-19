@@ -1,4 +1,5 @@
 import type { SocialEngagementMetrics, SocialFeedItem, SocialThreadItem } from '../../nostr/social-feed-service';
+import type { NostrPostPreview } from '../../nostr/posts';
 import type { NoteActionState } from './note-card-model';
 
 const EMPTY_ENGAGEMENT_METRICS: SocialEngagementMetrics = {
@@ -28,6 +29,12 @@ interface BuildFeedActionStateInput extends BuildActionStateBaseInput {
 interface BuildThreadActionStateInput extends BuildActionStateBaseInput {
     item: SocialThreadItem;
     onReply: () => void;
+    onViewDetail?: () => void;
+}
+
+interface BuildPreviewActionStateInput extends BuildActionStateBaseInput {
+    item: NostrPostPreview;
+    onOpenThread: (eventId: string) => void | Promise<void>;
 }
 
 function metricsForEvent(
@@ -64,6 +71,51 @@ export function buildFeedActionState({
         onReply: () => {
             void onOpenThread(item.targetEventId || item.id);
         },
+        onViewDetail: () => {
+            void onOpenThread(item.targetEventId || item.id);
+        },
+        onToggleReaction: () => onToggleReaction({
+            eventId: item.id,
+            targetPubkey: item.pubkey,
+        }),
+        onToggleRepost: () => onToggleRepost({
+            eventId: item.id,
+            targetPubkey: item.pubkey,
+            repostContent: item.content,
+        }),
+    };
+}
+
+export function buildPreviewActionState({
+    item,
+    canWrite,
+    engagementByEventId,
+    reactionByEventId,
+    repostByEventId,
+    pendingReactionByEventId,
+    pendingRepostByEventId,
+    onOpenThread,
+    onToggleReaction,
+    onToggleRepost,
+}: BuildPreviewActionStateInput): NoteActionState {
+    const metrics = metricsForEvent(engagementByEventId, item.id);
+
+    return {
+        canWrite,
+        isReactionActive: Boolean(reactionByEventId[item.id]),
+        isRepostActive: Boolean(repostByEventId[item.id]),
+        isReactionPending: Boolean(pendingReactionByEventId[item.id]),
+        isRepostPending: Boolean(pendingRepostByEventId[item.id]),
+        replies: metrics.replies,
+        reactions: metrics.reactions,
+        reposts: metrics.reposts,
+        zapSats: metrics.zapSats,
+        onReply: () => {
+            void onOpenThread(item.id);
+        },
+        onViewDetail: () => {
+            void onOpenThread(item.id);
+        },
         onToggleReaction: () => onToggleReaction({
             eventId: item.id,
             targetPubkey: item.pubkey,
@@ -85,6 +137,7 @@ export function buildRootActionState({
     pendingReactionByEventId,
     pendingRepostByEventId,
     onReply,
+    onViewDetail,
     onToggleReaction,
     onToggleRepost,
 }: BuildThreadActionStateInput): NoteActionState {
@@ -101,6 +154,7 @@ export function buildRootActionState({
         reposts: metrics.reposts,
         zapSats: metrics.zapSats,
         onReply,
+        ...(onViewDetail ? { onViewDetail } : {}),
         onToggleReaction: () => onToggleReaction({
             eventId: item.id,
             targetPubkey: item.pubkey,

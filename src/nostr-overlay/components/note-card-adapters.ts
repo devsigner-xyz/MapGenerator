@@ -24,7 +24,7 @@ function safeTags(tags: unknown): string[][] {
     return tags.filter((tag): tag is string[] => Array.isArray(tag) && tag.every((entry) => typeof entry === 'string'));
 }
 
-export function fromPostPreview(post: NostrPostPreview): NoteCardModel | null {
+export function fromPostPreview(post: NostrPostPreview, actions?: NoteActionState): NoteCardModel | null {
     if (!hasCriticalFields({ id: post?.id, pubkey: post?.pubkey, createdAt: post?.createdAt })) {
         return null;
     }
@@ -38,6 +38,7 @@ export function fromPostPreview(post: NostrPostPreview): NoteCardModel | null {
         variant: 'default',
         showCopyId: true,
         nestingLevel: 0,
+        ...(actions !== undefined ? { actions } : {}),
     };
 }
 

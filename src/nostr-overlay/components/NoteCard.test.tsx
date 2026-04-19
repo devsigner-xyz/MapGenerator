@@ -57,6 +57,7 @@ const defaultNoteFixture: NoteCardModel = {
         reposts: 2,
         zapSats: 210,
         onReply: () => {},
+        onViewDetail: () => {},
         onToggleReaction: async () => true,
         onToggleRepost: async () => true,
     },
@@ -133,7 +134,44 @@ describe('NoteCard', () => {
         expect(container.querySelector('button[aria-label="Reaccionar (3)"]')).not.toBeNull();
         expect(container.querySelector('button[aria-label="Repostear (2)"]')).not.toBeNull();
         expect(container.querySelector('[aria-label="Sats recibidos: 210"]')).not.toBeNull();
-        expect(container.querySelector('button[aria-label="Copiar identificador de nota note-1"]')).not.toBeNull();
+        expect(container.querySelector('button[aria-label="Abrir acciones para la nota note-1"]')).not.toBeNull();
+        expect(container.querySelector('button[aria-label="Copiar identificador de nota note-1"]')).toBeNull();
+    });
+
+    test('opens note detail on card click when view detail is available', async () => {
+        const onViewDetail = vi.fn();
+        const { container } = await renderNoteCard({
+            ...defaultNoteFixture,
+            actions: {
+                ...defaultNoteFixture.actions!,
+                onViewDetail,
+            },
+        });
+
+        const article = container.querySelector('article') as HTMLElement;
+        await act(async () => {
+            article.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onViewDetail).toHaveBeenCalledTimes(1);
+    });
+
+    test('opens note detail on card click when provided by actions', async () => {
+        const onViewDetail = vi.fn();
+        const { container } = await renderNoteCard({
+            ...defaultNoteFixture,
+            actions: {
+                ...defaultNoteFixture.actions!,
+                onViewDetail,
+            },
+        });
+
+        const article = container.querySelector('article') as HTMLElement;
+        await act(async () => {
+            article.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onViewDetail).toHaveBeenCalledTimes(1);
     });
 
     test('nested depth >= 2 renders compact fallback with open reference button', async () => {
@@ -237,12 +275,75 @@ describe('NoteCard', () => {
 
     test('copy id button triggers callback', async () => {
         const { container, onCopyNoteId } = await renderDefault();
-        const copyButton = container.querySelector('button[aria-label="Copiar identificador de nota note-1"]') as HTMLButtonElement;
+        const menuButton = container.querySelector('button[aria-label="Abrir acciones para la nota note-1"]') as HTMLButtonElement;
 
         await act(async () => {
-            copyButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            menuButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+            menuButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const copyItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Copiar'
+        ) as HTMLElement;
+
+        await act(async () => {
+            copyItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
         expect(onCopyNoteId).toHaveBeenCalledWith('note-1');
+    });
+
+    test('note action menu exposes view detail action when available', async () => {
+        const onViewDetail = vi.fn();
+        const { container } = await renderNoteCard({
+            ...defaultNoteFixture,
+            actions: {
+                ...defaultNoteFixture.actions!,
+                onViewDetail,
+            },
+        });
+        const menuButton = container.querySelector('button[aria-label="Abrir acciones para la nota note-1"]') as HTMLButtonElement;
+
+        await act(async () => {
+            menuButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+            menuButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const detailItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Ver detalle'
+        ) as HTMLElement;
+
+        await act(async () => {
+            detailItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onViewDetail).toHaveBeenCalledTimes(1);
+    });
+
+    test('note menu exposes view detail action when available', async () => {
+        const onViewDetail = vi.fn();
+        const { container } = await renderNoteCard({
+            ...defaultNoteFixture,
+            actions: {
+                ...defaultNoteFixture.actions!,
+                onViewDetail,
+            },
+        });
+        const menuButton = container.querySelector('button[aria-label="Abrir acciones para la nota note-1"]') as HTMLButtonElement;
+
+        await act(async () => {
+            menuButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+            menuButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const detailItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Ver detalle'
+        ) as HTMLElement;
+
+        await act(async () => {
+            detailItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onViewDetail).toHaveBeenCalledTimes(1);
     });
 });

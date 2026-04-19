@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode, type UIEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode, type UIEvent } from 'react';
 import Lightbox from 'yet-another-react-lightbox';
 import type { Nip05ValidationResult } from '../../nostr/nip05';
 import { encodeHexToNpub } from '../../nostr/npub';
@@ -7,19 +7,27 @@ import type { NostrEvent, NostrProfile } from '../../nostr/types';
 import type { NostrPostPreview } from '../../nostr/posts';
 import { ListLoadingFooter } from './ListLoadingFooter';
 import { NoteCard } from './NoteCard';
+import { buildPreviewActionState } from './following-feed-note-card-mappers';
 import { Nip05Identifier } from './Nip05Identifier';
 import { fromPostPreview } from './note-card-adapters';
-import { CircleCheckIcon, CopyIcon } from 'lucide-react';
+import { CircleCheckIcon, CopyIcon, EllipsisVerticalIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+    ContextMenu,
+    ContextMenuContent,
+    ContextMenuGroup,
+    ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item';
-import { Separator } from '@/components/ui/separator';
+import { PersonContextMenuItems } from './PersonContextMenuItems';
 import { toast } from 'sonner';
+import type { SocialEngagementMetrics } from '../../nostr/social-feed-service';
 
 interface OccupantProfileDialogProps {
     ownerPubkey?: string;
@@ -30,6 +38,7 @@ interface OccupantProfileDialogProps {
     statsLoading: boolean;
     statsError?: string;
     posts: NostrPostPreview[];
+    engagementByEventId?: Record<string, SocialEngagementMetrics>;
     postsLoading: boolean;
     postsError?: string;
     hasMorePosts: boolean;
@@ -43,11 +52,21 @@ interface OccupantProfileDialogProps {
     onLoadMorePosts: () => Promise<void>;
     onSelectHashtag?: (hashtag: string) => void;
     onSelectProfile?: (pubkey: string) => void;
+    onCopyNpub?: (value: string) => void | Promise<void>;
     ownerFollows?: string[];
     onFollowProfile?: (pubkey: string) => void | Promise<void>;
+    onSendMessage?: (pubkey: string) => void | Promise<void>;
+    canWrite?: boolean;
+    reactionByEventId?: Record<string, boolean>;
+    repostByEventId?: Record<string, boolean>;
+    pendingReactionByEventId?: Record<string, boolean>;
+    pendingRepostByEventId?: Record<string, boolean>;
     relaySuggestionsByType?: RelaySettingsByType;
+    onOpenThread?: (eventId: string) => void | Promise<void>;
     onAddRelaySuggestion?: (relayUrl: string, relayTypes: RelayType[]) => void | Promise<void>;
     onAddAllRelaySuggestions?: (rows: Array<{ relayUrl: string; relayTypes: RelayType[] }>) => void | Promise<void>;
+    onToggleReaction?: (input: { eventId: string; targetPubkey?: string; emoji?: string }) => Promise<boolean>;
+    onToggleRepost?: (input: { eventId: string; targetPubkey?: string; repostContent?: string }) => Promise<boolean>;
     onResolveProfiles?: (pubkeys: string[]) => Promise<void> | void;
     onSelectEventReference?: (eventId: string) => void;
     onResolveEventReferences?: (
@@ -131,6 +150,7 @@ export function OccupantProfileDialog({
     pubkey,
     profile,
     posts,
+    engagementByEventId = {},
     postsLoading,
     postsError,
     hasMorePosts,
@@ -144,11 +164,21 @@ export function OccupantProfileDialog({
     onLoadMorePosts,
     onSelectHashtag,
     onSelectProfile,
+    onCopyNpub,
     ownerFollows = [],
     onFollowProfile,
+    onSendMessage,
+    canWrite = false,
+    reactionByEventId = {},
+    repostByEventId = {},
+    pendingReactionByEventId = {},
+    pendingRepostByEventId = {},
     relaySuggestionsByType,
+    onOpenThread,
     onAddRelaySuggestion,
     onAddAllRelaySuggestions,
+    onToggleReaction,
+    onToggleRepost,
     onResolveProfiles,
     onSelectEventReference,
     onResolveEventReferences,
@@ -313,7 +343,19 @@ export function OccupantProfileDialog({
                     delete next[targetPubkey];
                     return next;
                 });
-            });
+        });
+    };
+
+    const openPersonActionsMenu = (event: ReactMouseEvent<HTMLButtonElement>): void => {
+        event.preventDefault();
+        event.stopPropagation();
+        const rect = event.currentTarget.getBoundingClientRect();
+        event.currentTarget.dispatchEvent(new window.MouseEvent('contextmenu', {
+            bubbles: true,
+            cancelable: true,
+            clientX: rect.left + rect.width / 2,
+            clientY: rect.top + rect.height / 2,
+        }));
     };
 
     const addRelaySuggestion = (relayUrl: string, relayTypes: RelayType[]): void => {
@@ -393,16 +435,26 @@ export function OccupantProfileDialog({
             : `${personPubkey.slice(0, 8)}...${personPubkey.slice(-6)}`;
         const selectable = typeof onSelectProfile === 'function';
         const canFollow = typeof onFollowProfile === 'function' && ownerPubkey !== personPubkey;
+        const canCopy = typeof onCopyNpub === 'function';
+        const canSendMessage = typeof onSendMessage === 'function' && ownerPubkey !== personPubkey;
+        const canViewDetails = typeof onSelectProfile === 'function';
         const isFollowed = ownerFollowSet.has(personPubkey);
         const isFollowPending = Boolean(pendingFollowByPubkey[personPubkey]);
         const followDisabled = isFollowed || isFollowPending;
         const followLabel = followDisabled ? 'Siguiendo' : 'Seguir';
         const followAriaLabel = followDisabled ? `Ya sigues a ${personDisplay}` : `Seguir a ${personDisplay}`;
 
+        const contextMenuActionProps = {
+            ...(canCopy ? { onCopyNpub: () => onCopyNpub?.(pubkeyToNpub(personPubkey)) } : {}),
+            ...(canSendMessage ? { onSendMessage: () => onSendMessage?.(personPubkey) } : {}),
+            ...(canViewDetails ? { onViewDetails: () => onSelectProfile?.(personPubkey) } : {}),
+            testIdPrefix: `profile-network-${personPubkey}`,
+        };
+
         const personContent = (
             <>
                 <ItemMedia>
-                    <Avatar className="size-8">
+                    <Avatar className="size-9">
                         {personProfile?.picture ? (
                             <AvatarImage src={personProfile.picture} alt={personDisplay} />
                         ) : null}
@@ -419,7 +471,7 @@ export function OccupantProfileDialog({
         );
 
         return (
-            <Item variant="default" size="sm" className="gap-2">
+            <Item variant="outline" size="sm" className="gap-2">
                 {selectable ? (
                     <button
                         type="button"
@@ -443,6 +495,28 @@ export function OccupantProfileDialog({
                         {followLabel}
                     </Button>
                 ) : null}
+
+                {(canCopy || canSendMessage || canViewDetails) ? (
+                    <ContextMenu>
+                        <ContextMenuTrigger asChild>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="icon-sm"
+                                className="shrink-0"
+                                aria-label={`Abrir acciones para ${personDisplay}`}
+                                onClick={openPersonActionsMenu}
+                            >
+                                <EllipsisVerticalIcon data-icon="inline-start" />
+                            </Button>
+                        </ContextMenuTrigger>
+                        <ContextMenuContent className="w-48">
+                            <ContextMenuGroup>
+                                <PersonContextMenuItems {...contextMenuActionProps} />
+                            </ContextMenuGroup>
+                        </ContextMenuContent>
+                    </ContextMenu>
+                ) : null}
             </Item>
         );
     };
@@ -454,6 +528,7 @@ export function OccupantProfileDialog({
         ...(onResolveEventReferences ? { onResolveEventReferences } : {}),
         ...(eventReferencesById ? { eventReferencesById } : {}),
     };
+    const canRenderPostActions = typeof onOpenThread === 'function' && typeof onToggleReaction === 'function' && typeof onToggleRepost === 'function';
 
     return (
         <Dialog open onOpenChange={(open) => {
@@ -577,9 +652,9 @@ export function OccupantProfileDialog({
                                             <p className="text-sm text-muted-foreground">Sin relays declarados por este perfil.</p>
                                         ) : (
                                             <ItemGroup className="nostr-profile-network-list">
-                                                {relaySuggestionRows.map((relayRow, index) => (
+                                                {relaySuggestionRows.map((relayRow) => (
                                                     <div key={relayRow.relayUrl} className="nostr-profile-network-item-wrap">
-                                                        <Item variant="default" size="sm" className="gap-2">
+                                                        <Item variant="outline" size="sm" className="gap-2">
                                                             <ItemContent className="min-w-0 flex-1">
                                                                 <ItemTitle>
                                                                     <span className="truncate">{relayRow.relayUrl}</span>
@@ -608,9 +683,6 @@ export function OccupantProfileDialog({
                                                                 </Button>
                                                             ) : null}
                                                         </Item>
-                                                        {index < relaySuggestionRows.length - 1 ? (
-                                                            <Separator className="nostr-profile-network-separator" />
-                                                        ) : null}
                                                     </div>
                                                 ))}
                                             </ItemGroup>
@@ -642,7 +714,21 @@ export function OccupantProfileDialog({
                                     {posts.length > 0 ? (
                                         <div className="nostr-profile-post-list">
                                             {posts.map((post) => {
-                                                const note = fromPostPreview(post);
+                                                const actionState = canRenderPostActions
+                                                    ? buildPreviewActionState({
+                                                        item: post,
+                                                        canWrite,
+                                                        engagementByEventId,
+                                                        reactionByEventId,
+                                                        repostByEventId,
+                                                        pendingReactionByEventId,
+                                                        pendingRepostByEventId,
+                                                        onOpenThread,
+                                                        onToggleReaction,
+                                                        onToggleRepost,
+                                                    })
+                                                    : undefined;
+                                                const note = fromPostPreview(post, actionState);
                                                 if (!note) {
                                                     return (
                                                         <article key={post.id}>
@@ -720,10 +806,9 @@ export function OccupantProfileDialog({
                                             ) : null}
                                             {followers.length > 0 ? (
                                                 <ItemGroup className="nostr-profile-network-list">
-                                                    {visibleFollowers.map((followerPubkey, index) => (
+                                                    {visibleFollowers.map((followerPubkey) => (
                                                         <div key={followerPubkey} className="nostr-profile-network-item-wrap">
                                                             {renderNetworkPersonItem(followerPubkey)}
-                                                            {index < visibleFollowers.length - 1 ? <Separator className="nostr-profile-network-separator" /> : null}
                                                         </div>
                                                     ))}
                                                 </ItemGroup>
@@ -766,10 +851,9 @@ export function OccupantProfileDialog({
                                             ) : null}
                                             {follows.length > 0 ? (
                                                 <ItemGroup className="nostr-profile-network-list">
-                                                    {visibleFollows.map((followPubkey, index) => (
+                                                    {visibleFollows.map((followPubkey) => (
                                                         <div key={followPubkey} className="nostr-profile-network-item-wrap">
                                                             {renderNetworkPersonItem(followPubkey)}
-                                                            {index < visibleFollows.length - 1 ? <Separator className="nostr-profile-network-separator" /> : null}
                                                         </div>
                                                     ))}
                                                 </ItemGroup>

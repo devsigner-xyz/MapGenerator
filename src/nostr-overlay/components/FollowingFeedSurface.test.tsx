@@ -197,6 +197,7 @@ describe('FollowingFeedSurface', () => {
     });
 
     test('renders author identity and engagement icon counters on cards', async () => {
+        const onOpenThread = vi.fn(async () => {});
         const rendered = await renderElement(
             <FollowingFeedSurface
                 {...buildProps({
@@ -232,6 +233,7 @@ describe('FollowingFeedSurface', () => {
                             },
                         },
                     ],
+                    onOpenThread,
                 })}
             />
         );
@@ -242,6 +244,13 @@ describe('FollowingFeedSurface', () => {
         expect(rendered.container.querySelector('button[aria-label="Reaccionar (3)"]')).toBeDefined();
         expect(rendered.container.querySelector('button[aria-label="Repostear (2)"]')).toBeDefined();
         expect(rendered.container.querySelector('[aria-label="Sats recibidos: 210"]')).toBeDefined();
+
+        const article = rendered.container.querySelector('article') as HTMLElement;
+        await act(async () => {
+            article.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onOpenThread).toHaveBeenCalledWith('note-1');
     });
 
     test('renders optimistic pending states for reaction and repost actions', async () => {
@@ -363,6 +372,9 @@ describe('FollowingFeedSurface', () => {
         const replyCard = rendered.container.querySelector('.nostr-following-feed-reply-box[data-slot="card"]');
         expect(replyCard).not.toBeNull();
         expect(replyCard?.getAttribute('data-variant')).toBe('elevated');
+        expect(replyCard?.className).toContain('sticky');
+        expect(replyCard?.className).toContain('bottom-0');
+        expect(replyCard?.className).toContain('z-20');
 
         const textarea = rendered.container.querySelector('.nostr-following-feed-reply-box textarea') as HTMLTextAreaElement;
         expect(textarea).toBeDefined();
@@ -413,6 +425,76 @@ describe('FollowingFeedSurface', () => {
         expect(rendered.container.querySelector('[aria-label="Sats recibidos: 21"]')).toBeDefined();
     });
 
+    test('renders nested replies in thread detail', async () => {
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    activeThread: {
+                        rootEventId: 'root-1',
+                        root: {
+                            id: 'root-1',
+                            pubkey: 'b'.repeat(64),
+                            createdAt: 500,
+                            eventKind: 1,
+                            content: 'root',
+                            rawEvent: {
+                                id: 'root-1',
+                                pubkey: 'b'.repeat(64),
+                                kind: 1,
+                                created_at: 500,
+                                tags: [],
+                                content: 'root',
+                            },
+                        },
+                        replies: [
+                            {
+                                id: 'reply-parent',
+                                pubkey: 'c'.repeat(64),
+                                createdAt: 510,
+                                eventKind: 1,
+                                content: 'reply parent',
+                                targetEventId: 'root-1',
+                                rawEvent: {
+                                    id: 'reply-parent',
+                                    pubkey: 'c'.repeat(64),
+                                    kind: 1,
+                                    created_at: 510,
+                                    tags: [['e', 'root-1', '', 'reply']],
+                                    content: 'reply parent',
+                                },
+                            },
+                            {
+                                id: 'reply-child',
+                                pubkey: 'd'.repeat(64),
+                                createdAt: 520,
+                                eventKind: 1,
+                                content: 'reply child',
+                                targetEventId: 'reply-parent',
+                                rawEvent: {
+                                    id: 'reply-child',
+                                    pubkey: 'd'.repeat(64),
+                                    kind: 1,
+                                    created_at: 520,
+                                    tags: [['e', 'root-1', '', 'root'], ['e', 'reply-parent', '', 'reply']],
+                                    content: 'reply child',
+                                },
+                            },
+                        ],
+                        isLoading: false,
+                        isLoadingMore: false,
+                        error: null,
+                        hasMore: false,
+                    },
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const nestedReply = rendered.container.querySelector('.nostr-following-feed-thread-node[data-depth="2"]');
+        expect(nestedReply).not.toBeNull();
+        expect(nestedReply?.textContent || '').toContain('reply child');
+    });
+
     test('removes redundant labels, shows time at card top, and supports copy action', async () => {
         const onCopyNoteId = vi.fn();
         const rendered = await renderElement(
@@ -457,11 +539,20 @@ describe('FollowingFeedSurface', () => {
         expect(rendered.container.querySelector('time[datetime]')).not.toBeNull();
         expect(rendered.container.querySelector('.nostr-following-feed-card-time')).toBeNull();
 
-        const copyButton = rendered.container.querySelector('button[aria-label="Copiar identificador de nota repost-no-comment"]') as HTMLButtonElement;
-        expect(copyButton).toBeDefined();
+        const copyMenuButton = rendered.container.querySelector('button[aria-label="Abrir acciones para la nota repost-no-comment"]') as HTMLButtonElement;
+        expect(copyMenuButton).toBeDefined();
 
         await act(async () => {
-            copyButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            copyMenuButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+            copyMenuButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const copyItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Copiar'
+        ) as HTMLElement;
+
+        await act(async () => {
+            copyItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
         expect(onCopyNoteId).toHaveBeenCalledWith('repost-no-comment');
@@ -658,10 +749,17 @@ describe('FollowingFeedSurface', () => {
         );
         mounted.push(renderedFeed);
 
-        const feedCopyButton = renderedFeed.container.querySelector('button[aria-label="Copiar identificador de nota feed-copy-1"]') as HTMLButtonElement;
-        expect(feedCopyButton).toBeDefined();
+        const feedCopyMenuButton = renderedFeed.container.querySelector('button[aria-label="Abrir acciones para la nota feed-copy-1"]') as HTMLButtonElement;
+        expect(feedCopyMenuButton).toBeDefined();
         await act(async () => {
-            feedCopyButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            feedCopyMenuButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+            feedCopyMenuButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+        const feedCopyItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Copiar'
+        ) as HTMLElement;
+        await act(async () => {
+            feedCopyItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
         const rendered = await renderElement(
@@ -730,14 +828,31 @@ describe('FollowingFeedSurface', () => {
         );
         mounted.push(rendered);
 
-        const rootCopyButton = rendered.container.querySelector('button[aria-label="Copiar identificador de nota root-1"]') as HTMLButtonElement;
-        const replyCopyButton = rendered.container.querySelector('button[aria-label="Copiar identificador de nota reply-1"]') as HTMLButtonElement;
-        expect(rootCopyButton).toBeDefined();
-        expect(replyCopyButton).toBeDefined();
+        const rootCopyMenuButton = rendered.container.querySelector('button[aria-label="Abrir acciones para la nota root-1"]') as HTMLButtonElement;
+        const replyCopyMenuButton = rendered.container.querySelector('button[aria-label="Abrir acciones para la nota reply-1"]') as HTMLButtonElement;
+        expect(rootCopyMenuButton).toBeDefined();
+        expect(replyCopyMenuButton).toBeDefined();
 
         await act(async () => {
-            rootCopyButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-            replyCopyButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            rootCopyMenuButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+            rootCopyMenuButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+        const rootCopyItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Copiar'
+        ) as HTMLElement;
+        await act(async () => {
+            rootCopyItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await act(async () => {
+            replyCopyMenuButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+            replyCopyMenuButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+        const replyCopyItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Copiar'
+        ) as HTMLElement;
+        await act(async () => {
+            replyCopyItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
         expect(onCopyNoteId).toHaveBeenCalledWith('root-1');

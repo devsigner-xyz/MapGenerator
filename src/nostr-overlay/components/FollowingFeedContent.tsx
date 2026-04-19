@@ -17,6 +17,23 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/
 import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
 
+function buildThreadReplyTree(replies: FollowingFeedThreadView['replies']) {
+    const childrenByParentId = new Map<string, FollowingFeedThreadView['replies']>();
+
+    for (const reply of replies) {
+        const parentId = reply.targetEventId;
+        if (!parentId) {
+            continue;
+        }
+
+        const siblings = childrenByParentId.get(parentId) ?? [];
+        siblings.push(reply);
+        childrenByParentId.set(parentId, siblings);
+    }
+
+    return childrenByParentId;
+}
+
 export interface FollowingFeedViewProps {
     items: SocialFeedItem[];
     hasFollows: boolean;
@@ -217,6 +234,10 @@ export function FollowingFeedContent({
     const resolvedSubtitle = activeThread
         ? 'Respuestas y actividad de la conversación seleccionada.'
         : (headerSubtitle || 'Timeline en tiempo real de personas que sigues');
+    const threadReplyTree = useMemo(
+        () => buildThreadReplyTree(activeThread?.replies ?? []),
+        [activeThread?.replies]
+    );
     const noteCardProps = {
         ...(onCopyNoteId ? { onCopyNoteId } : {}),
         ...(onSelectHashtag ? { onSelectHashtag } : {}),
@@ -225,6 +246,49 @@ export function FollowingFeedContent({
         ...(onSelectEventReference ? { onSelectEventReference } : {}),
         ...(onResolveEventReferences ? { onResolveEventReferences } : {}),
         ...(eventReferencesById ? { eventReferencesById } : {}),
+    };
+
+    const renderThreadReplyNode = (reply: FollowingFeedThreadView['replies'][number], depth: number): ReactNode => {
+        const replyActionState = buildReplyActionState({
+            item: reply,
+            canWrite,
+            engagementByEventId,
+            reactionByEventId,
+            repostByEventId,
+            pendingReactionByEventId,
+            pendingRepostByEventId,
+            onReply: () => {
+                setReplyTargetEventId(reply.id);
+                setReplyTargetPubkey(reply.pubkey);
+            },
+            onViewDetail: () => {
+                void onOpenThread(reply.id);
+            },
+            onToggleReaction,
+            onToggleRepost,
+        });
+        const replyNote = fromThreadItem(reply, 'reply', replyActionState);
+
+        if (!replyNote) {
+            return null;
+        }
+
+        const childReplies = threadReplyTree.get(reply.id) ?? [];
+
+        return (
+            <div key={reply.id} className="nostr-following-feed-thread-node" data-depth={depth}>
+                <NoteCard
+                    note={replyNote}
+                    profilesByPubkey={profilesByPubkey}
+                    {...noteCardProps}
+                />
+                {childReplies.length > 0 ? (
+                    <div className="nostr-following-feed-thread-children">
+                        {childReplies.map((childReply) => renderThreadReplyNode(childReply, depth + 1))}
+                    </div>
+                ) : null}
+            </div>
+        );
     };
 
     return (
@@ -413,6 +477,9 @@ export function FollowingFeedContent({
                                         setReplyTargetEventId(activeThread.root?.id || null);
                                         setReplyTargetPubkey(activeThread.root?.pubkey);
                                     },
+                                    onViewDetail: () => {
+                                        void onOpenThread(activeThread.root?.id || '');
+                                    },
                                     onToggleReaction,
                                     onToggleRepost,
                                 });
@@ -423,46 +490,18 @@ export function FollowingFeedContent({
                                 }
 
                                 return (
-                                    <NoteCard
-                                        note={rootNote}
-                                        profilesByPubkey={profilesByPubkey}
-                                        {...noteCardProps}
-                                    />
+                                    <div className="nostr-following-feed-thread-node" data-depth={0}>
+                                        <NoteCard
+                                            note={rootNote}
+                                            profilesByPubkey={profilesByPubkey}
+                                            {...noteCardProps}
+                                        />
+                                    </div>
                                 );
                             })()
                         ) : null}
 
-                        {activeThread.replies.map((reply) => {
-                            const replyActionState = buildReplyActionState({
-                                item: reply,
-                                canWrite,
-                                engagementByEventId,
-                                reactionByEventId,
-                                repostByEventId,
-                                pendingReactionByEventId,
-                                pendingRepostByEventId,
-                                onReply: () => {
-                                    setReplyTargetEventId(reply.id);
-                                    setReplyTargetPubkey(reply.pubkey);
-                                },
-                                onToggleReaction,
-                                onToggleRepost,
-                            });
-                            const replyNote = fromThreadItem(reply, 'reply', replyActionState);
-
-                            if (!replyNote) {
-                                return null;
-                            }
-
-                            return (
-                                <NoteCard
-                                    key={reply.id}
-                                    note={replyNote}
-                                    profilesByPubkey={profilesByPubkey}
-                                    {...noteCardProps}
-                                />
-                            );
-                        })}
+                        {(activeThread.root ? (threadReplyTree.get(activeThread.root.id) ?? []) : []).map((reply) => renderThreadReplyNode(reply, 1))}
 
                         {activeThread.replies.length === 0 && !activeThread.isLoading ? (
                             <Empty className="nostr-following-feed-empty">
@@ -490,7 +529,7 @@ export function FollowingFeedContent({
                         ) : null}
                     </div>
 
-                    <Card variant="elevated" size="sm" className="nostr-following-feed-reply-box gap-0 py-0">
+                    <Card variant="elevated" size="sm" className="nostr-following-feed-reply-box sticky bottom-0 z-20 gap-0 py-0 shadow-none">
                         <CardContent className="px-3 py-3">
                             <p className="nostr-following-feed-reply-target">{replyTargetLabel}</p>
                             <Textarea

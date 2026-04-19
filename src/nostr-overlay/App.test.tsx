@@ -616,7 +616,7 @@ describe('Nostr overlay App', () => {
         );
         mounted.push(rendered);
 
-        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+        await waitFor(() => (rendered.container.textContent || '').includes('User-ffff'));
         expect(rendered.container.querySelector('[data-testid="login-gate-screen"]')).toBeNull();
         expect(rendered.container.querySelector('.nostr-panel-toolbar')).not.toBeNull();
     });
@@ -649,7 +649,7 @@ describe('Nostr overlay App', () => {
                         fetchLatestReplaceableEvent: async () => null,
                         fetchEvents: async () => [],
                     }),
-                    fetchFollowsByNpubFn: vi.fn().mockResolvedValue({
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
                         ownerPubkey,
                         follows: [followedPubkey],
                         relayHints: [],
@@ -726,7 +726,7 @@ describe('Nostr overlay App', () => {
         mounted.push(rendered);
 
         await loginWithNip07(rendered.container);
-        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+        await waitFor(() => (rendered.container.textContent || '').includes('User-ffff'));
 
         const toolbarButtons = Array.from(rendered.container.querySelectorAll('.nostr-panel-toolbar button')) as HTMLButtonElement[];
         expect(toolbarButtons.length).toBeGreaterThanOrEqual(4);
@@ -5930,6 +5930,85 @@ describe('Nostr overlay App', () => {
         await waitFor(() => (rendered.container.textContent || '').includes(`User-${followA.slice(0, 4)}`));
         await selectActiveProfileDialogTab('Seguidores');
         await waitFor(() => (rendered.container.textContent || '').includes(`User-${followerA.slice(0, 4)}`));
+    });
+
+    test('sending message from active profile network menu closes profile dialog before opening chat', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+        const followerA = 'd'.repeat(64);
+        const { bridge, triggerOccupiedBuildingClick } = createMapBridgeStub();
+
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async (pubkey: string) => {
+                            if (pubkey === followedPubkey) {
+                                return {
+                                    id: 'kind3',
+                                    pubkey,
+                                    kind: 3,
+                                    created_at: 111,
+                                    tags: [],
+                                    content: '',
+                                };
+                            }
+                            return null;
+                        },
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByNpubFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [followedPubkey],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockImplementation(async (pubkeys: string[]) => {
+                        const profiles: Record<string, { pubkey: string; displayName: string }> = {};
+                        for (const pubkey of pubkeys) {
+                            profiles[pubkey] = { pubkey, displayName: `User-${pubkey.slice(0, 4)}` };
+                        }
+                        return profiles;
+                    }),
+                    fetchLatestPostsByPubkeyFn: vi.fn().mockResolvedValue({ posts: [], hasMore: false }),
+                    fetchProfileStatsFn: vi.fn().mockResolvedValue({ followsCount: 0, followersCount: 1 }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [followerA],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        await loginWithNip07(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('User-ffff'));
+
+        await act(async () => {
+            triggerOccupiedBuildingClick({ buildingIndex: 4, pubkey: followedPubkey });
+        });
+
+        await selectActiveProfileDialogTab('Seguidores');
+        await waitFor(() => (rendered.container.textContent || '').includes(`User-${followerA.slice(0, 4)}`));
+
+        const actionsButton = document.body.querySelector(`button[aria-label="Abrir acciones para User-${followerA.slice(0, 4)}"]`) as HTMLButtonElement;
+        await act(async () => {
+            actionsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (document.body.textContent || '').includes('Enviar mensaje'));
+        const messageItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((node) =>
+            (node.textContent || '').includes('Enviar mensaje')
+        ) as HTMLElement;
+
+        await act(async () => {
+            messageItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Chats'));
+        expect(document.body.querySelector('button[aria-label="Cerrar perfil"]')).toBeNull();
     });
 
     test('imports active profile relay suggestions into local relay settings', async () => {
