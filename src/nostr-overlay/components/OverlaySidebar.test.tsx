@@ -1,0 +1,132 @@
+import { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
+import { MemoryRouter } from 'react-router';
+import { OverlaySidebar } from './OverlaySidebar';
+import type { AuthSessionState } from '../../nostr/auth/session';
+
+interface RenderResult {
+    container: HTMLDivElement;
+    root: Root;
+}
+
+async function renderSidebar(pathname = '/'): Promise<RenderResult> {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    const authSession: AuthSessionState = {
+        method: 'nip07',
+        pubkey: 'f'.repeat(64),
+        readonly: true,
+        locked: false,
+        createdAt: 1,
+        capabilities: {
+            canSign: true,
+            canEncrypt: true,
+            encryptionSchemes: ['nip44'],
+        },
+    };
+
+    await act(async () => {
+        root.render(
+            <MemoryRouter initialEntries={[pathname]}>
+                <OverlaySidebar
+                    open
+                    onOpenChange={vi.fn()}
+                    authSession={authSession}
+                    ownerPubkey={'f'.repeat(64)}
+                    ownerProfile={{ pubkey: 'f'.repeat(64), displayName: 'Nostr City', picture: 'https://example.com/avatar.png' }}
+                    canAccessDirectMessages
+                    canAccessSocialNotifications
+                    canAccessFollowingFeed
+                    chatHasUnread
+                    notificationsHasUnread
+                    followingFeedHasUnread
+                    onOpenMap={vi.fn()}
+                    onOpenCityStats={vi.fn()}
+                    onOpenChat={vi.fn()}
+                    onOpenRelays={vi.fn()}
+                    onOpenNotifications={vi.fn()}
+                    onOpenFollowingFeed={vi.fn()}
+                    onOpenGlobalSearch={vi.fn()}
+                    onOpenSettings={vi.fn()}
+                    onLogout={vi.fn()}
+                    onCopyOwnerNpub={vi.fn()}
+                    onLocateOwner={vi.fn()}
+                    onViewOwnerDetails={vi.fn()}
+                    missionsDiscoveredCount={2}
+                    missionsTotal={5}
+                    relaysConnectedCount={3}
+                    relaysTotal={5}
+                    onOpenMissions={vi.fn()}
+                >
+                    <div>Social content</div>
+                </OverlaySidebar>
+            </MemoryRouter>
+        );
+    });
+
+    return { container, root };
+}
+
+let mounted: RenderResult[] = [];
+
+beforeAll(() => {
+    (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+
+    if (!Element.prototype.scrollIntoView) {
+        Element.prototype.scrollIntoView = () => {};
+    }
+});
+
+afterEach(async () => {
+    for (const entry of mounted) {
+        await act(async () => {
+            entry.root.unmount();
+        });
+        entry.container.remove();
+    }
+    mounted = [];
+});
+
+describe('OverlaySidebar', () => {
+    test('adds shared utility toolbar density on top of the legacy toolbar hook', async () => {
+        const rendered = await renderSidebar('/');
+        mounted.push(rendered);
+
+        const mapButton = Array.from(rendered.container.querySelectorAll('button')).find((button) => (button.textContent || '').includes('Mapa'));
+        const toolbar = mapButton?.closest('[data-slot="sidebar-menu"]');
+
+        expect(toolbar).not.toBeNull();
+        expect(toolbar?.classList.contains('nostr-panel-toolbar')).toBe(true);
+        expect(toolbar?.classList.contains('gap-1.5')).toBe(true);
+    });
+
+    test('renders unread indicators through the shared unread slot marker', async () => {
+        const rendered = await renderSidebar('/');
+        mounted.push(rendered);
+
+        const agoraButton = rendered.container.querySelector('button[aria-label="Abrir Agora"]');
+        const chatButton = rendered.container.querySelector('button[aria-label="Abrir chats"]');
+        const notificationsButton = rendered.container.querySelector('button[aria-label="Abrir notificaciones"]');
+
+        expect(agoraButton?.querySelector('[data-slot="overlay-unread-indicator"]')).not.toBeNull();
+        expect(chatButton?.querySelector('[data-slot="overlay-unread-indicator"]')).not.toBeNull();
+        expect(notificationsButton?.querySelector('[data-slot="overlay-unread-indicator"]')).not.toBeNull();
+        expect(agoraButton?.getAttribute('aria-description')).toContain('sin leer');
+        expect(chatButton?.getAttribute('aria-description')).toContain('sin leer');
+        expect(notificationsButton?.getAttribute('aria-description')).toContain('sin leer');
+    });
+
+    test('keeps readonly state inside the shared badge primitive in the user menu', async () => {
+        const rendered = await renderSidebar('/');
+        mounted.push(rendered);
+
+        const readonlyBadge = Array.from(rendered.container.querySelectorAll('[data-slot="badge"]')).find((badge) =>
+            (badge.textContent || '').includes('Read Only')
+        );
+
+        expect(readonlyBadge).not.toBeNull();
+    });
+});

@@ -92,6 +92,7 @@ describe('LoginMethodSelector', () => {
         expect(content).toContain('Acceder');
         expect(methodSelectTrigger).not.toBeNull();
         expect(npubInput).not.toBeNull();
+        expect(methodSelectTrigger?.classList.contains('w-full')).toBe(true);
     });
 
     test('uses auth-scoped foreground label styling for the default login labels', async () => {
@@ -167,34 +168,40 @@ describe('LoginMethodSelector', () => {
         expect(spinner).toBeDefined();
     });
 
-    test('applies the login-scoped spacing class on the npub primary action button', async () => {
+    test('layers shared utility spacing onto the npub primary action button', async () => {
         const rendered = await renderSelector({ initialMethod: 'npub' });
         mounted.push(rendered);
 
-        const submitButton = rendered.container.querySelector('button[type="submit"]');
+        const submitButton = rendered.container.querySelector('button[type="submit"]') as HTMLButtonElement | null;
 
         expect(submitButton?.classList.contains('nostr-login-method-actions')).toBe(true);
+        expect(submitButton?.classList.contains('mt-2')).toBe(true);
+        expect(submitButton?.classList.contains('w-full')).toBe(true);
     });
 
-    test('applies the login-scoped spacing class on the nip07 primary action button', async () => {
+    test('layers shared utility spacing onto the nip07 primary action button', async () => {
         const rendered = await renderSelector({ initialMethod: 'nip07' });
         mounted.push(rendered);
 
         const primaryButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
             (button.textContent || '').includes('Continuar con extension')
-        );
+        ) as HTMLButtonElement | undefined;
 
         expect(primaryButton?.classList.contains('nostr-login-method-actions')).toBe(true);
+        expect(primaryButton?.classList.contains('mt-2')).toBe(true);
+        expect(primaryButton?.classList.contains('w-full')).toBe(true);
         expect(rendered.container.querySelector('.nostr-label')?.classList.contains('nostr-auth-label')).toBe(true);
     });
 
-    test('applies the login-scoped spacing class on the nip46 primary action button', async () => {
+    test('layers shared utility spacing onto the nip46 primary action button', async () => {
         const rendered = await renderSelector({ initialMethod: 'nip46' });
         mounted.push(rendered);
 
-        const submitButton = rendered.container.querySelector('button[type="submit"]');
+        const submitButton = rendered.container.querySelector('button[type="submit"]') as HTMLButtonElement | null;
 
         expect(submitButton?.classList.contains('nostr-login-method-actions')).toBe(true);
+        expect(submitButton?.classList.contains('mt-2')).toBe(true);
+        expect(submitButton?.classList.contains('w-full')).toBe(true);
         const labels = Array.from(rendered.container.querySelectorAll('label'));
         expect(labels.every((label) => label.classList.contains('nostr-auth-label'))).toBe(true);
     });

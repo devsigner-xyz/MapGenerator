@@ -3,6 +3,7 @@ import { encodeHexToNpub } from '../../nostr/npub';
 import type { NostrProfile } from '../../nostr/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item';
 import {
     Command,
     CommandInput,
@@ -11,6 +12,7 @@ import {
 } from '@/components/ui/command';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
+import { OverlayPageHeader } from './OverlayPageHeader';
 import { type SearchUsersResult, useUserSearchQuery } from '../query/user-search.query';
 
 interface UserSearchPageProps {
@@ -103,40 +105,48 @@ export function UserSearchPage({
                 <CommandItem
                     key={pubkey}
                     value={`${display} ${profileShortNpub(pubkey)} ${pubkey}`}
-                    className="nostr-global-search-result-row"
+                    className="nostr-global-search-result-row p-0"
                     onSelect={() => {
                         onSelectUser(pubkey);
                         onClose();
                     }}
                 >
-                    <div className="nostr-global-search-result-main">
-                        <Avatar className="size-8">
-                            {profile?.picture ? <AvatarImage src={profile.picture} alt={display} /> : null}
-                            <AvatarFallback>{display.slice(0, 2).toUpperCase()}</AvatarFallback>
-                        </Avatar>
-                        <div className="nostr-global-search-result-copy">
-                            <p className="nostr-global-search-result-name">{display}</p>
-                            <p className="nostr-global-search-result-id">{profileShortNpub(pubkey)}</p>
+                    <Item
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-between border-transparent bg-transparent group-data-selected/command-item:bg-muted/80"
+                    >
+                        <div className="flex min-w-0 items-center gap-2">
+                            <Avatar className="size-8">
+                                {profile?.picture ? <AvatarImage src={profile.picture} alt={display} /> : null}
+                                <AvatarFallback>{display.slice(0, 2).toUpperCase()}</AvatarFallback>
+                            </Avatar>
+                            <ItemContent>
+                                <ItemTitle className="truncate">{display}</ItemTitle>
+                                <ItemDescription className="truncate">{profileShortNpub(pubkey)}</ItemDescription>
+                            </ItemContent>
                         </div>
-                    </div>
 
-                    {onMessageUser ? (
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onPointerDown={(event: { stopPropagation: () => void }) => {
-                                event.stopPropagation();
-                            }}
-                            onClick={(event: { stopPropagation: () => void }) => {
-                                event.stopPropagation();
-                                void onMessageUser(pubkey);
-                                onClose();
-                            }}
-                        >
-                            Mensaje
-                        </Button>
-                    ) : null}
+                        {onMessageUser ? (
+                            <ItemActions>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onPointerDown={(event: { stopPropagation: () => void }) => {
+                                        event.stopPropagation();
+                                    }}
+                                    onClick={(event: { stopPropagation: () => void }) => {
+                                        event.stopPropagation();
+                                        void onMessageUser(pubkey);
+                                        onClose();
+                                    }}
+                                >
+                                    Mensaje
+                                </Button>
+                            </ItemActions>
+                        ) : null}
+                    </Item>
                 </CommandItem>
             );
         })
@@ -146,10 +156,10 @@ export function UserSearchPage({
         <section className="nostr-routed-surface" aria-label="Buscar usuarios globalmente">
             <div className="nostr-routed-surface-content">
                 <div className="nostr-global-search-page nostr-routed-surface-panel nostr-page-layout">
-                    <header className="nostr-page-header">
-                        <h4 className="scroll-m-20 text-xl font-semibold tracking-tight">Buscar usuarios globalmente</h4>
-                        <p className="text-sm text-muted-foreground">Filtra perfiles Nostr por nombre, npub o pubkey.</p>
-                    </header>
+                    <OverlayPageHeader
+                        title="Buscar usuarios globalmente"
+                        description="Filtra perfiles Nostr por nombre, npub o pubkey."
+                    />
 
                     <section className="nostr-page-content">
                         <Command shouldFilter={false} className="nostr-global-search-command">

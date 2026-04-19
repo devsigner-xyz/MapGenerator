@@ -1,6 +1,7 @@
 import type { ZapSettingsState } from '../../../nostr/zap-settings';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { OverlayPageHeader } from '../OverlayPageHeader';
 
 interface SettingsZapsPageProps {
     zapSettings: ZapSettingsState;
@@ -21,10 +22,10 @@ export function SettingsZapsPage({
 }: SettingsZapsPageProps) {
     return (
         <>
-            <header className="nostr-page-header">
-                <h4 className="scroll-m-20 text-xl font-semibold tracking-tight">Zaps</h4>
-                <p className="text-sm text-muted-foreground">Define cantidades rapidas para enviar zaps.</p>
-            </header>
+            <OverlayPageHeader
+                title="Zaps"
+                description="Define cantidades rapidas para enviar zaps."
+            />
             <div className="nostr-page-content nostr-settings-body">
                 <div className="nostr-shortcuts-content">
                     <p>Cantidad de zaps</p>

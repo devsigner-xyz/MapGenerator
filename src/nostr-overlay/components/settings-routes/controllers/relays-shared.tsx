@@ -10,10 +10,10 @@ import type { RelayDetails, RelayFee, RelayInformationDocument, RelayRow, RelayS
 export const EMPTY_RELAYS: string[] = [];
 
 export const RELAY_TYPE_LABELS: Record<RelayType, string> = {
-    nip65Both: 'NIP-65 read+write',
-    nip65Read: 'NIP-65 read',
-    nip65Write: 'NIP-65 write',
-    dmInbox: 'NIP-17 DM inbox',
+    nip65Both: 'NIP-65 lectura+escritura',
+    nip65Read: 'NIP-65 lectura',
+    nip65Write: 'NIP-65 escritura',
+    dmInbox: 'NIP-17 buzón DM',
 };
 
 export function buildRelayRowsByUrl(byType: Record<RelayType, string[]>): RelayRow[] {

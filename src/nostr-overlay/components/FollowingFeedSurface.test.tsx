@@ -172,8 +172,12 @@ describe('FollowingFeedSurface', () => {
         expect(rendered.container.textContent || '').toContain('Timeline en tiempo real de personas que sigues');
 
         const surfaceContent = rendered.container.querySelector('.nostr-following-feed-surface-content') as HTMLElement;
+        const composeCard = rendered.container.querySelector('.nostr-following-feed-compose[data-slot="card"]');
         expect(surfaceContent).toBeDefined();
         expect(surfaceContent.classList.contains('nostr-following-feed-dialog')).toBe(false);
+        expect(rendered.container.querySelector('[data-slot="overlay-page-header"]')).not.toBeNull();
+        expect(composeCard).not.toBeNull();
+        expect(composeCard?.getAttribute('data-variant')).toBe('elevated');
     });
 
     test('renders no-follows empty state using Empty component copy', async () => {
@@ -355,6 +359,10 @@ describe('FollowingFeedSurface', () => {
             />
         );
         mounted.push(rendered);
+
+        const replyCard = rendered.container.querySelector('.nostr-following-feed-reply-box[data-slot="card"]');
+        expect(replyCard).not.toBeNull();
+        expect(replyCard?.getAttribute('data-variant')).toBe('elevated');
 
         const textarea = rendered.container.querySelector('.nostr-following-feed-reply-box textarea') as HTMLTextAreaElement;
         expect(textarea).toBeDefined();

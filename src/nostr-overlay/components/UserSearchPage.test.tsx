@@ -172,6 +172,9 @@ describe('UserSearchPage', () => {
             await waitForAssertion(() => {
                 expect(rendered.container.textContent || '').toContain('Alice');
             });
+
+            expect(rendered.container.querySelector('[data-slot="overlay-page-header"]')).not.toBeNull();
+            expect(rendered.container.querySelector('[data-slot="command-item"] [data-slot="item"]')).not.toBeNull();
         } finally {
             vi.useRealTimers();
         }

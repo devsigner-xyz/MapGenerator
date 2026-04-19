@@ -5,9 +5,11 @@ import type { RelayConnectionStatus } from '../../hooks/useRelayConnectionSummar
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Item, ItemContent, ItemDescription, ItemMedia } from '@/components/ui/item';
 import { Spinner } from '@/components/ui/spinner';
 import { Table, TableBody, TableCell, TableHead, TableRow } from '@/components/ui/table';
+import { OverlayPageHeader } from '../OverlayPageHeader';
 import type { RelayDetails, RelayFee, RelayInformationDocument, RelayInfoState, RelaySelection } from './types';
 
 interface SettingsRelayDetailPageProps {
@@ -47,10 +49,10 @@ export function SettingsRelayDetailPage({
 }: SettingsRelayDetailPageProps) {
     return (
         <>
-            <header className="nostr-page-header">
-                <h4 className="scroll-m-20 text-xl font-semibold tracking-tight">Relay details</h4>
-                <p className="text-sm text-muted-foreground">Metadata y capacidades tecnicas del relay seleccionado.</p>
-            </header>
+            <OverlayPageHeader
+                title="Detalles del relay"
+                description="Metadata y capacidades tecnicas del relay seleccionado."
+            />
             <div className="nostr-page-content nostr-settings-body">
                 <div className="nostr-relays-content">
                     {selectedRelayInfo?.status === 'loading' ? (
@@ -93,7 +95,11 @@ export function SettingsRelayDetailPage({
                 </Item>
                     ) : null}
 
-                    <div className="nostr-relay-detail-table-wrap">
+                    <Card variant="elevated" size="sm" className="nostr-relay-detail-table-wrap gap-0 py-0">
+                        <CardHeader className="border-b px-3 py-3">
+                            <CardTitle>Detalles tecnicos</CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-0 py-0">
                 <Table className="nostr-relay-detail-table">
                     <TableBody>
                         <TableRow>
@@ -101,16 +107,16 @@ export function SettingsRelayDetailPage({
                             <TableCell className="nostr-relay-detail-value">{selectedRelayDetails.relayUrl}</TableCell>
                         </TableRow>
                         <TableRow>
-                            <TableHead className="nostr-relay-detail-key">Category</TableHead>
+                            <TableHead className="nostr-relay-detail-key">Categoria</TableHead>
                             <TableCell className="nostr-relay-detail-value">{relayTypeLabels[selectedRelay.relayType]}</TableCell>
                         </TableRow>
                         <TableRow>
-                            <TableHead className="nostr-relay-detail-key">Connection</TableHead>
+                            <TableHead className="nostr-relay-detail-key">Conexión</TableHead>
                             <TableCell className="nostr-relay-detail-value">{relayConnectionBadge(selectedRelayConnectionStatus)}</TableCell>
                         </TableRow>
                         {selectedRelayDocument?.description ? (
                             <TableRow>
-                                <TableHead className="nostr-relay-detail-key">Description</TableHead>
+                                <TableHead className="nostr-relay-detail-key">Descripción</TableHead>
                                 <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.description}</TableCell>
                             </TableRow>
                         ) : null}
@@ -146,7 +152,7 @@ export function SettingsRelayDetailPage({
                         ) : null}
                         {selectedRelayDocument?.contact ? (
                             <TableRow>
-                                <TableHead className="nostr-relay-detail-key">Contact</TableHead>
+                                <TableHead className="nostr-relay-detail-key">Contacto</TableHead>
                                 <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.contact}</TableCell>
                             </TableRow>
                         ) : null}
@@ -158,7 +164,7 @@ export function SettingsRelayDetailPage({
                         ) : null}
                         {selectedRelayDocument?.supported_nips && selectedRelayDocument.supported_nips.length > 0 ? (
                             <TableRow>
-                                <TableHead className="nostr-relay-detail-key">Supported NIPs</TableHead>
+                                <TableHead className="nostr-relay-detail-key">NIPs compatibles</TableHead>
                                 <TableCell className="nostr-relay-detail-value">
                                     <div className="nostr-relay-nip-badges">
                                         {selectedRelayDocument.supported_nips.slice(0, 24).map((nip) => (
@@ -173,47 +179,47 @@ export function SettingsRelayDetailPage({
                         ) : null}
                         {typeof selectedRelayDocument?.limitation?.auth_required === 'boolean' ? (
                             <TableRow>
-                                <TableHead className="nostr-relay-detail-key">Auth required</TableHead>
-                                <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.limitation.auth_required ? 'Required' : 'Not required'}</TableCell>
+                                <TableHead className="nostr-relay-detail-key">Autenticación requerida</TableHead>
+                                <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.limitation.auth_required ? 'Requerida' : 'No requerida'}</TableCell>
                             </TableRow>
                         ) : null}
                         {typeof selectedRelayDocument?.limitation?.payment_required === 'boolean' ? (
                             <TableRow>
-                                <TableHead className="nostr-relay-detail-key">Payment required</TableHead>
-                                <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.limitation.payment_required ? 'Required' : 'Not required'}</TableCell>
+                                <TableHead className="nostr-relay-detail-key">Pago requerido</TableHead>
+                                <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.limitation.payment_required ? 'Requerido' : 'No requerido'}</TableCell>
                             </TableRow>
                         ) : null}
                         {typeof selectedRelayDocument?.limitation?.restricted_writes === 'boolean' ? (
                             <TableRow>
-                                <TableHead className="nostr-relay-detail-key">Write policy</TableHead>
-                                <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.limitation.restricted_writes ? 'Restricted' : 'Open'}</TableCell>
+                                <TableHead className="nostr-relay-detail-key">Política de escritura</TableHead>
+                                <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.limitation.restricted_writes ? 'Restringida' : 'Abierta'}</TableCell>
                             </TableRow>
                         ) : null}
                         {typeof relayEventLimit === 'number' ? (
                             <TableRow>
-                                <TableHead className="nostr-relay-detail-key">Event limit</TableHead>
+                                <TableHead className="nostr-relay-detail-key">Límite de eventos</TableHead>
                                 <TableCell className="nostr-relay-detail-value">{relayEventLimit}</TableCell>
                             </TableRow>
                         ) : null}
                         {selectedRelayDocument?.payments_url ? (
                             <TableRow>
-                                <TableHead className="nostr-relay-detail-key">Payments URL</TableHead>
+                                <TableHead className="nostr-relay-detail-key">URL de pagos</TableHead>
                                 <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.payments_url}</TableCell>
                             </TableRow>
                         ) : null}
                         {relayHasFees && selectedRelayDocument?.fees ? (
                             <TableRow>
-                                <TableHead className="nostr-relay-detail-key">Fees</TableHead>
+                                <TableHead className="nostr-relay-detail-key">Tarifas</TableHead>
                                 <TableCell className="nostr-relay-detail-value">
                                     <div className="nostr-relay-detail-inline-list">
                                         {selectedRelayDocument.fees.admission?.map((fee, index) => (
-                                            <span key={`admission-${index}`}>Admission: {formatRelayFee(fee)}</span>
+                                            <span key={`admission-${index}`}>Admisión: {formatRelayFee(fee)}</span>
                                         ))}
                                         {selectedRelayDocument.fees.subscription?.map((fee, index) => (
-                                            <span key={`subscription-${index}`}>Subscription: {formatRelayFee(fee)}</span>
+                                            <span key={`subscription-${index}`}>Suscripción: {formatRelayFee(fee)}</span>
                                         ))}
                                         {selectedRelayDocument.fees.publication?.map((fee, index) => (
-                                            <span key={`publication-${index}`}>Publication: {formatRelayFee(fee)}</span>
+                                            <span key={`publication-${index}`}>Publicación: {formatRelayFee(fee)}</span>
                                         ))}
                                     </div>
                                 </TableCell>
@@ -221,19 +227,20 @@ export function SettingsRelayDetailPage({
                         ) : null}
                         {selectedRelayDocument?.terms_of_service ? (
                             <TableRow>
-                                <TableHead className="nostr-relay-detail-key">Terms of Service</TableHead>
+                                <TableHead className="nostr-relay-detail-key">Términos del servicio</TableHead>
                                 <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.terms_of_service}</TableCell>
                             </TableRow>
                         ) : null}
                         {selectedRelayDocument?.privacy_policy ? (
                             <TableRow>
-                                <TableHead className="nostr-relay-detail-key">Privacy Policy</TableHead>
+                                <TableHead className="nostr-relay-detail-key">Política de privacidad</TableHead>
                                 <TableCell className="nostr-relay-detail-value">{selectedRelayDocument.privacy_policy}</TableCell>
                             </TableRow>
                         ) : null}
                     </TableBody>
                 </Table>
-                    </div>
+                        </CardContent>
+                    </Card>
                 </div>
             </div>
         </>

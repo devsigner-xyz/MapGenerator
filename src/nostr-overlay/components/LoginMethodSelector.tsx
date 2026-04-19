@@ -80,13 +80,13 @@ export function LoginMethodSelector({
     };
 
     return (
-        <section className="nostr-login-selector" aria-label="Selector de login de Nostr">
+        <section className="nostr-login-selector grid gap-3" aria-label="Selector de login de Nostr">
             <div className="nostr-form">
                 <Label className={authLabelClassName} htmlFor="nostr-login-method-trigger">
                     Metodo de acceso
                 </Label>
                 <Select value={method} onValueChange={(value) => setMethod(value as SelectorMethod)} disabled={isBusy}>
-                    <SelectTrigger id="nostr-login-method-trigger" className="nostr-login-method-select" aria-label="Metodo de login">
+                    <SelectTrigger id="nostr-login-method-trigger" className="nostr-login-method-select w-full" aria-label="Metodo de login">
                         <SelectValue>{selectorMethodLabels[method]}</SelectValue>
                     </SelectTrigger>
                         <SelectContent>
@@ -114,7 +114,7 @@ export function LoginMethodSelector({
                         onChange={(event) => setNpub(event.target.value)}
                     />
 
-                    <Button type="submit" className="w-full nostr-login-method-actions" disabled={isBusy || npub.trim().length === 0}>
+                    <Button type="submit" className="nostr-login-method-actions mt-2 w-full" disabled={isBusy || npub.trim().length === 0}>
                         {isBusy ? (
                             <>
                                 <Spinner data-icon="inline-start" />
@@ -126,11 +126,11 @@ export function LoginMethodSelector({
             ) : null}
 
             {method === 'nip07' ? (
-                <div className="nostr-panel-actions">
+                <div className="grid gap-2">
                     <p className={authLabelClassName}>Usa tu extension Nostr para firmar sin exponer tu clave privada.</p>
                     <Button
                         type="button"
-                        className="nostr-login-method-actions"
+                        className="nostr-login-method-actions mt-2 w-full"
                         onClick={() => {
                             void run(async () => {
                                 await onStartSession('nip07', {});
@@ -163,7 +163,7 @@ export function LoginMethodSelector({
                         onChange={(event) => setBunkerUri(event.target.value)}
                     />
 
-                    <Button type="submit" className="w-full nostr-login-method-actions" disabled={isBusy || bunkerUri.trim().length === 0}>
+                    <Button type="submit" className="nostr-login-method-actions mt-2 w-full" disabled={isBusy || bunkerUri.trim().length === 0}>
                         Conectar bunker
                     </Button>
                 </form>

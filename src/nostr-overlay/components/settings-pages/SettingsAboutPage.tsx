@@ -1,10 +1,12 @@
+import { OverlayPageHeader } from '../OverlayPageHeader';
+
 export function SettingsAboutPage() {
     return (
         <>
-            <header className="nostr-page-header">
-                <h4 className="scroll-m-20 text-xl font-semibold tracking-tight">About</h4>
-                <p className="text-sm text-muted-foreground">Informacion general de protocolo y funcionalidades disponibles.</p>
-            </header>
+            <OverlayPageHeader
+                title="Acerca de"
+                description="Informacion general de protocolo y funcionalidades disponibles."
+            />
             <div className="nostr-page-content nostr-settings-body">
                 <div className="nostr-shortcuts-content">
                     <div className="nostr-about-section">

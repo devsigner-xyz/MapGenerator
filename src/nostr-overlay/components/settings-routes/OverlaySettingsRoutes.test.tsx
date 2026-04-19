@@ -159,7 +159,7 @@ describe('Overlay settings routes', () => {
         mounted.push(rendered);
 
         await act(async () => {
-            getSliderThumb(rendered.container, 'Occupied labels zoom level').dispatchEvent(
+            getSliderThumb(rendered.container, 'Zoom de etiquetas ocupadas').dispatchEvent(
                 new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })
             );
         });
@@ -203,7 +203,7 @@ describe('Overlay settings routes', () => {
         const rendered = await renderSettingsRoute('/relays/detail?url=wss%3A%2F%2Frelay.one&source=configured&type=nip65Both');
         mounted.push(rendered);
 
-        expect(rendered.container.textContent || '').toContain('Relay details');
+        expect(rendered.container.textContent || '').toContain('Detalles del relay');
         expect(rendered.container.textContent || '').toContain('wss://relay.one');
 
         const backButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>

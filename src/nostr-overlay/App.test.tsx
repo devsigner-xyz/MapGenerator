@@ -320,12 +320,12 @@ async function openDropdownTrigger(button: HTMLButtonElement): Promise<void> {
 
 async function openSettingsContextMenu(container: HTMLDivElement): Promise<void> {
     const inlineSettingsButton = container.querySelector('button[aria-label="Alternar ajustes"]') as HTMLButtonElement | null;
-    const inlineOptionsVisible = (container.textContent || '').includes('Advanced settings');
+    const inlineOptionsVisible = (container.textContent || '').includes('Ajustes avanzados');
     if (inlineSettingsButton && !inlineOptionsVisible) {
         await act(async () => {
             inlineSettingsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
-        await waitFor(() => (container.textContent || '').includes('Advanced settings'));
+        await waitFor(() => (container.textContent || '').includes('Ajustes avanzados'));
         return;
     }
 
@@ -338,7 +338,7 @@ async function openSettingsContextMenu(container: HTMLDivElement): Promise<void>
 
     await openDropdownTrigger(settingsButton);
 
-    await waitFor(() => (document.body.textContent || '').includes('Advanced settings'));
+    await waitFor(() => (document.body.textContent || '').includes('Ajustes avanzados'));
 }
 
 async function selectSettingsContextAction(container: HTMLDivElement, label: string): Promise<void> {
@@ -4745,14 +4745,14 @@ describe('Nostr overlay App', () => {
         const mountedOnOpen = (bridge.mountSettingsPanel as any).mock.calls.some((call: [unknown]) => call[0] instanceof HTMLElement);
         expect(mountedOnOpen).toBe(false);
 
-        await selectSettingsContextAction(rendered.container, 'Advanced settings');
+        await selectSettingsContextAction(rendered.container, 'Ajustes avanzados');
 
         await waitFor(() => {
             const calls = (bridge.mountSettingsPanel as any).mock.calls;
             return calls.length > 0 && calls[calls.length - 1][0] instanceof HTMLElement;
         });
 
-        await selectSettingsContextAction(rendered.container, 'Shortcuts');
+        await selectSettingsContextAction(rendered.container, 'Atajos');
 
         expect(rendered.container.textContent || '').toContain('Mantener pulsada la barra espaciadora y arrastrar');
         expect(rendered.container.textContent || '').toContain('Mantener pulsado el wheel del raton y mover el raton');
@@ -4773,7 +4773,7 @@ describe('Nostr overlay App', () => {
             settingsToggleButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
-        await waitFor(() => (rendered.container.textContent || '').includes('Advanced settings'));
+        await waitFor(() => (rendered.container.textContent || '').includes('Ajustes avanzados'));
 
         const uiButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
             (button.textContent || '').trim() === 'Interfaz'
@@ -4784,7 +4784,7 @@ describe('Nostr overlay App', () => {
             uiButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
-        await waitFor(() => (rendered.container.textContent || '').includes('Street labels'));
+        await waitFor(() => (rendered.container.textContent || '').includes('Etiquetas de calles'));
         expect(rendered.container.querySelector('button[aria-label="Abrir ajustes de interfaz"][data-active="true"]')).not.toBeNull();
     });
 
@@ -4815,8 +4815,8 @@ describe('Nostr overlay App', () => {
 
         await selectSettingsContextAction(rendered.container, 'Interfaz');
 
-        const trafficCountThumb = rendered.container.querySelector('[aria-label="Cars in city"] [data-slot="slider-thumb"]') as HTMLElement;
-        const trafficSpeedThumb = rendered.container.querySelector('[aria-label="Cars speed"] [data-slot="slider-thumb"]') as HTMLElement;
+        const trafficCountThumb = rendered.container.querySelector('[aria-label="Coches en ciudad"] [data-slot="slider-thumb"]') as HTMLElement;
+        const trafficSpeedThumb = rendered.container.querySelector('[aria-label="Velocidad de coches"] [data-slot="slider-thumb"]') as HTMLElement;
         expect(trafficCountThumb).toBeDefined();
         expect(trafficSpeedThumb).toBeDefined();
 
@@ -4848,7 +4848,7 @@ describe('Nostr overlay App', () => {
 
         const hidePanelButton = rendered.container.querySelector('button[aria-label="Ocultar panel"]') as HTMLButtonElement;
         expect(hidePanelButton).toBeDefined();
-        expect(hidePanelButton.getAttribute('title')).toBe('Hide panel');
+        expect(hidePanelButton.getAttribute('title')).toBe('Ocultar panel');
 
         await act(async () => {
             hidePanelButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -4857,7 +4857,7 @@ describe('Nostr overlay App', () => {
         expect(rendered.container.querySelector('[data-slot="sidebar"][data-state="collapsed"]')).not.toBeNull();
         const showPanelButton = rendered.container.querySelector('button[aria-label="Mostrar panel"]') as HTMLButtonElement;
         expect(showPanelButton).toBeDefined();
-        expect(showPanelButton.getAttribute('title')).toBe('Show panel');
+        expect(showPanelButton.getAttribute('title')).toBe('Mostrar panel');
         expect(rendered.container.querySelector('button[aria-label="Abrir ajustes"]')).not.toBeNull();
         const compactButtons = Array.from(rendered.container.querySelectorAll('.nostr-compact-toolbar button')) as HTMLButtonElement[];
         const compactLabels = compactButtons.map((button) => button.getAttribute('aria-label') || '');

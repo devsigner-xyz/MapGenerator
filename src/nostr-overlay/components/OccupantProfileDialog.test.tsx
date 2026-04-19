@@ -209,6 +209,7 @@ describe('OccupantProfileDialog', () => {
 
         const avatarTrigger = document.body.querySelector('.nostr-dialog-avatar-trigger') as HTMLButtonElement;
         expect(avatarTrigger).toBeDefined();
+        expect(avatarTrigger.querySelector('[data-slot="avatar"]')).not.toBeNull();
 
         await act(async () => {
             avatarTrigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));

@@ -481,24 +481,31 @@ export function OccupantProfileDialog({
                         {profile?.banner ? <img className="nostr-profile-dialog-banner" src={profile.banner} alt="Banner del perfil" /> : null}
                     </div>
 
-                    <div className="nostr-dialog-header">
+                    <div className="nostr-dialog-header flex items-start gap-4">
                         {profile?.picture ? (
                             <button
                                 type="button"
-                                className="nostr-dialog-avatar-trigger"
+                                className="nostr-dialog-avatar-trigger overflow-hidden rounded-full"
                                 aria-label="Ver avatar en grande"
                                 onClick={() => setIsAvatarLightboxOpen(true)}
                             >
-                                <img className="nostr-dialog-avatar" src={profile.picture} alt="Avatar del ocupante" />
+                                <Avatar className="size-12 border border-border/70 shadow-xs">
+                                    <AvatarImage src={profile.picture} alt="Avatar del ocupante" />
+                                    <AvatarFallback className="bg-muted text-muted-foreground">
+                                        {resolveInitials(pubkey, profile)}
+                                    </AvatarFallback>
+                                </Avatar>
                             </button>
                         ) : (
-                            <div className="nostr-dialog-avatar nostr-dialog-avatar-fallback" aria-hidden="true">
-                                {resolveName(pubkey, profile).slice(0, 2).toUpperCase()}
-                            </div>
+                            <Avatar className="size-12 border border-border/70 shadow-xs" aria-hidden="true">
+                                <AvatarFallback className="bg-muted text-muted-foreground">
+                                    {resolveInitials(pubkey, profile)}
+                                </AvatarFallback>
+                            </Avatar>
                         )}
 
-                        <div>
-                            <p className="nostr-dialog-name nostr-identity-row">
+                        <div className="min-w-0 space-y-1">
+                            <p className="nostr-dialog-name nostr-identity-row inline-flex max-w-full items-center gap-2 text-base font-semibold text-foreground">
                                 <span className="truncate">{resolveName(pubkey, profile)}</span>
                                 {isNip05Verified ? (
                                     <Badge className="nostr-verified-badge" variant="secondary" title="NIP-05 verificado" aria-label="NIP-05 verificado">
@@ -506,19 +513,20 @@ export function OccupantProfileDialog({
                                     </Badge>
                                 ) : null}
                             </p>
-                            <div className="nostr-dialog-pubkey-row">
-                                <p className="nostr-dialog-pubkey">{npubLabel}</p>
+                            <div className="nostr-dialog-pubkey-row flex items-center gap-1">
+                                <p className="nostr-dialog-pubkey truncate text-sm text-muted-foreground">{npubLabel}</p>
                                 <Button
                                     type="button"
                                     variant="ghost"
-                                    className="nostr-dialog-copy-npub"
+                                    size="icon-xs"
+                                    className="nostr-dialog-copy-npub shrink-0"
                                     aria-label="Copiar npub"
                                     title="Copiar npub"
                                     onClick={() => {
                                         void copyNpubToClipboard();
                                     }}
                                 >
-                                    <CopyIcon aria-hidden="true" />
+                                    <CopyIcon data-icon="inline-start" aria-hidden="true" />
                                 </Button>
                             </div>
                         </div>
