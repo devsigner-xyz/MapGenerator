@@ -70,6 +70,8 @@ describe('NotificationsPage', () => {
         mounted.push(rendered);
 
         expect(rendered.container.querySelector('.nostr-notifications-unread-dot')).not.toBeNull();
+        expect(rendered.container.querySelector('[data-slot="overlay-page-header"]')).not.toBeNull();
+        expect(rendered.container.querySelector('[data-slot="overlay-unread-indicator"]')).not.toBeNull();
     });
 
     test('hides unread indicator when hasUnread is false', async () => {
@@ -115,6 +117,7 @@ describe('NotificationsPage', () => {
 
         expect(rendered.container.textContent || '').toContain('Mencion');
         expect(rendered.container.textContent || '').toContain('Zap');
+        expect(rendered.container.querySelectorAll('.nostr-notifications-list [data-slot="item"]')).toHaveLength(2);
     });
 
     test('calls onClose when close button is clicked', async () => {

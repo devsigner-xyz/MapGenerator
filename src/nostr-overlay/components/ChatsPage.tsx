@@ -2,6 +2,9 @@ import { ChatConversationList } from './ChatConversationList';
 import { ChatConversationDetail } from './ChatConversationDetail';
 import type { Nip05ValidationResult } from '../../nostr/nip05';
 import type { NostrProfile } from '../../nostr/types';
+import { OverlayPageHeader } from './OverlayPageHeader';
+import { OverlayUnreadIndicator } from './OverlayUnreadIndicator';
+import { Card, CardContent } from '@/components/ui/card';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
 
@@ -74,24 +77,25 @@ export function ChatsPage({
                     </div>
                 ) : (
                     <div className="nostr-chats-page nostr-routed-surface-panel nostr-page-layout" data-chat-source="query">
-                        <header className="nostr-chats-page-header">
-                            <p className="nostr-chats-page-title">
-                                Chats
-                                {hasUnreadGlobal ? <span className="nostr-chat-unread-dot" aria-hidden="true" /> : null}
-                            </p>
-                        </header>
+                        <OverlayPageHeader
+                            title="Chats"
+                            indicator={hasUnreadGlobal ? <OverlayUnreadIndicator className="nostr-chat-unread-dot" srLabel="Hay chats sin leer" /> : null}
+                        />
 
                         <div className="nostr-chat-layout">
-                            <div className="nostr-chat-list-panel">
+                            <Card variant="elevated" size="sm" className="nostr-chat-list-panel gap-0 overflow-hidden py-0">
+                                <CardContent className="min-h-0 flex-1 px-3 py-3">
                                 <ChatConversationList
                                     conversations={conversations}
                                     loading={isLoadingConversations}
                                     activeConversationId={activeConversationId}
                                     onOpenConversation={onOpenConversation}
                                 />
-                            </div>
+                                </CardContent>
+                            </Card>
 
-                            <div className="nostr-chat-detail-panel">
+                            <Card variant="elevated" size="sm" className="nostr-chat-detail-panel gap-0 overflow-hidden py-0">
+                                <CardContent className="min-h-0 flex-1 px-3 py-3">
                                 <ChatConversationDetail
                                     {...(activeConversation ? { conversation: activeConversation } : {})}
                                     messages={messages}
@@ -101,7 +105,8 @@ export function ChatsPage({
                                     canSend={canSend}
                                     {...(disabledReason ? { disabledReason } : {})}
                                 />
-                            </div>
+                                </CardContent>
+                            </Card>
                         </div>
                     </div>
                 )}

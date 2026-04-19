@@ -1,4 +1,5 @@
 import type { RefObject } from 'react';
+import { OverlayPageHeader } from '../OverlayPageHeader';
 
 interface SettingsAdvancedPageProps {
     settingsHostRef: RefObject<HTMLDivElement | null>;
@@ -7,10 +8,10 @@ interface SettingsAdvancedPageProps {
 export function SettingsAdvancedPage({ settingsHostRef }: SettingsAdvancedPageProps) {
     return (
         <>
-            <header className="nostr-page-header">
-                <h4 className="scroll-m-20 text-xl font-semibold tracking-tight">Advanced settings</h4>
-                <p className="text-sm text-muted-foreground">Configuracion avanzada del mapa y parametros de simulacion.</p>
-            </header>
+            <OverlayPageHeader
+                title="Ajustes avanzados"
+                description="Configuracion avanzada del mapa y parametros de simulacion."
+            />
             <div className="nostr-page-content nostr-settings-body">
                 <div className="nostr-shortcuts-content">
                     <p>Configuracion avanzada del MapGenerator.</p>

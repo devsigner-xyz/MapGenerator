@@ -1,6 +1,9 @@
 import type { SocialNotificationItem } from '../../nostr/social-notifications-service';
+import { OverlayPageHeader } from './OverlayPageHeader';
+import { OverlayUnreadIndicator } from './OverlayUnreadIndicator';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
+import { Item, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item';
 
 interface NotificationsPageProps {
     hasUnread: boolean;
@@ -37,18 +40,16 @@ export function NotificationsPage({ hasUnread, notifications, onClose }: Notific
         <section className="nostr-routed-surface" aria-label="Notificaciones">
             <div className="nostr-routed-surface-content">
                 <div className="nostr-notifications-page nostr-routed-surface-panel nostr-page-layout">
-                    <header className="nostr-page-header">
-                        <div className="flex items-center justify-between gap-2">
-                            <h4 className="scroll-m-20 inline-flex items-center gap-1.5 text-xl font-semibold tracking-tight">
-                                Notificaciones
-                                {hasUnread ? <span className="nostr-notifications-unread-dot" aria-hidden="true" /> : null}
-                            </h4>
+                    <OverlayPageHeader
+                        title="Notificaciones"
+                        description="Actividad reciente de personas y contenido que sigues."
+                        indicator={hasUnread ? <OverlayUnreadIndicator className="nostr-notifications-unread-dot" srLabel="Hay notificaciones sin leer" /> : null}
+                        actions={(
                             <Button type="button" variant="ghost" size="sm" onClick={onClose} aria-label="Cerrar notificaciones">
                                 Cerrar
                             </Button>
-                        </div>
-                        <p className="text-sm text-muted-foreground">Actividad reciente de personas y contenido que sigues.</p>
-                    </header>
+                        )}
+                    />
 
                     <section className="nostr-page-content">
                         {notifications.length === 0 ? (
@@ -63,9 +64,13 @@ export function NotificationsPage({ hasUnread, notifications, onClose }: Notific
                         ) : (
                             <ul className="nostr-notifications-list">
                                 {notifications.map((item) => (
-                                    <li key={item.id} className="nostr-notifications-item">
-                                        <p className="nostr-notifications-item-title">{notificationLabel(item)}</p>
-                                        <p className="nostr-notifications-item-meta">{shortPubkey(item.actorPubkey)}</p>
+                                    <li key={item.id}>
+                                        <Item variant="outline" size="sm">
+                                            <ItemContent>
+                                                <ItemTitle>{notificationLabel(item)}</ItemTitle>
+                                                <ItemDescription>{shortPubkey(item.actorPubkey)}</ItemDescription>
+                                            </ItemContent>
+                                        </Item>
                                     </li>
                                 ))}
                             </ul>

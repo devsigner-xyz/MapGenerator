@@ -50,23 +50,23 @@ export function LoginGateScreen({
     return (
         <div className="nostr-login-screen nostr-login-screen-dialog" data-testid="login-gate-screen" role="main" aria-label="Pantalla de login">
             <div className="nostr-login-screen-center">
-                <Card className="nostr-login-screen-card gap-0 py-0">
-                    <CardContent className="flex flex-col gap-6 nostr-login-screen-content">
+                <Card variant="elevated" className="nostr-login-screen-card gap-0 py-0">
+                    <CardContent className="flex flex-col gap-6 p-5 sm:p-6">
                         <div className="nostr-login-cover-wrap">
                             <img src={loginCover} alt="Nostr City cover" className="nostr-login-cover" />
                         </div>
 
                         {mapLoaderText ? (
-                            <div className="nostr-login-loader" role="status" aria-live="polite">
+                            <div className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground" role="status" aria-live="polite">
                                 <Spinner />
-                                <p className="nostr-login-loader-text">{mapLoaderText}</p>
+                                <p className="m-0">{mapLoaderText}</p>
                             </div>
                         ) : null}
 
                         {restoringSession ? (
-                            <div className="nostr-login-loader" role="status" aria-live="polite">
+                            <div className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground" role="status" aria-live="polite">
                                 <Spinner />
-                                <p className="nostr-login-loader-text">Restaurando sesion...</p>
+                                <p className="m-0">Restaurando sesion...</p>
                             </div>
                         ) : showUnlockLocalAccount ? (
                             <form
@@ -138,7 +138,7 @@ export function LoginGateScreen({
                                         }}
                                     />
                                 ) : (
-                                    <div className="nostr-login-gate-actions">
+                                    <div className="nostr-login-gate-actions grid gap-3" data-testid="login-gate-actions">
                                         <LoginMethodSelector
                                             disabled={disabled}
                                             onStartSession={async (method, input) => {

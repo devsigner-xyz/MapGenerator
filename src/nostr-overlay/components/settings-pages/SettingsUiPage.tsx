@@ -3,6 +3,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
+import { OverlayPageHeader } from '../OverlayPageHeader';
 
 interface SettingsUiPageProps {
     uiSettings: UiSettingsState;
@@ -12,20 +13,20 @@ interface SettingsUiPageProps {
 export function SettingsUiPage({ uiSettings, onPersistUiSettings }: SettingsUiPageProps) {
     return (
         <>
-            <header className="nostr-page-header">
-                <h4 className="scroll-m-20 text-xl font-semibold tracking-tight">Interfaz</h4>
-                <p className="text-sm text-muted-foreground">Controles de visualizacion, etiquetas y trafico del mapa.</p>
-            </header>
+            <OverlayPageHeader
+                title="Interfaz"
+                description="Controles de visualizacion, etiquetas y trafico del mapa."
+            />
             <div className="nostr-page-content nostr-settings-body">
                 <div className="nostr-shortcuts-content">
                     <p>Configura el zoom minimo para mostrar avatar y nombre en edificios ocupados.</p>
                     <div className="nostr-ui-slider-row">
-                        <Label className="nostr-label" htmlFor="nostr-occupied-zoom-level">Occupied labels zoom level</Label>
+                        <Label className="nostr-label" htmlFor="nostr-occupied-zoom-level">Zoom de etiquetas ocupadas</Label>
                         <span className="nostr-ui-slider-value">{uiSettings.occupiedLabelsZoomLevel}</span>
                     </div>
                     <Slider
                         id="nostr-occupied-zoom-level"
-                        aria-label="Occupied labels zoom level"
+                        aria-label="Zoom de etiquetas ocupadas"
                         min={1}
                         max={20}
                         step={1}
@@ -50,11 +51,11 @@ export function SettingsUiPage({ uiSettings, onPersistUiSettings }: SettingsUiPa
                     <Separator className="nostr-divider" />
 
                     <div className="nostr-ui-toggle-row">
-                        <Label className="nostr-label" htmlFor="nostr-street-labels-enabled">Street labels</Label>
+                        <Label className="nostr-label" htmlFor="nostr-street-labels-enabled">Etiquetas de calles</Label>
                         <Switch
                             id="nostr-street-labels-enabled"
                             size="sm"
-                            aria-label="Street labels enabled"
+                            aria-label="Etiquetas de calles activadas"
                             checked={uiSettings.streetLabelsEnabled}
                             onCheckedChange={(checked) => {
                                 onPersistUiSettings({
@@ -66,11 +67,11 @@ export function SettingsUiPage({ uiSettings, onPersistUiSettings }: SettingsUiPa
                     </div>
 
                     <div className="nostr-ui-toggle-row">
-                        <Label className="nostr-label" htmlFor="nostr-verified-buildings-overlay-enabled">Verified buildings overlay</Label>
+                        <Label className="nostr-label" htmlFor="nostr-verified-buildings-overlay-enabled">Superposición de edificios verificados</Label>
                         <Switch
                             id="nostr-verified-buildings-overlay-enabled"
                             size="sm"
-                            aria-label="Verified buildings overlay enabled"
+                            aria-label="Superposición de edificios verificados activada"
                             checked={uiSettings.verifiedBuildingsOverlayEnabled}
                             onCheckedChange={(checked) => {
                                 onPersistUiSettings({
@@ -82,12 +83,12 @@ export function SettingsUiPage({ uiSettings, onPersistUiSettings }: SettingsUiPa
                     </div>
 
                     <div className="nostr-ui-slider-row">
-                        <Label className="nostr-label" htmlFor="nostr-street-zoom-level">Street labels zoom level</Label>
+                        <Label className="nostr-label" htmlFor="nostr-street-zoom-level">Zoom de etiquetas de calles</Label>
                         <span className="nostr-ui-slider-value">{uiSettings.streetLabelsZoomLevel}</span>
                     </div>
                     <Slider
                         id="nostr-street-zoom-level"
-                        aria-label="Street labels zoom level"
+                        aria-label="Zoom de etiquetas de calles"
                         min={1}
                         max={20}
                         step={1}
@@ -108,7 +109,7 @@ export function SettingsUiPage({ uiSettings, onPersistUiSettings }: SettingsUiPa
                     <Separator className="nostr-divider" />
 
                     <div className="nostr-ui-slider-row">
-                        <Label className="nostr-label" htmlFor="nostr-traffic-count">Cars in city</Label>
+                        <Label className="nostr-label" htmlFor="nostr-traffic-count">Coches en ciudad</Label>
                         <span className="nostr-ui-slider-value">{uiSettings.trafficParticlesCount}</span>
                     </div>
                     <Slider
@@ -116,7 +117,7 @@ export function SettingsUiPage({ uiSettings, onPersistUiSettings }: SettingsUiPa
                         min={0}
                         max={50}
                         step={1}
-                        aria-label="Cars in city"
+                        aria-label="Coches en ciudad"
                         value={[uiSettings.trafficParticlesCount]}
                         onValueChange={(values) => {
                             const nextValue = values[0] ?? Number.NaN;
@@ -132,7 +133,7 @@ export function SettingsUiPage({ uiSettings, onPersistUiSettings }: SettingsUiPa
                     />
 
                     <div className="nostr-ui-slider-row">
-                        <Label className="nostr-label" htmlFor="nostr-traffic-speed">Cars speed</Label>
+                        <Label className="nostr-label" htmlFor="nostr-traffic-speed">Velocidad de coches</Label>
                         <span className="nostr-ui-slider-value">{uiSettings.trafficParticlesSpeed.toFixed(1)}x</span>
                     </div>
                     <Slider
@@ -140,7 +141,7 @@ export function SettingsUiPage({ uiSettings, onPersistUiSettings }: SettingsUiPa
                         min={0.2}
                         max={3}
                         step={0.1}
-                        aria-label="Cars speed"
+                        aria-label="Velocidad de coches"
                         value={[uiSettings.trafficParticlesSpeed]}
                         onValueChange={(values) => {
                             const nextValue = values[0] ?? Number.NaN;

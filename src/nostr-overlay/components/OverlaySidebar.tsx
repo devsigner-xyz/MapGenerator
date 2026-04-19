@@ -20,6 +20,7 @@ import type { NostrProfile } from '../../nostr/types';
 import { settingsViewFromPathname, type SettingsRouteView } from '../settings/settings-routing';
 import { useLocation } from 'react-router';
 import { cn } from '@/lib/utils';
+import { OverlayUnreadIndicator } from './OverlayUnreadIndicator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -133,7 +134,7 @@ function SidebarActionsMenu({
 
     return (
         <SidebarGroup className="pt-1 pb-0">
-            <SidebarMenu className={cn('nostr-panel-toolbar flex flex-col gap-1', collapsed && 'nostr-compact-toolbar')}>
+            <SidebarMenu className={cn('nostr-panel-toolbar flex flex-col gap-1.5', collapsed && 'nostr-compact-toolbar gap-1')}>
                 <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={activePath === '/'}>
                         <button
@@ -153,14 +154,15 @@ function SidebarActionsMenu({
                         <SidebarMenuButton asChild isActive={activePath === '/agora'}>
                             <button
                                 type="button"
-                                className="nostr-following-feed-icon-button"
+                                className="nostr-following-feed-icon-button relative"
                                 aria-label="Abrir Agora"
+                                aria-description={followingFeedHasUnread ? 'Actividad sin leer' : undefined}
                                 title="Agora"
                                 onClick={onOpenFollowingFeed}
                             >
                                 <UsersIcon />
                                 <span>Agora</span>
-                                {followingFeedHasUnread ? <span className="nostr-following-feed-unread-dot" /> : null}
+                                {followingFeedHasUnread ? <OverlayUnreadIndicator variant="overlay" className="nostr-following-feed-unread-dot" srLabel="Agora con actividad sin leer" /> : null}
                             </button>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -171,14 +173,15 @@ function SidebarActionsMenu({
                         <SidebarMenuButton asChild isActive={activePath === '/chats'}>
                             <button
                                 type="button"
-                                className="nostr-chat-icon-button"
+                                className="nostr-chat-icon-button relative"
                                 aria-label="Abrir chats"
+                                aria-description={chatHasUnread ? 'Mensajes sin leer' : undefined}
                                 title="Chats"
                                 onClick={onOpenChat}
                             >
                                 <MessageCircleIcon />
                                 <span>Chats</span>
-                                {chatHasUnread ? <span className="nostr-chat-unread-dot" /> : null}
+                                {chatHasUnread ? <OverlayUnreadIndicator variant="overlay" className="nostr-chat-unread-dot" srLabel="Chats con mensajes sin leer" /> : null}
                             </button>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -208,14 +211,15 @@ function SidebarActionsMenu({
                         <SidebarMenuButton asChild isActive={activePath === '/notificaciones'}>
                             <button
                                 type="button"
-                                className="nostr-notifications-icon-button"
+                                className="nostr-notifications-icon-button relative"
                                 aria-label="Abrir notificaciones"
+                                aria-description={notificationsHasUnread ? 'Pendientes sin leer' : undefined}
                                 title="Notificaciones"
                                 onClick={onOpenNotifications}
                             >
                                 <BellIcon />
                                 <span>Notificaciones</span>
-                                {notificationsHasUnread ? <span className="nostr-notifications-unread-dot" /> : null}
+                                {notificationsHasUnread ? <OverlayUnreadIndicator variant="overlay" className="nostr-notifications-unread-dot" srLabel="Notificaciones sin leer" /> : null}
                             </button>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -311,22 +315,22 @@ function SidebarActionsMenu({
                         </SidebarMenuSubItem>
                         <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={activeSettingsView === 'shortcuts'}>
-                                <button type="button" aria-label="Abrir ajustes de shortcuts" onClick={() => onOpenSettings('shortcuts')}>
-                                    <span>Shortcuts</span>
+                                <button type="button" aria-label="Abrir ajustes de atajos" onClick={() => onOpenSettings('shortcuts')}>
+                                    <span>Atajos</span>
                                 </button>
                             </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                         <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={activeSettingsView === 'about'}>
-                                <button type="button" aria-label="Abrir ajustes about" onClick={() => onOpenSettings('about')}>
-                                    <span>About</span>
+                                <button type="button" aria-label="Abrir ajustes acerca de" onClick={() => onOpenSettings('about')}>
+                                    <span>Acerca de</span>
                                 </button>
                             </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                         <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={activeSettingsView === 'advanced'}>
-                                <button type="button" aria-label="Abrir advanced settings" onClick={() => onOpenSettings('advanced')}>
-                                    <span>Advanced settings</span>
+                                <button type="button" aria-label="Abrir ajustes avanzados" onClick={() => onOpenSettings('advanced')}>
+                                    <span>Ajustes avanzados</span>
                                 </button>
                             </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
@@ -346,7 +350,7 @@ function SidebarPlatformHeader() {
             <SidebarTrigger
                 className="absolute top-2 right-2 z-10"
                 aria-label={collapsed ? 'Mostrar panel' : 'Ocultar panel'}
-                title={collapsed ? 'Show panel' : 'Hide panel'}
+                title={collapsed ? 'Mostrar panel' : 'Ocultar panel'}
             />
             <SidebarMenu>
                 <SidebarMenuItem>

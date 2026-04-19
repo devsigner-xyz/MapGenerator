@@ -78,7 +78,7 @@ describe('ChatsPage', () => {
         expect(querySurface).not.toBeNull();
     });
 
-    test('renders unread red dot and empty state', async () => {
+    test('renders shared unread indicator and empty state', async () => {
         const rendered = await renderElement(
             <ChatsPage
                 hasUnreadGlobal
@@ -92,7 +92,9 @@ describe('ChatsPage', () => {
         );
         mounted.push(rendered);
 
+        expect(rendered.container.querySelector('[data-slot="overlay-page-header"]')).not.toBeNull();
         expect(rendered.container.querySelector('.nostr-chat-unread-dot')).not.toBeNull();
+        expect(rendered.container.querySelector('[data-slot="overlay-unread-indicator"]')).not.toBeNull();
         expect(rendered.container.textContent || '').toContain('Sin conversaciones');
         expect(rendered.container.querySelector('.nostr-chat-empty-state')).not.toBeNull();
     });
@@ -215,7 +217,13 @@ describe('ChatsPage', () => {
         mounted.push(rendered);
 
         const pageContent = rendered.container.querySelector('.nostr-chats-page');
+        const listPanel = rendered.container.querySelector('.nostr-chat-list-panel[data-slot="card"]');
+        const detailPanel = rendered.container.querySelector('.nostr-chat-detail-panel[data-slot="card"]');
         expect(pageContent).not.toBeNull();
+        expect(listPanel).not.toBeNull();
+        expect(detailPanel).not.toBeNull();
+        expect(listPanel?.getAttribute('data-variant')).toBe('elevated');
+        expect(detailPanel?.getAttribute('data-variant')).toBe('elevated');
         expect(rendered.container.querySelector('[data-slot="dialog-content"]')).toBeNull();
     });
 

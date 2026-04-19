@@ -1,5 +1,6 @@
 import type { EasterEggId } from '../../ts/ui/easter_eggs';
 import { EASTER_EGG_MISSIONS } from '../easter-eggs/missions';
+import { OverlayPageHeader } from './OverlayPageHeader';
 
 interface DiscoverPageProps {
     discoveredIds: EasterEggId[];
@@ -16,12 +17,10 @@ export function DiscoverPage({ discoveredIds }: DiscoverPageProps) {
         <section className="nostr-routed-surface" aria-label="Descubre easter eggs">
             <div className="nostr-routed-surface-content">
                 <div className="nostr-easter-egg-missions-page nostr-routed-surface-panel nostr-page-layout">
-                    <header className="nostr-page-header">
-                        <h4 className="scroll-m-20 text-xl font-semibold tracking-tight">Descubre</h4>
-                        <p className="text-sm text-muted-foreground">
-                            Has descubierto {discoveredCount} de {EASTER_EGG_MISSIONS.length} easter eggs.
-                        </p>
-                    </header>
+                    <OverlayPageHeader
+                        title="Descubre"
+                        description={`Has descubierto ${discoveredCount} de ${EASTER_EGG_MISSIONS.length} easter eggs.`}
+                    />
                     <section className="nostr-page-content">
                         <ul className="nostr-easter-egg-missions-list">
                             {EASTER_EGG_MISSIONS.map((mission) => {

@@ -10,7 +10,9 @@ import {
 } from './following-feed-note-card-mappers';
 import { ListLoadingFooter } from './ListLoadingFooter';
 import { NoteCard } from './NoteCard';
+import { OverlayPageHeader } from './OverlayPageHeader';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
@@ -240,10 +242,11 @@ export function FollowingFeedContent({
                     </Button>
                 ) : null}
 
-                <header className="nostr-page-header nostr-following-feed-page-header">
-                    <h4 className="scroll-m-20 text-xl font-semibold tracking-tight">{activeThread ? 'Hilo' : 'Agora'}</h4>
-                    <p className="text-sm text-muted-foreground">{resolvedSubtitle}</p>
-                </header>
+                <OverlayPageHeader
+                    className="nostr-following-feed-page-header"
+                    title={activeThread ? 'Hilo' : 'Agora'}
+                    description={resolvedSubtitle}
+                />
 
                 {headerActions ? (
                     <div className="nostr-following-feed-header-actions">{headerActions}</div>
@@ -252,30 +255,33 @@ export function FollowingFeedContent({
 
             {!activeThread ? (
                 <>
-                    <div className="nostr-following-feed-compose">
-                        <Textarea
-                            value={postDraft}
-                            className="nostr-following-feed-textarea"
-                            placeholder="Que estas pensando?"
-                            onChange={(event) => setPostDraft(event.target.value)}
-                        />
-                        <div className="nostr-following-feed-compose-actions">
-                            <Button
-                                type="button"
-                                size="sm"
-                                className="nostr-following-feed-publish"
-                                disabled={publishDisabled || postDraft.trim().length === 0}
-                                onClick={async () => {
-                                    const submitted = await onPublishPost(postDraft);
-                                    if (submitted) {
-                                        setPostDraft('');
-                                    }
-                                }}
-                            >
-                                {isPublishingPost ? 'Publicando...' : 'Publicar'}
-                            </Button>
-                        </div>
-                    </div>
+                    <Card variant="elevated" size="sm" className="nostr-following-feed-compose gap-0 py-0">
+                        <CardContent className="px-3 py-3">
+                            <Textarea
+                                value={postDraft}
+                                aria-label="Redactar publicacion"
+                                className="nostr-following-feed-textarea"
+                                placeholder="Que estas pensando?"
+                                onChange={(event) => setPostDraft(event.target.value)}
+                            />
+                            <div className="nostr-following-feed-compose-actions mt-3">
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    className="nostr-following-feed-publish"
+                                    disabled={publishDisabled || postDraft.trim().length === 0}
+                                    onClick={async () => {
+                                        const submitted = await onPublishPost(postDraft);
+                                        if (submitted) {
+                                            setPostDraft('');
+                                        }
+                                    }}
+                                >
+                                    {isPublishingPost ? 'Publicando...' : 'Publicar'}
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
 
                     {feedError ? <p className="nostr-following-feed-error">{feedError}</p> : null}
                     {publishError ? <p className="nostr-following-feed-error">{publishError}</p> : null}
@@ -484,41 +490,44 @@ export function FollowingFeedContent({
                         ) : null}
                     </div>
 
-                    <div className="nostr-following-feed-reply-box">
-                        <p className="nostr-following-feed-reply-target">{replyTargetLabel}</p>
-                        <Textarea
-                            value={replyDraft}
-                            className="nostr-following-feed-textarea"
-                            placeholder="Escribe tu respuesta"
-                            onChange={(event) => setReplyDraft(event.target.value)}
-                        />
-                        <div className="nostr-following-feed-compose-actions">
-                            <Button
-                                type="button"
-                                size="sm"
-                                className="nostr-following-feed-publish"
-                                disabled={replyDisabled || replyDraft.trim().length === 0}
-                                onClick={async () => {
-                                    if (!replyTargetEventId) {
-                                        return;
-                                    }
+                    <Card variant="elevated" size="sm" className="nostr-following-feed-reply-box gap-0 py-0">
+                        <CardContent className="px-3 py-3">
+                            <p className="nostr-following-feed-reply-target">{replyTargetLabel}</p>
+                            <Textarea
+                                value={replyDraft}
+                                aria-label="Redactar respuesta"
+                                className="nostr-following-feed-textarea"
+                                placeholder="Escribe tu respuesta"
+                                onChange={(event) => setReplyDraft(event.target.value)}
+                            />
+                            <div className="nostr-following-feed-compose-actions mt-3">
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    className="nostr-following-feed-publish"
+                                    disabled={replyDisabled || replyDraft.trim().length === 0}
+                                    onClick={async () => {
+                                        if (!replyTargetEventId) {
+                                            return;
+                                        }
 
-                                    const replyInput: Parameters<typeof onPublishReply>[0] = {
-                                        targetEventId: replyTargetEventId,
-                                        content: replyDraft,
-                                        ...(replyTargetPubkey ? { targetPubkey: replyTargetPubkey } : {}),
-                                        ...(activeThread.root?.id ? { rootEventId: activeThread.root.id } : {}),
-                                    };
-                                    const submitted = await onPublishReply(replyInput);
-                                    if (submitted) {
-                                        setReplyDraft('');
-                                    }
-                                }}
-                            >
-                                {isPublishingReply ? 'Enviando...' : 'Responder'}
-                            </Button>
-                        </div>
-                    </div>
+                                        const replyInput: Parameters<typeof onPublishReply>[0] = {
+                                            targetEventId: replyTargetEventId,
+                                            content: replyDraft,
+                                            ...(replyTargetPubkey ? { targetPubkey: replyTargetPubkey } : {}),
+                                            ...(activeThread.root?.id ? { rootEventId: activeThread.root.id } : {}),
+                                        };
+                                        const submitted = await onPublishReply(replyInput);
+                                        if (submitted) {
+                                            setReplyDraft('');
+                                        }
+                                    }}
+                                >
+                                    {isPublishingReply ? 'Enviando...' : 'Responder'}
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
                 </>
             )}
         </div>

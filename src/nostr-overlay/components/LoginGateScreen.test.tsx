@@ -53,14 +53,17 @@ afterEach(async () => {
 });
 
 describe('LoginGateScreen', () => {
-    test('removes shell card vertical padding so the dialog edges align with content spacing', async () => {
+    test('uses the elevated shared card surface without the legacy content padding hook', async () => {
         const rendered = await renderScreen();
         mounted.push(rendered);
 
         const shellCard = rendered.container.querySelector('.nostr-login-screen-card');
+        const shellContent = rendered.container.querySelector('[data-slot="card-content"]');
 
+        expect(shellCard?.getAttribute('data-variant')).toBe('elevated');
         expect(shellCard?.className).toContain('py-0');
         expect(shellCard?.className).toContain('gap-0');
+        expect(shellContent?.classList.contains('nostr-login-screen-content')).toBe(false);
     });
 
     test('keeps the main login view without a footer back action', async () => {
@@ -84,11 +87,8 @@ describe('LoginGateScreen', () => {
         const rendered = await renderScreen();
         mounted.push(rendered);
 
-        const selectorSection = rendered.container.querySelector('.nostr-login-selector');
-        const createAccountButton = Array.from(rendered.container.querySelectorAll('button')).find(
-            (button) => (button.textContent || '').includes('Crear cuenta')
-        );
-        const actionGroup = createAccountButton?.closest('.nostr-login-gate-actions');
+        const selectorSection = rendered.container.querySelector('section[aria-label="Selector de login de Nostr"]');
+        const actionGroup = rendered.container.querySelector('[data-testid="login-gate-actions"]');
 
         expect(selectorSection).not.toBeNull();
         expect(actionGroup).not.toBeNull();
@@ -246,7 +246,7 @@ describe('LoginGateScreen', () => {
             (button) => (button.textContent || '').includes('Crear cuenta')
         );
 
-        expect(createAccountButton?.closest('.nostr-login-gate-actions')).toBeNull();
+        expect(createAccountButton?.closest('[data-testid="login-gate-actions"]')).toBeNull();
     });
 
     test('shows passphrase re-entry form for saved passphrase-protected local accounts', async () => {

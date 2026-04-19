@@ -9,6 +9,7 @@ import {
     XAxis,
     YAxis,
 } from 'recharts';
+import { OverlayPageHeader } from './OverlayPageHeader';
 import { buildCityStats } from '../domain/city-stats';
 
 interface CityStatsPageProps {
@@ -81,10 +82,11 @@ export function CityStatsPage({
             <div className="nostr-routed-surface-content">
                 <div className="nostr-city-stats-page nostr-routed-surface-panel nostr-page-layout sm:max-w-none">
                     <div className="nostr-city-stats-body">
-                        <header className="nostr-page-header nostr-city-stats-header">
-                            <h4 className="scroll-m-20 text-xl font-semibold tracking-tight">Estadisticas de la ciudad</h4>
-                            <p className="text-sm text-muted-foreground">Panorama de vivienda y poblacion asignada en el mapa actual.</p>
-                        </header>
+                        <OverlayPageHeader
+                            className="nostr-city-stats-header"
+                            title="Estadisticas de la ciudad"
+                            description="Panorama de vivienda y poblacion asignada en el mapa actual."
+                        />
 
                         <section className="nostr-city-kpi-grid" aria-label="KPIs de la ciudad">
                             <article className="nostr-city-kpi-card"><p>Viviendas totales</p><strong>{stats.housing.total}</strong></article>
