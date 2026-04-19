@@ -1,4 +1,7 @@
 import { defineConfig } from 'vitepress';
+import { resolvePublicAppUrl } from '../../src/site/app-url';
+
+const appUrl = resolvePublicAppUrl(process.env);
 
 export default defineConfig({
   lang: 'es-ES',
@@ -8,11 +11,12 @@ export default defineConfig({
   cleanUrls: true,
   lastUpdated: true,
   outDir: '../dist/docs',
+  ignoreDeadLinks: ['/app/', '/app/index'],
   srcExclude: ['superpowers/**', 'migration/**', 'landing-routing.md', 'portfolio-backend-first.md'],
   themeConfig: {
     nav: [
-      { text: 'Documentacion', link: '/empezar/' },
-      { text: 'Aplicacion', link: '/app/' },
+      { text: 'Documentacion', link: '/' },
+      { text: 'Aplicacion', link: appUrl },
       { text: 'GitHub', link: 'https://github.com/ProbableTrain/MapGenerator' },
     ],
     search: {

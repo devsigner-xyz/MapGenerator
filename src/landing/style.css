@@ -99,14 +99,14 @@ body {
   cursor: pointer;
 }
 
-.topbar-links [data-app-link] {
+.topbar-links .app-link {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
   font-weight: 700;
 }
 
-.topbar-links [data-app-link]:hover {
+.topbar-links .app-link:hover {
   background: var(--accent-dark);
 }
 
@@ -183,13 +183,13 @@ h1 {
   font-family: inherit;
 }
 
-.hero-actions [data-app-link] {
+.hero-actions .app-link {
   background: var(--accent);
   color: #fff;
   border-color: transparent;
 }
 
-.hero-actions [data-app-link]:hover {
+.hero-actions .app-link:hover {
   background: #ed6f3a;
 }
 

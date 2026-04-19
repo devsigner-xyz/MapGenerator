@@ -7,6 +7,7 @@ test('landing muestra manifiesto y CTA principal', async ({ page }) => {
   const primaryCta = page.getByRole('link', { name: 'Entrar a la aplicacion' }).first();
   await expect(primaryCta).toBeVisible();
   await expect(primaryCta).toHaveAttribute('href', '/app/');
+  await expect(page.getByRole('link', { name: 'Documentacion' }).first()).toHaveAttribute('href', '/docs/');
 });
 
 test('landing incluye seccion para usuarios nostr y filosofia no comercial', async ({ page }) => {

@@ -86,13 +86,22 @@ git clone https://github.com/probabletrain/mapgenerator.git
 cd mapgenerator
 pnpm install
 ```
-3. Start the BFF server (Terminal 1)
+3. Start the full local development stack
+```
+make dev
+```
+
+This starts:
+
+- BFF: `http://127.0.0.1:3000/v1/health`
+- Landing + app dev server: `http://127.0.0.1:5173/`
+- VitePress docs dev server: `http://127.0.0.1:5174/`
+
+4. Alternative manual startup
 ```
 pnpm bff:dev
-```
-4. Start the frontend dev server (Terminal 2)
-```
 pnpm dev
+pnpm docs:dev
 ```
 5. Build production bundle
 ```
@@ -109,7 +118,7 @@ pnpm preview
 
 See the [documentation](https://maps.probabletrain.com/docs/).
 
-### Local development (frontend + BFF)
+### Local development (frontend + BFF + docs)
 
 The Nostr overlay now uses a Fastify Backend-for-Frontend (BFF) for social feed,
 notifications, DM read/stream, user search, and signed publish forwarding.
@@ -117,10 +126,19 @@ notifications, DM read/stream, user search, and signed publish forwarding.
 Architecture notes for the backend-first migration are available in
 `docs/portfolio-backend-first.md`.
 
-For local development, run both processes:
+For local development, the easiest option is:
+
+- `make dev`
+
+If you prefer to run each service manually, use three terminals:
 
 - Terminal 1: `pnpm bff:dev`
 - Terminal 2: `pnpm dev`
+- Terminal 3: `pnpm docs:dev`
+
+If a previous dev session left orphan processes behind and ports stay busy, run:
+
+- `make dev-stop`
 
 In development, Vite proxies `/v1/*` requests to `http://127.0.0.1:3000`.
 
@@ -164,16 +182,32 @@ pnpm exec tsx --version
 - `/` -> landing page (project overview + feature highlights)
 - `/app/` -> map application
 
-### Landing app URL override
+The documentation is served by a separate VitePress dev server on
+`http://127.0.0.1:5174/`.
 
-The landing CTA points to `/app/` by default. For deployments that use a separate app host
+### Public app URL override
+
+Landing and docs point to `/app/` by default. For deployments that use a separate app host
 (for example `https://app.example.com`), set:
 
 ```sh
-VITE_LANDING_APP_URL=https://app.example.com
+VITE_APP_URL=https://app.example.com
 ```
 
 When not set, the fallback remains `/app/`.
+
+### Public docs URL override
+
+The landing points to `/docs/` by default.
+
+For local development, `pnpm dev` already injects the correct docs URL so the CTA
+opens the VitePress dev server at `http://127.0.0.1:5174/docs/`.
+
+If you ever deploy docs on a different host, set:
+
+```sh
+VITE_DOCS_URL=https://docs.example.com
+```
 
 ### Nostr cache policy (time-to-value)
 
