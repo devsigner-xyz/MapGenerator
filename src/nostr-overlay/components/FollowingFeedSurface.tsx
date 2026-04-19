@@ -21,11 +21,11 @@ export function FollowingFeedSurface({ activeHashtag, onClearHashtag, ...feedPro
 
     return (
         <section className="nostr-routed-surface nostr-following-feed-surface" aria-label="Agora">
-            <div className="nostr-routed-surface-content">
+            <div className="nostr-routed-surface-content nostr-following-feed-routed-surface-content">
                 <FollowingFeedContent
                     {...feedProps}
                     {...(activeHashtag ? { activeHashtag } : {})}
-                    className="nostr-following-feed-surface-content nostr-following-feed-page nostr-routed-surface-panel nostr-page-layout"
+                    className="nostr-following-feed-surface-content nostr-following-feed-page nostr-following-feed-page-edge-to-edge nostr-routed-surface-panel nostr-page-layout"
                     headerSubtitle={headerSubtitle}
                     {...(headerActions ? { headerActions } : {})}
                 />

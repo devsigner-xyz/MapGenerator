@@ -35,11 +35,6 @@
     color: #1f2f39;
 }
 
-.nostr-form {
-    display: grid;
-    gap: 0.5rem;
-}
-
 .nostr-login-methods {
     display: grid;
     gap: 0.38rem;
@@ -127,56 +122,6 @@
     flex-wrap: wrap;
     gap: 0.38rem;
     align-items: center;
-}
-
-.nostr-npub-row {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    min-width: 0;
-}
-
-.nostr-label {
-    font-size: 0.84rem;
-    color: #425764;
-}
-
-.nostr-auth-label {
-    @apply text-foreground;
-}
-
-.nostr-input {
-    width: 100%;
-    box-sizing: border-box;
-    border: 1px solid #c6d0d7;
-    border-radius: 8px;
-    padding: 0.6rem 0.75rem;
-    font-size: 0.92rem;
-}
-
-.nostr-npub-row .nostr-input {
-    flex: 1;
-    min-width: 0;
-}
-
-.nostr-submit {
-    justify-self: start;
-    border: 1px solid #2a6178;
-    background: #36758f;
-    color: #ffffff;
-    border-radius: 8px;
-    padding: 0.52rem 0.88rem;
-    cursor: pointer;
-    white-space: nowrap;
-}
-
-.nostr-npub-row .nostr-submit {
-    justify-self: auto;
-}
-
-.nostr-submit:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
 }
 
 .nostr-panel-actions {
@@ -664,11 +609,6 @@
     overflow-x: hidden;
 }
 
-.nostr-search-row {
-    width: 100%;
-    flex: 0 0 auto;
-}
-
 .nostr-people-tab-content > .nostr-people-scroll-area {
     flex: 1 1 auto;
     min-height: 0;
@@ -897,22 +837,12 @@
     padding-right: 0.1rem;
 }
 
-.nostr-page-header {
-    display: grid;
-    gap: 0.2rem;
-}
-
 .nostr-page-layout {
     min-height: 100%;
     display: grid;
     gap: 0.72rem;
     align-content: start;
     padding: 0.9rem;
-}
-
-.nostr-page-content {
-    display: grid;
-    gap: 0.6rem;
 }
 
 .nostr-city-kpi-grid {
@@ -984,15 +914,6 @@
     gap: 0.7rem;
 }
 
-.nostr-settings-body {
-    min-height: 0;
-    overflow-y: auto;
-    overflow-x: hidden;
-    display: grid;
-    gap: 0.6rem;
-    padding-right: 0.05rem;
-}
-
 .nostr-settings-item {
     border: 1px solid rgba(145, 164, 176, 0.75);
     border-radius: 8px;
@@ -1045,13 +966,6 @@
     color: #334f5d;
 }
 
-.nostr-ui-slider-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.6rem;
-}
-
 .nostr-ui-slider-value {
     min-width: 2ch;
     font-size: 0.82rem;
@@ -1065,13 +979,6 @@
     color: #5a6d78;
     font-size: 0.74rem;
     margin-top: -0.15rem;
-}
-
-.nostr-ui-toggle-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.6rem;
 }
 
 .nostr-relays-content {
@@ -1208,12 +1115,6 @@
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     font-size: 0.76rem;
     line-height: 1.3;
-}
-
-.nostr-relay-detail-actions-inline {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
 }
 
 .nostr-relay-copy-button {
@@ -1362,12 +1263,6 @@
     gap: 0.5rem;
 }
 
-.nostr-zap-add-row {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
 .nostr-profile-dialog {
     width: min(640px, calc(100vw - 32px));
     max-height: min(82vh, 760px);
@@ -1406,10 +1301,6 @@
 .nostr-notifications-page {
     min-height: 100%;
     grid-template-rows: auto minmax(0, 1fr);
-}
-
-.nostr-notifications-page .nostr-page-content {
-    min-height: 0;
 }
 
 .nostr-notifications-empty-state {
@@ -1526,6 +1417,23 @@
     gap: 0.55rem;
 }
 
+.nostr-following-feed-routed-surface-content {
+    padding: 0;
+}
+
+.nostr-following-feed-page {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+    padding-bottom: 0;
+}
+
+.nostr-following-feed-page-edge-to-edge {
+    padding: 0;
+}
+
 .nostr-following-feed-page .nostr-following-feed-list,
 .nostr-following-feed-page .nostr-following-feed-thread-list {
     max-height: none;
@@ -1537,7 +1445,7 @@
     display: flex;
     align-items: flex-start;
     gap: 0.6rem;
-    padding: 0 0.12rem;
+    padding: 0.9rem 0.9rem 0;
 }
 
 .nostr-following-feed-header-actions {
@@ -1556,9 +1464,9 @@
 .nostr-following-feed-reply-box {
     display: grid;
     gap: 0.4rem;
-}
-
-.nostr-following-feed-reply-box {
+    margin-right: 0;
+    margin-bottom: 0;
+    margin-left: 0;
     background: color-mix(in srgb, var(--background) 94%, transparent);
     backdrop-filter: blur(8px);
 }
@@ -1579,6 +1487,9 @@
     max-width: 600px;
     display: grid;
     gap: 1.2rem;
+    box-sizing: border-box;
+    padding-right: 0.9rem;
+    padding-left: 0.9rem;
 }
 
 .nostr-following-feed-thread-list {
@@ -2313,10 +2224,6 @@
 .nostr-profile-post-date {
     font-size: 0.74rem;
     color: #60727d;
-}
-
-.nostr-posts-load-more {
-    justify-self: start;
 }
 
 .nostr-map-presence-layer {

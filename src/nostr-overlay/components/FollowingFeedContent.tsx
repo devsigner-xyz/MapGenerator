@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { ImageIcon } from 'lucide-react';
 import type { NostrEvent, NostrProfile } from '../../nostr/types';
 import type { SocialEngagementMetrics, SocialFeedItem } from '../../nostr/social-feed-service';
 import type { FollowingFeedThreadView } from '../query/following-feed.selectors';
@@ -222,6 +223,7 @@ export function FollowingFeedContent({
 
     const publishDisabled = !canWrite || isPublishingPost;
     const replyDisabled = !canWrite || isPublishingReply || !replyTargetEventId;
+    const replyTargetDescriptionId = 'following-feed-reply-target';
 
     const replyTargetLabel = useMemo(() => {
         if (!replyTargetEventId) {
@@ -234,10 +236,20 @@ export function FollowingFeedContent({
     const resolvedSubtitle = activeThread
         ? 'Respuestas y actividad de la conversación seleccionada.'
         : (headerSubtitle || 'Timeline en tiempo real de personas que sigues');
+    const showThreadBlockingEmpty = Boolean(activeThread && activeThread.isLoading && !activeThread.root && activeThread.replies.length === 0);
+    const showThreadLoadingFooter = Boolean(activeThread && (activeThread.isLoadingMore || (activeThread.isLoading && (Boolean(activeThread.root) || activeThread.replies.length > 0))));
     const threadReplyTree = useMemo(
         () => buildThreadReplyTree(activeThread?.replies ?? []),
         [activeThread?.replies]
     );
+    const visibleThreadReplies = useMemo(() => {
+        if (!activeThread) {
+            return [];
+        }
+
+        const threadRootId = activeThread.root?.id ?? activeThread.rootEventId;
+        return threadReplyTree.get(threadRootId) ?? [];
+    }, [activeThread, threadReplyTree]);
     const noteCardProps = {
         ...(onCopyNoteId ? { onCopyNoteId } : {}),
         ...(onSelectHashtag ? { onSelectHashtag } : {}),
@@ -294,64 +306,38 @@ export function FollowingFeedContent({
     return (
         <div className={className || 'nostr-following-feed-dialog'}>
             <div className="nostr-following-feed-header">
-                {activeThread ? (
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="nostr-following-feed-back"
-                        onClick={onCloseThread}
-                    >
-                        Volver al Agora
-                    </Button>
-                ) : null}
-
                 <OverlayPageHeader
                     className="nostr-following-feed-page-header"
                     title={activeThread ? 'Hilo' : 'Agora'}
                     description={resolvedSubtitle}
                 />
 
-                {headerActions ? (
-                    <div className="nostr-following-feed-header-actions">{headerActions}</div>
+                {headerActions || activeThread ? (
+                    <div className="nostr-following-feed-header-actions flex items-center gap-2">
+                        {headerActions}
+                        {activeThread ? (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="nostr-following-feed-back"
+                                onClick={onCloseThread}
+                            >
+                                Volver al Agora
+                            </Button>
+                        ) : null}
+                    </div>
                 ) : null}
             </div>
 
             {!activeThread ? (
                 <>
-                    <Card variant="elevated" size="sm" className="nostr-following-feed-compose gap-0 py-0">
-                        <CardContent className="px-3 py-3">
-                            <Textarea
-                                value={postDraft}
-                                aria-label="Redactar publicacion"
-                                className="nostr-following-feed-textarea"
-                                placeholder="Que estas pensando?"
-                                onChange={(event) => setPostDraft(event.target.value)}
-                            />
-                            <div className="nostr-following-feed-compose-actions mt-3">
-                                <Button
-                                    type="button"
-                                    size="sm"
-                                    className="nostr-following-feed-publish"
-                                    disabled={publishDisabled || postDraft.trim().length === 0}
-                                    onClick={async () => {
-                                        const submitted = await onPublishPost(postDraft);
-                                        if (submitted) {
-                                            setPostDraft('');
-                                        }
-                                    }}
-                                >
-                                    {isPublishingPost ? 'Publicando...' : 'Publicar'}
-                                </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
-
                     {feedError ? <p className="nostr-following-feed-error">{feedError}</p> : null}
                     {publishError ? <p className="nostr-following-feed-error">{publishError}</p> : null}
 
                     <div
-                        className="nostr-following-feed-list"
+                        className="nostr-following-feed-list min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
+                        data-testid="following-feed-list"
                         onScroll={(event) => onFeedScroll(event.currentTarget)}
                     >
                         {items.length === 0 ? (
@@ -439,20 +425,48 @@ export function FollowingFeedContent({
 
                         <ListLoadingFooter loading={isLoadingFeed && items.length > 0} label="Cargando publicaciones..." />
 
-                        {hasMoreFeed && !isLoadingFeed ? (
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="nostr-following-feed-load-more"
-                                onClick={() => {
-                                    void onLoadMoreFeed();
-                                }}
-                            >
-                                Cargar mas
-                            </Button>
-                        ) : null}
                     </div>
+
+                    <Card
+                        variant="elevated"
+                        size="sm"
+                        className="nostr-following-feed-compose sticky bottom-0 z-20 w-full max-w-none self-stretch gap-0 rounded-none border-x-0 border-b-0 py-0 shadow-none"
+                    >
+                        <CardContent className="px-4 py-3">
+                            <Textarea
+                                value={postDraft}
+                                aria-label="Redactar publicacion"
+                                className="nostr-following-feed-textarea"
+                                placeholder="Que estas pensando?"
+                                onChange={(event) => setPostDraft(event.target.value)}
+                            />
+                            <div className="nostr-following-feed-compose-actions mt-3 flex items-center justify-between gap-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    aria-label="Adjuntar imagen (proximamente)"
+                                    disabled
+                                >
+                                    <ImageIcon aria-hidden="true" />
+                                </Button>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    className="nostr-following-feed-publish"
+                                    disabled={publishDisabled || postDraft.trim().length === 0}
+                                    onClick={async () => {
+                                        const submitted = await onPublishPost(postDraft);
+                                        if (submitted) {
+                                            setPostDraft('');
+                                        }
+                                    }}
+                                >
+                                    {isPublishingPost ? 'Publicando...' : 'Publicar'}
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
                 </>
             ) : (
                 <>
@@ -460,86 +474,104 @@ export function FollowingFeedContent({
                     {publishError ? <p className="nostr-following-feed-error">{publishError}</p> : null}
 
                     <div
-                        className="nostr-following-feed-thread-list"
+                        className="nostr-following-feed-thread-list min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
+                        data-testid="following-feed-thread-list"
                         onScroll={(event) => onThreadScroll(event.currentTarget)}
                     >
-                        {activeThread.root ? (
-                            (() => {
-                                const rootActionState = buildRootActionState({
-                                    item: activeThread.root,
-                                    canWrite,
-                                    engagementByEventId,
-                                    reactionByEventId,
-                                    repostByEventId,
-                                    pendingReactionByEventId,
-                                    pendingRepostByEventId,
-                                    onReply: () => {
-                                        setReplyTargetEventId(activeThread.root?.id || null);
-                                        setReplyTargetPubkey(activeThread.root?.pubkey);
-                                    },
-                                    onViewDetail: () => {
-                                        void onOpenThread(activeThread.root?.id || '');
-                                    },
-                                    onToggleReaction,
-                                    onToggleRepost,
-                                });
-                                const rootNote = fromThreadItem(activeThread.root, 'root', rootActionState);
+                        {showThreadBlockingEmpty ? (
+                            <div className="nostr-following-feed-thread-empty-state flex min-h-full items-center justify-center">
+                                <Empty className="nostr-following-feed-empty">
+                                    <EmptyHeader>
+                                        <EmptyMedia variant="icon">
+                                            <Spinner />
+                                        </EmptyMedia>
+                                        <EmptyTitle>Cargando hilo</EmptyTitle>
+                                        <EmptyDescription>Recuperando la conversacion.</EmptyDescription>
+                                    </EmptyHeader>
+                                </Empty>
+                            </div>
+                        ) : (
+                            <>
+                                {activeThread.root ? (
+                                    (() => {
+                                        const rootActionState = buildRootActionState({
+                                            item: activeThread.root,
+                                            canWrite,
+                                            engagementByEventId,
+                                            reactionByEventId,
+                                            repostByEventId,
+                                            pendingReactionByEventId,
+                                            pendingRepostByEventId,
+                                            onReply: () => {
+                                                setReplyTargetEventId(activeThread.root?.id || null);
+                                                setReplyTargetPubkey(activeThread.root?.pubkey);
+                                            },
+                                            onViewDetail: () => {
+                                                void onOpenThread(activeThread.root?.id || '');
+                                            },
+                                            onToggleReaction,
+                                            onToggleRepost,
+                                        });
+                                        const rootNote = fromThreadItem(activeThread.root, 'root', rootActionState);
 
-                                if (!rootNote) {
-                                    return null;
-                                }
+                                        if (!rootNote) {
+                                            return null;
+                                        }
 
-                                return (
-                                    <div className="nostr-following-feed-thread-node" data-depth={0}>
-                                        <NoteCard
-                                            note={rootNote}
-                                            profilesByPubkey={profilesByPubkey}
-                                            {...noteCardProps}
-                                        />
-                                    </div>
-                                );
-                            })()
-                        ) : null}
+                                        return (
+                                            <div className="nostr-following-feed-thread-node" data-depth={0}>
+                                                <NoteCard
+                                                    note={rootNote}
+                                                    profilesByPubkey={profilesByPubkey}
+                                                    {...noteCardProps}
+                                                />
+                                            </div>
+                                        );
+                                    })()
+                                ) : null}
 
-                        {(activeThread.root ? (threadReplyTree.get(activeThread.root.id) ?? []) : []).map((reply) => renderThreadReplyNode(reply, 1))}
+                                {visibleThreadReplies.map((reply) => renderThreadReplyNode(reply, 1))}
 
-                        {activeThread.replies.length === 0 && !activeThread.isLoading ? (
-                            <Empty className="nostr-following-feed-empty">
-                                <EmptyHeader>
-                                    <EmptyTitle>Sin respuestas</EmptyTitle>
-                                    <EmptyDescription>Aun no hay replies para este hilo.</EmptyDescription>
-                                </EmptyHeader>
-                            </Empty>
-                        ) : null}
+                                {activeThread.replies.length === 0 && !activeThread.isLoading ? (
+                                    <Empty className="nostr-following-feed-empty">
+                                        <EmptyHeader>
+                                            <EmptyTitle>Sin respuestas</EmptyTitle>
+                                            <EmptyDescription>Aun no hay replies para este hilo.</EmptyDescription>
+                                        </EmptyHeader>
+                                    </Empty>
+                                ) : null}
 
-                        <ListLoadingFooter loading={activeThread.isLoading || activeThread.isLoadingMore} label="Cargando hilo..." />
+                                <ListLoadingFooter loading={showThreadLoadingFooter} label="Cargando hilo..." />
+                            </>
+                        )}
 
-                        {activeThread.hasMore && !activeThread.isLoadingMore ? (
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="nostr-following-feed-load-more"
-                                onClick={() => {
-                                    void onLoadMoreThread();
-                                }}
-                            >
-                                Cargar mas respuestas
-                            </Button>
-                        ) : null}
                     </div>
 
-                    <Card variant="elevated" size="sm" className="nostr-following-feed-reply-box sticky bottom-0 z-20 gap-0 py-0 shadow-none">
-                        <CardContent className="px-3 py-3">
-                            <p className="nostr-following-feed-reply-target">{replyTargetLabel}</p>
+                    <Card
+                        variant="elevated"
+                        size="sm"
+                        className="nostr-following-feed-reply-box sticky bottom-0 z-20 w-full max-w-none self-stretch gap-0 rounded-none border-x-0 border-b-0 py-0 shadow-none"
+                    >
+                        <CardContent className="px-4 py-3">
+                            <p id={replyTargetDescriptionId} aria-live="polite" className="nostr-following-feed-reply-target">{replyTargetLabel}</p>
                             <Textarea
                                 value={replyDraft}
                                 aria-label="Redactar respuesta"
+                                aria-describedby={replyTargetDescriptionId}
                                 className="nostr-following-feed-textarea"
                                 placeholder="Escribe tu respuesta"
                                 onChange={(event) => setReplyDraft(event.target.value)}
                             />
-                            <div className="nostr-following-feed-compose-actions mt-3">
+                            <div className="nostr-following-feed-compose-actions mt-3 flex items-center justify-between gap-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    aria-label="Adjuntar imagen (proximamente)"
+                                    disabled
+                                >
+                                    <ImageIcon aria-hidden="true" />
+                                </Button>
                                 <Button
                                     type="button"
                                     size="sm"

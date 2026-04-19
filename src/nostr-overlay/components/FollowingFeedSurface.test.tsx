@@ -76,7 +76,7 @@ function buildProps(overrides: Partial<Parameters<typeof FollowingFeedSurface>[0
 }
 
 describe('FollowingFeedSurface', () => {
-    test('load more feed action requests next query page', async () => {
+    test('feed scroll requests next query page without rendering manual load more button', async () => {
         const onLoadMoreFeed = vi.fn(async () => {});
         const rendered = await renderElement(
             <FollowingFeedSurface
@@ -105,19 +105,25 @@ describe('FollowingFeedSurface', () => {
         );
         mounted.push(rendered);
 
-        const loadMoreButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+        const feedList = rendered.container.querySelector('[data-testid="following-feed-list"]') as HTMLDivElement | null;
+        expect(feedList).not.toBeNull();
+        expect(feedList?.className).toContain('overflow-y-auto');
+        expect(Array.from(rendered.container.querySelectorAll('button')).some((button) =>
             (button.textContent || '').includes('Cargar mas')
-        ) as HTMLButtonElement;
-        expect(loadMoreButton).toBeDefined();
+        )).toBe(false);
+
+        Object.defineProperty(feedList, 'scrollHeight', { configurable: true, value: 500 });
+        Object.defineProperty(feedList, 'clientHeight', { configurable: true, value: 300 });
+        Object.defineProperty(feedList, 'scrollTop', { configurable: true, value: 130 });
 
         await act(async () => {
-            loadMoreButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            feedList?.dispatchEvent(new Event('scroll', { bubbles: true }));
         });
 
         expect(onLoadMoreFeed).toHaveBeenCalledTimes(1);
     });
 
-    test('load more thread action requests next query page', async () => {
+    test('thread scroll requests next query page without rendering manual load more button', async () => {
         const onLoadMoreThread = vi.fn(async () => {});
         const rendered = await renderElement(
             <FollowingFeedSurface
@@ -151,13 +157,19 @@ describe('FollowingFeedSurface', () => {
         );
         mounted.push(rendered);
 
-        const loadMoreRepliesButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+        const threadList = rendered.container.querySelector('[data-testid="following-feed-thread-list"]') as HTMLDivElement | null;
+        expect(threadList).not.toBeNull();
+        expect(threadList?.className).toContain('overflow-y-auto');
+        expect(Array.from(rendered.container.querySelectorAll('button')).some((button) =>
             (button.textContent || '').includes('Cargar mas respuestas')
-        ) as HTMLButtonElement;
-        expect(loadMoreRepliesButton).toBeDefined();
+        )).toBe(false);
+
+        Object.defineProperty(threadList, 'scrollHeight', { configurable: true, value: 500 });
+        Object.defineProperty(threadList, 'clientHeight', { configurable: true, value: 300 });
+        Object.defineProperty(threadList, 'scrollTop', { configurable: true, value: 130 });
 
         await act(async () => {
-            loadMoreRepliesButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            threadList?.dispatchEvent(new Event('scroll', { bubbles: true }));
         });
 
         expect(onLoadMoreThread).toHaveBeenCalledTimes(1);
@@ -172,12 +184,46 @@ describe('FollowingFeedSurface', () => {
         expect(rendered.container.textContent || '').toContain('Timeline en tiempo real de personas que sigues');
 
         const surfaceContent = rendered.container.querySelector('.nostr-following-feed-surface-content') as HTMLElement;
+        const routedSurfaceContent = rendered.container.querySelector('.nostr-routed-surface-content') as HTMLElement;
         const composeCard = rendered.container.querySelector('.nostr-following-feed-compose[data-slot="card"]');
         expect(surfaceContent).toBeDefined();
+        expect(routedSurfaceContent.className).toContain('nostr-following-feed-routed-surface-content');
+        expect(surfaceContent.className).toContain('nostr-following-feed-page-edge-to-edge');
         expect(surfaceContent.classList.contains('nostr-following-feed-dialog')).toBe(false);
         expect(rendered.container.querySelector('[data-slot="overlay-page-header"]')).not.toBeNull();
         expect(composeCard).not.toBeNull();
         expect(composeCard?.getAttribute('data-variant')).toBe('elevated');
+        expect(composeCard?.className).toContain('sticky');
+        expect(composeCard?.className).toContain('bottom-0');
+        expect(composeCard?.className).toContain('w-full');
+        expect(composeCard?.className).toContain('rounded-none');
+    });
+
+    test('renders main composer action row with disabled image button on the left', async () => {
+        const onPublishPost = vi.fn(async () => true);
+        const rendered = await renderElement(<FollowingFeedSurface {...buildProps({ onPublishPost })} />);
+        mounted.push(rendered);
+
+        const composeCard = rendered.container.querySelector('.nostr-following-feed-compose') as HTMLElement;
+        const textarea = composeCard.querySelector('textarea') as HTMLTextAreaElement;
+        const actionsRow = composeCard.querySelector('.nostr-following-feed-compose-actions') as HTMLElement;
+        const imageButton = actionsRow.querySelector('button[aria-label="Adjuntar imagen (proximamente)"]') as HTMLButtonElement;
+        const buttons = Array.from(actionsRow.querySelectorAll('button'));
+
+        expect(textarea).toBeDefined();
+        expect(actionsRow).toBeDefined();
+        expect(imageButton).toBeDefined();
+        expect(imageButton.disabled).toBe(true);
+        expect(imageButton.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+        expect(buttons[0]).toBe(imageButton);
+        expect(buttons[buttons.length - 1]?.textContent || '').toContain('Publicar');
+
+        await act(async () => {
+            imageButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            imageButton.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter' }));
+        });
+
+        expect(onPublishPost).not.toHaveBeenCalled();
     });
 
     test('renders no-follows empty state using Empty component copy', async () => {
@@ -377,7 +423,19 @@ describe('FollowingFeedSurface', () => {
         expect(replyCard?.className).toContain('z-20');
 
         const textarea = rendered.container.querySelector('.nostr-following-feed-reply-box textarea') as HTMLTextAreaElement;
+        const actionsRow = rendered.container.querySelector('.nostr-following-feed-reply-box .nostr-following-feed-compose-actions') as HTMLElement;
+        const imageButton = actionsRow.querySelector('button[aria-label="Adjuntar imagen (proximamente)"]') as HTMLButtonElement;
+        const actionButtons = Array.from(actionsRow.querySelectorAll('button'));
+        const replyTarget = rendered.container.querySelector('.nostr-following-feed-reply-target') as HTMLParagraphElement;
         expect(textarea).toBeDefined();
+        expect(actionsRow).toBeDefined();
+        expect(imageButton).toBeDefined();
+        expect(imageButton.disabled).toBe(true);
+        expect(imageButton.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+        expect(actionButtons[0]).toBe(imageButton);
+        expect(replyTarget.getAttribute('aria-live')).toBe('polite');
+        expect(replyTarget.id).toBeTruthy();
+        expect(textarea.getAttribute('aria-describedby')).toBe(replyTarget.id);
 
         await act(async () => {
             const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
@@ -386,10 +444,18 @@ describe('FollowingFeedSurface', () => {
             textarea.dispatchEvent(new Event('change', { bubbles: true }));
         });
 
-        const sendButton = Array.from(rendered.container.querySelectorAll('.nostr-following-feed-reply-box button')).find((button) =>
+        const sendButton = Array.from(actionsRow.querySelectorAll('button')).find((button) =>
             (button.textContent || '').includes('Responder')
         ) as HTMLButtonElement;
         expect(sendButton).toBeDefined();
+        expect(actionButtons[actionButtons.length - 1]).toBe(sendButton);
+
+        await act(async () => {
+            imageButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            imageButton.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter' }));
+        });
+
+        expect(onPublishReply).not.toHaveBeenCalled();
 
         await act(async () => {
             sendButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -423,6 +489,176 @@ describe('FollowingFeedSurface', () => {
         });
         expect(rendered.container.querySelector('[aria-label="Sats recibidos: 210"]')).toBeDefined();
         expect(rendered.container.querySelector('[aria-label="Sats recibidos: 21"]')).toBeDefined();
+    });
+
+    test('renders thread back action inside header actions', async () => {
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    activeThread: {
+                        rootEventId: 'thread-1',
+                        root: null,
+                        replies: [],
+                        isLoading: false,
+                        isLoadingMore: false,
+                        error: null,
+                        hasMore: false,
+                    },
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const header = rendered.container.querySelector('.nostr-following-feed-header') as HTMLElement;
+        const pageHeader = header.querySelector('[data-slot="overlay-page-header"]') as HTMLElement;
+        const headerActions = header.querySelector('.nostr-following-feed-header-actions') as HTMLElement;
+        const backButton = headerActions.querySelector('button') as HTMLButtonElement;
+
+        expect(pageHeader).toBeDefined();
+        expect(header.firstElementChild).toBe(pageHeader);
+        expect(headerActions).toBeDefined();
+        expect(backButton.textContent || '').toContain('Volver al Agora');
+    });
+
+    test('renders centered empty loading state for initial thread load', async () => {
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    activeThread: {
+                        rootEventId: 'thread-1',
+                        root: null,
+                        replies: [],
+                        isLoading: true,
+                        isLoadingMore: false,
+                        error: null,
+                        hasMore: false,
+                    },
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const centeredState = rendered.container.querySelector('.nostr-following-feed-thread-empty-state') as HTMLElement;
+        expect(centeredState).toBeDefined();
+
+        const empty = centeredState.querySelector('[data-slot="empty"]') as HTMLElement;
+        expect(empty).toBeDefined();
+        expect(empty.textContent || '').toContain('Cargando hilo');
+        expect(empty.textContent || '').toContain('Recuperando la conversacion.');
+        expect(empty.querySelector('[aria-label="Loading"]')).not.toBeNull();
+        expect(rendered.container.textContent || '').not.toContain('Cargando hilo...');
+    });
+
+    test('does not render centered thread empty state when root is already visible', async () => {
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    activeThread: {
+                        rootEventId: 'root-1',
+                        root: {
+                            id: 'root-1',
+                            pubkey: 'b'.repeat(64),
+                            createdAt: 500,
+                            eventKind: 1,
+                            content: 'root visible',
+                            rawEvent: {
+                                id: 'root-1',
+                                pubkey: 'b'.repeat(64),
+                                kind: 1,
+                                created_at: 500,
+                                tags: [],
+                                content: 'root visible',
+                            },
+                        },
+                        replies: [],
+                        isLoading: true,
+                        isLoadingMore: false,
+                        error: null,
+                        hasMore: false,
+                    },
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        expect(rendered.container.querySelector('.nostr-following-feed-thread-empty-state')).toBeNull();
+        expect(rendered.container.textContent || '').toContain('Cargando hilo...');
+    });
+
+    test('does not render centered thread empty state when replies are already visible', async () => {
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    activeThread: {
+                        rootEventId: 'root-1',
+                        root: null,
+                        replies: [
+                            {
+                                id: 'reply-1',
+                                pubkey: 'c'.repeat(64),
+                                createdAt: 510,
+                                eventKind: 1,
+                                content: 'reply visible',
+                                targetEventId: 'root-1',
+                                rawEvent: {
+                                    id: 'reply-1',
+                                    pubkey: 'c'.repeat(64),
+                                    kind: 1,
+                                    created_at: 510,
+                                    tags: [['e', 'root-1']],
+                                    content: 'reply visible',
+                                },
+                            },
+                        ],
+                        isLoading: true,
+                        isLoadingMore: false,
+                        error: null,
+                        hasMore: false,
+                    },
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        expect(rendered.container.querySelector('.nostr-following-feed-thread-empty-state')).toBeNull();
+        expect(rendered.container.textContent || '').toContain('reply visible');
+        expect(rendered.container.textContent || '').toContain('Cargando hilo...');
+    });
+
+    test('keeps incremental thread footer when loading more replies with visible content', async () => {
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    activeThread: {
+                        rootEventId: 'root-1',
+                        root: {
+                            id: 'root-1',
+                            pubkey: 'b'.repeat(64),
+                            createdAt: 500,
+                            eventKind: 1,
+                            content: 'root visible',
+                            rawEvent: {
+                                id: 'root-1',
+                                pubkey: 'b'.repeat(64),
+                                kind: 1,
+                                created_at: 500,
+                                tags: [],
+                                content: 'root visible',
+                            },
+                        },
+                        replies: [],
+                        isLoading: false,
+                        isLoadingMore: true,
+                        error: null,
+                        hasMore: true,
+                    },
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        expect(rendered.container.querySelector('.nostr-following-feed-thread-empty-state')).toBeNull();
+        expect(rendered.container.textContent || '').toContain('Cargando hilo...');
     });
 
     test('renders nested replies in thread detail', async () => {
