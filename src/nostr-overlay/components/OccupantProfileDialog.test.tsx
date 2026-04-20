@@ -619,6 +619,61 @@ describe('OccupantProfileDialog', () => {
         expect(link).toBeNull();
     });
 
+    test('renders a stable load-more button for additional profile posts', async () => {
+        const onLoadMorePosts = vi.fn(async () => {});
+        const rendered = await renderElement(
+            <OccupantProfileDialog
+                {...buildProps({
+                    hasMorePosts: true,
+                    onLoadMorePosts,
+                    posts: [
+                        {
+                            id: 'post-load-more-1',
+                            pubkey: 'a'.repeat(64),
+                            createdAt: 1_700_000_000,
+                            content: 'Primera nota',
+                        },
+                    ],
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        await selectTab('Feed');
+        const loadMoreButton = document.body.querySelector('[data-testid="profile-load-more-posts"]') as HTMLButtonElement | null;
+        expect(loadMoreButton).not.toBeNull();
+
+        await act(async () => {
+            loadMoreButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onLoadMorePosts).toHaveBeenCalledTimes(1);
+    });
+
+    test('keeps a small inset around feed note cards so borders are not clipped', async () => {
+        const rendered = await renderElement(
+            <OccupantProfileDialog
+                {...buildProps({
+                    posts: [
+                        {
+                            id: 'post-border-1',
+                            pubkey: 'a'.repeat(64),
+                            createdAt: 1_700_000_000,
+                            content: 'Nota con borde visible',
+                        },
+                    ],
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        await selectTab('Feed');
+        const postList = document.body.querySelector('[data-testid="profile-post-list"]') as HTMLElement | null;
+        expect(postList).not.toBeNull();
+        expect(postList?.className).toContain('px-1');
+        expect(postList?.className).toContain('pt-1');
+    });
+
     test('clicking a post hashtag emits callback to open agora hashtag feed', async () => {
         const onSelectHashtag = vi.fn();
         const rendered = await renderElement(
@@ -755,7 +810,7 @@ describe('OccupantProfileDialog', () => {
         expect(document.body.querySelector('button[aria-label="Reaccionar (3)"]')).not.toBeNull();
         expect(document.body.querySelector('button[aria-label="Repostear (2)"]')).not.toBeNull();
         expect(document.body.querySelector('button[aria-label="Responder (4)"]')).not.toBeNull();
-        expect(document.body.querySelector('[aria-label="Sats recibidos: 210"]')).not.toBeNull();
+        expect(document.body.querySelector('[data-slot="button"][aria-label="Sats recibidos: 210"]')).not.toBeNull();
         expect(document.body.querySelector('button[aria-label="Abrir acciones para la nota post-event-ref-1"]')).not.toBeNull();
         expect(document.body.querySelector(`button[aria-label="Abrir acciones para la nota ${referencedEventId}"]`)).not.toBeNull();
 

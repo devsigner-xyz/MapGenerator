@@ -23,10 +23,10 @@ async function renderScreen(options: {
     await act(async () => {
         root.render(
             <LoginGateScreen
-                authSession={options.authSession}
-                savedLocalAccount={options.savedLocalAccount}
+                {...(options.authSession === undefined ? {} : { authSession: options.authSession })}
+                {...(options.savedLocalAccount === undefined ? {} : { savedLocalAccount: options.savedLocalAccount })}
                 disabled={options.disabled ?? false}
-                mapLoaderText={options.mapLoaderText}
+                {...(options.mapLoaderText === undefined ? {} : { mapLoaderText: options.mapLoaderText })}
                 restoringSession={options.restoringSession ?? false}
                 onStartSession={vi.fn()}
             />

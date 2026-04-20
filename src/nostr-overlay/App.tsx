@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { verifyEvent } from 'nostr-tools/pure';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router';
 import {
     DEFAULT_STREET_LABELS_ZOOM_LEVEL,
@@ -8,6 +9,19 @@ import {
     type UiSettingsState,
 } from '../nostr/ui-settings';
 import { loadZapSettings, type ZapSettingsState } from '../nostr/zap-settings';
+import { loadWalletSettings, saveWalletSettings } from '../nostr/wallet-settings';
+import {
+    addWalletActivity,
+    loadWalletActivity,
+    markWalletActivityFailed,
+    markWalletActivitySucceeded,
+    saveWalletActivity,
+} from '../nostr/wallet-activity';
+import type { WalletActivityState, WalletSettingsState } from '../nostr/wallet-types';
+import { detectWebLnProvider, resolveWebLnCapabilities } from '../nostr/webln';
+import { requestProfileZapInvoice } from '../nostr/zaps';
+import { profileHasZapEndpoint } from '../nostr/zaps';
+import { createNwcClient, createNwcRelayIo, parseNwcConnectionUri, resolveNwcEncryptionMode, resolveNwcInfoCapabilities } from '../nostr/nwc';
 import {
     loadEasterEggProgress,
     markEasterEggDiscovered,
@@ -32,6 +46,7 @@ import { NotificationsPage } from './components/NotificationsPage';
 import { FollowingFeedSurface } from './components/FollowingFeedSurface';
 import { SettingsPage } from './components/SettingsPage';
 import { UserSearchPage } from './components/UserSearchPage';
+import { WalletPage } from './components/WalletPage';
 import { RelayDetailRoute } from './components/RelayDetailRoute';
 import { RelaysRoute } from './components/RelaysRoute';
 import { LoginGateScreen } from './components/LoginGateScreen';
@@ -91,6 +106,15 @@ interface EasterEggDialogState extends EasterEggBuildingClickPayload {
     nonce: number;
 }
 
+interface PendingZapIntent {
+    targetPubkey: string;
+    amount: number;
+    originPath: string;
+    phase: 'navigating' | 'ready' | 'paused';
+}
+
+type ZapExecutionResult = 'success' | 'retryable_failure' | 'definitive_failure';
+
 function mapLoaderStageLabel(stage: MapLoaderStage | null): string | null {
     if (stage === 'connecting_relay') {
         return 'Conectando a relay...';
@@ -131,6 +155,69 @@ export function App({ mapBridge, services }: AppProps) {
     ));
     const [uiSettings, setUiSettings] = useState<UiSettingsState>(() => loadUiSettings());
     const [zapSettings, setZapSettings] = useState<ZapSettingsState>(() => loadZapSettings());
+    const [walletSettings, setWalletSettings] = useState<WalletSettingsState>(() => loadWalletSettings());
+    const [walletActivity, setWalletActivity] = useState<WalletActivityState>(() => loadWalletActivity());
+    const [walletReceiveAmountInput, setWalletReceiveAmountInput] = useState('');
+    const [walletReceiveAmountError, setWalletReceiveAmountError] = useState('');
+    const [walletBalanceDisplay, setWalletBalanceDisplay] = useState<string | undefined>(undefined);
+    const [walletGeneratedInvoice, setWalletGeneratedInvoice] = useState<string | undefined>(undefined);
+    const [walletNwcUriInput, setWalletNwcUriInput] = useState('');
+    const [pendingZapIntent, setPendingZapIntent] = useState<PendingZapIntent | null>(null);
+    const [resumingZap, setResumingZap] = useState(false);
+
+    const fetchNwcInfo = async (connection: {
+        walletServicePubkey: string;
+        relays: string[];
+    }): Promise<{ capabilities: ReturnType<typeof resolveNwcInfoCapabilities>; encryption: 'nip44_v2' | 'nip04' }> => {
+        const client = services?.createClient?.(connection.relays);
+        if (!client) {
+            throw new Error('No NWC client is available in this runtime');
+        }
+
+        await client.connect();
+        const infoEvent = await client.fetchLatestReplaceableEvent(connection.walletServicePubkey, 13194);
+        if (!infoEvent) {
+            throw new Error('NWC info event was not found');
+        }
+        if (!verifyEvent(infoEvent as Parameters<typeof verifyEvent>[0])) {
+            throw new Error('NWC info event signature is invalid');
+        }
+
+        const capabilities = resolveNwcInfoCapabilities(infoEvent.content);
+        if (!capabilities.payInvoice) {
+            throw new Error('NWC wallet does not support pay_invoice');
+        }
+
+        return {
+            capabilities,
+            encryption: resolveNwcEncryptionMode(infoEvent.tags),
+        };
+    };
+
+    const withNwcClient = async <T,>(
+        connection: Extract<NonNullable<WalletSettingsState['activeConnection']>, { method: 'nwc' }>,
+        operation: (client: ReturnType<typeof createNwcClient>) => Promise<T>
+    ): Promise<T> => {
+        const io = createNwcRelayIo(connection.relays);
+        const client = createNwcClient({ connection, io });
+        try {
+            return await operation(client);
+        } finally {
+            io.close?.();
+        }
+    };
+
+    const isWalletReadyForPayments = (connection: WalletSettingsState['activeConnection']): boolean => {
+        if (!connection?.capabilities.payInvoice) {
+            return false;
+        }
+
+        if (connection.method === 'webln' || connection.method === 'nwc') {
+            return connection.restoreState === 'connected';
+        }
+
+        return true;
+    };
     const [easterEggProgress, setEasterEggProgress] = useState<EasterEggProgressState>(() => loadEasterEggProgress());
     const [buildingContextMenu, setBuildingContextMenu] = useState<OccupiedBuildingContextMenuState | null>(null);
     const [activeEasterEgg, setActiveEasterEgg] = useState<EasterEggDialogState | null>(null);
@@ -421,6 +508,7 @@ export function App({ mapBridge, services }: AppProps) {
         ...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {}),
         follows: overlay.follows,
         ...(activeAgoraHashtag ? { hashtag: activeAgoraHashtag } : {}),
+        pageSize: 10,
         canWrite: overlay.canWrite,
         service: overlay.socialFeedService,
         ...(overlay.writeGateway ? { writeGateway: overlay.writeGateway } : {}),
@@ -640,6 +728,29 @@ export function App({ mapBridge, services }: AppProps) {
     }, [overlay.ownerPubkey]);
 
     useEffect(() => {
+        setWalletSettings(loadWalletSettings(
+            overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : undefined
+        ));
+        setWalletActivity(loadWalletActivity(
+            overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : undefined
+        ));
+    }, [overlay.ownerPubkey]);
+
+    const walletStorageOptions = overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : undefined;
+
+    const persistWalletSettings = (nextState: WalletSettingsState): WalletSettingsState => {
+        const saved = saveWalletSettings(nextState, walletStorageOptions);
+        setWalletSettings(saved);
+        return saved;
+    };
+
+    const persistWalletActivity = (nextState: WalletActivityState): WalletActivityState => {
+        const saved = saveWalletActivity(nextState, walletStorageOptions);
+        setWalletActivity(saved);
+        return saved;
+    };
+
+    useEffect(() => {
         if (!location.pathname.startsWith('/settings/')) {
             return;
         }
@@ -813,10 +924,6 @@ export function App({ mapBridge, services }: AppProps) {
         navigate('/notificaciones');
     };
 
-    const closeNotifications = (): void => {
-        navigate('/');
-    };
-
     const openFollowingFeed = (): void => {
         if (!canAccessFollowingFeed) {
             return;
@@ -981,6 +1088,265 @@ export function App({ mapBridge, services }: AppProps) {
         openChatConversation(pubkey, true);
     };
 
+    const executeZapIntent = useCallback(async (
+        targetPubkey: string,
+        amount: number,
+        connectionOverride: WalletSettingsState['activeConnection'] = walletSettings.activeConnection
+    ): Promise<ZapExecutionResult> => {
+        if (!connectionOverride) {
+            return 'retryable_failure';
+        }
+
+        if (!overlay.writeGateway) {
+            toast.error('No se puede enviar este zap.', { duration: 2200 });
+            return 'definitive_failure';
+        }
+
+        const profile = overlay.profiles[targetPubkey]
+            ?? overlay.followerProfiles[targetPubkey]
+            ?? (overlay.ownerPubkey === targetPubkey ? overlay.ownerProfile : undefined);
+        const writeRelays = [...new Set([
+            ...relaySettingsSnapshot.byType.nip65Both,
+            ...relaySettingsSnapshot.byType.nip65Write,
+        ])];
+        if (writeRelays.length === 0) {
+            toast.error('No se puede enviar este zap.', { duration: 2200 });
+            return 'definitive_failure';
+        }
+        const activityId = `zap-${targetPubkey}-${Date.now()}`;
+        persistWalletActivity(addWalletActivity(walletActivity, {
+            id: activityId,
+            status: 'pending',
+            actionType: 'zap-payment',
+            amountMsats: amount * 1000,
+            createdAt: Date.now(),
+            targetType: 'profile',
+            targetId: targetPubkey,
+            provider: connectionOverride.method,
+        }));
+
+        try {
+            const invoice = await requestProfileZapInvoice({
+                amountSats: amount,
+                profilePubkey: targetPubkey,
+                profile,
+                relays: writeRelays,
+                writeGateway: overlay.writeGateway,
+            });
+            try {
+                if (connectionOverride.method === 'webln') {
+                    const provider = detectWebLnProvider();
+                    if (!provider?.sendPayment) {
+                        throw new Error('WebLN sendPayment is not available');
+                    }
+                    await provider.sendPayment(invoice);
+                } else {
+                    await withNwcClient(connectionOverride, async (client) => {
+                        await client.payInvoice(invoice);
+                    });
+                }
+                persistWalletActivity(markWalletActivitySucceeded(loadWalletActivity(walletStorageOptions), activityId));
+                toast.success('Pago enviado.', { duration: 1800 });
+                return 'success';
+            } catch {
+                persistWalletActivity(markWalletActivityFailed(loadWalletActivity(walletStorageOptions), activityId, 'No se pudo completar el pago.'));
+                toast.error('No se pudo completar el pago.', { duration: 2200 });
+                return 'retryable_failure';
+            }
+        } catch {
+            persistWalletActivity(markWalletActivityFailed(loadWalletActivity(walletStorageOptions), activityId, 'No se puede enviar este zap.'));
+            toast.error('No se puede enviar este zap.', { duration: 2200 });
+            return 'definitive_failure';
+        }
+    }, [walletSettings.activeConnection, overlay.writeGateway, overlay.profiles, overlay.followerProfiles, overlay.ownerPubkey, overlay.ownerProfile, relaySettingsSnapshot.byType.nip65Both, relaySettingsSnapshot.byType.nip65Write, walletActivity, walletStorageOptions]);
+
+    const handleZapIntent = async (targetPubkey: string, amount: number): Promise<void> => {
+        if (!isWalletReadyForPayments(walletSettings.activeConnection)) {
+            setPendingZapIntent({
+                targetPubkey,
+                amount,
+                originPath: `${location.pathname}${location.search}`,
+                phase: 'navigating',
+            });
+            navigate('/wallet');
+            return;
+        }
+
+        await executeZapIntent(targetPubkey, amount);
+    };
+
+    const connectWebLnWallet = async (): Promise<void> => {
+        const provider = detectWebLnProvider();
+        if (!provider) {
+            toast.error('WebLN no está disponible en este navegador.', { duration: 2200 });
+            return;
+        }
+
+        await provider.enable?.();
+        const capabilities = resolveWebLnCapabilities(provider);
+        if (!capabilities.payInvoice) {
+            toast.error('El provider WebLN no soporta pagos.', { duration: 2200 });
+            return;
+        }
+
+        const nextConnection = {
+            method: 'webln',
+            capabilities,
+            restoreState: 'connected',
+        } as const;
+        persistWalletSettings({ activeConnection: nextConnection });
+        setWalletGeneratedInvoice(undefined);
+        setWalletBalanceDisplay(undefined);
+        setWalletNwcUriInput('');
+        toast.success('Wallet conectada', { duration: 1800 });
+        if (pendingZapIntent?.phase === 'paused' && location.pathname === '/wallet') {
+            setPendingZapIntent({ ...pendingZapIntent, phase: 'ready' });
+        }
+    };
+
+    const connectNwcWallet = async (): Promise<void> => {
+        try {
+            const parsed = parseNwcConnectionUri(walletNwcUriInput);
+            const info = await fetchNwcInfo(parsed);
+
+            const nextConnection = {
+                method: 'nwc',
+                uri: parsed.uri,
+                walletServicePubkey: parsed.walletServicePubkey,
+                relays: parsed.relays,
+                secret: parsed.secret,
+                encryption: info.encryption,
+                capabilities: info.capabilities,
+                restoreState: 'connected',
+            } as const;
+            persistWalletSettings({ activeConnection: nextConnection });
+            setWalletNwcUriInput('');
+            toast.success('Wallet conectada', { duration: 1800 });
+            if (pendingZapIntent?.phase === 'paused' && location.pathname === '/wallet') {
+                setPendingZapIntent({ ...pendingZapIntent, phase: 'ready' });
+            }
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'No se pudo conectar la wallet NWC.';
+            toast.error(message, { duration: 2200 });
+        }
+    };
+
+    const disconnectWallet = (): void => {
+        persistWalletSettings({ activeConnection: null });
+        setWalletGeneratedInvoice(undefined);
+        setWalletBalanceDisplay(undefined);
+        setWalletReceiveAmountError('');
+        setWalletNwcUriInput('');
+    };
+
+    const refreshWallet = async (): Promise<void> => {
+        if (!walletSettings.activeConnection) {
+            return;
+        }
+
+        if (walletSettings.activeConnection.method === 'webln') {
+            const provider = detectWebLnProvider();
+            const capabilities = resolveWebLnCapabilities(provider);
+            persistWalletSettings({
+                activeConnection: {
+                    ...walletSettings.activeConnection,
+                    capabilities,
+                },
+            });
+            if (capabilities.getBalance) {
+                await requestWalletBalance();
+            }
+            return;
+        }
+
+        const info = await fetchNwcInfo(walletSettings.activeConnection);
+        persistWalletSettings({
+            activeConnection: {
+                ...walletSettings.activeConnection,
+                capabilities: info.capabilities,
+                encryption: info.encryption,
+            },
+        });
+    };
+
+    const requestWalletBalance = async (): Promise<void> => {
+        if (!walletSettings.activeConnection?.capabilities.getBalance) {
+            return;
+        }
+        if (walletSettings.activeConnection.method === 'webln' && walletSettings.activeConnection.restoreState !== 'connected') {
+            return;
+        }
+
+        const balanceValue = walletSettings.activeConnection.method === 'webln'
+            ? (() => {
+                const provider = detectWebLnProvider();
+                return provider?.getBalance?.();
+            })()
+            : withNwcClient(walletSettings.activeConnection, async (client) => client.getBalance());
+        const response = await balanceValue;
+        const numeric = typeof (response as { balance?: unknown } | undefined)?.balance === 'string'
+            ? Number((response as { balance: string }).balance)
+            : typeof (response as { balance?: unknown } | undefined)?.balance === 'number'
+                ? Number((response as { balance: number }).balance)
+                : 0;
+        const satsValue = walletSettings.activeConnection.method === 'webln'
+            ? numeric
+            : Math.round(numeric / 1000);
+        setWalletBalanceDisplay(`${satsValue} sats`);
+    };
+
+    const generateWalletInvoice = async (): Promise<void> => {
+        if (!walletSettings.activeConnection?.capabilities.makeInvoice) {
+            return;
+        }
+        if (walletSettings.activeConnection.method === 'webln' && walletSettings.activeConnection.restoreState !== 'connected') {
+            return;
+        }
+
+        const nextAmount = Number(walletReceiveAmountInput.trim());
+        if (!Number.isInteger(nextAmount) || nextAmount < 1) {
+            setWalletReceiveAmountError('Introduce un monto valido en sats.');
+            return;
+        }
+
+        setWalletReceiveAmountError('');
+        const activityId = `receive-${Date.now()}`;
+        persistWalletActivity(addWalletActivity(walletActivity, {
+            id: activityId,
+            status: 'pending',
+            actionType: 'manual-receive',
+            amountMsats: nextAmount * 1000,
+            createdAt: Date.now(),
+            targetType: 'invoice',
+            provider: walletSettings.activeConnection.method,
+        }));
+
+        try {
+            const response = walletSettings.activeConnection.method === 'webln'
+                ? await detectWebLnProvider()?.makeInvoice?.({ amount: nextAmount }) as {
+                    paymentRequest?: string;
+                    expiresAt?: number;
+                } | undefined
+                : await withNwcClient(walletSettings.activeConnection, async (client) => client.makeInvoice({ amountMsats: nextAmount * 1000 }));
+            const invoice = 'paymentRequest' in (response ?? {})
+                ? ((response as { paymentRequest?: string } | undefined)?.paymentRequest ?? '')
+                : ((response as { invoice?: string } | undefined)?.invoice ?? '');
+            if (!invoice) {
+                throw new Error('makeInvoice did not return an invoice');
+            }
+            setWalletGeneratedInvoice(invoice);
+            persistWalletActivity(markWalletActivitySucceeded(loadWalletActivity(walletStorageOptions), activityId, {
+                invoice,
+                ...('expiresAt' in (response ?? {}) && (response as { expiresAt?: number }).expiresAt !== undefined
+                    ? { expiresAt: (response as { expiresAt: number }).expiresAt }
+                    : {}),
+            }));
+        } catch (error) {
+            persistWalletActivity(markWalletActivityFailed(loadWalletActivity(walletStorageOptions), activityId, error instanceof Error ? error.message : 'makeInvoice failed'));
+            toast.error('No se pudo completar el pago.', { duration: 2200 });
+        }
+    };
+
     const handleLogout = async (): Promise<void> => {
         await overlay.logoutSession?.();
         setEasterEggProgress({ discoveredIds: [] });
@@ -988,6 +1354,45 @@ export function App({ mapBridge, services }: AppProps) {
         setActiveEasterEgg(null);
         navigate('/');
     };
+
+    useEffect(() => {
+        if (!pendingZapIntent || location.pathname !== '/wallet' || pendingZapIntent.phase !== 'navigating') {
+            return;
+        }
+
+        setPendingZapIntent((current) => current ? { ...current, phase: 'ready' } : current);
+    }, [pendingZapIntent, location.pathname]);
+
+    useEffect(() => {
+        if (!pendingZapIntent || pendingZapIntent.phase !== 'ready' || !isWalletReadyForPayments(walletSettings.activeConnection) || location.pathname !== '/wallet' || resumingZap) {
+            return;
+        }
+
+        setResumingZap(true);
+        void executeZapIntent(pendingZapIntent.targetPubkey, pendingZapIntent.amount)
+            .then((result) => {
+                if (result === 'success' || result === 'definitive_failure') {
+                    setPendingZapIntent(null);
+                } else {
+                    setPendingZapIntent((current) => current ? { ...current, phase: 'paused' } : current);
+                }
+
+                if (result === 'success') {
+                    navigate(pendingZapIntent.originPath || '/', { replace: true });
+                }
+            })
+            .finally(() => {
+                setResumingZap(false);
+            });
+    }, [pendingZapIntent, walletSettings.activeConnection, location.pathname, resumingZap, executeZapIntent, navigate]);
+
+    useEffect(() => {
+        if (!pendingZapIntent || pendingZapIntent.phase !== 'ready' || location.pathname === '/wallet') {
+            return;
+        }
+
+        setPendingZapIntent(null);
+    }, [pendingZapIntent, location.pathname]);
 
     return (
         <div
@@ -1014,6 +1419,7 @@ export function App({ mapBridge, services }: AppProps) {
                     onOpenNotifications={openNotifications}
                     onOpenFollowingFeed={openFollowingFeed}
                     onOpenGlobalSearch={openGlobalUserSearch}
+                    onOpenWallet={() => navigate('/wallet')}
                     onOpenSettings={openSettingsPage}
                     onLogout={handleLogout}
                     onCopyOwnerNpub={copyOwnerIdentifier}
@@ -1044,6 +1450,7 @@ export function App({ mapBridge, services }: AppProps) {
                         {...(overlay.canWrite ? { onFollowPerson: followPerson } : {})}
                         onViewPersonDetails={(pubkey) => overlay.openActiveProfile(pubkey)}
                         zapAmounts={zapSettings.amounts}
+                        {...(overlay.canWrite ? { onZapPerson: handleZapIntent } : {})}
                         onConfigureZapAmounts={() => openSettingsPage('zaps')}
                         onCopyOwnerNpub={copyOwnerIdentifier}
                         verificationByPubkey={verificationByPubkey}
@@ -1093,32 +1500,39 @@ export function App({ mapBridge, services }: AppProps) {
                                 closeMenu={closeOccupiedContextMenu}
                             />
 
-                            <ContextMenuSub>
-                                <ContextMenuSubTrigger data-testid="context-zap-submenu">Zap</ContextMenuSubTrigger>
-                                <ContextMenuSubContent className="w-44">
-                                    {zapSettings.amounts.map((amount) => (
+                            {overlay.canWrite && profileHasZapEndpoint(
+                                overlay.profiles[buildingContextMenu.pubkey]
+                                ?? overlay.followerProfiles[buildingContextMenu.pubkey]
+                                ?? (overlay.ownerPubkey === buildingContextMenu.pubkey ? overlay.ownerProfile : undefined)
+                            ) ? (
+                                <ContextMenuSub>
+                                    <ContextMenuSubTrigger data-testid="context-zap-submenu">Zap</ContextMenuSubTrigger>
+                                    <ContextMenuSubContent className="w-44">
+                                        {zapSettings.amounts.map((amount) => (
+                                            <ContextMenuItem
+                                                data-testid={`context-zap-${amount}`}
+                                                key={`zap-${amount}`}
+                                                onSelect={() => {
+                                                    closeOccupiedContextMenu();
+                                                    void handleZapIntent(buildingContextMenu.pubkey, amount);
+                                                }}
+                                            >
+                                                {`${amount} sats`}
+                                            </ContextMenuItem>
+                                        ))}
+                                        <ContextMenuSeparator />
                                         <ContextMenuItem
-                                            data-testid={`context-zap-${amount}`}
-                                            key={`zap-${amount}`}
+                                            data-testid="context-zap-configure"
                                             onSelect={() => {
                                                 closeOccupiedContextMenu();
+                                                openSettingsPage('zaps');
                                             }}
                                         >
-                                            {`${amount} sats`}
+                                            Configurar cantidades
                                         </ContextMenuItem>
-                                    ))}
-                                    <ContextMenuSeparator />
-                                    <ContextMenuItem
-                                        data-testid="context-zap-configure"
-                                        onSelect={() => {
-                                            closeOccupiedContextMenu();
-                                            openSettingsPage('zaps');
-                                        }}
-                                    >
-                                        Configurar cantidades
-                                    </ContextMenuItem>
-                                </ContextMenuSubContent>
-                            </ContextMenuSub>
+                                    </ContextMenuSubContent>
+                                </ContextMenuSub>
+                            ) : null}
                         </ContextMenuContent>
                     </ContextMenu>
                 </div>
@@ -1139,7 +1553,10 @@ export function App({ mapBridge, services }: AppProps) {
                 {showLoginGate ? (
                     <>
                         <Route path="/login" element={null} />
-                        <Route path="*" element={<Navigate to="/login" replace />} />
+                        <Route
+                            path="*"
+                            element={sessionRestorationResolved ? <Navigate to="/login" replace /> : null}
+                        />
                     </>
                 ) : (
                     <>
@@ -1182,6 +1599,9 @@ export function App({ mapBridge, services }: AppProps) {
                             onPublishReply={followingFeed.publishReply}
                             onToggleReaction={followingFeed.toggleReaction}
                             onToggleRepost={followingFeed.toggleRepost}
+                            onZap={({ targetPubkey, amount }) => handleZapIntent(targetPubkey || '', amount)}
+                            zapAmounts={zapSettings.amounts}
+                            onConfigureZapAmounts={() => openSettingsPage('zaps')}
                         />
                     )}
                 />
@@ -1205,7 +1625,6 @@ export function App({ mapBridge, services }: AppProps) {
                         <NotificationsPage
                             hasUnread={socialState.hasUnread}
                             notifications={socialState.pendingSnapshot}
-                            onClose={closeNotifications}
                         />
                     )}
                 />
@@ -1262,6 +1681,43 @@ export function App({ mapBridge, services }: AppProps) {
                     element={(
                         <DiscoverPage
                             discoveredIds={easterEggProgress.discoveredIds}
+                        />
+                    )}
+                />
+                <Route
+                    path="/wallet"
+                    element={(
+                        <WalletPage
+                            walletState={walletSettings}
+                            walletActivity={walletActivity}
+                            nwcUriInput={walletNwcUriInput}
+                            onNwcUriInputChange={setWalletNwcUriInput}
+                            onConnectNwc={() => {
+                                void connectNwcWallet();
+                            }}
+                            onConnectWebLn={() => {
+                                void connectWebLnWallet();
+                            }}
+                            onDisconnect={disconnectWallet}
+                            onRefresh={() => {
+                                void refreshWallet();
+                            }}
+                            onGenerateInvoice={() => {
+                                void generateWalletInvoice();
+                            }}
+                            onCopyInvoice={() => {
+                                if (walletGeneratedInvoice) {
+                                    void copyText(walletGeneratedInvoice, 'invoice copiada');
+                                }
+                            }}
+                            onRequestBalance={() => {
+                                void requestWalletBalance();
+                            }}
+                            receiveAmountInput={walletReceiveAmountInput}
+                            onReceiveAmountInputChange={setWalletReceiveAmountInput}
+                            receiveAmountError={walletReceiveAmountError}
+                            balanceDisplay={walletBalanceDisplay}
+                            generatedInvoice={walletGeneratedInvoice}
                         />
                     )}
                 />
@@ -1365,6 +1821,9 @@ export function App({ mapBridge, services }: AppProps) {
                     onOpenThread={openThreadFromProfileDialog}
                     onToggleReaction={followingFeed.toggleReaction}
                     onToggleRepost={followingFeed.toggleRepost}
+                    onZap={({ targetPubkey, amount }) => handleZapIntent(targetPubkey || '', amount)}
+                    zapAmounts={zapSettings.amounts}
+                    onConfigureZapAmounts={() => openSettingsPage('zaps')}
                     onResolveProfiles={resolveMentionProfiles}
                     onResolveEventReferences={resolveEventReferences}
                     eventReferencesById={eventReferencesById}

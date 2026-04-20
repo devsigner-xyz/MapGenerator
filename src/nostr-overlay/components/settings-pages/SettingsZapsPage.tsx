@@ -6,7 +6,9 @@ import { OverlayPageHeader } from '../OverlayPageHeader';
 interface SettingsZapsPageProps {
     zapSettings: ZapSettingsState;
     newZapAmountInput: string;
+    defaultZapAmountInput: string;
     onNewZapAmountInputChange: (value: string) => void;
+    onDefaultZapAmountInputChange: (value: string) => void;
     onUpdateZapAmount: (index: number, value: number) => void;
     onRemoveZapAmount: (index: number) => void;
     onAddZapAmount: () => void;
@@ -15,7 +17,9 @@ interface SettingsZapsPageProps {
 export function SettingsZapsPage({
     zapSettings,
     newZapAmountInput,
+    defaultZapAmountInput,
     onNewZapAmountInputChange,
+    onDefaultZapAmountInputChange,
     onUpdateZapAmount,
     onRemoveZapAmount,
     onAddZapAmount,
@@ -26,9 +30,21 @@ export function SettingsZapsPage({
                 title="Zaps"
                 description="Define cantidades rapidas para enviar zaps."
             />
-            <div className="nostr-page-content nostr-settings-body">
+            <div className="grid min-h-0 gap-2.5 overflow-x-hidden overflow-y-auto pr-px" data-testid="settings-page-body">
                 <div className="nostr-shortcuts-content">
                     <p>Cantidad de zaps</p>
+
+                    <div className="flex items-center gap-2" data-testid="settings-zap-default-row">
+                        <Input
+                            type="number"
+                            min={1}
+                            step={1}
+                            className="min-w-0 flex-1"
+                            aria-label="Cantidad por defecto de zap"
+                            value={defaultZapAmountInput}
+                            onChange={(event) => onDefaultZapAmountInputChange(event.target.value)}
+                        />
+                    </div>
 
                     <div className="nostr-zap-list">
                         {zapSettings.amounts.map((amount, index) => (
@@ -39,7 +55,7 @@ export function SettingsZapsPage({
                                         type="number"
                                         min={1}
                                         step={1}
-                                        className="nostr-input"
+                                        className="min-w-0 flex-1"
                                         aria-label={`Cantidad zap ${index + 1}`}
                                         value={String(amount)}
                                         onChange={(event) => {
@@ -63,12 +79,12 @@ export function SettingsZapsPage({
                         ))}
                     </div>
 
-                    <div className="nostr-zap-add-row">
+                    <div className="flex items-center gap-2" data-testid="settings-zap-add-row">
                         <Input
                             type="number"
                             min={1}
                             step={1}
-                            className="nostr-input"
+                            className="min-w-0 flex-1"
                             aria-label="Nueva cantidad de zap"
                             placeholder="512"
                             value={newZapAmountInput}
@@ -76,7 +92,7 @@ export function SettingsZapsPage({
                         />
                         <Button
                             type="button"
-                            className="nostr-submit"
+                            className="whitespace-nowrap"
                             onClick={onAddZapAmount}
                         >
                             Agregar cantidad

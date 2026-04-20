@@ -12,6 +12,9 @@ const EMPTY_ENGAGEMENT_METRICS: SocialEngagementMetrics = {
 
 interface BuildActionStateBaseInput {
     canWrite: boolean;
+    zapAmounts: number[];
+    onZap: (input: { eventId: string; targetPubkey?: string; amount: number }) => Promise<void> | void;
+    onConfigureZapAmounts?: () => void;
     engagementByEventId: Record<string, SocialEngagementMetrics>;
     reactionByEventId: Record<string, boolean>;
     repostByEventId: Record<string, boolean>;
@@ -52,6 +55,9 @@ export function buildFeedActionState({
     repostByEventId,
     pendingReactionByEventId,
     pendingRepostByEventId,
+    zapAmounts,
+    onZap,
+    onConfigureZapAmounts,
     onOpenThread,
     onToggleReaction,
     onToggleRepost,
@@ -68,6 +74,7 @@ export function buildFeedActionState({
         reactions: metrics.reactions,
         reposts: metrics.reposts,
         zapSats: metrics.zapSats,
+        zapAmounts,
         onReply: () => {
             void onOpenThread(item.targetEventId || item.id);
         },
@@ -83,6 +90,12 @@ export function buildFeedActionState({
             targetPubkey: item.pubkey,
             repostContent: item.content,
         }),
+        onZap: (amount) => onZap({
+            eventId: item.id,
+            targetPubkey: item.pubkey,
+            amount,
+        }),
+        ...(onConfigureZapAmounts ? { onConfigureZapAmounts } : {}),
     };
 }
 
@@ -94,6 +107,9 @@ export function buildPreviewActionState({
     repostByEventId,
     pendingReactionByEventId,
     pendingRepostByEventId,
+    zapAmounts,
+    onZap,
+    onConfigureZapAmounts,
     onOpenThread,
     onToggleReaction,
     onToggleRepost,
@@ -110,6 +126,7 @@ export function buildPreviewActionState({
         reactions: metrics.reactions,
         reposts: metrics.reposts,
         zapSats: metrics.zapSats,
+        zapAmounts,
         onReply: () => {
             void onOpenThread(item.id);
         },
@@ -125,6 +142,12 @@ export function buildPreviewActionState({
             targetPubkey: item.pubkey,
             repostContent: item.content,
         }),
+        onZap: (amount) => onZap({
+            eventId: item.id,
+            targetPubkey: item.pubkey,
+            amount,
+        }),
+        ...(onConfigureZapAmounts ? { onConfigureZapAmounts } : {}),
     };
 }
 
@@ -136,6 +159,9 @@ export function buildRootActionState({
     repostByEventId,
     pendingReactionByEventId,
     pendingRepostByEventId,
+    zapAmounts,
+    onZap,
+    onConfigureZapAmounts,
     onReply,
     onViewDetail,
     onToggleReaction,
@@ -153,6 +179,7 @@ export function buildRootActionState({
         reactions: metrics.reactions,
         reposts: metrics.reposts,
         zapSats: metrics.zapSats,
+        zapAmounts,
         onReply,
         ...(onViewDetail ? { onViewDetail } : {}),
         onToggleReaction: () => onToggleReaction({
@@ -164,6 +191,12 @@ export function buildRootActionState({
             targetPubkey: item.pubkey,
             repostContent: item.content,
         }),
+        onZap: (amount) => onZap({
+            eventId: item.id,
+            targetPubkey: item.pubkey,
+            amount,
+        }),
+        ...(onConfigureZapAmounts ? { onConfigureZapAmounts } : {}),
     };
 }
 

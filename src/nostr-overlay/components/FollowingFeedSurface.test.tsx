@@ -63,6 +63,9 @@ function buildProps(overrides: Partial<Parameters<typeof FollowingFeedSurface>[0
         onPublishReply: async () => true,
         onToggleReaction: async () => true,
         onToggleRepost: async () => true,
+        onZap: async () => {},
+        zapAmounts: [21, 128, 256],
+        onConfigureZapAmounts: () => {},
         onSelectHashtag: () => {},
         onSelectProfile: () => {},
         onResolveProfiles: async () => {},
@@ -251,6 +254,7 @@ describe('FollowingFeedSurface', () => {
                         ['a'.repeat(64)]: {
                             pubkey: 'a'.repeat(64),
                             displayName: 'Alice Surface',
+                            lud16: 'alice@getalby.com',
                         },
                     },
                     engagementByEventId: {
@@ -297,6 +301,135 @@ describe('FollowingFeedSurface', () => {
         });
 
         expect(onOpenThread).toHaveBeenCalledWith('note-1');
+    });
+
+    test('opens zap menu from note cards and forwards the selected amount', async () => {
+        const onZap = vi.fn(async () => {});
+        const onConfigureZapAmounts = vi.fn();
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    profilesByPubkey: {
+                        ['a'.repeat(64)]: {
+                            pubkey: 'a'.repeat(64),
+                            displayName: 'Alice Surface',
+                            lud16: 'alice@getalby.com',
+                        },
+                    },
+                    engagementByEventId: {
+                        'note-1': {
+                            replies: 0,
+                            reposts: 0,
+                            reactions: 0,
+                            zaps: 1,
+                            zapSats: 210,
+                        },
+                    },
+                    items: [
+                        {
+                            id: 'note-1',
+                            pubkey: 'a'.repeat(64),
+                            createdAt: 100,
+                            content: 'note with zap menu',
+                            kind: 'note',
+                            rawEvent: {
+                                id: 'note-1',
+                                pubkey: 'a'.repeat(64),
+                                kind: 1,
+                                created_at: 100,
+                                tags: [],
+                                content: 'note with zap menu',
+                            },
+                        },
+                    ],
+                    onZap,
+                    onConfigureZapAmounts,
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const zapButton = rendered.container.querySelector('button[aria-label="Sats recibidos: 210"]') as HTMLButtonElement;
+        expect(zapButton).toBeDefined();
+
+        await act(async () => {
+            zapButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+            zapButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const zap21 = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === '21 sats'
+        ) as HTMLElement;
+        expect(zap21).toBeDefined();
+
+        await act(async () => {
+            zap21.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onZap).toHaveBeenCalledWith({
+            eventId: 'note-1',
+            targetPubkey: 'a'.repeat(64),
+            amount: 21,
+        });
+
+        await act(async () => {
+            zapButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+            zapButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const configureItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Configurar cantidades'
+        ) as HTMLElement;
+
+        await act(async () => {
+            configureItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onConfigureZapAmounts).toHaveBeenCalledTimes(1);
+    });
+
+    test('hides zap menu from note cards when author lacks lightning metadata', async () => {
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    profilesByPubkey: {
+                        ['a'.repeat(64)]: {
+                            pubkey: 'a'.repeat(64),
+                            displayName: 'Alice Surface',
+                        },
+                    },
+                    engagementByEventId: {
+                        'note-1': {
+                            replies: 0,
+                            reposts: 0,
+                            reactions: 0,
+                            zaps: 1,
+                            zapSats: 210,
+                        },
+                    },
+                    items: [
+                        {
+                            id: 'note-1',
+                            pubkey: 'a'.repeat(64),
+                            createdAt: 100,
+                            content: 'note without zap metadata',
+                            kind: 'note',
+                            rawEvent: {
+                                id: 'note-1',
+                                pubkey: 'a'.repeat(64),
+                                kind: 1,
+                                created_at: 100,
+                                tags: [],
+                                content: 'note without zap metadata',
+                            },
+                        },
+                    ],
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        expect(rendered.container.querySelector('button[aria-label="Sats recibidos: 210"]')).toBeNull();
     });
 
     test('renders optimistic pending states for reaction and repost actions', async () => {
@@ -731,12 +864,39 @@ describe('FollowingFeedSurface', () => {
         expect(nestedReply?.textContent || '').toContain('reply child');
     });
 
-    test('removes redundant labels, shows time at card top, and supports copy action', async () => {
+    test('repost renders the reposted note embedded inside the repost card', async () => {
         const onCopyNoteId = vi.fn();
         const rendered = await renderElement(
             <FollowingFeedSurface
                 {...buildProps({
                     onCopyNoteId,
+                    profilesByPubkey: {
+                        ['a'.repeat(64)]: {
+                            pubkey: 'a'.repeat(64),
+                            displayName: 'Reposter',
+                        },
+                        ['b'.repeat(64)]: {
+                            pubkey: 'b'.repeat(64),
+                            displayName: 'Original Author',
+                            lud16: 'original@getalby.com',
+                        },
+                    },
+                    engagementByEventId: {
+                        'repost-no-comment': {
+                            replies: 0,
+                            reposts: 0,
+                            reactions: 0,
+                            zaps: 0,
+                            zapSats: 0,
+                        },
+                        'embedded-note': {
+                            replies: 1,
+                            reposts: 2,
+                            reactions: 3,
+                            zaps: 4,
+                            zapSats: 210,
+                        },
+                    },
                     items: [
                         {
                             id: 'repost-no-comment',
@@ -770,7 +930,18 @@ describe('FollowingFeedSurface', () => {
         expect(text).not.toContain('Repost sin comentario');
         expect(text).not.toContain('Nota original');
         expect(text).not.toContain('Nota');
+        expect(text).not.toContain('(sin contenido)');
         expect(text).toContain('nota citada');
+
+        const itemWrapper = rendered.container.querySelector('.nostr-following-feed-list > .grid.gap-2') as HTMLDivElement;
+        expect(itemWrapper).not.toBeNull();
+        expect(itemWrapper.children).toHaveLength(1);
+
+        expect(rendered.container.querySelector('button[aria-label="Abrir acciones para la nota repost-no-comment"]')).not.toBeNull();
+        expect(rendered.container.querySelector('button[aria-label="Responder (1)"]')).not.toBeNull();
+        expect(rendered.container.querySelector('button[aria-label="Reaccionar (3)"]')).not.toBeNull();
+        expect(rendered.container.querySelector('button[aria-label="Repostear (2)"]')).not.toBeNull();
+        expect(rendered.container.querySelector('button[aria-label="Sats recibidos: 210"]')).not.toBeNull();
 
         expect(rendered.container.querySelector('time[datetime]')).not.toBeNull();
         expect(rendered.container.querySelector('.nostr-following-feed-card-time')).toBeNull();

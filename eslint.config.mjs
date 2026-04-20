@@ -16,6 +16,7 @@ export default tseslint.config(
             "*.config.ts",
             "*.config.mts",
             "*.config.mjs",
+            "src/landing/main.tsx",
           ],
           defaultProject: "tsconfig.json",
         },

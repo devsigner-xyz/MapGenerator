@@ -4,6 +4,7 @@ import { EllipsisVerticalIcon, SearchIcon, XIcon } from 'lucide-react';
 import { encodeHexToNpub } from '../../nostr/npub';
 import type { Nip05ValidationResult } from '../../nostr/nip05';
 import type { NostrProfile } from '../../nostr/types';
+import { profileHasZapEndpoint } from '../../nostr/zaps';
 import { ListLoadingFooter } from './ListLoadingFooter';
 import { Nip05Identifier } from './Nip05Identifier';
 import { PersonContextMenuItems } from './PersonContextMenuItems';
@@ -42,6 +43,7 @@ interface PeopleListTabProps {
     onSendMessage?: (pubkey: string) => void | Promise<void>;
     onViewDetails?: (pubkey: string) => void;
     zapAmounts?: number[];
+    onZapPerson?: (pubkey: string, amount: number) => void | Promise<void>;
     onConfigureZapAmounts?: () => void;
     searchQuery?: string;
     onSearchQueryChange?: (value: string) => void;
@@ -106,6 +108,7 @@ export function PeopleListTab({
     onSendMessage,
     onViewDetails,
     zapAmounts = [21, 128, 256],
+    onZapPerson,
     onConfigureZapAmounts,
     searchQuery,
     onSearchQueryChange,
@@ -245,6 +248,7 @@ export function PeopleListTab({
         const canFollow = typeof onFollowPerson === 'function';
         const hasActions = true;
         const display = personName(pubkey, profile);
+        const canZapProfile = profileHasZapEndpoint(profile);
         const npub = pubkeyToNpub(pubkey);
         const npubLabel = npub.startsWith('npub1') ? truncateIdentifier(npub) : `${pubkey.slice(0, 8)}...${pubkey.slice(-6)}`;
         const verification = verificationByPubkey[pubkey];
@@ -348,22 +352,27 @@ export function PeopleListTab({
                                 <PersonContextMenuItems {...contextMenuActionProps} />
                             </ContextMenuGroup>
                             <ContextMenuSeparator />
-                            <ContextMenuSub>
-                                <ContextMenuSubTrigger>Zap</ContextMenuSubTrigger>
-                                <ContextMenuSubContent className="w-44">
-                                    {zapAmounts.map((amount) => (
-                                        <ContextMenuItem
-                                            key={`person-zap-${pubkey}-${amount}`}
-                                        >
-                                            {`${amount} sats`}
+                            {canZapProfile ? (
+                                <ContextMenuSub>
+                                    <ContextMenuSubTrigger>Zap</ContextMenuSubTrigger>
+                                    <ContextMenuSubContent className="w-44">
+                                        {zapAmounts.map((amount) => (
+                                            <ContextMenuItem
+                                                key={`person-zap-${pubkey}-${amount}`}
+                                                onSelect={() => {
+                                                    void onZapPerson?.(pubkey, amount);
+                                                }}
+                                            >
+                                                {`${amount} sats`}
+                                            </ContextMenuItem>
+                                        ))}
+                                        <ContextMenuSeparator />
+                                        <ContextMenuItem {...(onConfigureZapAmounts ? { onSelect: onConfigureZapAmounts } : {})}>
+                                            Configurar cantidades
                                         </ContextMenuItem>
-                                    ))}
-                                    <ContextMenuSeparator />
-                                    <ContextMenuItem {...(onConfigureZapAmounts ? { onSelect: onConfigureZapAmounts } : {})}>
-                                        Configurar cantidades
-                                    </ContextMenuItem>
-                                </ContextMenuSubContent>
-                            </ContextMenuSub>
+                                    </ContextMenuSubContent>
+                                </ContextMenuSub>
+                            ) : null}
                         </ContextMenuContent>
                     </ContextMenu>
                 ) : null}
@@ -437,7 +446,7 @@ export function PeopleListTab({
 
     return (
         <div className="nostr-people-tab-content">
-            <div className="nostr-search-row">
+            <div className="w-full flex-none" data-testid="people-search-row">
                 <InputGroup>
                     <InputGroupAddon align="inline-start" aria-hidden="true">
                         <SearchIcon />

@@ -1,14 +1,12 @@
 import type { SocialNotificationItem } from '../../nostr/social-notifications-service';
 import { OverlayPageHeader } from './OverlayPageHeader';
 import { OverlayUnreadIndicator } from './OverlayUnreadIndicator';
-import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Item, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item';
 
 interface NotificationsPageProps {
     hasUnread: boolean;
     notifications: SocialNotificationItem[];
-    onClose: () => void;
 }
 
 function notificationLabel(item: SocialNotificationItem): string {
@@ -35,7 +33,7 @@ function shortPubkey(value: string): string {
     return `${value.slice(0, 8)}...${value.slice(-6)}`;
 }
 
-export function NotificationsPage({ hasUnread, notifications, onClose }: NotificationsPageProps) {
+export function NotificationsPage({ hasUnread, notifications }: NotificationsPageProps) {
     return (
         <section className="nostr-routed-surface" aria-label="Notificaciones">
             <div className="nostr-routed-surface-content">
@@ -44,14 +42,9 @@ export function NotificationsPage({ hasUnread, notifications, onClose }: Notific
                         title="Notificaciones"
                         description="Actividad reciente de personas y contenido que sigues."
                         indicator={hasUnread ? <OverlayUnreadIndicator className="nostr-notifications-unread-dot" srLabel="Hay notificaciones sin leer" /> : null}
-                        actions={(
-                            <Button type="button" variant="ghost" size="sm" onClick={onClose} aria-label="Cerrar notificaciones">
-                                Cerrar
-                            </Button>
-                        )}
                     />
 
-                    <section className="nostr-page-content">
+                    <section className="grid min-h-0 gap-2.5">
                         {notifications.length === 0 ? (
                             <div className="nostr-notifications-empty-state">
                                 <Empty className="nostr-notifications-empty">

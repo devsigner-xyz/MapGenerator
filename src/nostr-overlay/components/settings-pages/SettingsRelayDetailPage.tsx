@@ -53,7 +53,7 @@ export function SettingsRelayDetailPage({
                 title="Detalles del relay"
                 description="Metadata y capacidades tecnicas del relay seleccionado."
             />
-            <div className="nostr-page-content nostr-settings-body">
+            <div className="grid min-h-0 gap-2.5 overflow-x-hidden overflow-y-auto pr-px" data-testid="settings-page-body">
                 <div className="nostr-relays-content">
                     {selectedRelayInfo?.status === 'loading' ? (
                         <p className="nostr-relay-meta-loading"><Spinner /> Cargando metadata NIP-11...</p>
@@ -126,7 +126,7 @@ export function SettingsRelayDetailPage({
                                 <TableCell className="nostr-relay-detail-value">
                                     <div className="nostr-relay-detail-value-group">
                                         <span className="nostr-relay-detail-mono">{selectedRelayAdminIdentity}</span>
-                                        <div className="nostr-relay-detail-actions-inline">
+                                        <div className="flex flex-wrap gap-1.5" data-testid="relay-detail-admin-actions">
                                             <Button
                                                 type="button"
                                                 variant="outline"

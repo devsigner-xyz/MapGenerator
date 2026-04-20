@@ -13,6 +13,7 @@ import {
     Settings2Icon,
     UserRoundIcon,
     UsersIcon,
+    WalletIcon,
 } from 'lucide-react';
 import { encodeHexToNpub } from '../../nostr/npub';
 import type { AuthSessionState } from '../../nostr/auth/session';
@@ -71,6 +72,7 @@ interface OverlaySidebarProps {
     onOpenNotifications: () => void;
     onOpenFollowingFeed: () => void;
     onOpenGlobalSearch: () => void;
+    onOpenWallet: () => void;
     onOpenSettings: (view: SettingsRouteView) => void;
     onLogout?: () => void | Promise<void>;
     onCopyOwnerNpub?: (value: string) => void | Promise<void>;
@@ -106,6 +108,7 @@ function SidebarActionsMenu({
     onOpenNotifications,
     onOpenFollowingFeed,
     onOpenGlobalSearch,
+    onOpenWallet,
     onOpenSettings,
     missionsDiscoveredCount,
     missionsTotal,
@@ -268,6 +271,20 @@ function SidebarActionsMenu({
                     {!collapsed ? (
                         <SidebarMenuBadge>{`${missionsDiscoveredCount}/${missionsTotal}`}</SidebarMenuBadge>
                     ) : null}
+                </SidebarMenuItem>
+
+                <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={activePath === '/wallet'}>
+                        <button
+                            type="button"
+                            aria-label="Abrir wallet"
+                            title="Wallet"
+                            onClick={onOpenWallet}
+                        >
+                            <WalletIcon />
+                            <span>Wallet</span>
+                        </button>
+                    </SidebarMenuButton>
                 </SidebarMenuItem>
 
                 <SidebarMenuItem>
@@ -501,6 +518,7 @@ export function OverlaySidebar({
     onOpenNotifications,
     onOpenFollowingFeed,
     onOpenGlobalSearch,
+    onOpenWallet,
     onOpenSettings,
     onLogout,
     onCopyOwnerNpub,
@@ -542,6 +560,7 @@ export function OverlaySidebar({
                         onOpenNotifications={onOpenNotifications}
                         onOpenFollowingFeed={onOpenFollowingFeed}
                         onOpenGlobalSearch={onOpenGlobalSearch}
+                        onOpenWallet={onOpenWallet}
                         onOpenSettings={onOpenSettings}
                         missionsDiscoveredCount={missionsDiscoveredCount}
                         missionsTotal={missionsTotal}

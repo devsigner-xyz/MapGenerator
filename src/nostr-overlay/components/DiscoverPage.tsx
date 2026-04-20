@@ -21,7 +21,7 @@ export function DiscoverPage({ discoveredIds }: DiscoverPageProps) {
                         title="Descubre"
                         description={`Has descubierto ${discoveredCount} de ${EASTER_EGG_MISSIONS.length} easter eggs.`}
                     />
-                    <section className="nostr-page-content">
+                    <section className="grid gap-2.5">
                         <ul className="nostr-easter-egg-missions-list">
                             {EASTER_EGG_MISSIONS.map((mission) => {
                                 const discovered = discoveredSet.has(mission.id);

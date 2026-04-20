@@ -35,8 +35,6 @@ interface CreateAccountDialogProps {
 
 type LocalStep = 'intro' | 'backup' | 'profile' | 'relays';
 
-const authLabelClassName = 'nostr-label nostr-auth-label';
-
 function downloadTextFile(fileName: string, content: string) {
     if (typeof window === 'undefined') {
         return;
@@ -151,8 +149,8 @@ export function CreateAccountDialog({
                         </Button>
                     ) : null}
 
-                    <form className="flex flex-col gap-3" onSubmit={handleExternalBunkerSubmit}>
-                        <Label className={authLabelClassName} htmlFor="create-account-bunker-uri">URI de bunker</Label>
+                    <form className="flex flex-col gap-3" data-testid="create-account-external-form" onSubmit={handleExternalBunkerSubmit}>
+                        <Label htmlFor="create-account-bunker-uri">URI de bunker</Label>
                         <Input
                             id="create-account-bunker-uri"
                             name="bunker-uri"
@@ -187,23 +185,23 @@ export function CreateAccountDialog({
             </div>
             <div className="flex flex-col gap-4 px-0">
                 {localStep === 'intro' ? (
-                    <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-3" data-testid="create-account-step-intro">
                         <p>Se generara una nueva clave privada Nostr en este navegador. El siguiente paso te obliga a guardarla antes de continuar.</p>
                         <div className="flex flex-col gap-2">
-                            <Label className={authLabelClassName} htmlFor="generated-npub">Tu npub</Label>
+                            <Label htmlFor="generated-npub">Tu npub</Label>
                             <Input id="generated-npub" value={npub} readOnly />
                         </div>
                     </div>
                 ) : null}
 
                 {localStep === 'backup' ? (
-                    <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-3" data-testid="create-account-step-backup">
                         <div className="flex flex-col gap-2">
-                            <Label className={authLabelClassName} htmlFor="generated-nsec">Tu nsec</Label>
+                            <Label htmlFor="generated-nsec">Tu nsec</Label>
                             <Textarea id="generated-nsec" value={nsec} readOnly rows={4} />
                         </div>
                         <div className="flex flex-col gap-2">
-                            <Label className={authLabelClassName} htmlFor="generated-npub-backup">Tu npub</Label>
+                            <Label htmlFor="generated-npub-backup">Tu npub</Label>
                             <Input id="generated-npub-backup" value={npub} readOnly />
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -214,7 +212,7 @@ export function CreateAccountDialog({
                                 Descargar backup
                             </Button>
                         </div>
-                        <Label className={`${authLabelClassName} flex items-center gap-2`} htmlFor="confirm-backup">
+                        <Label className="flex items-center gap-2" htmlFor="confirm-backup">
                             <input
                                 id="confirm-backup"
                                 name="confirm-backup"
@@ -229,27 +227,27 @@ export function CreateAccountDialog({
                 ) : null}
 
                 {localStep === 'profile' ? (
-                    <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-3" data-testid="create-account-step-profile">
                         <div className="flex flex-col gap-2">
-                            <Label className={authLabelClassName} htmlFor="profile-name">Nombre</Label>
+                            <Label htmlFor="profile-name">Nombre</Label>
                             <Input id="profile-name" name="profile-name" value={profileName} disabled={isBusy} onChange={(event) => setProfileName(event.target.value)} />
                         </div>
                         <div className="flex flex-col gap-2">
-                            <Label className={authLabelClassName} htmlFor="profile-about">Sobre mi</Label>
+                            <Label htmlFor="profile-about">Sobre mi</Label>
                             <Textarea id="profile-about" name="profile-about" value={profileAbout} disabled={isBusy} rows={4} onChange={(event) => setProfileAbout(event.target.value)} />
                         </div>
                         <div className="flex flex-col gap-2">
-                            <Label className={authLabelClassName} htmlFor="profile-picture">Avatar</Label>
+                            <Label htmlFor="profile-picture">Avatar</Label>
                             <Input id="profile-picture" name="profile-picture" placeholder="https://..." value={profilePicture} disabled={isBusy} onChange={(event) => setProfilePicture(event.target.value)} />
                         </div>
                     </div>
                 ) : null}
 
                 {localStep === 'relays' ? (
-                    <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-3" data-testid="create-account-step-relays">
                         <p>Se guardaran relays por defecto para el perfil, lectura/escritura y DMs.</p>
                         <div className="flex flex-col gap-2">
-                            <Label className={authLabelClassName} htmlFor="device-passphrase">Passphrase del dispositivo (opcional)</Label>
+                            <Label htmlFor="device-passphrase">Passphrase del dispositivo (opcional)</Label>
                             <Input
                                 id="device-passphrase"
                                 name="device-passphrase"

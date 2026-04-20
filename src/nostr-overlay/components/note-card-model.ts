@@ -10,10 +10,13 @@ export interface NoteActionState {
     reactions: number;
     reposts: number;
     zapSats: number;
+    zapAmounts?: number[] | undefined;
     onReply: () => void;
-    onViewDetail?: () => void;
+    onViewDetail?: (() => void) | undefined;
     onToggleReaction: () => Promise<boolean>;
     onToggleRepost: () => Promise<boolean>;
+    onZap?: ((amount: number) => Promise<void> | void) | undefined;
+    onConfigureZapAmounts?: (() => void) | undefined;
 }
 
 export interface NoteCardModel {

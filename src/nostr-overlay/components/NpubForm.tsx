@@ -23,23 +23,23 @@ export function NpubForm({ disabled = false, onSubmit }: NpubFormProps) {
     };
 
     return (
-        <form className="nostr-form" onSubmit={handleSubmit}>
-            <Label className="nostr-label" htmlFor="nostr-npub-input">
+        <form className="grid gap-2" data-testid="npub-form" onSubmit={handleSubmit}>
+            <Label htmlFor="nostr-npub-input">
                 Public Key
             </Label>
 
-            <div className="nostr-npub-row">
+            <div className="flex min-w-0 items-center gap-2">
                 <Input
                     id="nostr-npub-input"
                     name="npub"
-                    className="nostr-input"
+                    className="min-w-0 flex-1"
                     placeholder="npub1..."
                     value={npub}
                     disabled={disabled}
                     onChange={(event) => setNpub(event.target.value)}
                 />
 
-                <Button className="nostr-submit" type="submit" disabled={disabled || npub.trim().length === 0}>
+                <Button className="shrink-0 whitespace-nowrap" data-testid="npub-submit" type="submit" disabled={disabled || npub.trim().length === 0}>
                     Acceder
                 </Button>
             </div>

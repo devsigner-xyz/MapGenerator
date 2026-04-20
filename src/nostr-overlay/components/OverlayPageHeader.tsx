@@ -17,7 +17,7 @@ export function OverlayPageHeader({
     className,
 }: OverlayPageHeaderProps) {
     return (
-        <header data-slot="overlay-page-header" className={cn('nostr-page-header gap-3', className)}>
+        <header data-slot="overlay-page-header" data-testid="overlay-page-header" className={cn('grid gap-1', className)}>
             <div className="flex items-start justify-between gap-3">
                 <div data-slot="overlay-page-header-copy" className="min-w-0 flex-1 space-y-1">
                     <div className="inline-flex min-w-0 items-center gap-1.5">

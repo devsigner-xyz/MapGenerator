@@ -38,6 +38,13 @@ export function LoginGateScreen({
         setSelectedCreateAccountMethod(method);
         setPanel('create-account-flow');
     };
+    const loginMethodSelectorProps = {
+        disabled,
+        ...(mapLoaderText === null || mapLoaderText === undefined ? {} : { loadingText: mapLoaderText }),
+        onStartSession: async (method: LoginMethod, input: ProviderResolveInput) => {
+            await onStartSession(method, input);
+        },
+    };
 
     const isBusy = disabled;
     const showUnlockLocalAccount = Boolean(authSession && authSession.method === 'local' && authSession.locked);
@@ -127,22 +134,10 @@ export function LoginGateScreen({
                         ) : (
                             <>
                                 {savedLocalAccount ? (
-                                    <LoginMethodSelector
-                                        disabled={disabled}
-                                        loadingText={mapLoaderText ?? undefined}
-                                        onStartSession={async (method, input) => {
-                                            await onStartSession(method, input);
-                                        }}
-                                    />
+                                    <LoginMethodSelector {...loginMethodSelectorProps} />
                                 ) : (
                                     <div className="nostr-login-gate-actions grid gap-3" data-testid="login-gate-actions">
-                                        <LoginMethodSelector
-                                            disabled={disabled}
-                                            loadingText={mapLoaderText ?? undefined}
-                                            onStartSession={async (method, input) => {
-                                                await onStartSession(method, input);
-                                            }}
-                                        />
+                                        <LoginMethodSelector {...loginMethodSelectorProps} />
                                         <Button type="button" variant="outline" disabled={disabled} onClick={() => setPanel('create-account-selector')}>
                                             Crear cuenta
                                         </Button>

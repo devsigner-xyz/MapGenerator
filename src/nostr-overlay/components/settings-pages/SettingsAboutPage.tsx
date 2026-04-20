@@ -7,7 +7,7 @@ export function SettingsAboutPage() {
                 title="Acerca de"
                 description="Informacion general de protocolo y funcionalidades disponibles."
             />
-            <div className="nostr-page-content nostr-settings-body">
+            <div className="grid min-h-0 gap-2.5 overflow-x-hidden overflow-y-auto pr-px" data-testid="settings-page-body">
                 <div className="nostr-shortcuts-content">
                     <div className="nostr-about-section">
                         <h4>NIPs soportadas</h4>

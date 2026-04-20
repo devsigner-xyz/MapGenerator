@@ -10,10 +10,12 @@ interface StorageLike {
 
 interface ZapSettingsPayload {
     amounts?: number[];
+    defaultAmount?: number;
 }
 
 export interface ZapSettingsState {
     amounts: number[];
+    defaultAmount: number;
 }
 
 interface ZapSettingsOptions {
@@ -59,6 +61,15 @@ function resolveStorage(options: ZapSettingsOptions): StorageLike | null {
     return options.storage ?? getDefaultStorage();
 }
 
+function normalizeDefaultAmount(value: number | undefined, amounts: number[]): number {
+    const normalized = value === undefined ? null : normalizeAmount(value);
+    if (normalized !== null && amounts.includes(normalized)) {
+        return normalized;
+    }
+
+    return amounts[0] ?? DEFAULT_ZAP_AMOUNTS[0];
+}
+
 function parseState(raw: string | null): ZapSettingsState {
     if (!raw) {
         return getDefaultZapSettings();
@@ -72,6 +83,7 @@ function parseState(raw: string | null): ZapSettingsState {
 
         return {
             amounts: normalizeAmounts(parsed.amounts),
+            defaultAmount: normalizeDefaultAmount(parsed.defaultAmount, normalizeAmounts(parsed.amounts)),
         };
     } catch {
         return getDefaultZapSettings();
@@ -81,6 +93,7 @@ function parseState(raw: string | null): ZapSettingsState {
 export function getDefaultZapSettings(): ZapSettingsState {
     return {
         amounts: [...DEFAULT_ZAP_AMOUNTS],
+        defaultAmount: DEFAULT_ZAP_AMOUNTS[0],
     };
 }
 
@@ -125,6 +138,7 @@ export function saveZapSettings(
 ): ZapSettingsState {
     const nextState: ZapSettingsState = {
         amounts: normalizeAmounts(state.amounts),
+        defaultAmount: normalizeDefaultAmount(state.defaultAmount, normalizeAmounts(state.amounts)),
     };
 
     const storage = resolveStorage(options);
@@ -142,6 +156,7 @@ export function saveZapSettings(
     );
     const payload: ZapSettingsPayload = {
         amounts: nextState.amounts,
+        defaultAmount: nextState.defaultAmount,
     };
 
     if (keys.normalizedOwnerPubkey) {
@@ -154,8 +169,10 @@ export function saveZapSettings(
 }
 
 export function addZapAmount(state: ZapSettingsState, amount: number): ZapSettingsState {
+    const amounts = normalizeAmounts([...state.amounts, amount]);
     return {
-        amounts: normalizeAmounts([...state.amounts, amount]),
+        amounts,
+        defaultAmount: normalizeDefaultAmount(state.defaultAmount, amounts),
     };
 }
 
@@ -168,14 +185,18 @@ export function updateZapAmount(state: ZapSettingsState, index: number, amount: 
     const normalized = normalizeAmount(amount);
     if (normalized === null) {
         next.splice(index, 1);
+        const amounts = normalizeAmounts(next);
         return {
-            amounts: normalizeAmounts(next),
+            amounts,
+            defaultAmount: normalizeDefaultAmount(state.defaultAmount, amounts),
         };
     }
 
     next[index] = normalized;
+    const amounts = normalizeAmounts(next);
     return {
-        amounts: normalizeAmounts(next),
+        amounts,
+        defaultAmount: normalizeDefaultAmount(state.defaultAmount, amounts),
     };
 }
 
@@ -186,7 +207,16 @@ export function removeZapAmount(state: ZapSettingsState, index: number): ZapSett
 
     const next = [...state.amounts];
     next.splice(index, 1);
+    const amounts = normalizeAmounts(next);
     return {
-        amounts: normalizeAmounts(next),
+        amounts,
+        defaultAmount: normalizeDefaultAmount(state.defaultAmount, amounts),
+    };
+}
+
+export function updateDefaultZapAmount(state: ZapSettingsState, amount: number): ZapSettingsState {
+    return {
+        amounts: [...state.amounts],
+        defaultAmount: normalizeDefaultAmount(amount, state.amounts),
     };
 }

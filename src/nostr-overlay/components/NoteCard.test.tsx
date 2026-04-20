@@ -1,7 +1,7 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
-import type { NoteCardModel } from './note-card-model';
+import { shortId, type NoteCardModel } from './note-card-model';
 import { NoteCard } from './NoteCard';
 
 interface RenderResult {
@@ -56,10 +56,12 @@ const defaultNoteFixture: NoteCardModel = {
         reactions: 3,
         reposts: 2,
         zapSats: 210,
+        zapAmounts: [21, 128, 256],
         onReply: () => {},
         onViewDetail: () => {},
         onToggleReaction: async () => true,
         onToggleRepost: async () => true,
+        onZap: async () => {},
     },
 };
 
@@ -79,7 +81,13 @@ async function renderNoteCard(note: NoteCardModel = defaultNoteFixture) {
     const rendered = await renderElement(
         <NoteCard
             note={note}
-            profilesByPubkey={{}}
+            profilesByPubkey={{
+                [defaultNoteFixture.pubkey]: {
+                    pubkey: defaultNoteFixture.pubkey,
+                    displayName: 'Alice',
+                    lud16: 'alice@getalby.com',
+                },
+            }}
             onCopyNoteId={onCopyNoteId}
             onSelectEventReference={() => {}}
         />,
@@ -125,15 +133,22 @@ describe('NoteCard', () => {
         return await renderNoteCard(deepNestedFixture);
     }
 
-    test('renders author header via item and actions via button group', async () => {
+    test('renders author header with published date below the author name and actions via button group', async () => {
         const { container } = await renderDefault();
+        const headerDescription = container.querySelector('[data-slot="item-description"]');
+        const card = container.querySelector('[data-slot="card"]');
 
         expect(container.querySelector('article')).not.toBeNull();
-        expect(container.querySelector('time[datetime]')).not.toBeNull();
+        expect(card?.className).toContain('border');
+        expect(card?.className).toContain('border-border/70');
+        expect(headerDescription?.querySelector('time[datetime]')).not.toBeNull();
+        expect(container.querySelector('[data-slot="item-actions"]')).toBeNull();
+        expect(container.textContent || '').not.toContain(shortId(defaultNoteFixture.id));
+        expect(container.querySelector('[data-slot="item-title"]')?.textContent || '').toContain('Alice');
         expect(container.querySelector('button[aria-label="Responder (1)"]')).not.toBeNull();
         expect(container.querySelector('button[aria-label="Reaccionar (3)"]')).not.toBeNull();
         expect(container.querySelector('button[aria-label="Repostear (2)"]')).not.toBeNull();
-        expect(container.querySelector('[aria-label="Sats recibidos: 210"]')).not.toBeNull();
+        expect(container.querySelector('button[aria-label="Sats recibidos: 210"]')).not.toBeNull();
         expect(container.querySelector('button[aria-label="Abrir acciones para la nota note-1"]')).not.toBeNull();
         expect(container.querySelector('button[aria-label="Copiar identificador de nota note-1"]')).toBeNull();
     });
@@ -172,6 +187,85 @@ describe('NoteCard', () => {
         });
 
         expect(onViewDetail).toHaveBeenCalledTimes(1);
+    });
+
+    test('opens zap submenu with amounts and configure action from note action row', async () => {
+        const onZap = vi.fn(async () => {});
+        const onConfigureZapAmounts = vi.fn();
+        const { container } = await renderNoteCard({
+            ...defaultNoteFixture,
+            actions: {
+                ...defaultNoteFixture.actions!,
+                onZap,
+                onConfigureZapAmounts,
+            },
+        });
+
+        const zapButton = container.querySelector('button[aria-label="Sats recibidos: 210"]') as HTMLButtonElement | null;
+        expect(zapButton).not.toBeNull();
+
+        await act(async () => {
+            zapButton?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+            zapButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const zap21 = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === '21 sats'
+        ) as HTMLElement;
+        const configureItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Configurar cantidades'
+        ) as HTMLElement;
+
+        expect(zap21).toBeDefined();
+        expect(configureItem).toBeDefined();
+
+        await act(async () => {
+            zap21.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onZap).toHaveBeenCalledWith(21);
+
+        await act(async () => {
+            zapButton?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+            zapButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const configureRefreshed = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Configurar cantidades'
+        ) as HTMLElement;
+
+        await act(async () => {
+            configureRefreshed.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onConfigureZapAmounts).toHaveBeenCalledTimes(1);
+    });
+
+    test('hides only zap submenu when author profile has no lightning metadata', async () => {
+        const rendered = await renderElement(
+            <NoteCard
+                note={{
+                    ...defaultNoteFixture,
+                    actions: {
+                        ...defaultNoteFixture.actions!,
+                    },
+                }}
+                profilesByPubkey={{
+                    [defaultNoteFixture.pubkey]: {
+                        pubkey: defaultNoteFixture.pubkey,
+                        displayName: 'Alice',
+                    },
+                }}
+                onCopyNoteId={vi.fn()}
+                onSelectEventReference={() => {}}
+            />,
+        );
+        mounted.push(rendered);
+
+        expect(rendered.container.querySelector('button[aria-label="Responder (1)"]')).not.toBeNull();
+        expect(rendered.container.querySelector('button[aria-label="Reaccionar (3)"]')).not.toBeNull();
+        expect(rendered.container.querySelector('button[aria-label="Repostear (2)"]')).not.toBeNull();
+        expect(rendered.container.querySelector('button[aria-label="Sats recibidos: 210"]')).toBeNull();
     });
 
     test('nested depth >= 2 renders compact fallback with open reference button', async () => {

@@ -50,6 +50,7 @@ async function renderSidebar(pathname = '/'): Promise<RenderResult> {
                     onOpenNotifications={vi.fn()}
                     onOpenFollowingFeed={vi.fn()}
                     onOpenGlobalSearch={vi.fn()}
+                    onOpenWallet={vi.fn()}
                     onOpenSettings={vi.fn()}
                     onLogout={vi.fn()}
                     onCopyOwnerNpub={vi.fn()}
@@ -128,5 +129,18 @@ describe('OverlaySidebar', () => {
         );
 
         expect(readonlyBadge).not.toBeNull();
+    });
+
+    test('renders wallet top-level entry above settings', async () => {
+        const rendered = await renderSidebar('/wallet');
+        mounted.push(rendered);
+
+        const panelButtons = Array.from(rendered.container.querySelectorAll('.nostr-panel-toolbar > [data-slot="sidebar-menu-item"] button'));
+        const labels = panelButtons.map((button) => (button.textContent || '').trim()).filter(Boolean);
+        const walletIndex = labels.indexOf('Wallet');
+        const settingsIndex = labels.indexOf('Ajustes');
+
+        expect(walletIndex).toBeGreaterThanOrEqual(0);
+        expect(settingsIndex).toBeGreaterThan(walletIndex);
     });
 });

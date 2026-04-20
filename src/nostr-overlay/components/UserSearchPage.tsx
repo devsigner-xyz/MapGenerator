@@ -161,7 +161,7 @@ export function UserSearchPage({
                         description="Filtra perfiles Nostr por nombre, npub o pubkey."
                     />
 
-                    <section className="nostr-page-content">
+                    <section className="grid gap-2.5">
                         <Command shouldFilter={false} className="nostr-global-search-command">
                             <CommandInput
                                 value={query}

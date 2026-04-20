@@ -11,6 +11,7 @@ function toNostrEvent(rawEvent: {
     created_at: number;
     tags: string[][];
     content: string;
+    sig?: string;
 }): NostrEvent {
     return {
         id: rawEvent.id,
@@ -19,6 +20,7 @@ function toNostrEvent(rawEvent: {
         created_at: rawEvent.created_at,
         tags: rawEvent.tags,
         content: rawEvent.content,
+        ...(typeof rawEvent.sig === 'string' ? { sig: rawEvent.sig } : {}),
     };
 }
 
@@ -60,6 +62,7 @@ export class NdkClient implements NostrClient {
                 created_at: number;
                 tags: string[][];
                 content: string;
+                sig?: string;
             })
             .map(toNostrEvent);
 

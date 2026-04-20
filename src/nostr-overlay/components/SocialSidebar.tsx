@@ -23,6 +23,7 @@ interface SocialSidebarProps {
     onFollowPerson?: (pubkey: string) => void | Promise<void>;
     onViewPersonDetails?: (pubkey: string) => void;
     zapAmounts?: number[];
+    onZapPerson?: (pubkey: string, amount: number) => void | Promise<void>;
     onConfigureZapAmounts?: () => void;
     onCopyOwnerNpub?: (value: string) => void | Promise<void>;
     verificationByPubkey?: Record<string, Nip05ValidationResult | undefined>;
@@ -43,6 +44,7 @@ export function SocialSidebar({
     onFollowPerson,
     onViewPersonDetails,
     zapAmounts = [21, 128, 256],
+    onZapPerson,
     onConfigureZapAmounts,
     onCopyOwnerNpub,
     verificationByPubkey = {},
@@ -124,6 +126,7 @@ export function SocialSidebar({
                         {...(onMessagePerson ? { onSendMessage: onMessagePerson } : {})}
                         {...(onViewPersonDetails ? { onViewDetails: onViewPersonDetails } : {})}
                         zapAmounts={zapAmounts}
+                        {...(onZapPerson ? { onZapPerson } : {})}
                         {...(onConfigureZapAmounts ? { onConfigureZapAmounts } : {})}
                         {...(followingPeople.length > 0 ? { searchQuery: followingSearch } : {})}
                         {...(followingPeople.length > 0 ? { onSearchQueryChange: setFollowingSearch } : {})}
@@ -145,6 +148,7 @@ export function SocialSidebar({
                         {...(onMessagePerson ? { onSendMessage: onMessagePerson } : {})}
                         {...(onViewPersonDetails ? { onViewDetails: onViewPersonDetails } : {})}
                         zapAmounts={zapAmounts}
+                        {...(onZapPerson ? { onZapPerson } : {})}
                         {...(onConfigureZapAmounts ? { onConfigureZapAmounts } : {})}
                         followedPubkeys={followingPeople}
                         {...(onFollowPerson ? { onFollowPerson } : {})}

@@ -79,8 +79,10 @@ describe('SettingsRelayDetailPage', () => {
         const rendered = await renderElement(<SettingsRelayDetailPage {...buildProps()} />);
         mounted.push(rendered);
 
-        expect(rendered.container.querySelector('[data-slot="overlay-page-header"]')).not.toBeNull();
+        expect(rendered.container.querySelector('[data-testid="overlay-page-header"]')).not.toBeNull();
+        expect(rendered.container.querySelector('[data-testid="settings-page-body"]')).not.toBeNull();
         expect(rendered.container.querySelector('.nostr-relay-detail-table-wrap[data-slot="card"]')).not.toBeNull();
+        expect(rendered.container.querySelector('[data-testid="relay-detail-admin-actions"]')).not.toBeNull();
         expect(rendered.container.textContent || '').toContain('Detalles del relay');
     });
 });

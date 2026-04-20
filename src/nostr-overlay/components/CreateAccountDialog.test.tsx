@@ -72,6 +72,7 @@ describe('CreateAccountDialog', () => {
 
         expect(content).toContain('Usar app o extension');
         expect(content).toContain('Elige como conectar una cuenta que ya controlas.');
+        expect(rendered.container.querySelector('[data-testid="create-account-external-form"]')).not.toBeNull();
         expect(content).not.toContain('Crear cuenta con app o extension');
         expect(content).not.toContain('Conecta un signer externo para seguir usando tu identidad fuera del navegador.');
         expect(footerButtons).toHaveLength(1);
@@ -89,6 +90,7 @@ describe('CreateAccountDialog', () => {
 
         expect(content).toContain('Crear cuenta local');
         expect(content).toContain('Genera una cuenta nueva y guarda tu clave antes de continuar.');
+        expect(rendered.container.querySelector('[data-testid="create-account-step-intro"]')).not.toBeNull();
         expect(content).not.toContain('Crear cuenta en esta app');
         expect(content).not.toContain('Crea una identidad Nostr local con firma y cifrado NIP-44, y guardala de forma segura en este dispositivo.');
         expect(footerButtons).toHaveLength(2);
@@ -117,6 +119,7 @@ describe('CreateAccountDialog', () => {
             (candidate.textContent || '').includes('Continuar')
         ) as HTMLButtonElement | undefined;
         expect(continueButtonBefore?.disabled).toBe(true);
+        expect(rendered.container.querySelector('[data-testid="create-account-step-backup"]')).not.toBeNull();
 
         const backupCheckbox = rendered.container.querySelector('input[name="confirm-backup"]') as HTMLInputElement;
         expect(backupCheckbox).toBeDefined();
@@ -167,11 +170,13 @@ describe('CreateAccountDialog', () => {
         });
         await clickByLabel('Continuar');
 
+        expect(rendered.container.querySelector('[data-testid="create-account-step-profile"]')).not.toBeNull();
         await fillInput('input[name="profile-name"]', 'Pablo');
         await fillInput('textarea[name="profile-about"]', 'Mapa y nostr');
         await fillInput('input[name="profile-picture"]', 'https://example.com/avatar.png');
         await clickByLabel('Continuar');
 
+        expect(rendered.container.querySelector('[data-testid="create-account-step-relays"]')).not.toBeNull();
         await fillInput('input[name="device-passphrase"]', 'mi-passphrase');
         await clickByLabel('Crear cuenta ahora');
 
@@ -205,6 +210,7 @@ describe('CreateAccountDialog', () => {
 
         const backupCheckbox = rendered.container.querySelector('input[name="confirm-backup"]') as HTMLInputElement;
         expect(backupCheckbox).toBeDefined();
+        expect(rendered.container.querySelector('[data-testid="create-account-step-backup"]')).not.toBeNull();
         await act(async () => {
             backupCheckbox.click();
         });
@@ -212,6 +218,7 @@ describe('CreateAccountDialog', () => {
         await clickByLabel('Continuar');
         await clickByLabel('Continuar');
 
+        expect(rendered.container.querySelector('[data-testid="create-account-step-relays"]')).not.toBeNull();
         const relayJsonTextarea = rendered.container.querySelector('textarea[data-slot="textarea"][readonly]') as HTMLTextAreaElement | null;
         expect(relayJsonTextarea).not.toBeNull();
         expect(relayJsonTextarea?.className).toContain('field-sizing-fixed');
@@ -237,6 +244,7 @@ describe('CreateAccountDialog', () => {
 
         const bunkerInput = rendered.container.querySelector('input[name="bunker-uri"]') as HTMLInputElement;
         expect(bunkerInput).toBeDefined();
+        expect(rendered.container.querySelector('[data-testid="create-account-external-form"]')).not.toBeNull();
         await act(async () => {
             const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
             valueSetter?.call(bunkerInput, `bunker://${'a'.repeat(64)}?relay=wss://relay.example.com`);
@@ -278,6 +286,7 @@ describe('CreateAccountDialog', () => {
         await clickByLabel('Continuar');
         await clickByLabel('Continuar');
 
+        expect(rendered.container.querySelector('[data-testid="create-account-step-relays"]')).not.toBeNull();
         const footer = rendered.container.querySelector('[data-testid="auth-flow-footer"]');
         const footerButtons = Array.from(footer?.querySelectorAll('button') ?? []);
 

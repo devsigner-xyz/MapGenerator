@@ -67,6 +67,9 @@ interface OccupantProfileDialogProps {
     onAddAllRelaySuggestions?: (rows: Array<{ relayUrl: string; relayTypes: RelayType[] }>) => void | Promise<void>;
     onToggleReaction?: (input: { eventId: string; targetPubkey?: string; emoji?: string }) => Promise<boolean>;
     onToggleRepost?: (input: { eventId: string; targetPubkey?: string; repostContent?: string }) => Promise<boolean>;
+    onZap?: (input: { eventId: string; targetPubkey?: string; amount: number }) => Promise<void> | void;
+    zapAmounts?: number[];
+    onConfigureZapAmounts?: () => void;
     onResolveProfiles?: (pubkeys: string[]) => Promise<void> | void;
     onSelectEventReference?: (eventId: string) => void;
     onResolveEventReferences?: (
@@ -179,6 +182,9 @@ export function OccupantProfileDialog({
     onAddAllRelaySuggestions,
     onToggleReaction,
     onToggleRepost,
+    onZap,
+    zapAmounts = [21, 128, 256],
+    onConfigureZapAmounts,
     onResolveProfiles,
     onSelectEventReference,
     onResolveEventReferences,
@@ -528,7 +534,7 @@ export function OccupantProfileDialog({
         ...(onResolveEventReferences ? { onResolveEventReferences } : {}),
         ...(eventReferencesById ? { eventReferencesById } : {}),
     };
-    const canRenderPostActions = typeof onOpenThread === 'function' && typeof onToggleReaction === 'function' && typeof onToggleRepost === 'function';
+    const canRenderPostActions = typeof onOpenThread === 'function' && typeof onToggleReaction === 'function' && typeof onToggleRepost === 'function' && typeof onZap === 'function';
 
     return (
         <Dialog open onOpenChange={(open) => {
@@ -712,7 +718,7 @@ export function OccupantProfileDialog({
                                     ) : null}
 
                                     {posts.length > 0 ? (
-                                        <div className="nostr-profile-post-list">
+                                        <div className="nostr-profile-post-list px-1 pt-1" data-testid="profile-post-list">
                                             {posts.map((post) => {
                                                 const actionState = canRenderPostActions
                                                     ? buildPreviewActionState({
@@ -726,6 +732,9 @@ export function OccupantProfileDialog({
                                                         onOpenThread,
                                                         onToggleReaction,
                                                         onToggleRepost,
+                                                        onZap,
+                                                        zapAmounts,
+                                                        ...(onConfigureZapAmounts ? { onConfigureZapAmounts } : {}),
                                                     })
                                                     : undefined;
                                                 const note = fromPostPreview(post, actionState);
@@ -767,7 +776,7 @@ export function OccupantProfileDialog({
                                     {postsLoading && posts.length > 0 ? <ListLoadingFooter loading label="Cargando publicaciones..." /> : null}
 
                                     {hasMorePosts && !postsLoading ? (
-                                        <Button type="button" className="nostr-submit nostr-posts-load-more" onClick={() => void onLoadMorePosts()}>
+                                        <Button type="button" className="justify-self-start" data-testid="profile-load-more-posts" onClick={() => void onLoadMorePosts()}>
                                             Cargar mas
                                         </Button>
                                     ) : null}

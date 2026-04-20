@@ -1,16 +1,17 @@
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import { EllipsisVerticalIcon, HeartIcon, MessageCircleIcon, Repeat2Icon, ZapIcon } from 'lucide-react';
 import type { NostrEvent, NostrProfile } from '../../nostr/types';
+import { profileHasZapEndpoint } from '../../nostr/zaps';
 import { RichNostrContent } from './RichNostrContent';
 import { fromResolvedReferenceEvent } from './note-card-adapters';
 import type { NoteActionState, NoteCardModel } from './note-card-model';
 import { shortId } from './note-card-model';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { ButtonGroup, ButtonGroupText } from '@/components/ui/button-group';
+import { ButtonGroup } from '@/components/ui/button-group';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
-import { ContextMenu, ContextMenuContent, ContextMenuGroup, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
-import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/components/ui/item';
+import { ContextMenu, ContextMenuContent, ContextMenuGroup, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
+import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/components/ui/item';
 
 export interface NoteCardProps {
     note: NoteCardModel;
@@ -122,14 +123,9 @@ function NoteHeaderItem({ note, profile }: NoteHeaderItemProps) {
                 <ItemTitle>{authorName}</ItemTitle>
                 <ItemDescription>
                     {note.kindLabel ? <span>{note.kindLabel} · </span> : null}
-                    <span>{shortId(note.pubkey)} · </span>
-                    <span>{shortId(note.id)}</span>
+                    <time dateTime={publishedAt.iso}>{publishedAt.label}</time>
                 </ItemDescription>
             </ItemContent>
-
-            <ItemActions>
-                <time dateTime={publishedAt.iso}>{publishedAt.label}</time>
-            </ItemActions>
         </Item>
     );
 }
@@ -193,6 +189,20 @@ function NoteActionsMenu({ noteId, onCopyNoteId, onViewDetail }: NoteActionsMenu
 }
 
 function NoteActionGroup({ actions }: NoteActionGroupProps) {
+    const openZapMenu = (event: ReactMouseEvent<HTMLButtonElement>): void => {
+        event.preventDefault();
+        event.stopPropagation();
+        const rect = event.currentTarget.getBoundingClientRect();
+        event.currentTarget.dispatchEvent(new window.MouseEvent('contextmenu', {
+            bubbles: true,
+            cancelable: true,
+            clientX: rect.left + rect.width / 2,
+            clientY: rect.top + rect.height / 2,
+        }));
+    };
+
+    const canOpenZapMenu = Boolean(actions.canWrite && actions.onZap && actions.zapAmounts && actions.zapAmounts.length > 0);
+
     return (
         <ButtonGroup>
             <Button type="button" variant="ghost" size="sm" aria-label={`Responder (${actions.replies})`} onClick={actions.onReply}>
@@ -228,10 +238,44 @@ function NoteActionGroup({ actions }: NoteActionGroupProps) {
                 <span>{actions.reposts}</span>
             </Button>
 
-            <ButtonGroupText aria-label={`Sats recibidos: ${actions.zapSats}`}>
-                <ZapIcon aria-hidden="true" />
-                <span>{actions.zapSats}</span>
-            </ButtonGroupText>
+            {canOpenZapMenu ? (
+                <ContextMenu>
+                    <ContextMenuTrigger asChild>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            aria-label={`Sats recibidos: ${actions.zapSats}`}
+                            onClick={openZapMenu}
+                        >
+                            <ZapIcon data-icon="inline-start" aria-hidden="true" />
+                            <span>{actions.zapSats}</span>
+                        </Button>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent className="w-44">
+                        <ContextMenuGroup>
+                            {actions.zapAmounts?.map((amount) => (
+                                <ContextMenuItem key={`note-zap-${amount}`} onSelect={() => {
+                                    void actions.onZap?.(amount);
+                                }}>
+                                    {`${amount} sats`}
+                                </ContextMenuItem>
+                            ))}
+                            <ContextMenuSeparator />
+                            <ContextMenuItem {...(actions.onConfigureZapAmounts ? { onSelect: actions.onConfigureZapAmounts } : {})}>
+                                Configurar cantidades
+                            </ContextMenuItem>
+                        </ContextMenuGroup>
+                    </ContextMenuContent>
+                </ContextMenu>
+            ) : (
+                <Button asChild variant="ghost" size="sm">
+                    <span aria-label={`Sats recibidos: ${actions.zapSats}`}>
+                        <ZapIcon data-icon="inline-start" aria-hidden="true" />
+                        <span>{actions.zapSats}</span>
+                    </span>
+                </Button>
+            )}
         </ButtonGroup>
     );
 }
@@ -250,6 +294,13 @@ export function NoteCard({
     const isDeepNested = note.nestingLevel >= 2;
     const profile = profilesByPubkey[note.pubkey];
     const { visibleEntries, hiddenReferencesCount } = buildVisibleNestedEntries(note);
+    const hasOwnContent = note.content.trim().length > 0;
+    const noteActionState = note.actions
+        ? {
+            ...note.actions,
+            ...(profileHasZapEndpoint(profile) ? {} : { onZap: undefined, zapAmounts: undefined, onConfigureZapAmounts: undefined }),
+        }
+        : undefined;
     const noteCardSharedProps = {
         ...(onCopyNoteId ? { onCopyNoteId } : {}),
         ...(onSelectHashtag ? { onSelectHashtag } : {}),
@@ -329,7 +380,7 @@ export function NoteCard({
         }
 
         const target = event.target as HTMLElement | null;
-        if (target?.closest('button, a, [role="button"], [data-slot="context-menu-item"], [data-slot="context-menu-content"]')) {
+        if (target?.closest('button, a, [role="button"], [data-slot="button"], [data-slot="context-menu-item"], [data-slot="context-menu-content"]')) {
             return;
         }
 
@@ -338,7 +389,7 @@ export function NoteCard({
 
     return (
         <article onClick={handleCardClick} className={openDetail ? 'cursor-pointer' : undefined}>
-            <Card size={note.variant === 'nested' ? 'sm' : 'default'}>
+            <Card size={note.variant === 'nested' ? 'sm' : 'default'} className="border border-border/70">
                 <CardHeader>
                     <NoteHeaderItem
                         note={note}
@@ -376,7 +427,7 @@ export function NoteCard({
                             {...(eventReferencesById ? { eventReferencesById } : {})}
                             renderEventReferenceCard={({ eventId, event }) => renderNestedReference(eventId, event, note.nestingLevel + 1)}
                             profilesByPubkey={profilesByPubkey}
-                            emptyFallback={<p>(sin contenido)</p>}
+                            emptyFallback={!hasOwnContent && note.embedded ? null : <p>(sin contenido)</p>}
                         />
                     )}
 
@@ -387,7 +438,7 @@ export function NoteCard({
                 {note.actions || (note.showCopyId && onCopyNoteId) ? (
                     <CardFooter className="items-center justify-between gap-2">
                         <div className="flex min-w-0 items-center gap-2">
-                            {note.actions ? <NoteActionGroup actions={note.actions} /> : null}
+                    {noteActionState ? <NoteActionGroup actions={noteActionState} /> : null}
                         </div>
                         {(note.showCopyId || note.actions?.onViewDetail)
                             ? <NoteActionsMenu noteId={note.id} {...(onCopyNoteId ? { onCopyNoteId } : {})} {...(note.actions?.onViewDetail ? { onViewDetail: note.actions.onViewDetail } : {})} />

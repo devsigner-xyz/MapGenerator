@@ -17,6 +17,7 @@ describe('zap settings', () => {
     test('loads default zap amounts when nothing is stored', () => {
         const state = loadZapSettings();
         expect(state.amounts).toEqual(DEFAULT_ZAP_AMOUNTS);
+        expect(state.defaultAmount).toBe(DEFAULT_ZAP_AMOUNTS[0]);
     });
 
     test('adds and persists a new zap amount sorted and deduped', () => {
@@ -39,12 +40,22 @@ describe('zap settings', () => {
         const ownerA = 'a'.repeat(64);
         const ownerB = 'b'.repeat(64);
 
-        const savedA = saveZapSettings({ amounts: [34, 55, 89] }, { ownerPubkey: ownerA });
+        const savedA = saveZapSettings({ amounts: [34, 55, 89], defaultAmount: 34 }, { ownerPubkey: ownerA });
         const loadedA = loadZapSettings({ ownerPubkey: ownerA });
         const loadedB = loadZapSettings({ ownerPubkey: ownerB });
 
         expect(savedA.amounts).toEqual([34, 55, 89]);
         expect(loadedA.amounts).toEqual([34, 55, 89]);
         expect(loadedB.amounts).toEqual([...DEFAULT_ZAP_AMOUNTS]);
+    });
+
+    test('persists a normalized default zap amount', () => {
+        const saved = saveZapSettings({
+            amounts: [21, 64, 128],
+            defaultAmount: 64,
+        });
+
+        expect(saved.defaultAmount).toBe(64);
+        expect(loadZapSettings().defaultAmount).toBe(64);
     });
 });

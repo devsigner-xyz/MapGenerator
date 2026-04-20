@@ -105,7 +105,7 @@ export function fromResolvedReferenceEvent(event: NostrEvent, nestingLevel = 1):
     };
 }
 
-export function fromEmbeddedRepost(input: EmbeddedRepostInput, nestingLevel = 1): NoteCardModel | null {
+export function fromEmbeddedRepost(input: EmbeddedRepostInput, nestingLevel = 1, actions?: NoteActionState): NoteCardModel | null {
     if (!hasCriticalFields({ id: input?.id, pubkey: input?.pubkey, createdAt: input?.createdAt })) {
         return null;
     }
@@ -119,5 +119,6 @@ export function fromEmbeddedRepost(input: EmbeddedRepostInput, nestingLevel = 1)
         variant: 'nested',
         showCopyId: true,
         nestingLevel,
+        ...(actions !== undefined ? { actions } : {}),
     };
 }

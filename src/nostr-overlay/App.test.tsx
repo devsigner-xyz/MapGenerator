@@ -4,7 +4,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vi
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { nip19 } from 'nostr-tools';
-import { generateSecretKey, getPublicKey } from 'nostr-tools/pure';
+import { finalizeEvent, generateSecretKey, getPublicKey } from 'nostr-tools/pure';
 import { createLocalKeyStorage } from '../nostr/auth/local-key-storage';
 import { LocalKeyAuthProvider } from '../nostr/auth/providers/local-key-provider';
 import { AUTH_SESSION_STORAGE_KEY } from '../nostr/auth/secure-storage';
@@ -21,7 +21,7 @@ import * as dmApiServiceModule from '../nostr-api/dm-api-service';
 import { App } from './App';
 import type { NostrOverlayServices } from './hooks/useNostrOverlay';
 import type { MapBridge } from './map-bridge';
-import type { NostrClient } from '../nostr/types';
+import type { NostrClient, NostrProfile } from '../nostr/types';
 import type { SocialNotificationEvent, SocialNotificationsService } from '../nostr/social-notifications-service';
 import type { SocialFeedService } from '../nostr/social-feed-service';
 import { createNostrOverlayQueryClient } from './query/query-client';
@@ -519,7 +519,7 @@ describe('Nostr overlay App', () => {
         expect(footerButtons[0]?.textContent || '').toContain('Volver al login');
     });
 
-    test('renders updated external and local auth-flow copy with scoped auth labels', async () => {
+    test('renders updated external and local auth-flow copy with stable auth test ids', async () => {
         const { bridge } = createMapBridgeStub();
         const rendered = await renderApp(<App mapBridge={bridge} />);
         mounted.push(rendered);
@@ -545,11 +545,10 @@ describe('Nostr overlay App', () => {
         });
 
         let content = rendered.container.textContent || '';
-        let authLabels = Array.from(rendered.container.querySelectorAll('.nostr-auth-label'));
 
         expect(content).toContain('Usar app o extension');
         expect(content).toContain('Elige como conectar una cuenta que ya controlas.');
-        expect(authLabels.length).toBeGreaterThan(0);
+        expect(rendered.container.querySelector('[data-testid="create-account-external-form"]')).not.toBeNull();
 
         const backButton = Array.from(rendered.container.querySelectorAll('button')).find(
             (button) => (button.textContent || '').trim() === 'Volver'
@@ -570,11 +569,10 @@ describe('Nostr overlay App', () => {
         });
 
         content = rendered.container.textContent || '';
-        authLabels = Array.from(rendered.container.querySelectorAll('.nostr-auth-label'));
 
         expect(content).toContain('Crear cuenta local');
         expect(content).toContain('Genera una cuenta nueva y guarda tu clave antes de continuar.');
-        expect(authLabels.length).toBeGreaterThan(0);
+        expect(rendered.container.querySelector('[data-testid="create-account-step-intro"]')).not.toBeNull();
     });
 
     test('restores persisted session and leaves /login for / after initial load', async () => {
@@ -1063,6 +1061,7 @@ describe('Nostr overlay App', () => {
         await waitFor(() => (rendered.container.textContent || '').includes('Agora'));
         await waitFor(() => (rendered.container.textContent || '').includes('hola feed'));
         expect(socialFeed.service.loadFollowingFeed).toHaveBeenCalled();
+        expect((socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]).toMatchObject({ limit: 10 });
     });
 
     test('loads more feed and thread pages through query controller pagination', async () => {
@@ -1212,21 +1211,25 @@ describe('Nostr overlay App', () => {
 
         await waitFor(() => (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mock.calls.length >= 1);
 
-        await waitFor(() => Array.from(rendered.container.querySelectorAll('button')).some((button) =>
+        const feedList = rendered.container.querySelector('[data-testid="following-feed-list"]') as HTMLDivElement | null;
+        expect(feedList).not.toBeNull();
+        expect(Array.from(rendered.container.querySelectorAll('button')).some((button) =>
             (button.textContent || '').includes('Cargar mas')
-        ));
-        const loadMoreFeedButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
-            (button.textContent || '').includes('Cargar mas')
-        ) as HTMLButtonElement;
+        )).toBe(false);
+
+        Object.defineProperty(feedList, 'scrollHeight', { configurable: true, value: 500 });
+        Object.defineProperty(feedList, 'clientHeight', { configurable: true, value: 300 });
+        Object.defineProperty(feedList, 'scrollTop', { configurable: true, value: 130 });
         await act(async () => {
-            loadMoreFeedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            feedList?.dispatchEvent(new Event('scroll', { bubbles: true }));
         });
 
         await waitFor(() => (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mock.calls.length >= 2);
 
         const feedCalls = (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mock.calls;
+        expect(feedCalls[0]?.[0]).toMatchObject({ limit: 10 });
         expect(feedCalls[0]?.[0]).not.toHaveProperty('until');
-        expect(feedCalls[1]?.[0]).toMatchObject({ until: 90 });
+        expect(feedCalls[1]?.[0]).toMatchObject({ limit: 10, until: 90 });
 
         await waitFor(() => Boolean(rendered.container.querySelector('button[aria-label="Responder (0)"]')));
         const openThreadButton = rendered.container.querySelector('button[aria-label="Responder (0)"]') as HTMLButtonElement;
@@ -1235,15 +1238,19 @@ describe('Nostr overlay App', () => {
         });
 
         await waitFor(() => (socialFeed.service.loadThread as ReturnType<typeof vi.fn>).mock.calls.length >= 1);
-        await waitFor(() => Array.from(rendered.container.querySelectorAll('button')).some((button) =>
+        await waitFor(() => (rendered.container.textContent || '').includes('reply-1'));
+        const threadList = rendered.container.querySelector('[data-testid="following-feed-thread-list"]') as HTMLDivElement | null;
+        expect(threadList).not.toBeNull();
+        expect(Array.from(rendered.container.querySelectorAll('button')).some((button) =>
             (button.textContent || '').includes('Cargar mas respuestas')
-        ));
-        const loadMoreThreadButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
-            (button.textContent || '').includes('Cargar mas respuestas')
-        ) as HTMLButtonElement;
+        )).toBe(false);
+
+        Object.defineProperty(threadList, 'scrollHeight', { configurable: true, value: 500 });
+        Object.defineProperty(threadList, 'clientHeight', { configurable: true, value: 300 });
+        Object.defineProperty(threadList, 'scrollTop', { configurable: true, value: 130 });
 
         await act(async () => {
-            loadMoreThreadButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            threadList?.dispatchEvent(new Event('scroll', { bubbles: true }));
         });
 
         await waitFor(() => (socialFeed.service.loadThread as ReturnType<typeof vi.fn>).mock.calls.length >= 2);
@@ -1800,6 +1807,7 @@ describe('Nostr overlay App', () => {
         await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
         await waitFor(() => (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mock.calls.length > 0);
+        expect((socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]).toMatchObject({ limit: 10 });
     });
 
     test('agora route with tag param loads hashtag feed and shows active filter', async () => {
@@ -2076,7 +2084,7 @@ describe('Nostr overlay App', () => {
                         relayHints: [],
                     }),
                     fetchProfilesFn: vi.fn().mockImplementation(async (pubkeys: string[]) => {
-                        const profiles: Record<string, { pubkey: string; displayName: string }> = {};
+                        const profiles: Record<string, NostrProfile> = {};
 
                         for (const pubkey of pubkeys) {
                             if (pubkey === ownerPubkey) {
@@ -2176,6 +2184,189 @@ describe('Nostr overlay App', () => {
         await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
         await waitFor(() => (rendered.container.textContent || '').includes('Chats'));
+    });
+
+    test('wallet entry is available in the authenticated shell', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify({
+            method: 'npub',
+            pubkey: ownerPubkey,
+            readonly: true,
+            locked: false,
+            createdAt: Date.now(),
+        }));
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />,
+            { initialEntries: ['/wallet'] }
+        );
+        mounted.push(rendered);
+
+        await waitFor(() => rendered.container.querySelector('[data-testid="login-gate-screen"]') === null);
+        const walletButton = rendered.container.querySelector('button[aria-label="Abrir wallet"]') as HTMLButtonElement;
+        expect(walletButton).toBeDefined();
+    });
+
+    test('connects WebLN wallet and requests balance from the wallet page', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify({
+            method: 'npub',
+            pubkey: ownerPubkey,
+            readonly: true,
+            locked: false,
+            createdAt: Date.now(),
+        }));
+        Object.assign(window, {
+            webln: {
+                enable: vi.fn(async () => {}),
+                sendPayment: vi.fn(async () => ({ preimage: 'abc' })),
+                getBalance: vi.fn(async () => ({ balance: '210' })),
+                makeInvoice: vi.fn(async () => ({ paymentRequest: 'lnbc1invoice', expiresAt: 200 })),
+            },
+        });
+
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />,
+            { initialEntries: ['/wallet'] }
+        );
+        mounted.push(rendered);
+
+        await waitFor(() => rendered.container.querySelector('[data-testid="login-gate-screen"]') === null);
+        await waitFor(() => rendered.container.querySelector('[data-testid="wallet-page"]') !== null);
+
+        const connectWebLnButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Conectar con WebLN')
+        ) as HTMLButtonElement;
+        expect(connectWebLnButton).toBeDefined();
+
+        await act(async () => {
+            connectWebLnButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Conectada por WebLN'));
+
+        const balanceButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Consultar balance')
+        ) as HTMLButtonElement;
+        expect(balanceButton).toBeDefined();
+
+        await act(async () => {
+            balanceButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('210 sats'));
+    });
+
+    test('connects NWC wallet from a validated info event', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const walletServiceSecret = generateSecretKey();
+        const walletServicePubkey = getPublicKey(walletServiceSecret);
+        const infoEvent = finalizeEvent({
+            kind: 13194,
+            created_at: 100,
+            tags: [['encryption', 'nip44_v2 nip04']],
+            content: 'pay_invoice get_balance make_invoice',
+        }, walletServiceSecret);
+        window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify({
+            method: 'npub',
+            pubkey: ownerPubkey,
+            readonly: true,
+            locked: false,
+            createdAt: Date.now(),
+        }));
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => infoEvent,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />,
+            { initialEntries: ['/wallet'] }
+        );
+        mounted.push(rendered);
+
+        await waitFor(() => rendered.container.querySelector('[data-testid="wallet-page"]') !== null);
+
+        const nwcInput = rendered.container.querySelector('input[aria-label="URI NWC"]') as HTMLInputElement;
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(nwcInput, `nostr+walletconnect://${walletServicePubkey}?relay=wss://relay.one.example&secret=${'b'.repeat(64)}`);
+            nwcInput.dispatchEvent(new Event('input', { bubbles: true }));
+            nwcInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        const connectNwcButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Conectar con NWC')
+        ) as HTMLButtonElement;
+
+        await act(async () => {
+            connectNwcButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Conectada por NWC'));
     });
 
     test('uses lastReadAt semantics for agora unread state and clears on open', async () => {
@@ -3114,7 +3305,7 @@ describe('Nostr overlay App', () => {
                     }),
                     fetchProfilesFn: vi.fn().mockResolvedValue({
                         [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
-                        [followedPubkey]: { pubkey: followedPubkey, displayName: 'Alice' },
+                        [followedPubkey]: { pubkey: followedPubkey, displayName: 'Alice', lud16: 'alice@getalby.com' },
                     }),
                     fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
                         followers: [],
@@ -3128,6 +3319,8 @@ describe('Nostr overlay App', () => {
 
         await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+        await waitFor(() => (rendered.container.textContent || '').includes('Alice'));
+        await waitFor(() => (rendered.container.textContent || '').includes('Alice'));
 
         await act(async () => {
             triggerOccupiedBuildingContextMenu({
@@ -3637,13 +3830,13 @@ describe('Nostr overlay App', () => {
                         relayHints: [],
                     }),
                     fetchProfilesFn: vi.fn().mockImplementation(async (pubkeys: string[]) => {
-                        const profiles: Record<string, { pubkey: string; displayName: string }> = {};
+                        const profiles: Record<string, NostrProfile> = {};
                         for (const pubkey of pubkeys) {
                             if (pubkey === ownerPubkey) {
                                 profiles[pubkey] = { pubkey, displayName: 'Owner' };
                             }
                             if (pubkey === followedPubkey) {
-                                profiles[pubkey] = { pubkey, displayName: 'Alice' };
+                                profiles[pubkey] = { pubkey, displayName: 'Alice', lud16: 'alice@getalby.com' };
                             }
                         }
                         return profiles;
@@ -4048,7 +4241,7 @@ describe('Nostr overlay App', () => {
                         relayHints: ['wss://relay.example'],
                     }),
                     fetchProfilesFn: vi.fn().mockImplementation(async (pubkeys: string[]) => {
-                        const profiles: Record<string, { pubkey: string; displayName: string }> = {};
+                        const profiles: Record<string, NostrProfile> = {};
                         for (const pubkey of pubkeys) {
                             if (pubkey === ownerPubkey) {
                                 profiles[pubkey] = { pubkey, displayName: 'Owner' };
@@ -4408,7 +4601,7 @@ describe('Nostr overlay App', () => {
         await waitFor(() => (document.body.textContent || '').includes('Copiar npub'));
         expect(document.body.textContent || '').not.toContain('Enviar mensaje');
         expect(document.body.textContent || '').toContain('Ver detalles');
-        expect(document.body.textContent || '').toContain('Zap');
+        expect(document.body.textContent || '').not.toContain('Zap');
         expect(document.body.textContent || '').not.toContain('21 sats');
         expect(document.body.textContent || '').not.toContain('128 sats');
         expect(document.body.textContent || '').not.toContain('256 sats');
@@ -4450,6 +4643,317 @@ describe('Nostr overlay App', () => {
         await waitFor(() => getActiveProfileDialog() !== null);
 
         expect(document.body.textContent || '').not.toContain('Configurar cantidades');
+    });
+
+    test('redirects zap actions to wallet when no wallet is connected', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+        const { bridge, triggerOccupiedBuildingContextMenu } = createMapBridgeStub();
+
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [followedPubkey],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                        [followedPubkey]: { pubkey: followedPubkey, displayName: 'Alice', lud16: 'alice@getalby.com' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        await loginWithNip07(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+        await act(async () => {
+            triggerOccupiedBuildingContextMenu({
+                buildingIndex: 2,
+                pubkey: followedPubkey,
+                clientX: 320,
+                clientY: 240,
+            });
+        });
+
+        await waitFor(() => Array.from(document.body.querySelectorAll('[data-slot="context-menu-sub-trigger"]')).some((node) =>
+            (node.textContent || '').trim() === 'Zap'
+        ));
+        const zapSubmenuTrigger = Array.from(document.body.querySelectorAll('[data-slot="context-menu-sub-trigger"]')).find((node) =>
+            (node.textContent || '').trim() === 'Zap'
+        ) as HTMLElement;
+
+        await act(async () => {
+            zapSubmenuTrigger.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+            zapSubmenuTrigger.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+            zapSubmenuTrigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (document.body.textContent || '').includes('21 sats'));
+        const zapAmountItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((node) =>
+            (node.textContent || '').trim() === '21 sats'
+        ) as HTMLElement;
+
+        await act(async () => {
+            zapAmountItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => rendered.container.querySelector('[data-testid="wallet-page"]') !== null);
+    });
+
+    test('auto-resumes an interrupted zap after connecting WebLN', async () => {
+        const ownerPubkey = SAMPLE_AUTH_PUBKEY;
+        const followedPubkey = 'a'.repeat(64);
+        const sendPayment = vi.fn(async () => ({ preimage: 'abc' }));
+        vi.stubGlobal('fetch', vi.fn(async (input: string | URL) => {
+            const url = String(input);
+            if (url.includes('getalby.com/.well-known/lnurlp/alice')) {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        callback: 'https://wallet.example/cb',
+                        allowsNostr: true,
+                        nostrPubkey: 'b'.repeat(64),
+                        minSendable: 1_000,
+                        maxSendable: 1_000_000,
+                    }),
+                };
+            }
+
+            if (url.includes('wallet.example/cb')) {
+                return {
+                    ok: true,
+                    json: async () => ({ pr: 'lnbc1invoice' }),
+                };
+            }
+
+            return {
+                ok: true,
+                json: async () => [],
+            };
+        }));
+        Object.assign(window, {
+            webln: {
+                enable: vi.fn(async () => {}),
+                sendPayment,
+                getBalance: vi.fn(async () => ({ balance: '210' })),
+                makeInvoice: vi.fn(async () => ({ paymentRequest: 'lnbc1invoice', expiresAt: 200 })),
+            },
+        });
+
+        const { bridge, triggerOccupiedBuildingContextMenu } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [followedPubkey],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                        [followedPubkey]: { pubkey: followedPubkey, displayName: 'Alice', lud16: 'alice@getalby.com' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        await loginWithNip07(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        await act(async () => {
+            triggerOccupiedBuildingContextMenu({
+                buildingIndex: 2,
+                pubkey: followedPubkey,
+                clientX: 320,
+                clientY: 240,
+            });
+        });
+
+        await waitFor(() => (document.body.textContent || '').includes('Zap'));
+        const zapSubmenuTrigger = Array.from(document.body.querySelectorAll('[data-slot="context-menu-sub-trigger"]')).find((node) =>
+            (node.textContent || '').trim() === 'Zap'
+        ) as HTMLElement;
+
+        await act(async () => {
+            zapSubmenuTrigger.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+            zapSubmenuTrigger.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+            zapSubmenuTrigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (document.body.textContent || '').includes('21 sats'));
+        const zapAmountItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((node) =>
+            (node.textContent || '').trim() === '21 sats'
+        ) as HTMLElement;
+
+        await act(async () => {
+            zapAmountItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => rendered.container.querySelector('[data-testid="wallet-page"]') !== null);
+        const connectWebLnButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Conectar con WebLN')
+        ) as HTMLButtonElement;
+
+        await act(async () => {
+            connectWebLnButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => sendPayment.mock.calls.some((call) => (call as unknown[])[0] === 'lnbc1invoice'));
+        await waitFor(() => rendered.container.querySelector('[data-testid="wallet-page"]') === null);
+    });
+
+    test('pays a profile zap through WebLN when a wallet is connected', async () => {
+        const ownerPubkey = SAMPLE_AUTH_PUBKEY;
+        const followedPubkey = 'a'.repeat(64);
+        const sendPayment = vi.fn(async () => ({ preimage: 'abc' }));
+        vi.stubGlobal('fetch', vi.fn(async (input: string | URL) => {
+            const url = String(input);
+            if (url.includes('getalby.com/.well-known/lnurlp/alice')) {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        callback: 'https://wallet.example/cb',
+                        allowsNostr: true,
+                        nostrPubkey: 'b'.repeat(64),
+                        minSendable: 1_000,
+                        maxSendable: 1_000_000,
+                    }),
+                };
+            }
+
+            if (url.includes('wallet.example/cb')) {
+                return {
+                    ok: true,
+                    json: async () => ({ pr: 'lnbc1invoice' }),
+                };
+            }
+
+            return {
+                ok: true,
+                json: async () => [],
+            };
+        }));
+        Object.assign(window, {
+            webln: {
+                enable: vi.fn(async () => {}),
+                sendPayment,
+                getBalance: vi.fn(async () => ({ balance: '210' })),
+                makeInvoice: vi.fn(async () => ({ paymentRequest: 'lnbc1invoice', expiresAt: 200 })),
+            },
+        });
+
+        const { bridge, triggerOccupiedBuildingContextMenu } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [followedPubkey],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                        [followedPubkey]: { pubkey: followedPubkey, displayName: 'Alice', lud16: 'alice@getalby.com' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        await loginWithNip07(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const walletButton = rendered.container.querySelector('button[aria-label="Abrir wallet"]') as HTMLButtonElement;
+        await act(async () => {
+            walletButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => rendered.container.querySelector('[data-testid="wallet-page"]') !== null);
+        const connectWebLnButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Conectar con WebLN')
+        ) as HTMLButtonElement;
+
+        await act(async () => {
+            connectWebLnButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Conectada por WebLN'));
+
+        const mapButton = rendered.container.querySelector('button[aria-label="Abrir mapa"]') as HTMLButtonElement;
+        await act(async () => {
+            mapButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await act(async () => {
+            triggerOccupiedBuildingContextMenu({
+                buildingIndex: 2,
+                pubkey: followedPubkey,
+                clientX: 320,
+                clientY: 240,
+            });
+        });
+
+        await waitFor(() => (document.body.textContent || '').includes('Zap'));
+        const zapSubmenuTrigger = Array.from(document.body.querySelectorAll('[data-slot="context-menu-sub-trigger"]')).find((node) =>
+            (node.textContent || '').trim() === 'Zap'
+        ) as HTMLElement;
+
+        await act(async () => {
+            zapSubmenuTrigger.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+            zapSubmenuTrigger.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+            zapSubmenuTrigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (document.body.textContent || '').includes('21 sats'));
+        const zapAmountItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((node) =>
+            (node.textContent || '').trim() === '21 sats'
+        ) as HTMLElement;
+
+        await act(async () => {
+            zapAmountItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.some((call) =>
+            String(call[0]).includes('getalby.com/.well-known/lnurlp/alice')
+        ));
+        await waitFor(() => sendPayment.mock.calls.some((call) => (call as unknown[])[0] === 'lnbc1invoice'));
     });
 
     test('opens chat detail directly from context menu and focuses composer', async () => {

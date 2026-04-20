@@ -132,6 +132,7 @@ describe('PeopleListTab', () => {
         mounted.push(rendered);
 
         expect(rendered.container.textContent || '').toContain('Cargando...');
+        expect(rendered.container.querySelector('[data-testid="people-search-row"]')).not.toBeNull();
         const input = rendered.container.querySelector('input[aria-label="Buscar en personas"]') as HTMLInputElement;
         expect(input).toBeDefined();
 
@@ -185,7 +186,7 @@ describe('PeopleListTab', () => {
             <PeopleListTab
                 people={[alice]}
                 profiles={{
-                    [alice]: { pubkey: alice, displayName: 'Alice' },
+                    [alice]: { pubkey: alice, displayName: 'Alice', lud16: 'alice@getalby.com' },
                 }}
                 emptyText="Sin resultados"
                 loading={false}
@@ -338,17 +339,19 @@ describe('PeopleListTab', () => {
     test('shows copy action and zap submenu for followers rows', { timeout: 15_000 }, async () => {
         const bob = makePubkey(2);
         const onCopyNpub = vi.fn();
+        const onZapPerson = vi.fn();
 
         const rendered = await renderElement(
             <PeopleListTab
                 people={[bob]}
                 profiles={{
-                    [bob]: { pubkey: bob, displayName: 'Bob' },
+                    [bob]: { pubkey: bob, displayName: 'Bob', lud16: 'bob@getalby.com' },
                 }}
                 emptyText="Sin resultados"
                 loading={false}
                 onCopyNpub={onCopyNpub}
                 zapAmounts={[21, 128, 256]}
+                onZapPerson={onZapPerson}
             />
         );
         mounted.push(rendered);
@@ -382,6 +385,59 @@ describe('PeopleListTab', () => {
 
         expect(onCopyNpub).toHaveBeenCalledTimes(1);
         expect((onCopyNpub.mock.calls[0]?.[0] as string | undefined)?.startsWith('npub1')).toBe(true);
+
+        await act(async () => {
+            actionsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const zapSubmenuTriggerRefreshed = Array.from(document.body.querySelectorAll('[data-slot="context-menu-sub-trigger"]')).find((item) =>
+            (item.textContent || '').trim() === 'Zap'
+        ) as HTMLElement;
+
+        await act(async () => {
+            zapSubmenuTriggerRefreshed.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+            zapSubmenuTriggerRefreshed.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+            zapSubmenuTriggerRefreshed.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (document.body.textContent || '').includes('21 sats'));
+        const zap21 = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === '21 sats'
+        ) as HTMLElement;
+
+        await act(async () => {
+            zap21.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onZapPerson).toHaveBeenCalledWith(bob, 21);
+    });
+
+    test('hides zap submenu when profile has no lightning metadata', async () => {
+        const alice = makePubkey(1);
+        const rendered = await renderElement(
+            <PeopleListTab
+                people={[alice]}
+                profiles={{
+                    [alice]: { pubkey: alice, displayName: 'Alice' },
+                }}
+                emptyText="Sin resultados"
+                loading={false}
+                zapAmounts={[21, 128, 256]}
+                onConfigureZapAmounts={vi.fn()}
+                onZapPerson={vi.fn()}
+            />
+        );
+        mounted.push(rendered);
+
+        const actionsButton = rendered.container.querySelector('button[aria-label="Abrir acciones para Alice"]') as HTMLButtonElement;
+        await act(async () => {
+            actionsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+        const zapSubmenuTrigger = Array.from(document.body.querySelectorAll('[data-slot="context-menu-sub-trigger"]')).find((item) =>
+            (item.textContent || '').trim() === 'Zap'
+        );
+
+        expect(zapSubmenuTrigger).toBeUndefined();
     });
 
     test('shows follow action and disables rows already followed', async () => {

@@ -85,32 +85,35 @@ describe('LoginMethodSelector', () => {
 
         const content = rendered.container.textContent || '';
         const npubInput = rendered.container.querySelector('input[name="npub"]');
-        const methodSelectTrigger = rendered.container.querySelector('[data-slot="select-trigger"]');
+        const methodSelectTrigger = rendered.container.querySelector('[data-testid="login-method-trigger"]');
 
         expect(content).not.toContain('Accede o explora');
         expect(content).toContain('npub (solo lectura)');
         expect(content).toContain('Metodo de acceso');
         expect(content).toContain('Public key');
         expect(content).toContain('Acceder');
+        expect(rendered.container.querySelector('[data-testid="login-method-selector"]')).not.toBeNull();
+        expect(rendered.container.querySelector('[data-testid="login-method-form-npub"]')).not.toBeNull();
+        expect(rendered.container.querySelector('[data-testid="login-method-submit-npub"]')).not.toBeNull();
         expect(methodSelectTrigger).not.toBeNull();
         expect(npubInput).not.toBeNull();
         expect(methodSelectTrigger?.classList.contains('w-full')).toBe(true);
     });
 
-    test('uses auth-scoped foreground label styling for the default login labels', async () => {
+    test('renders stable test ids for the default login flow', async () => {
         const rendered = await renderSelector({ initialMethod: 'npub' });
         mounted.push(rendered);
 
-        const labels = Array.from(rendered.container.querySelectorAll('label'));
-        expect(labels.length).toBeGreaterThan(0);
-        expect(labels.every((label) => label.classList.contains('nostr-auth-label'))).toBe(true);
+        expect(rendered.container.querySelector('[data-testid="login-method-selector"]')).not.toBeNull();
+        expect(rendered.container.querySelector('[data-testid="login-method-form-npub"]')).not.toBeNull();
+        expect(rendered.container.querySelector('[data-testid="login-method-submit-npub"]')).not.toBeNull();
     });
 
     test('does not show nsec in login method options', async () => {
         const rendered = await renderSelector();
         mounted.push(rendered);
 
-        const methodSelectTrigger = rendered.container.querySelector('[data-slot="select-trigger"]') as HTMLButtonElement;
+        const methodSelectTrigger = rendered.container.querySelector('[data-testid="login-method-trigger"]') as HTMLButtonElement;
         expect(methodSelectTrigger).toBeDefined();
 
         await act(async () => {
@@ -130,7 +133,7 @@ describe('LoginMethodSelector', () => {
 
         const handlers = (rendered.container as any).__handlers;
         const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
-        const form = rendered.container.querySelector('form');
+        const form = rendered.container.querySelector('[data-testid="login-method-form-npub"]');
 
         await act(async () => {
             const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
@@ -163,7 +166,7 @@ describe('LoginMethodSelector', () => {
         const rendered = await renderSelector({ disabled: true });
         mounted.push(rendered);
 
-        const submitButton = rendered.container.querySelector('button[type="submit"]') as HTMLButtonElement;
+        const submitButton = rendered.container.querySelector('[data-testid="login-method-submit-npub"]') as HTMLButtonElement;
         expect(submitButton).toBeDefined();
         expect(submitButton.textContent || '').toContain('Cargando');
         const spinner = submitButton.querySelector('[aria-label="Loading"]');
@@ -174,7 +177,7 @@ describe('LoginMethodSelector', () => {
         const rendered = await renderSelector({ disabled: true, loadingText: '   ' });
         mounted.push(rendered);
 
-        const submitButton = rendered.container.querySelector('button[type="submit"]') as HTMLButtonElement;
+        const submitButton = rendered.container.querySelector('[data-testid="login-method-submit-npub"]') as HTMLButtonElement;
         expect(submitButton).toBeDefined();
         expect(submitButton.textContent || '').toContain('Cargando...');
     });
@@ -193,9 +196,7 @@ describe('LoginMethodSelector', () => {
         const rendered = await renderSelector({ disabled: true, initialMethod: 'nip07', loadingText: 'Conectando a relay...' });
         mounted.push(rendered);
 
-        const submitButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
-            (button.textContent || '').includes('Conectando a relay...')
-        ) as HTMLButtonElement | undefined;
+        const submitButton = rendered.container.querySelector('[data-testid="login-method-submit-nip07"]') as HTMLButtonElement | null;
         expect(submitButton).toBeDefined();
         expect(submitButton?.textContent || '').not.toContain('Cargando...');
     });
@@ -204,48 +205,44 @@ describe('LoginMethodSelector', () => {
         const rendered = await renderSelector({ disabled: true, initialMethod: 'nip46', loadingText: 'Conectando a relay...' });
         mounted.push(rendered);
 
-        const submitButton = rendered.container.querySelector('button[type="submit"]') as HTMLButtonElement;
+        const submitButton = rendered.container.querySelector('[data-testid="login-method-submit-nip46"]') as HTMLButtonElement;
         expect(submitButton).toBeDefined();
         expect(submitButton.textContent || '').toContain('Conectando a relay...');
         expect(submitButton.textContent || '').not.toContain('Conectar bunker');
     });
 
-    test('layers shared utility spacing onto the npub primary action button', async () => {
+    test('exposes a stable npub submit test id', async () => {
         const rendered = await renderSelector({ initialMethod: 'npub' });
         mounted.push(rendered);
 
-        const submitButton = rendered.container.querySelector('button[type="submit"]') as HTMLButtonElement | null;
+        const submitButton = rendered.container.querySelector('[data-testid="login-method-submit-npub"]') as HTMLButtonElement | null;
 
-        expect(submitButton?.classList.contains('nostr-login-method-actions')).toBe(true);
+        expect(submitButton).not.toBeNull();
         expect(submitButton?.classList.contains('mt-2')).toBe(true);
         expect(submitButton?.classList.contains('w-full')).toBe(true);
     });
 
-    test('layers shared utility spacing onto the nip07 primary action button', async () => {
+    test('exposes a stable nip07 submit test id', async () => {
         const rendered = await renderSelector({ initialMethod: 'nip07' });
         mounted.push(rendered);
 
-        const primaryButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
-            (button.textContent || '').includes('Continuar con extension')
-        ) as HTMLButtonElement | undefined;
+        const primaryButton = rendered.container.querySelector('[data-testid="login-method-submit-nip07"]') as HTMLButtonElement | null;
 
-        expect(primaryButton?.classList.contains('nostr-login-method-actions')).toBe(true);
+        expect(primaryButton).not.toBeNull();
         expect(primaryButton?.classList.contains('mt-2')).toBe(true);
         expect(primaryButton?.classList.contains('w-full')).toBe(true);
-        expect(rendered.container.querySelector('.nostr-label')?.classList.contains('nostr-auth-label')).toBe(true);
     });
 
-    test('layers shared utility spacing onto the nip46 primary action button', async () => {
+    test('exposes a stable nip46 submit test id', async () => {
         const rendered = await renderSelector({ initialMethod: 'nip46' });
         mounted.push(rendered);
 
-        const submitButton = rendered.container.querySelector('button[type="submit"]') as HTMLButtonElement | null;
+        const submitButton = rendered.container.querySelector('[data-testid="login-method-submit-nip46"]') as HTMLButtonElement | null;
 
-        expect(submitButton?.classList.contains('nostr-login-method-actions')).toBe(true);
+        expect(submitButton).not.toBeNull();
         expect(submitButton?.classList.contains('mt-2')).toBe(true);
         expect(submitButton?.classList.contains('w-full')).toBe(true);
-        const labels = Array.from(rendered.container.querySelectorAll('label'));
-        expect(labels.every((label) => label.classList.contains('nostr-auth-label'))).toBe(true);
+        expect(rendered.container.querySelector('[data-testid="login-method-form-nip46"]')).not.toBeNull();
     });
 
     test('submits bunker uri through nip46 method', async () => {
@@ -254,7 +251,7 @@ describe('LoginMethodSelector', () => {
 
         const handlers = (rendered.container as any).__handlers;
         const bunkerInput = rendered.container.querySelector('input[name="bunker-uri"]') as HTMLInputElement;
-        const form = rendered.container.querySelector('form');
+        const form = rendered.container.querySelector('[data-testid="login-method-form-nip46"]');
 
         await act(async () => {
             const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;

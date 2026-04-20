@@ -17,11 +17,11 @@ export function SettingsUiPage({ uiSettings, onPersistUiSettings }: SettingsUiPa
                 title="Interfaz"
                 description="Controles de visualizacion, etiquetas y trafico del mapa."
             />
-            <div className="nostr-page-content nostr-settings-body">
+            <div className="grid min-h-0 gap-2.5 overflow-x-hidden overflow-y-auto pr-px" data-testid="settings-page-body">
                 <div className="nostr-shortcuts-content">
                     <p>Configura el zoom minimo para mostrar avatar y nombre en edificios ocupados.</p>
-                    <div className="nostr-ui-slider-row">
-                        <Label className="nostr-label" htmlFor="nostr-occupied-zoom-level">Zoom de etiquetas ocupadas</Label>
+                    <div className="flex items-center justify-between gap-2" data-testid="settings-ui-occupied-zoom-row">
+                        <Label htmlFor="nostr-occupied-zoom-level">Zoom de etiquetas ocupadas</Label>
                         <span className="nostr-ui-slider-value">{uiSettings.occupiedLabelsZoomLevel}</span>
                     </div>
                     <Slider
@@ -50,8 +50,8 @@ export function SettingsUiPage({ uiSettings, onPersistUiSettings }: SettingsUiPa
 
                     <Separator className="nostr-divider" />
 
-                    <div className="nostr-ui-toggle-row">
-                        <Label className="nostr-label" htmlFor="nostr-street-labels-enabled">Etiquetas de calles</Label>
+                    <div className="flex items-center justify-between gap-2" data-testid="settings-ui-street-labels-row">
+                        <Label htmlFor="nostr-street-labels-enabled">Etiquetas de calles</Label>
                         <Switch
                             id="nostr-street-labels-enabled"
                             size="sm"
@@ -66,8 +66,8 @@ export function SettingsUiPage({ uiSettings, onPersistUiSettings }: SettingsUiPa
                         />
                     </div>
 
-                    <div className="nostr-ui-toggle-row">
-                        <Label className="nostr-label" htmlFor="nostr-verified-buildings-overlay-enabled">Superposición de edificios verificados</Label>
+                    <div className="flex items-center justify-between gap-2">
+                        <Label htmlFor="nostr-verified-buildings-overlay-enabled">Superposición de edificios verificados</Label>
                         <Switch
                             id="nostr-verified-buildings-overlay-enabled"
                             size="sm"
@@ -82,8 +82,8 @@ export function SettingsUiPage({ uiSettings, onPersistUiSettings }: SettingsUiPa
                         />
                     </div>
 
-                    <div className="nostr-ui-slider-row">
-                        <Label className="nostr-label" htmlFor="nostr-street-zoom-level">Zoom de etiquetas de calles</Label>
+                    <div className="flex items-center justify-between gap-2">
+                        <Label htmlFor="nostr-street-zoom-level">Zoom de etiquetas de calles</Label>
                         <span className="nostr-ui-slider-value">{uiSettings.streetLabelsZoomLevel}</span>
                     </div>
                     <Slider
@@ -108,8 +108,8 @@ export function SettingsUiPage({ uiSettings, onPersistUiSettings }: SettingsUiPa
 
                     <Separator className="nostr-divider" />
 
-                    <div className="nostr-ui-slider-row">
-                        <Label className="nostr-label" htmlFor="nostr-traffic-count">Coches en ciudad</Label>
+                    <div className="flex items-center justify-between gap-2">
+                        <Label htmlFor="nostr-traffic-count">Coches en ciudad</Label>
                         <span className="nostr-ui-slider-value">{uiSettings.trafficParticlesCount}</span>
                     </div>
                     <Slider
@@ -132,8 +132,8 @@ export function SettingsUiPage({ uiSettings, onPersistUiSettings }: SettingsUiPa
                         }}
                     />
 
-                    <div className="nostr-ui-slider-row">
-                        <Label className="nostr-label" htmlFor="nostr-traffic-speed">Velocidad de coches</Label>
+                    <div className="flex items-center justify-between gap-2" data-testid="settings-ui-traffic-speed-row">
+                        <Label htmlFor="nostr-traffic-speed">Velocidad de coches</Label>
                         <span className="nostr-ui-slider-value">{uiSettings.trafficParticlesSpeed.toFixed(1)}x</span>
                     </div>
                     <Slider

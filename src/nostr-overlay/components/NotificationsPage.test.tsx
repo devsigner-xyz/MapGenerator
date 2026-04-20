@@ -1,6 +1,6 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { NotificationsPage } from './NotificationsPage';
 import type { SocialNotificationItem } from '../../nostr/social-notifications-service';
 
@@ -64,7 +64,6 @@ describe('NotificationsPage', () => {
             <NotificationsPage
                 hasUnread
                 notifications={[buildItem()]}
-                onClose={() => {}}
             />
         );
         mounted.push(rendered);
@@ -79,7 +78,6 @@ describe('NotificationsPage', () => {
             <NotificationsPage
                 hasUnread={false}
                 notifications={[buildItem()]}
-                onClose={() => {}}
             />
         );
         mounted.push(rendered);
@@ -92,7 +90,6 @@ describe('NotificationsPage', () => {
             <NotificationsPage
                 hasUnread={false}
                 notifications={[]}
-                onClose={() => {}}
             />
         );
         mounted.push(rendered);
@@ -110,7 +107,6 @@ describe('NotificationsPage', () => {
                     buildItem({ id: 'notif-1', kind: 1, content: 'hola' }),
                     buildItem({ id: 'notif-2', kind: 9735, content: 'zap' }),
                 ]}
-                onClose={() => {}}
             />
         );
         mounted.push(rendered);
@@ -120,24 +116,29 @@ describe('NotificationsPage', () => {
         expect(rendered.container.querySelectorAll('.nostr-notifications-list [data-slot="item"]')).toHaveLength(2);
     });
 
-    test('calls onClose when close button is clicked', async () => {
-        const onClose = vi.fn();
+    test('keeps the notifications body shrinkable inside the routed panel', async () => {
         const rendered = await renderElement(
             <NotificationsPage
-                hasUnread
+                hasUnread={false}
                 notifications={[buildItem()]}
-                onClose={onClose}
             />
         );
         mounted.push(rendered);
 
-        const closeButton = rendered.container.querySelector('button[aria-label="Cerrar notificaciones"]') as HTMLButtonElement;
-        expect(closeButton).toBeDefined();
+        const pageBody = rendered.container.querySelector('.nostr-notifications-page > section') as HTMLElement | null;
+        expect(pageBody).not.toBeNull();
+        expect(pageBody?.className).toContain('min-h-0');
+    });
 
-        await act(async () => {
-            closeButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
+    test('does not render a close action in the page header', async () => {
+        const rendered = await renderElement(
+            <NotificationsPage
+                hasUnread
+                notifications={[buildItem()]}
+            />
+        );
+        mounted.push(rendered);
 
-        expect(onClose).toHaveBeenCalledTimes(1);
+        expect(rendered.container.querySelector('button[aria-label="Cerrar notificaciones"]')).toBeNull();
     });
 });

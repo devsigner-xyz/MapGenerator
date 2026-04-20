@@ -104,7 +104,7 @@ export function SettingsRelaysPage({
                 title="Relays"
                 description="Relays configurados, sugeridos y estado de conexion Nostr."
             />
-            <div className="nostr-page-content nostr-settings-body">
+            <div className="grid min-h-0 gap-2.5 overflow-x-hidden overflow-y-auto pr-px" data-testid="settings-page-body">
                 <div className="nostr-relays-content">
                     <p className="nostr-relays-help">Conecta varios relays. Puedes agregar uno por vez y elegir categoria.</p>
 

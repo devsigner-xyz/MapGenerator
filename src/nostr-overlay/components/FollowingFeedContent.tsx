@@ -65,6 +65,9 @@ export interface FollowingFeedViewProps {
     }) => Promise<boolean>;
     onToggleReaction: (input: { eventId: string; targetPubkey?: string; emoji?: string }) => Promise<boolean>;
     onToggleRepost: (input: { eventId: string; targetPubkey?: string; repostContent?: string }) => Promise<boolean>;
+    onZap: (input: { eventId: string; targetPubkey?: string; amount: number }) => Promise<void> | void;
+    zapAmounts: number[];
+    onConfigureZapAmounts?: () => void;
     onSelectHashtag?: (hashtag: string) => void;
     onSelectProfile?: (pubkey: string) => void;
     onResolveProfiles?: (pubkeys: string[]) => Promise<void> | void;
@@ -82,14 +85,6 @@ interface FollowingFeedContentProps extends FollowingFeedViewProps {
     headerActions?: ReactNode;
     headerSubtitle?: string;
     activeHashtag?: string;
-}
-
-function shortPubkey(pubkey: string): string {
-    if (!pubkey || pubkey.length < 14) {
-        return pubkey || 'desconocido';
-    }
-
-    return `${pubkey.slice(0, 8)}...${pubkey.slice(-6)}`;
 }
 
 interface ParsedEmbeddedRepost {
@@ -174,6 +169,9 @@ export function FollowingFeedContent({
     onPublishReply,
     onToggleReaction,
     onToggleRepost,
+    onZap,
+    zapAmounts,
+    onConfigureZapAmounts,
     onSelectHashtag,
     onSelectProfile,
     onResolveProfiles,
@@ -225,14 +223,6 @@ export function FollowingFeedContent({
     const replyDisabled = !canWrite || isPublishingReply || !replyTargetEventId;
     const replyTargetDescriptionId = 'following-feed-reply-target';
 
-    const replyTargetLabel = useMemo(() => {
-        if (!replyTargetEventId) {
-            return 'Selecciona un mensaje para responder';
-        }
-
-        return `Respondiendo al evento ${shortPubkey(replyTargetEventId)}`;
-    }, [replyTargetEventId]);
-
     const resolvedSubtitle = activeThread
         ? 'Respuestas y actividad de la conversación seleccionada.'
         : (headerSubtitle || 'Timeline en tiempo real de personas que sigues');
@@ -278,6 +268,9 @@ export function FollowingFeedContent({
             },
             onToggleReaction,
             onToggleRepost,
+            onZap,
+            zapAmounts,
+            ...(onConfigureZapAmounts ? { onConfigureZapAmounts } : {}),
         });
         const replyNote = fromThreadItem(reply, 'reply', replyActionState);
 
@@ -379,6 +372,9 @@ export function FollowingFeedContent({
                                     onOpenThread,
                                     onToggleReaction,
                                     onToggleRepost,
+                                    onZap,
+                                    zapAmounts,
+                                    ...(onConfigureZapAmounts ? { onConfigureZapAmounts } : {}),
                                 });
 
                                 const baseNote = fromFeedItem(item, actionState);
@@ -387,6 +383,40 @@ export function FollowingFeedContent({
                                 }
 
                                 const embeddedRepostPayload = item.kind === 'repost' ? parseEmbeddedRepostEvent(item.content) : null;
+                                const embeddedRepostItem = embeddedRepostPayload
+                                    ? {
+                                        id: embeddedRepostPayload.id,
+                                        pubkey: embeddedRepostPayload.pubkey,
+                                        createdAt: embeddedRepostPayload.createdAt,
+                                        content: embeddedRepostPayload.content,
+                                        kind: embeddedRepostPayload.kind === 1 ? 'note' as const : 'repost' as const,
+                                        rawEvent: {
+                                            id: embeddedRepostPayload.id,
+                                            pubkey: embeddedRepostPayload.pubkey,
+                                            kind: embeddedRepostPayload.kind,
+                                            created_at: embeddedRepostPayload.createdAt,
+                                            tags: embeddedRepostPayload.tags,
+                                            content: embeddedRepostPayload.content,
+                                        },
+                                    }
+                                    : null;
+                                const embeddedActionState = embeddedRepostItem
+                                    ? buildFeedActionState({
+                                        item: embeddedRepostItem,
+                                        canWrite,
+                                        engagementByEventId,
+                                        reactionByEventId,
+                                        repostByEventId,
+                                        pendingReactionByEventId,
+                                        pendingRepostByEventId,
+                                        onOpenThread,
+                                        onToggleReaction,
+                                        onToggleRepost,
+                                        onZap,
+                                        zapAmounts,
+                                        ...(onConfigureZapAmounts ? { onConfigureZapAmounts } : {}),
+                                    })
+                                    : undefined;
                                 const embeddedRepostNote = embeddedRepostPayload
                                     ? fromEmbeddedRepost({
                                         id: embeddedRepostPayload.id,
@@ -394,13 +424,14 @@ export function FollowingFeedContent({
                                         createdAt: embeddedRepostPayload.createdAt,
                                         content: embeddedRepostPayload.content,
                                         tags: embeddedRepostPayload.tags,
-                                    }, 1)
+                                    }, 1, embeddedActionState)
                                     : null;
 
                                 const note = item.kind === 'repost' && embeddedRepostNote
                                     ? {
                                         ...baseNote,
                                         content: '',
+                                        embedded: embeddedRepostNote,
                                     }
                                     : baseNote;
 
@@ -411,13 +442,6 @@ export function FollowingFeedContent({
                                             profilesByPubkey={profilesByPubkey}
                                             {...noteCardProps}
                                         />
-                                        {embeddedRepostNote ? (
-                                            <NoteCard
-                                                note={embeddedRepostNote}
-                                                profilesByPubkey={profilesByPubkey}
-                                                {...noteCardProps}
-                                            />
-                                        ) : null}
                                     </div>
                                 );
                             })
@@ -511,6 +535,9 @@ export function FollowingFeedContent({
                                             },
                                             onToggleReaction,
                                             onToggleRepost,
+                                            onZap,
+                                            zapAmounts,
+                                            ...(onConfigureZapAmounts ? { onConfigureZapAmounts } : {}),
                                         });
                                         const rootNote = fromThreadItem(activeThread.root, 'root', rootActionState);
 
@@ -553,7 +580,9 @@ export function FollowingFeedContent({
                         className="nostr-following-feed-reply-box sticky bottom-0 z-20 w-full max-w-none self-stretch gap-0 rounded-none border-x-0 border-b-0 py-0 shadow-none"
                     >
                         <CardContent className="px-4 py-3">
-                            <p id={replyTargetDescriptionId} aria-live="polite" className="nostr-following-feed-reply-target">{replyTargetLabel}</p>
+                            <p id={replyTargetDescriptionId} className="nostr-following-feed-reply-target" aria-live="polite">
+                                {replyTargetEventId ? 'Responder al hilo actual' : 'Sin destino de respuesta'}
+                            </p>
                             <Textarea
                                 value={replyDraft}
                                 aria-label="Redactar respuesta"

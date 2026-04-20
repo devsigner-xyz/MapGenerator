@@ -17,6 +17,9 @@ importers:
       '@nostr-dev-kit/ndk':
         specifier: ^3.0.3
         version: 3.0.3(nostr-tools@2.23.3(typescript@6.0.2))
+      '@scure/base':
+        specifier: ^2.0.0
+        version: 2.0.0
       '@svgdotjs/svg.js':
         specifier: ^3.0.16
         version: 3.2.5
