@@ -17,6 +17,8 @@ Ademas, el cambio no afecta solo a `Agora` principal. Debe abarcar cualquier `No
 
 La exploracion del codigo actual apunta a una causa raiz funcional: `useFollowingFeedController.ts` publica contenido social usando `options.writeGateway`, pero ese gateway solo firma eventos. En el repo ya existe `createPublishForwardApi` y el endpoint `POST /v1/publish/forward`, pero el flujo social actual no parece usarlo para reenviar los eventos firmados a relays sociales. Eso explicaria por que `repost` y potencialmente tambien publicar/responder no terminan apareciendo en la red.
 
+Ademas, el ultimo ajuste del repo ha corregido el render de reposts para que la nota reposted se vea embebida dentro de la tarjeta del repostador, en lugar de renderizarse como una tarjeta hermana separada. Ese cambio pasa a ser la referencia visual que debe seguir `Cita`.
+
 ## Scope
 
 Dentro de alcance:
@@ -68,6 +70,7 @@ Sobre esa base se construye una UX unificada:
 - el nuevo item `Publicar` del sidebar abre ese mismo dialog sin nota citada
 - el composer inline del `Agora` principal desaparece
 - el composer inline de respuesta del hilo se mantiene tal y como esta conceptualmente, porque es el unico caso donde la publicacion debe permanecer in situ
+- el render final de `Cita` debe reutilizar el mismo patron visual de `repost`: una sola tarjeta padre con nota embebida dentro, no dos tarjetas hermanas
 
 ## User Flows
 
@@ -95,6 +98,13 @@ Sobre esa base se construye una UX unificada:
 5. Al confirmar, la app publica una nota kind `1` con texto libre y referencia a la nota citada.
 6. Se muestra `toast.success('Cita publicada')` o `toast.error(...)`.
 
+### Render de una cita ya publicada
+
+1. La app renderiza una sola tarjeta padre para la autora o autor que cita.
+2. La tarjeta padre conserva el contenido adicional escrito por quien cita.
+3. Dentro de esa misma tarjeta se renderiza la nota citada como nota embebida.
+4. La nota citada no debe aparecer como tarjeta top-level hermana ni duplicarse por una segunda via de referencias.
+
 ## State Contract
 
 - El estado del dialog global de composer debe vivir por encima de las superficies concretas que disparan la accion, previsiblemente en `App.tsx`.
@@ -115,6 +125,7 @@ Sobre esa base se construye una UX unificada:
   - `toggleRepost` cuando se cree o elimine un repost
 - Los errores deben priorizar el mensaje real de la excepcion y caer a un fallback legible si no existe.
 - El `publishError` inline que hoy renderiza `FollowingFeedContent.tsx` deja de ser el mecanismo principal de feedback para publicar, repostear o citar. Para estas acciones, el feedback visible debe vivir en `toast`; si se mantiene `publishError` internamente, no debe mostrarse ademas como banner duplicado.
+- El modelo visual compartido para `repost` y `cita` pasa a ser `parent note + embedded child note` mediante `NoteCardModel.embedded` o una abstraccion equivalente centralizada; no debe quedar limitado a una transformacion ad hoc de `FollowingFeedContent.tsx`.
 
 ## Technical Direction
 
@@ -128,6 +139,7 @@ Sobre esa base se construye una UX unificada:
   - ampliar los tipos de entrada y salida para soportar cita como nota kind `1` con tags de referencia
   - introducir helpers especificos para construir tags de cita si no existen aun
   - mantener `sanitizeContent` como normalizacion comun para post, quote y reply
+  - definir un helper claro para resolver la representacion local de una cita sin duplicar la nota citada en el renderer
 
 - `src/nostr-api/publish-forward-api.ts`
   - reutilizar el cliente ya existente, pero consumirlo desde un publicador social que reciba un `HttpClient` autenticado (`bffClient`) en lugar del cliente por defecto sin auth headers
@@ -155,6 +167,7 @@ Sobre esa base se construye una UX unificada:
   - dejar de mantener `postDraft` y el flujo visual del composer principal dentro de esta vista
   - conservar unicamente el composer inferior de respuesta cuando `activeThread !== null`
   - aceptar y propagar el nuevo `NoteActionState` para que las notas del feed e hilo puedan delegar en `Repost` y `Cita` construidos por sus contenedores padre
+  - no introducir un segundo camino exclusivo de `FollowingFeedContent` para `Cita`; el render de cita debe salir de un contrato reutilizable compartido con el resto de superficies
 
 - `src/nostr-overlay/components/OccupantProfileDialog.tsx`
   - reutilizar la misma accion de repost/cita para las notas del perfil
@@ -163,6 +176,7 @@ Sobre esa base se construye una UX unificada:
 - `src/nostr-overlay/components/note-card-model.ts`
   - sustituir el contrato de accion unica `onToggleRepost` por un contrato que permita menu contextual de repost
   - mantener backward compatibility interna solo si es estrictamente necesaria durante la transicion de tests; la implementacion final debe dejar un contrato claro y unico
+  - consolidar el uso de `embedded` como primitiva compartida para renderizar `repost` y `cita` cuando una nota deba envolver otra nota
 
 - `src/nostr-overlay/components/following-feed-note-card-mappers.ts`
   - mapear `Repost` y `Cita` por separado para feed, hilo y preview de perfil
@@ -176,6 +190,25 @@ Sobre esa base se construye una UX unificada:
   - crear un componente nuevo en `src/nostr-overlay/components/` para el composer modal de `post` y `quote`
   - reutilizar `Dialog`, `Textarea`, `Button` y `NoteCard`/preview existente para no inventar un patron visual nuevo
   - el dialog debe poder resetear draft y estado al cerrar
+
+## Quote Rendering Contract
+
+- `Cita` se renderiza como una sola tarjeta padre del autor que cita.
+- Esa tarjeta padre debe mostrar:
+  - identidad del autor que cita
+  - fecha de publicacion de la cita
+  - contenido adicional escrito por quien cita
+  - la nota citada embebida dentro de la misma tarjeta
+- La nota citada no debe renderizarse como una tarjeta top-level hermana.
+- La nota citada no debe renderizarse dos veces cuando el evento de cita contenga tanto una referencia de contenido como metadatos suficientes para resolver la nota objetivo.
+- El origen de verdad del render debe ser unico por tarjeta citada:
+  - o `NoteCardModel.embedded`
+  - o referencias resueltas desde contenido
+  - pero no ambos para la misma cita en la misma superficie.
+- Esta regla debe cumplirse de forma consistente en:
+  - feed de `Agora`
+  - detalle de hilo
+  - feed del dialog de perfil
 
 ## Relay And Publish Rules
 
@@ -197,6 +230,8 @@ Sobre esa base se construye una UX unificada:
   - una referencia `nostr:nevent...` en `content`, porque el renderer actual ya soporta y testea referencias `nevent` en `RichNostrContent`
   - tags de evento/persona necesarias para compatibilidad (`e` y `p` como minimo cuando aplique), sin convertir la cita en repost comentado
 - La implementacion no debe dejar este formato abierto a decidir mas tarde.
+- Aunque el wire format incluya `nostr:nevent...`, el renderer local de la app debe resolver la cita con una sola nota embebida visible y suprimir cualquier doble render del mismo objetivo citado.
+- A nivel visual, `Cita` se comporta como un repost con comentario: tarjeta padre con contenido propio mas tarjeta embebida de la nota citada.
 
 ## Repost Menu Rules
 
@@ -244,5 +279,9 @@ Sobre esa base se construye una UX unificada:
   - apertura del menu `Repost/Cita`
   - semantica de toggle del item `Repost`
   - apertura del dialog de cita
+  - que una cita renderiza exactamente una tarjeta top-level del autor que cita
+  - que el contenido adicional del autor que cita permanece visible
+  - que la nota citada aparece embebida dentro de esa tarjeta
+  - que la nota citada no se duplica ni como hermana ni como segunda referencia embebida
   - toasts de exito/error
   - uso del flujo de publicacion social tanto en post normal como en repost/cita

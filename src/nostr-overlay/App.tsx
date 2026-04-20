@@ -44,6 +44,7 @@ import { CityStatsPage } from './components/CityStatsPage';
 import { ChatsPage, type ChatConversationSummary, type ChatDetailMessage } from './components/ChatsPage';
 import { NotificationsPage } from './components/NotificationsPage';
 import { FollowingFeedSurface } from './components/FollowingFeedSurface';
+import { SocialComposeDialog } from './components/SocialComposeDialog';
 import { SettingsPage } from './components/SettingsPage';
 import { UserSearchPage } from './components/UserSearchPage';
 import { WalletPage } from './components/WalletPage';
@@ -79,6 +80,7 @@ import {
 import type { NostrEvent } from '../nostr/types';
 import { buildSettingsPath, settingsViewFromPathname, type SettingsRouteView } from './settings/settings-routing';
 import { useRelayConnectionSummary } from './hooks/useRelayConnectionSummary';
+import type { NoteCardModel } from './components/note-card-model';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Spinner } from '@/components/ui/spinner';
 import {
@@ -114,6 +116,11 @@ interface PendingZapIntent {
 }
 
 type ZapExecutionResult = 'success' | 'retryable_failure' | 'definitive_failure';
+
+interface SocialComposeState {
+    mode: 'post' | 'quote';
+    quoteTarget?: NoteCardModel;
+}
 
 function mapLoaderStageLabel(stage: MapLoaderStage | null): string | null {
     if (stage === 'connecting_relay') {
@@ -164,6 +171,8 @@ export function App({ mapBridge, services }: AppProps) {
     const [walletNwcUriInput, setWalletNwcUriInput] = useState('');
     const [pendingZapIntent, setPendingZapIntent] = useState<PendingZapIntent | null>(null);
     const [resumingZap, setResumingZap] = useState(false);
+    const [socialComposeState, setSocialComposeState] = useState<SocialComposeState | null>(null);
+    const [isSubmittingSocialCompose, setIsSubmittingSocialCompose] = useState(false);
 
     const fetchNwcInfo = async (connection: {
         walletServicePubkey: string;
@@ -511,7 +520,7 @@ export function App({ mapBridge, services }: AppProps) {
         pageSize: 10,
         canWrite: overlay.canWrite,
         service: overlay.socialFeedService,
-        ...(overlay.writeGateway ? { writeGateway: overlay.writeGateway } : {}),
+        ...((overlay.socialPublisher ?? overlay.writeGateway) ? { writeGateway: overlay.socialPublisher ?? overlay.writeGateway } : {}),
     });
     const activeProfilePostEventIds = useMemo(
         () => activeProfileData.posts.map((post) => post.id),
@@ -932,6 +941,30 @@ export function App({ mapBridge, services }: AppProps) {
         navigate('/agora');
     };
 
+    const openPublishComposer = (): void => {
+        if (!overlay.canWrite) {
+            return;
+        }
+
+        setSocialComposeState({ mode: 'post' });
+    };
+
+    const openQuoteComposer = (note: NoteCardModel): void => {
+        if (!overlay.canWrite) {
+            return;
+        }
+
+        setSocialComposeState({ mode: 'quote', quoteTarget: note });
+    };
+
+    const closeSocialCompose = (): void => {
+        if (isSubmittingSocialCompose) {
+            return;
+        }
+
+        setSocialComposeState(null);
+    };
+
     const selectFollowingFeedHashtag = (hashtag: string): void => {
         const normalized = normalizeHashtag(hashtag);
         if (!normalized) {
@@ -960,6 +993,62 @@ export function App({ mapBridge, services }: AppProps) {
         openFollowingFeed();
         void followingFeed.openThread(eventId);
     };
+
+    const handleToggleRepost = useCallback(async (input: Parameters<typeof followingFeed.toggleRepost>[0]): Promise<boolean> => {
+        const wasActive = Boolean(followingFeed.repostByEventId[input.eventId]);
+        const succeeded = await followingFeed.toggleRepost(input);
+
+        if (succeeded) {
+            toast.success(wasActive ? 'Repost eliminado' : 'Repost publicado', { duration: 1800 });
+            return true;
+        }
+
+        toast.error(wasActive ? 'No se pudo eliminar el repost' : 'No se pudo publicar el repost', { duration: 2200 });
+        return false;
+    }, [followingFeed.repostByEventId, followingFeed.toggleRepost]);
+
+    const submitSocialCompose = useCallback(async (content: string): Promise<void> => {
+        if (!socialComposeState) {
+            return;
+        }
+
+        setIsSubmittingSocialCompose(true);
+        try {
+            if (socialComposeState.mode === 'post') {
+                const succeeded = await followingFeed.publishPost(content);
+                if (succeeded) {
+                    toast.success('Publicacion enviada', { duration: 1800 });
+                    setSocialComposeState(null);
+                    return;
+                }
+
+                toast.error('No se pudo publicar la nota', { duration: 2200 });
+                return;
+            }
+
+            const quoteTarget = socialComposeState.quoteTarget;
+            if (!quoteTarget) {
+                toast.error('No se pudo publicar la cita', { duration: 2200 });
+                return;
+            }
+
+            const succeeded = await followingFeed.publishQuote({
+                targetEventId: quoteTarget.id,
+                targetPubkey: quoteTarget.pubkey,
+                content,
+            });
+
+            if (succeeded) {
+                toast.success('Cita publicada', { duration: 1800 });
+                setSocialComposeState(null);
+                return;
+            }
+
+            toast.error('No se pudo publicar la cita', { duration: 2200 });
+        } finally {
+            setIsSubmittingSocialCompose(false);
+        }
+    }, [followingFeed.publishPost, followingFeed.publishQuote, socialComposeState]);
 
     const openMentionedProfile = (pubkey: string): void => {
         if (!pubkey) {
@@ -1406,6 +1495,7 @@ export function App({ mapBridge, services }: AppProps) {
                     {...(overlay.authSession ? { authSession: overlay.authSession } : {})}
                     {...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {})}
                     {...(overlay.ownerProfile ? { ownerProfile: overlay.ownerProfile } : {})}
+                    canWrite={overlay.canWrite}
                     canAccessDirectMessages={canAccessDirectMessages}
                     canAccessSocialNotifications={canAccessSocialNotifications}
                     canAccessFollowingFeed={canAccessFollowingFeed}
@@ -1420,6 +1510,7 @@ export function App({ mapBridge, services }: AppProps) {
                     onOpenFollowingFeed={openFollowingFeed}
                     onOpenGlobalSearch={openGlobalUserSearch}
                     onOpenWallet={() => navigate('/wallet')}
+                    onOpenPublish={openPublishComposer}
                     onOpenSettings={openSettingsPage}
                     onLogout={handleLogout}
                     onCopyOwnerNpub={copyOwnerIdentifier}
@@ -1598,7 +1689,8 @@ export function App({ mapBridge, services }: AppProps) {
                             onPublishPost={followingFeed.publishPost}
                             onPublishReply={followingFeed.publishReply}
                             onToggleReaction={followingFeed.toggleReaction}
-                            onToggleRepost={followingFeed.toggleRepost}
+                            onToggleRepost={handleToggleRepost}
+                            onOpenQuoteComposer={openQuoteComposer}
                             onZap={({ targetPubkey, amount }) => handleZapIntent(targetPubkey || '', amount)}
                             zapAmounts={zapSettings.amounts}
                             onConfigureZapAmounts={() => openSettingsPage('zaps')}
@@ -1820,7 +1912,8 @@ export function App({ mapBridge, services }: AppProps) {
                     pendingRepostByEventId={followingFeed.pendingRepostByEventId}
                     onOpenThread={openThreadFromProfileDialog}
                     onToggleReaction={followingFeed.toggleReaction}
-                    onToggleRepost={followingFeed.toggleRepost}
+                    onToggleRepost={handleToggleRepost}
+                    onOpenQuoteComposer={openQuoteComposer}
                     onZap={({ targetPubkey, amount }) => handleZapIntent(targetPubkey || '', amount)}
                     zapAmounts={zapSettings.amounts}
                     onConfigureZapAmounts={() => openSettingsPage('zaps')}
@@ -1837,6 +1930,22 @@ export function App({ mapBridge, services }: AppProps) {
                     buildingIndex={activeEasterEgg.buildingIndex}
                     entry={getEasterEggEntry(activeEasterEgg.easterEggId)}
                     onClose={() => setActiveEasterEgg(null)}
+                />
+            ) : null}
+
+            {socialComposeState ? (
+                <SocialComposeDialog
+                    open
+                    mode={socialComposeState.mode}
+                    {...(socialComposeState.quoteTarget ? { quoteTarget: socialComposeState.quoteTarget } : {})}
+                    profilesByPubkey={richContentProfilesByPubkey}
+                    isSubmitting={isSubmittingSocialCompose}
+                    onOpenChange={(open) => {
+                        if (!open) {
+                            closeSocialCompose();
+                        }
+                    }}
+                    onSubmit={submitSocialCompose}
                 />
             ) : null}
 

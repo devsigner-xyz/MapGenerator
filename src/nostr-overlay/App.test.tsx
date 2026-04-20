@@ -431,6 +431,28 @@ beforeEach(() => {
     window.localStorage.clear();
     __resetFollowsCacheForTests();
     (window as unknown as { nostr?: unknown }).nostr = createNip07ExtensionMock();
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL) => {
+        const url = String(input);
+        if (url.includes('/v1/publish/forward')) {
+            return new Response(JSON.stringify({
+                ackedRelays: ['wss://relay.one'],
+                failedRelays: [],
+                timeoutRelays: [],
+            }), {
+                status: 200,
+                headers: {
+                    'content-type': 'application/json',
+                },
+            });
+        }
+
+        return new Response(JSON.stringify([]), {
+            status: 200,
+            headers: {
+                'content-type': 'application/json',
+            },
+        });
+    }));
     createNdkDmTransportClientSpy = vi.spyOn(ndkClientModule, 'createNdkDmTransportClient').mockReturnValue({
         publishToRelays: vi.fn(async () => ({
             ackedRelays: [],
@@ -1391,7 +1413,16 @@ describe('Nostr overlay App', () => {
 
         const repostButton = rendered.container.querySelector('button[aria-label="Repostear (2)"]') as HTMLButtonElement;
         await act(async () => {
+            repostButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
             repostButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const repostItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Repost'
+        ) as HTMLElement;
+
+        await act(async () => {
+            repostItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
         await waitFor(() => Boolean(rendered.container.querySelector('button[aria-label="Repostear (3)"]')));
@@ -1493,6 +1524,7 @@ describe('Nostr overlay App', () => {
             created_at: number;
             tags: string[][];
             content: string;
+            sig: string;
         }>();
         const publishTextNote = vi.fn(async (_content: string, tags?: string[][]) => {
             if (tags && tags.length > 0) {
@@ -1506,6 +1538,7 @@ describe('Nostr overlay App', () => {
                 created_at: 200,
                 tags: [],
                 content: _content,
+                sig: '1'.repeat(128),
             };
         });
 
@@ -1596,6 +1629,7 @@ describe('Nostr overlay App', () => {
                 created_at: 220,
                 tags: [['e', 'note-1', '', 'root'], ['e', 'note-1', '', 'reply']],
                 content: 'respuesta final',
+                sig: '2'.repeat(128),
             });
         });
 
@@ -2570,7 +2604,7 @@ describe('Nostr overlay App', () => {
         expect(compactNotificationsButton).not.toBeNull();
     });
 
-    test('orders main sidebar actions as mapa/agora/chats/relays/notificaciones/buscar/estadisticas/descubre/ajustes', async () => {
+    test('orders main sidebar actions as mapa/agora/publicar/chats/relays/notificaciones/buscar/estadisticas/descubre/ajustes', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const socialFeed = createSocialFeedServiceMock();
         const socialNotifications = createSocialNotificationsServiceMock();
@@ -2610,6 +2644,7 @@ describe('Nostr overlay App', () => {
         const requiredOrder = [
             'Abrir mapa',
             'Abrir Agora',
+            'Abrir publicar',
             'Abrir chats',
             'Abrir relays',
             'Abrir notificaciones',
@@ -2625,6 +2660,199 @@ describe('Nostr overlay App', () => {
 
         expect(orderedVisibleLabels).toEqual(requiredOrder);
         expect(panelLabels).not.toContain('Regenerar mapa');
+    });
+
+    test('opens global publish dialog from the sidebar', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const rendered = await renderApp(
+            <App
+                mapBridge={createMapBridgeStub().bridge}
+                services={createBasicOverlayServices(ownerPubkey)}
+            />
+        );
+        mounted.push(rendered);
+
+        await loginWithNip07(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const publishButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir publicar"]') as HTMLButtonElement | null;
+        expect(publishButton).not.toBeNull();
+
+        await act(async () => {
+            publishButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (document.body.textContent || '').includes('Publicar'));
+        expect(document.body.querySelector('textarea[aria-label="Redactar publicacion"]')).not.toBeNull();
+    });
+
+    test('publishes from the global compose dialog and shows success toast', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const socialPublisher = {
+            publishEvent: vi.fn(async () => ({
+                id: 'a'.repeat(64),
+                pubkey: ownerPubkey,
+                kind: 1,
+                created_at: 200,
+                tags: [],
+                content: '',
+                sig: 'b'.repeat(128),
+            })),
+            publishTextNote: vi.fn(async (content: string, tags: string[][] = []) => ({
+                id: 'c'.repeat(64),
+                pubkey: ownerPubkey,
+                kind: 1,
+                created_at: 200,
+                tags,
+                content,
+                sig: 'd'.repeat(128),
+            })),
+        };
+        const rendered = await renderApp(
+            <App
+                mapBridge={createMapBridgeStub().bridge}
+                services={createBasicOverlayServices(ownerPubkey, { socialPublisher })}
+            />
+        );
+        mounted.push(rendered);
+
+        await loginWithNip07(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const publishButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir publicar"]') as HTMLButtonElement;
+        await act(async () => {
+            publishButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const textarea = document.body.querySelector('textarea[aria-label="Redactar publicacion"]') as HTMLTextAreaElement;
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+            valueSetter?.call(textarea, 'hola desde dialogo');
+            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            textarea.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        const submitButton = document.body.querySelector('[data-slot="dialog-footer"] button:last-of-type') as HTMLButtonElement;
+
+        await act(async () => {
+            submitButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => socialPublisher.publishTextNote.mock.calls.length > 0);
+        expect(socialPublisher.publishTextNote).toHaveBeenCalledWith('hola desde dialogo', []);
+        await waitFor(() => (document.body.textContent || '').includes('Publicacion enviada'));
+    });
+
+    test('opens quote dialog from repost menu and publishes quote content with nevent reference', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const targetPubkey = 'a'.repeat(64);
+        const socialFeed = createSocialFeedServiceMock();
+        (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mockResolvedValue({
+            items: [
+                {
+                    id: '1'.repeat(64),
+                    pubkey: targetPubkey,
+                    createdAt: 100,
+                    content: 'nota original',
+                    kind: 'note',
+                    rawEvent: {
+                        id: '1'.repeat(64),
+                        pubkey: targetPubkey,
+                        kind: 1,
+                        created_at: 100,
+                        tags: [],
+                        content: 'nota original',
+                    },
+                },
+            ],
+            hasMore: false,
+        });
+        const socialPublisher = {
+            publishEvent: vi.fn(async () => ({
+                id: 'a'.repeat(64),
+                pubkey: ownerPubkey,
+                kind: 1,
+                created_at: 200,
+                tags: [],
+                content: '',
+                sig: 'b'.repeat(128),
+            })),
+            publishTextNote: vi.fn(async (content: string, tags: string[][] = []) => ({
+                id: 'c'.repeat(64),
+                pubkey: ownerPubkey,
+                kind: 1,
+                created_at: 200,
+                tags,
+                content,
+                sig: 'd'.repeat(128),
+            })),
+        };
+        const rendered = await renderApp(
+            <App
+                mapBridge={createMapBridgeStub().bridge}
+                services={createBasicOverlayServices(ownerPubkey, {
+                    socialFeedService: socialFeed.service,
+                    socialPublisher,
+                    fetchFollowsByPubkeyFn: async () => ({
+                        ownerPubkey,
+                        follows: [targetPubkey],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: async () => ({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                        [targetPubkey]: { pubkey: targetPubkey, displayName: 'Alice' },
+                    }),
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        await loginWithNip07(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const agoraButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir Agora"]') as HTMLButtonElement;
+        await act(async () => {
+            agoraButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('nota original'));
+        const repostButton = rendered.container.querySelector('button[aria-label="Repostear (0)"]') as HTMLButtonElement;
+        await act(async () => {
+            repostButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+            repostButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const quoteItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Cita'
+        ) as HTMLElement;
+        await act(async () => {
+            quoteItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => Boolean(document.body.querySelector('[data-slot="dialog-content"]')));
+        await waitFor(() => (document.body.textContent || '').includes('nota original'));
+        const textarea = document.body.querySelector('textarea[aria-label="Redactar publicacion"]') as HTMLTextAreaElement;
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+            valueSetter?.call(textarea, 'mi comentario');
+            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            textarea.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        const submitButton = document.body.querySelector('[data-slot="dialog-footer"] button:last-of-type') as HTMLButtonElement;
+        await act(async () => {
+            submitButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => socialPublisher.publishTextNote.mock.calls.length > 0);
+        const [quoteContent, quoteTags] = socialPublisher.publishTextNote.mock.calls[0] as [string, string[][]];
+        expect(quoteContent).toContain('mi comentario');
+        expect(quoteContent).toContain('nostr:nevent1');
+        expect(quoteTags).toEqual(expect.arrayContaining([
+            ['q', '1'.repeat(64)],
+            ['p', targetPubkey],
+        ]));
+        await waitFor(() => (document.body.textContent || '').includes('Cita publicada'));
     });
 
     test('hides chat entry points when session is not dm-capable', async () => {
@@ -3319,8 +3547,6 @@ describe('Nostr overlay App', () => {
 
         await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
-        await waitFor(() => (rendered.container.textContent || '').includes('Alice'));
-        await waitFor(() => (rendered.container.textContent || '').includes('Alice'));
 
         await act(async () => {
             triggerOccupiedBuildingContextMenu({

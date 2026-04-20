@@ -10,6 +10,8 @@ import { NoteCard } from './NoteCard';
 import { buildPreviewActionState } from './following-feed-note-card-mappers';
 import { Nip05Identifier } from './Nip05Identifier';
 import { fromPostPreview } from './note-card-adapters';
+import type { NoteCardModel } from './note-card-model';
+import { withoutNoteActions } from './note-card-model';
 import { CircleCheckIcon, CopyIcon, EllipsisVerticalIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -67,6 +69,7 @@ interface OccupantProfileDialogProps {
     onAddAllRelaySuggestions?: (rows: Array<{ relayUrl: string; relayTypes: RelayType[] }>) => void | Promise<void>;
     onToggleReaction?: (input: { eventId: string; targetPubkey?: string; emoji?: string }) => Promise<boolean>;
     onToggleRepost?: (input: { eventId: string; targetPubkey?: string; repostContent?: string }) => Promise<boolean>;
+    onOpenQuoteComposer?: (note: NoteCardModel) => void;
     onZap?: (input: { eventId: string; targetPubkey?: string; amount: number }) => Promise<void> | void;
     zapAmounts?: number[];
     onConfigureZapAmounts?: () => void;
@@ -182,6 +185,7 @@ export function OccupantProfileDialog({
     onAddAllRelaySuggestions,
     onToggleReaction,
     onToggleRepost,
+    onOpenQuoteComposer,
     onZap,
     zapAmounts = [21, 128, 256],
     onConfigureZapAmounts,
@@ -732,6 +736,7 @@ export function OccupantProfileDialog({
                                                         onOpenThread,
                                                         onToggleReaction,
                                                         onToggleRepost,
+                                                        onQuote: () => {},
                                                         onZap,
                                                         zapAmounts,
                                                         ...(onConfigureZapAmounts ? { onConfigureZapAmounts } : {}),
@@ -744,6 +749,10 @@ export function OccupantProfileDialog({
                                                             <p>No se pudo renderizar la nota.</p>
                                                         </article>
                                                     );
+                                                }
+
+                                                if (note.actions && onOpenQuoteComposer) {
+                                                    note.actions.onQuote = () => onOpenQuoteComposer(withoutNoteActions(note));
                                                 }
 
                                                 return (

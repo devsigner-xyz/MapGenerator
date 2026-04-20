@@ -37,6 +37,7 @@ async function renderSidebar(pathname = '/'): Promise<RenderResult> {
                     authSession={authSession}
                     ownerPubkey={'f'.repeat(64)}
                     ownerProfile={{ pubkey: 'f'.repeat(64), displayName: 'Nostr City', picture: 'https://example.com/avatar.png' }}
+                    canWrite
                     canAccessDirectMessages
                     canAccessSocialNotifications
                     canAccessFollowingFeed
@@ -51,6 +52,7 @@ async function renderSidebar(pathname = '/'): Promise<RenderResult> {
                     onOpenFollowingFeed={vi.fn()}
                     onOpenGlobalSearch={vi.fn()}
                     onOpenWallet={vi.fn()}
+                    onOpenPublish={vi.fn()}
                     onOpenSettings={vi.fn()}
                     onLogout={vi.fn()}
                     onCopyOwnerNpub={vi.fn()}

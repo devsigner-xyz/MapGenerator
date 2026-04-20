@@ -8,6 +8,8 @@ import type {
     SocialThreadPage,
 } from '../../nostr/social-feed-service';
 import {
+    buildQuoteContent,
+    buildQuoteTags,
     buildPendingByEventId,
     buildReplyTags,
     buildTemporaryFeedNote,
@@ -19,6 +21,7 @@ import {
     toFeedItemFromPublished,
     toThreadItemFromPublished,
     type PublishReplyInput,
+    type PublishQuoteInput,
     type ToggleReactionInput,
     type ToggleRepostInput,
     type WriteGatewayLike,
@@ -82,6 +85,12 @@ interface PublishReplyMutationVariables {
     input: PublishReplyInput;
     rootEventId: string;
     content: string;
+}
+
+interface PublishQuoteMutationVariables {
+    input: PublishQuoteInput;
+    content: string;
+    tags: string[][];
 }
 
 interface PublishReplyMutationContext {
@@ -356,6 +365,80 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
                 };
             });
             setPublishError(error instanceof Error ? error.message : 'No se pudo publicar la nota');
+        },
+        onSettled: () => {
+            void queryClient.invalidateQueries({ queryKey: nostrOverlayQueryKeys.invalidation.followingFeed() });
+        },
+    });
+
+    const publishQuoteMutation = useMutation({
+        mutationKey: followingFeedMutationKeys.publishQuote,
+        mutationFn: async (variables: PublishQuoteMutationVariables) => {
+            if (!options.writeGateway) {
+                throw new Error('No write gateway available');
+            }
+
+            return options.writeGateway.publishTextNote(variables.content, variables.tags);
+        },
+        onMutate: async (variables) => {
+            if (!options.ownerPubkey) {
+                return { tempId: '' };
+            }
+
+            setPublishError(null);
+            const tempId = `temp-quote:${Date.now()}`;
+            const tempNote = buildTemporaryFeedNote(tempId, options.ownerPubkey, now(), variables.content, variables.tags);
+
+            queryClient.setQueryData<InfiniteData<SocialFeedPage>>(feedQueryKey, (current) =>
+                prependFeedItem(current, tempNote)
+            );
+
+            return { tempId };
+        },
+        onSuccess: (published, _variables, context) => {
+            if (!context?.tempId) {
+                return;
+            }
+
+            queryClient.setQueryData<InfiniteData<SocialFeedPage>>(feedQueryKey, (current) => {
+                if (!current || current.pages.length === 0) {
+                    return current;
+                }
+
+                const publishedItem = toFeedItemFromPublished(published);
+                const firstPage = current.pages[0];
+                if (!firstPage) {
+                    return current;
+                }
+                const withoutTemp = firstPage.items.filter((item) => item.id !== context.tempId);
+                const updatedItems = publishedItem ? mergeFeedItems([publishedItem], withoutTemp) : withoutTemp;
+                return {
+                    pages: [{ ...firstPage, items: updatedItems }, ...current.pages.slice(1)],
+                    pageParams: current.pageParams,
+                };
+            });
+        },
+        onError: (error, _variables, context) => {
+            if (!context?.tempId) {
+                setPublishError(error instanceof Error ? error.message : 'No se pudo publicar la cita');
+                return;
+            }
+
+            queryClient.setQueryData<InfiniteData<SocialFeedPage>>(feedQueryKey, (current) => {
+                if (!current || current.pages.length === 0) {
+                    return current;
+                }
+
+                const firstPage = current.pages[0];
+                if (!firstPage) {
+                    return current;
+                }
+                return {
+                    pages: [{ ...firstPage, items: firstPage.items.filter((item) => item.id !== context.tempId) }, ...current.pages.slice(1)],
+                    pageParams: current.pageParams,
+                };
+            });
+            setPublishError(error instanceof Error ? error.message : 'No se pudo publicar la cita');
         },
         onSettled: () => {
             void queryClient.invalidateQueries({ queryKey: nostrOverlayQueryKeys.invalidation.followingFeed() });
@@ -710,6 +793,30 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
         }
     }, [activeThreadRootEventId, options.canWrite, options.ownerPubkey, options.writeGateway, publishReplyMutation]);
 
+    const publishQuote = useCallback(async (input: PublishQuoteInput): Promise<boolean> => {
+        if (!options.ownerPubkey || !options.canWrite || !options.writeGateway || !input.targetEventId) {
+            return false;
+        }
+
+        const normalizedInput = {
+            ...input,
+            content: sanitizeContent(input.content),
+        };
+        const content = buildQuoteContent(normalizedInput);
+        const tags = buildQuoteTags(normalizedInput);
+
+        try {
+            await publishQuoteMutation.mutateAsync({
+                input: normalizedInput,
+                content,
+                tags,
+            });
+            return true;
+        } catch {
+            return false;
+        }
+    }, [options.canWrite, options.ownerPubkey, options.writeGateway, publishQuoteMutation]);
+
     const toggleReaction = useCallback(async (input: ToggleReactionInput): Promise<boolean> => {
         if (!options.ownerPubkey || !options.canWrite || !options.writeGateway || !input.eventId) {
             return false;
@@ -777,6 +884,7 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
         activeThread,
         publishError,
         isPublishingPost: publishPostMutation.isPending,
+        isPublishingQuote: publishQuoteMutation.isPending,
         isPublishingReply: publishReplyMutation.isPending,
         reactionByEventId,
         repostByEventId,
@@ -791,6 +899,7 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
         closeThread,
         loadNextThreadPage,
         publishPost,
+        publishQuote,
         publishReply,
         toggleReaction,
         toggleRepost,

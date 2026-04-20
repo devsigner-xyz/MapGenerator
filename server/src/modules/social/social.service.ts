@@ -23,6 +23,7 @@ type EngagementRequest = EngagementBody;
 
 type NostrEventLike = {
   id: string;
+  sig?: string;
   pubkey: string;
   kind: number;
   created_at: number;
@@ -56,6 +57,7 @@ const toEventDto = (event: NostrEventLike): SocialEventDto => {
     createdAt: event.created_at,
     content: event.content,
     tags: event.tags,
+    ...(typeof event.sig === 'string' ? { sig: event.sig } : {}),
   };
 };
 

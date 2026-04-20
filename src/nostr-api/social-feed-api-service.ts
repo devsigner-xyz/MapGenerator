@@ -16,6 +16,7 @@ interface SocialEventDto {
     createdAt: number;
     content: string;
     tags: string[][];
+    sig?: string;
 }
 
 interface FollowingFeedResponseDto {
@@ -57,6 +58,7 @@ function toNostrEvent(dto: SocialEventDto): NostrEvent {
         created_at: dto.createdAt,
         content: dto.content,
         tags: dto.tags,
+        ...(typeof dto.sig === 'string' ? { sig: dto.sig } : {}),
     };
 }
 

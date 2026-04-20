@@ -63,7 +63,8 @@ const actionStateFixture = {
     zapSats: 210,
     onReply: () => {},
     onToggleReaction: async () => true,
-    onToggleRepost: async () => true,
+    onRepost: async () => true,
+    onQuote: () => {},
 };
 
 describe('note-card-adapters', () => {

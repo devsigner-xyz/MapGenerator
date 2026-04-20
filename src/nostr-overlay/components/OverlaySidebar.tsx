@@ -8,6 +8,7 @@ import {
     LogOutIcon,
     MapPinIcon,
     MessageCircleIcon,
+    PenSquareIcon,
     RadioTowerIcon,
     SearchIcon,
     Settings2Icon,
@@ -59,6 +60,7 @@ interface OverlaySidebarProps {
     authSession?: AuthSessionState;
     ownerPubkey?: string;
     ownerProfile?: NostrProfile;
+    canWrite: boolean;
     canAccessDirectMessages: boolean;
     canAccessSocialNotifications: boolean;
     canAccessFollowingFeed: boolean;
@@ -73,6 +75,7 @@ interface OverlaySidebarProps {
     onOpenFollowingFeed: () => void;
     onOpenGlobalSearch: () => void;
     onOpenWallet: () => void;
+    onOpenPublish: () => void;
     onOpenSettings: (view: SettingsRouteView) => void;
     onLogout?: () => void | Promise<void>;
     onCopyOwnerNpub?: (value: string) => void | Promise<void>;
@@ -98,6 +101,7 @@ function SidebarActionsMenu({
     canAccessDirectMessages,
     canAccessSocialNotifications,
     canAccessFollowingFeed,
+    canWrite,
     chatHasUnread,
     notificationsHasUnread,
     followingFeedHasUnread,
@@ -109,6 +113,7 @@ function SidebarActionsMenu({
     onOpenFollowingFeed,
     onOpenGlobalSearch,
     onOpenWallet,
+    onOpenPublish,
     onOpenSettings,
     missionsDiscoveredCount,
     missionsTotal,
@@ -166,6 +171,22 @@ function SidebarActionsMenu({
                                 <UsersIcon />
                                 <span>Agora</span>
                                 {followingFeedHasUnread ? <OverlayUnreadIndicator variant="overlay" className="nostr-following-feed-unread-dot" srLabel="Agora con actividad sin leer" /> : null}
+                            </button>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                ) : null}
+
+                {canWrite ? (
+                    <SidebarMenuItem>
+                        <SidebarMenuButton asChild>
+                            <button
+                                type="button"
+                                aria-label="Abrir publicar"
+                                title="Publicar"
+                                onClick={onOpenPublish}
+                            >
+                                <PenSquareIcon />
+                                <span>Publicar</span>
                             </button>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -505,6 +526,7 @@ export function OverlaySidebar({
     authSession,
     ownerPubkey,
     ownerProfile,
+    canWrite,
     canAccessDirectMessages,
     canAccessSocialNotifications,
     canAccessFollowingFeed,
@@ -519,6 +541,7 @@ export function OverlaySidebar({
     onOpenFollowingFeed,
     onOpenGlobalSearch,
     onOpenWallet,
+    onOpenPublish,
     onOpenSettings,
     onLogout,
     onCopyOwnerNpub,
@@ -547,6 +570,7 @@ export function OverlaySidebar({
                 </SidebarContent>
                 <SidebarFooter className="pt-0">
                     <SidebarActionsMenu
+                        canWrite={canWrite}
                         canAccessDirectMessages={canAccessDirectMessages}
                         canAccessSocialNotifications={canAccessSocialNotifications}
                         canAccessFollowingFeed={canAccessFollowingFeed}
@@ -561,6 +585,7 @@ export function OverlaySidebar({
                         onOpenFollowingFeed={onOpenFollowingFeed}
                         onOpenGlobalSearch={onOpenGlobalSearch}
                         onOpenWallet={onOpenWallet}
+                        onOpenPublish={onOpenPublish}
                         onOpenSettings={onOpenSettings}
                         missionsDiscoveredCount={missionsDiscoveredCount}
                         missionsTotal={missionsTotal}

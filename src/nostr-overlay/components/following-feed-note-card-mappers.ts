@@ -22,6 +22,7 @@ interface BuildActionStateBaseInput {
     pendingRepostByEventId: Record<string, boolean>;
     onToggleReaction: (input: { eventId: string; targetPubkey?: string; emoji?: string }) => Promise<boolean>;
     onToggleRepost: (input: { eventId: string; targetPubkey?: string; repostContent?: string }) => Promise<boolean>;
+    onQuote: () => void;
 }
 
 interface BuildFeedActionStateInput extends BuildActionStateBaseInput {
@@ -47,6 +48,30 @@ function metricsForEvent(
     return engagementByEventId[eventId] ?? EMPTY_ENGAGEMENT_METRICS;
 }
 
+function serializeRepostPayload(input: {
+    id: string;
+    pubkey: string;
+    createdAt: number;
+    content: string;
+    kind?: number;
+    tags?: string[][];
+    rawEvent?: {
+        id: string;
+        pubkey: string;
+        kind: number;
+        created_at: number;
+        tags: string[][];
+        content: string;
+        sig?: string;
+    };
+}): string {
+    if (input.rawEvent?.sig) {
+        return JSON.stringify(input.rawEvent);
+    }
+
+    return '';
+}
+
 export function buildFeedActionState({
     item,
     canWrite,
@@ -61,6 +86,7 @@ export function buildFeedActionState({
     onOpenThread,
     onToggleReaction,
     onToggleRepost,
+    onQuote,
 }: BuildFeedActionStateInput): NoteActionState {
     const metrics = metricsForEvent(engagementByEventId, item.id);
 
@@ -85,11 +111,18 @@ export function buildFeedActionState({
             eventId: item.id,
             targetPubkey: item.pubkey,
         }),
-        onToggleRepost: () => onToggleRepost({
+        onRepost: () => onToggleRepost({
             eventId: item.id,
             targetPubkey: item.pubkey,
-            repostContent: item.content,
+            repostContent: serializeRepostPayload({
+                id: item.id,
+                pubkey: item.pubkey,
+                createdAt: item.createdAt,
+                content: item.content,
+                ...(item.rawEvent ? { rawEvent: item.rawEvent } : {}),
+            }),
         }),
+        onQuote,
         onZap: (amount) => onZap({
             eventId: item.id,
             targetPubkey: item.pubkey,
@@ -113,6 +146,7 @@ export function buildPreviewActionState({
     onOpenThread,
     onToggleReaction,
     onToggleRepost,
+    onQuote,
 }: BuildPreviewActionStateInput): NoteActionState {
     const metrics = metricsForEvent(engagementByEventId, item.id);
 
@@ -137,11 +171,18 @@ export function buildPreviewActionState({
             eventId: item.id,
             targetPubkey: item.pubkey,
         }),
-        onToggleRepost: () => onToggleRepost({
+        onRepost: () => onToggleRepost({
             eventId: item.id,
             targetPubkey: item.pubkey,
-            repostContent: item.content,
+            repostContent: serializeRepostPayload({
+                id: item.id,
+                pubkey: item.pubkey,
+                createdAt: item.createdAt,
+                content: item.content,
+                ...(item.rawEvent ? { rawEvent: item.rawEvent } : {}),
+            }),
         }),
+        onQuote,
         onZap: (amount) => onZap({
             eventId: item.id,
             targetPubkey: item.pubkey,
@@ -166,6 +207,7 @@ export function buildRootActionState({
     onViewDetail,
     onToggleReaction,
     onToggleRepost,
+    onQuote,
 }: BuildThreadActionStateInput): NoteActionState {
     const metrics = metricsForEvent(engagementByEventId, item.id);
 
@@ -186,11 +228,20 @@ export function buildRootActionState({
             eventId: item.id,
             targetPubkey: item.pubkey,
         }),
-        onToggleRepost: () => onToggleRepost({
+        onRepost: () => onToggleRepost({
             eventId: item.id,
             targetPubkey: item.pubkey,
-            repostContent: item.content,
+            repostContent: serializeRepostPayload({
+                id: item.id,
+                pubkey: item.pubkey,
+                createdAt: item.createdAt,
+                content: item.content,
+                kind: item.eventKind,
+                tags: item.rawEvent.tags,
+                rawEvent: item.rawEvent,
+            }),
         }),
+        onQuote,
         onZap: (amount) => onZap({
             eventId: item.id,
             targetPubkey: item.pubkey,

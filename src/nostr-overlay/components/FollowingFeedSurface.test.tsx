@@ -63,6 +63,7 @@ function buildProps(overrides: Partial<Parameters<typeof FollowingFeedSurface>[0
         onPublishReply: async () => true,
         onToggleReaction: async () => true,
         onToggleRepost: async () => true,
+        onOpenQuoteComposer: () => {},
         onZap: async () => {},
         zapAmounts: [21, 128, 256],
         onConfigureZapAmounts: () => {},
@@ -194,38 +195,15 @@ describe('FollowingFeedSurface', () => {
         expect(surfaceContent.className).toContain('nostr-following-feed-page-edge-to-edge');
         expect(surfaceContent.classList.contains('nostr-following-feed-dialog')).toBe(false);
         expect(rendered.container.querySelector('[data-slot="overlay-page-header"]')).not.toBeNull();
-        expect(composeCard).not.toBeNull();
-        expect(composeCard?.getAttribute('data-variant')).toBe('elevated');
-        expect(composeCard?.className).toContain('sticky');
-        expect(composeCard?.className).toContain('bottom-0');
-        expect(composeCard?.className).toContain('w-full');
-        expect(composeCard?.className).toContain('rounded-none');
+        expect(composeCard).toBeNull();
     });
 
-    test('renders main composer action row with disabled image button on the left', async () => {
+    test('does not render main composer in the primary agora feed', async () => {
         const onPublishPost = vi.fn(async () => true);
         const rendered = await renderElement(<FollowingFeedSurface {...buildProps({ onPublishPost })} />);
         mounted.push(rendered);
 
-        const composeCard = rendered.container.querySelector('.nostr-following-feed-compose') as HTMLElement;
-        const textarea = composeCard.querySelector('textarea') as HTMLTextAreaElement;
-        const actionsRow = composeCard.querySelector('.nostr-following-feed-compose-actions') as HTMLElement;
-        const imageButton = actionsRow.querySelector('button[aria-label="Adjuntar imagen (proximamente)"]') as HTMLButtonElement;
-        const buttons = Array.from(actionsRow.querySelectorAll('button'));
-
-        expect(textarea).toBeDefined();
-        expect(actionsRow).toBeDefined();
-        expect(imageButton).toBeDefined();
-        expect(imageButton.disabled).toBe(true);
-        expect(imageButton.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
-        expect(buttons[0]).toBe(imageButton);
-        expect(buttons[buttons.length - 1]?.textContent || '').toContain('Publicar');
-
-        await act(async () => {
-            imageButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-            imageButton.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter' }));
-        });
-
+        expect(rendered.container.querySelector('.nostr-following-feed-compose')).toBeNull();
         expect(onPublishPost).not.toHaveBeenCalled();
     });
 
@@ -516,6 +494,7 @@ describe('FollowingFeedSurface', () => {
                                     created_at: 510,
                                     tags: [['e', 'root-1']],
                                     content: 'reply uno',
+                                    sig: '1'.repeat(128),
                                 },
                             },
                         ],
@@ -608,7 +587,16 @@ describe('FollowingFeedSurface', () => {
 
         await act(async () => {
             replyReactionButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            replyRepostButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
             replyRepostButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const repostItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Repost'
+        ) as HTMLElement;
+
+        await act(async () => {
+            repostItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
         expect(onToggleReaction).toHaveBeenCalledWith({
@@ -618,7 +606,15 @@ describe('FollowingFeedSurface', () => {
         expect(onToggleRepost).toHaveBeenCalledWith({
             eventId: 'reply-1',
             targetPubkey: 'c'.repeat(64),
-            repostContent: 'reply uno',
+            repostContent: JSON.stringify({
+                id: 'reply-1',
+                pubkey: 'c'.repeat(64),
+                kind: 1,
+                created_at: 510,
+                tags: [['e', 'root-1']],
+                content: 'reply uno',
+                sig: '1'.repeat(128),
+            }),
         });
         expect(rendered.container.querySelector('[aria-label="Sats recibidos: 210"]')).toBeDefined();
         expect(rendered.container.querySelector('[aria-label="Sats recibidos: 21"]')).toBeDefined();

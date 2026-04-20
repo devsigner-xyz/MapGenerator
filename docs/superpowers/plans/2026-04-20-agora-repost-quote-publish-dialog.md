@@ -4,7 +4,7 @@
 
 **Goal:** Corregir la publicacion social de `Agora`, introducir un dialog reutilizable para `Publicar` y `Cita`, reemplazar el repost directo por un menu `Repost/Cita`, eliminar el composer inferior del feed principal y mostrar `toast` de exito o error en publicar, repostear y citar.
 
-**Architecture:** La implementacion se apoya en una capa de publicacion social que firma con `writeGateway` y reenvia con `createPublishForwardApi({ client: bffClient })`, para que el controller del feed deje de depender de un writer que solo firma. Encima de esa capa, `App.tsx` controla un dialog global de composer y distribuye callbacks reutilizables a feed, hilo, sidebar y perfil, mientras `NoteCard` pasa a renderizar un menu contextual de repost con `Repost` y `Cita`.
+**Architecture:** La implementacion se apoya en una capa de publicacion social que firma con `writeGateway` y reenvia con `createPublishForwardApi({ client: bffClient })`, para que el controller del feed deje de depender de un writer que solo firma. Encima de esa capa, `App.tsx` controla un dialog global de composer y distribuye callbacks reutilizables a feed, hilo, sidebar y perfil, mientras `NoteCard` pasa a renderizar un menu contextual de repost con `Repost` y `Cita`. El render de `Cita` debe reutilizar el modelo visual ya consolidado para reposts: una sola tarjeta padre del autor de la cita con la nota citada embebida dentro, sin duplicados por referencias en contenido.
 
 **Tech Stack:** React, TypeScript, TanStack Query, Vitest, sonner, shadcn/ui
 
@@ -73,6 +73,7 @@ Expected: menos fallos, quedando pendientes los de UI/dialog/menu si aun no esta
   - conservar `toggleRepost` para repost directo
   - anadir una accion nueva tipo `publishQuote`
   - construir tags de cita en un helper dedicado, manteniendo `sanitizeContent`
+  - dejar explicitado desde esta capa que el renderer local no debe duplicar la nota citada cuando exista `nostr:nevent...` en `content`
   - mantener invalidaciones y optimistic updates con el menor cambio posible
 - [ ] **Step 10: Ejecutar los tests del dominio de mutaciones y confirmar GREEN**
 Run: `pnpm vitest run src/nostr-overlay/query/following-feed.mutations.test.ts`
@@ -128,6 +129,7 @@ Expected: PASS en apertura del dialog, orden del sidebar y toasts base.
   - feed: mapear `Repost` directo y `Cita` abriendo dialog sobre `item`
   - thread: mismo patron sobre `item`
   - preview de perfil: mismo patron sobre `post`
+  - introducir o ajustar un adaptador compartido para que `Cita` reutilice `embedded` como primitiva de render, en lugar de resolver otra via exclusiva por superficie
 - [ ] **Step 18: Implementar el menu en `NoteCard.tsx` reutilizando el patron de menu contextual ya presente en el repo**
   - mantener labels accesibles y contadores existentes
   - no romper reactions, replies ni zaps
@@ -148,8 +150,13 @@ Expected: PASS
   - `FollowingFeedSurface.test.tsx`: abrir menu `Repost/Cita` en feed y en hilo
   - `OccupantProfileDialog.test.tsx`: abrir menu `Repost/Cita` en una publicacion del perfil
   - comprobar que `Cita` delega en el callback que abre el dialog global
+  - comprobar que una cita renderizada produce una sola tarjeta top-level del autor que cita
+  - comprobar que el contenido adicional del autor que cita sigue visible
+  - comprobar que la nota citada aparece embebida dentro de esa tarjeta
+  - comprobar que no hay doble render del mismo objetivo citado por combinar `embedded` y referencia `nostr:nevent`
 - [ ] **Step 21: Adaptar `FollowingFeedContent.tsx` y `OccupantProfileDialog.tsx` al nuevo contrato de acciones**
   - pasar callbacks de repost directo y cita sin duplicar estado local innecesario
+  - centralizar el mapping visual de `Cita` para no repetir la logica de `embedded` solo en `FollowingFeedContent.tsx`
   - mantener reply composer del hilo sin cambios funcionales ajenos a esta feature
 - [ ] **Step 22: Ejecutar las suites del surface y del profile dialog**
 Run: `pnpm vitest run src/nostr-overlay/components/FollowingFeedSurface.test.tsx src/nostr-overlay/components/OccupantProfileDialog.test.tsx`
@@ -193,6 +200,8 @@ Expected: si el archivo no existe, omitir este paso; si existe, PASS.
   - repost directo desde una nota
   - eliminar repost desde una nota ya reposted
   - cita desde una nota
+  - validar que la cita se ve como una sola tarjeta del autor que cita con la nota citada embebida dentro
+  - validar que el contenido propio de la cita sigue visible y que la nota citada no se duplica
   - respuesta dentro de un hilo
   - verificar `toast.success` y `toast.error` en cada caso segun resultado
 

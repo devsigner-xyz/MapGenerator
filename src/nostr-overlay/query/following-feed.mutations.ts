@@ -1,4 +1,5 @@
 import type { InfiniteData } from '@tanstack/react-query';
+import { nip19 } from 'nostr-tools';
 import type { SocialFeedItem, SocialFeedPage, SocialThreadItem, SocialThreadPage } from '../../nostr/social-feed-service';
 import type { FollowingFeedThreadView } from './following-feed.selectors';
 import { mergeFeedItems, mergeThreadReplies } from './following-feed.selectors';
@@ -43,8 +44,15 @@ export interface ToggleRepostInput {
     repostContent?: string;
 }
 
+export interface PublishQuoteInput {
+    targetEventId: string;
+    targetPubkey?: string;
+    content: string;
+}
+
 export const followingFeedMutationKeys = {
     publishPost: ['nostr-overlay', 'social', 'following-feed', 'publish-post'] as const,
+    publishQuote: ['nostr-overlay', 'social', 'following-feed', 'publish-quote'] as const,
     publishReply: ['nostr-overlay', 'social', 'following-feed', 'publish-reply'] as const,
     toggleReaction: ['nostr-overlay', 'social', 'following-feed', 'toggle-reaction'] as const,
     toggleRepost: ['nostr-overlay', 'social', 'following-feed', 'toggle-repost'] as const,
@@ -68,19 +76,48 @@ export function buildReplyTags(input: PublishReplyInput, activeThread: Following
     return tags;
 }
 
-export function buildTemporaryFeedNote(id: string, pubkey: string, createdAt: number, content: string): SocialFeedItem {
+export function buildQuoteTags(input: Pick<PublishQuoteInput, 'targetEventId' | 'targetPubkey'>): string[][] {
+    const tags: string[][] = [
+        ['q', input.targetEventId],
+    ];
+
+    if (input.targetPubkey) {
+        tags.push(['p', input.targetPubkey]);
+    }
+
+    return tags;
+}
+
+export function buildQuoteContent(input: PublishQuoteInput): string {
+    const encodedEvent = nip19.neventEncode({
+        id: input.targetEventId,
+        ...(input.targetPubkey ? { author: input.targetPubkey } : {}),
+    });
+    const reference = `nostr:${encodedEvent}`;
+    const normalized = sanitizeContent(input.content);
+    return normalized.length > 0 ? `${normalized}\n\n${reference}` : reference;
+}
+
+function extractTargetEventId(tags: string[][]): string | undefined {
+    return tags.find((tag) => tag[0] === 'e')?.[1] ?? tags.find((tag) => tag[0] === 'q')?.[1];
+}
+
+export function buildTemporaryFeedNote(id: string, pubkey: string, createdAt: number, content: string, tags: string[][] = []): SocialFeedItem {
+    const targetEventId = extractTargetEventId(tags);
+
     return {
         id,
         pubkey,
         createdAt,
         content,
         kind: 'note',
+        ...(targetEventId ? { targetEventId } : {}),
         rawEvent: {
             id,
             pubkey,
             kind: 1,
             created_at: createdAt,
-            tags: [],
+            tags,
             content,
         },
     };
@@ -110,7 +147,7 @@ export function toFeedItemFromPublished(event: PublishEventResult): SocialFeedIt
         return null;
     }
 
-    const targetEventId = event.tags.find((tag) => tag[0] === 'e')?.[1];
+    const targetEventId = extractTargetEventId(event.tags);
 
     return {
         id: event.id,
@@ -126,7 +163,7 @@ export function toFeedItemFromPublished(event: PublishEventResult): SocialFeedIt
 }
 
 export function toThreadItemFromPublished(event: PublishEventResult): SocialThreadItem {
-    const targetEventId = event.tags.find((tag) => tag[0] === 'e')?.[1];
+    const targetEventId = extractTargetEventId(event.tags);
 
     return {
         id: event.id,

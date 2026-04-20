@@ -1,7 +1,8 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
-import { shortId, type NoteCardModel } from './note-card-model';
+import { nip19 } from 'nostr-tools';
+import { shortId, withoutNoteActions, type NoteCardModel } from './note-card-model';
 import { NoteCard } from './NoteCard';
 
 interface RenderResult {
@@ -60,7 +61,8 @@ const defaultNoteFixture: NoteCardModel = {
         onReply: () => {},
         onViewDetail: () => {},
         onToggleReaction: async () => true,
-        onToggleRepost: async () => true,
+        onRepost: async () => true,
+        onQuote: () => {},
         onZap: async () => {},
     },
 };
@@ -239,6 +241,97 @@ describe('NoteCard', () => {
         });
 
         expect(onConfigureZapAmounts).toHaveBeenCalledTimes(1);
+    });
+
+    test('opens repost submenu with repost and cita actions', async () => {
+        const { container } = await renderDefault();
+
+        const repostButton = container.querySelector('button[aria-label="Repostear (2)"]') as HTMLButtonElement | null;
+        expect(repostButton).not.toBeNull();
+
+        await act(async () => {
+            repostButton?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+            repostButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const repostItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Repost'
+        );
+        const quoteItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Cita'
+        );
+
+        expect(repostItem).toBeDefined();
+        expect(quoteItem).toBeDefined();
+    });
+
+    test('does not render a duplicated quoted note when embedded and nevent target match', async () => {
+        const referencedEventId = '9'.repeat(64);
+        const referencedAuthorPubkey = '8'.repeat(64);
+        const nevent = nip19.neventEncode({ id: referencedEventId, author: referencedAuthorPubkey });
+        const quotedContent = 'nota citada sin duplicar';
+
+        const rendered = await renderElement(
+            <NoteCard
+                note={{
+                    ...defaultNoteFixture,
+                    id: 'quote-1',
+                    content: `mira esto nostr:${nevent}`,
+                    embedded: createNestedNote({
+                        id: referencedEventId,
+                        pubkey: referencedAuthorPubkey,
+                        content: quotedContent,
+                    }),
+                }}
+                profilesByPubkey={{
+                    [defaultNoteFixture.pubkey]: {
+                        pubkey: defaultNoteFixture.pubkey,
+                        displayName: 'Alice',
+                        lud16: 'alice@getalby.com',
+                    },
+                    [referencedAuthorPubkey]: {
+                        pubkey: referencedAuthorPubkey,
+                        displayName: 'Quoted Author',
+                    },
+                }}
+                eventReferencesById={{
+                    [referencedEventId]: {
+                        id: referencedEventId,
+                        pubkey: referencedAuthorPubkey,
+                        kind: 1,
+                        created_at: 1700001000,
+                        tags: [],
+                        content: quotedContent,
+                    },
+                }}
+                onCopyNoteId={vi.fn()}
+                onSelectEventReference={() => {}}
+            />,
+        );
+        mounted.push(rendered);
+
+        expect(rendered.container.textContent || '').toContain('mira esto');
+        expect((rendered.container.textContent || '').match(new RegExp(quotedContent, 'g'))).toHaveLength(1);
+    });
+
+    test('removes nested action handlers from preview notes recursively', () => {
+        const preview = withoutNoteActions({
+            ...defaultNoteFixture,
+            embedded: createNestedNote({
+                id: 'embedded-1',
+                ...(defaultNoteFixture.actions ? { actions: defaultNoteFixture.actions } : {}),
+            }),
+            referencedNotes: [
+                createNestedNote({
+                    id: 'reference-1',
+                    ...(defaultNoteFixture.actions ? { actions: defaultNoteFixture.actions } : {}),
+                }),
+            ],
+        });
+
+        expect(preview.actions).toBeUndefined();
+        expect(preview.embedded?.actions).toBeUndefined();
+        expect(preview.referencedNotes?.[0]?.actions).toBeUndefined();
     });
 
     test('hides only zap submenu when author profile has no lightning metadata', async () => {

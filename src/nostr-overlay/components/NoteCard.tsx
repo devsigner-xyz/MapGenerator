@@ -189,6 +189,18 @@ function NoteActionsMenu({ noteId, onCopyNoteId, onViewDetail }: NoteActionsMenu
 }
 
 function NoteActionGroup({ actions }: NoteActionGroupProps) {
+    const openRepostMenu = (event: ReactMouseEvent<HTMLButtonElement>): void => {
+        event.preventDefault();
+        event.stopPropagation();
+        const rect = event.currentTarget.getBoundingClientRect();
+        event.currentTarget.dispatchEvent(new window.MouseEvent('contextmenu', {
+            bubbles: true,
+            cancelable: true,
+            clientX: rect.left + rect.width / 2,
+            clientY: rect.top + rect.height / 2,
+        }));
+    };
+
     const openZapMenu = (event: ReactMouseEvent<HTMLButtonElement>): void => {
         event.preventDefault();
         event.stopPropagation();
@@ -224,19 +236,33 @@ function NoteActionGroup({ actions }: NoteActionGroupProps) {
                 <span>{actions.reactions}</span>
             </Button>
 
-            <Button
-                type="button"
-                variant={actions.isRepostActive ? 'default' : 'ghost'}
-                size="sm"
-                disabled={actions.isRepostPending || !actions.canWrite}
-                aria-label={`Repostear (${actions.reposts})`}
-                onClick={() => {
-                    void actions.onToggleRepost();
-                }}
-            >
-                <Repeat2Icon data-icon="inline-start" aria-hidden="true" />
-                <span>{actions.reposts}</span>
-            </Button>
+            <ContextMenu>
+                <ContextMenuTrigger asChild>
+                    <Button
+                        type="button"
+                        variant={actions.isRepostActive ? 'default' : 'ghost'}
+                        size="sm"
+                        disabled={actions.isRepostPending || !actions.canWrite}
+                        aria-label={`Repostear (${actions.reposts})`}
+                        onClick={openRepostMenu}
+                    >
+                        <Repeat2Icon data-icon="inline-start" aria-hidden="true" />
+                        <span>{actions.reposts}</span>
+                    </Button>
+                </ContextMenuTrigger>
+                <ContextMenuContent className="w-40">
+                    <ContextMenuGroup>
+                        <ContextMenuItem onSelect={() => {
+                            void actions.onRepost();
+                        }}>
+                            Repost
+                        </ContextMenuItem>
+                        <ContextMenuItem onSelect={actions.onQuote}>
+                            Cita
+                        </ContextMenuItem>
+                    </ContextMenuGroup>
+                </ContextMenuContent>
+            </ContextMenu>
 
             {canOpenZapMenu ? (
                 <ContextMenu>
@@ -312,6 +338,10 @@ export function NoteCard({
     };
 
     const renderNestedReference = (eventId: string, event: NostrEvent | undefined, nestingLevel: number): ReactNode => {
+        if (note.embedded?.id === eventId) {
+            return <></>;
+        }
+
         if (!event) {
             return (
                 <article aria-live="polite">

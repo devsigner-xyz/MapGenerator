@@ -14,7 +14,8 @@ export interface NoteActionState {
     onReply: () => void;
     onViewDetail?: (() => void) | undefined;
     onToggleReaction: () => Promise<boolean>;
-    onToggleRepost: () => Promise<boolean>;
+    onRepost: () => Promise<boolean>;
+    onQuote: () => void;
     onZap?: ((amount: number) => Promise<void> | void) | undefined;
     onConfigureZapAmounts?: (() => void) | undefined;
 }
@@ -36,6 +37,15 @@ export interface NoteCardModel {
 
 export function shortId(value: string): string {
     return value.length >= 14 ? `${value.slice(0, 8)}...${value.slice(-6)}` : value;
+}
+
+export function withoutNoteActions(note: NoteCardModel): NoteCardModel {
+    const { actions: _actions, embedded, referencedNotes, ...rest } = note;
+    return {
+        ...rest,
+        ...(embedded ? { embedded: withoutNoteActions(embedded) } : {}),
+        ...(referencedNotes ? { referencedNotes: referencedNotes.map((referencedNote) => withoutNoteActions(referencedNote)) } : {}),
+    };
 }
 
 export function kindLabel(input: { variant: NoteCardVariant; isRepost?: boolean }): string | undefined {

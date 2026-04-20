@@ -34,7 +34,7 @@ export function fromPostPreview(post: NostrPostPreview, actions?: NoteActionStat
         pubkey: post.pubkey,
         createdAt: post.createdAt,
         content: post.content,
-        tags: [],
+        tags: safeTags(post.rawEvent?.tags),
         variant: 'default',
         showCopyId: true,
         nestingLevel: 0,

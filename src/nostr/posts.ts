@@ -1,10 +1,11 @@
-import type { NostrClient, NostrFilter } from './types';
+import type { NostrClient, NostrEvent, NostrFilter } from './types';
 
 export interface NostrPostPreview {
     id: string;
     pubkey: string;
     createdAt: number;
     content: string;
+    rawEvent?: NostrEvent;
 }
 
 export interface FetchLatestPostsByPubkeyResult {
@@ -46,6 +47,7 @@ export async function fetchLatestPostsByPubkey(input: {
             pubkey: event.pubkey,
             createdAt: event.created_at,
             content: parsePostContent(event.content),
+            rawEvent: event,
         }));
 
     if (posts.length === 0) {

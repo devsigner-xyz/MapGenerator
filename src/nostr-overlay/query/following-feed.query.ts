@@ -11,6 +11,7 @@ import { normalizeEventIds } from './following-feed.selectors';
 
 const DEFAULT_FEED_PAGE_SIZE = 20;
 const DEFAULT_THREAD_PAGE_SIZE = 25;
+const HEX_EVENT_ID_PATTERN = /^[0-9a-f]{64}$/;
 
 interface UseFollowingFeedInfiniteQueryOptions {
     ownerPubkey?: string;
@@ -109,8 +110,12 @@ export function useThreadInfiniteQuery(options: UseThreadInfiniteQueryOptions) {
     }));
 }
 
+export function normalizeEngagementEventIds(eventIds: string[]): string[] {
+    return normalizeEventIds(eventIds).filter((eventId) => HEX_EVENT_ID_PATTERN.test(eventId));
+}
+
 export function useFollowingFeedEngagementQuery(options: UseFollowingFeedEngagementQueryOptions) {
-    const eventIds = normalizeEventIds(options.eventIds);
+    const eventIds = normalizeEngagementEventIds(options.eventIds);
 
     return useQuery<SocialEngagementByEventId, Error, SocialEngagementByEventId, ReturnType<typeof nostrOverlayQueryKeys.engagement>>(createSocialQueryOptions({
         queryKey: nostrOverlayQueryKeys.engagement({ eventIds }),

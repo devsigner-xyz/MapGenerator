@@ -26,6 +26,7 @@ export interface SocialEventDto {
   createdAt: number;
   content: string;
   tags: string[][];
+  sig?: string;
 }
 
 export interface FollowingFeedResponseDto {
@@ -164,6 +165,10 @@ export const socialEventSchema = {
     },
     content: {
       type: 'string',
+    },
+    sig: {
+      type: 'string',
+      pattern: '^[0-9a-f]{128}$',
     },
     tags: {
       type: 'array',

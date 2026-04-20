@@ -46,6 +46,7 @@ import type { DirectMessagesService } from '../query/direct-messages.query';
 import type { ActiveProfileQueryService } from '../query/active-profile.query';
 import { nostrOverlayQueryKeys } from '../query/keys';
 import { toast } from 'sonner';
+import { createSocialPublisher, type SocialPublisher } from '../social-publisher';
 
 export type OverlayStatus =
     | 'idle'
@@ -104,6 +105,7 @@ export interface NostrOverlayServices {
     directMessagesService?: DirectMessagesService;
     socialNotificationsService?: SocialNotificationsService;
     socialFeedService?: SocialFeedService;
+    socialPublisher?: SocialPublisher;
 }
 
 interface UseNostrOverlayOptions {
@@ -400,6 +402,14 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
     const bffClient = useMemo(
         () => createHttpClient({ getAuthHeaders }),
         [getAuthHeaders]
+    );
+    const socialPublisher = useMemo(
+        () => services?.socialPublisher ?? createSocialPublisher({
+            writeGateway,
+            client: bffClient,
+            resolveOwnerPubkey: () => authService.getSession()?.pubkey,
+        }),
+        [authService, bffClient, services?.socialPublisher, writeGateway]
     );
     const [state, setState] = useState<OverlayState>({
         status: 'idle',
@@ -1866,6 +1876,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         startSession,
         logoutSession,
         writeGateway,
+        socialPublisher,
         directMessagesService,
         socialNotificationsService,
         socialFeedService,

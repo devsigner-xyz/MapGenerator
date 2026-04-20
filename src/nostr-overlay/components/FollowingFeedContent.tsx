@@ -4,6 +4,8 @@ import type { NostrEvent, NostrProfile } from '../../nostr/types';
 import type { SocialEngagementMetrics, SocialFeedItem } from '../../nostr/social-feed-service';
 import type { FollowingFeedThreadView } from '../query/following-feed.selectors';
 import { fromEmbeddedRepost, fromFeedItem, fromThreadItem } from './note-card-adapters';
+import type { NoteCardModel } from './note-card-model';
+import { withoutNoteActions } from './note-card-model';
 import {
     buildFeedActionState,
     buildReplyActionState,
@@ -65,6 +67,7 @@ export interface FollowingFeedViewProps {
     }) => Promise<boolean>;
     onToggleReaction: (input: { eventId: string; targetPubkey?: string; emoji?: string }) => Promise<boolean>;
     onToggleRepost: (input: { eventId: string; targetPubkey?: string; repostContent?: string }) => Promise<boolean>;
+    onOpenQuoteComposer: (note: NoteCardModel) => void;
     onZap: (input: { eventId: string; targetPubkey?: string; amount: number }) => Promise<void> | void;
     zapAmounts: number[];
     onConfigureZapAmounts?: () => void;
@@ -94,6 +97,7 @@ interface ParsedEmbeddedRepost {
     kind: number;
     content: string;
     tags: string[][];
+    sig?: string;
 }
 
 function parseEmbeddedRepostEvent(content: string): ParsedEmbeddedRepost | null {
@@ -129,6 +133,7 @@ function parseEmbeddedRepostEvent(content: string): ParsedEmbeddedRepost | null 
                 ? eventRecord.tags
                     .filter((tag): tag is string[] => Array.isArray(tag) && tag.every((entry) => typeof entry === 'string'))
                 : [],
+            ...(typeof eventRecord.sig === 'string' ? { sig: eventRecord.sig } : {}),
         };
     } catch {
         return null;
@@ -169,6 +174,7 @@ export function FollowingFeedContent({
     onPublishReply,
     onToggleReaction,
     onToggleRepost,
+    onOpenQuoteComposer,
     onZap,
     zapAmounts,
     onConfigureZapAmounts,
@@ -180,7 +186,6 @@ export function FollowingFeedContent({
     eventReferencesById,
     onCopyNoteId,
 }: FollowingFeedContentProps) {
-    const [postDraft, setPostDraft] = useState('');
     const [replyDraft, setReplyDraft] = useState('');
     const [replyTargetEventId, setReplyTargetEventId] = useState<string | null>(null);
     const [replyTargetPubkey, setReplyTargetPubkey] = useState<string | undefined>(undefined);
@@ -219,7 +224,6 @@ export function FollowingFeedContent({
         }
     };
 
-    const publishDisabled = !canWrite || isPublishingPost;
     const replyDisabled = !canWrite || isPublishingReply || !replyTargetEventId;
     const replyTargetDescriptionId = 'following-feed-reply-target';
 
@@ -251,6 +255,11 @@ export function FollowingFeedContent({
     };
 
     const renderThreadReplyNode = (reply: FollowingFeedThreadView['replies'][number], depth: number): ReactNode => {
+        const replyNote = fromThreadItem(reply, 'reply');
+        if (!replyNote) {
+            return null;
+        }
+
         const replyActionState = buildReplyActionState({
             item: reply,
             canWrite,
@@ -268,15 +277,12 @@ export function FollowingFeedContent({
             },
             onToggleReaction,
             onToggleRepost,
+            onQuote: () => onOpenQuoteComposer(withoutNoteActions(replyNote)),
             onZap,
             zapAmounts,
             ...(onConfigureZapAmounts ? { onConfigureZapAmounts } : {}),
         });
-        const replyNote = fromThreadItem(reply, 'reply', replyActionState);
-
-        if (!replyNote) {
-            return null;
-        }
+        replyNote.actions = replyActionState;
 
         const childReplies = threadReplyTree.get(reply.id) ?? [];
 
@@ -361,23 +367,7 @@ export function FollowingFeedContent({
                             )
                         ) : (
                             items.map((item) => {
-                                const actionState = buildFeedActionState({
-                                    item,
-                                    canWrite,
-                                    engagementByEventId,
-                                    reactionByEventId,
-                                    repostByEventId,
-                                    pendingReactionByEventId,
-                                    pendingRepostByEventId,
-                                    onOpenThread,
-                                    onToggleReaction,
-                                    onToggleRepost,
-                                    onZap,
-                                    zapAmounts,
-                                    ...(onConfigureZapAmounts ? { onConfigureZapAmounts } : {}),
-                                });
-
-                                const baseNote = fromFeedItem(item, actionState);
+                                const baseNote = fromFeedItem(item);
                                 if (!baseNote) {
                                     return null;
                                 }
@@ -393,15 +383,26 @@ export function FollowingFeedContent({
                                         rawEvent: {
                                             id: embeddedRepostPayload.id,
                                             pubkey: embeddedRepostPayload.pubkey,
-                                            kind: embeddedRepostPayload.kind,
-                                            created_at: embeddedRepostPayload.createdAt,
-                                            tags: embeddedRepostPayload.tags,
-                                            content: embeddedRepostPayload.content,
-                                        },
+                                        kind: embeddedRepostPayload.kind,
+                                        created_at: embeddedRepostPayload.createdAt,
+                                        tags: embeddedRepostPayload.tags,
+                                        content: embeddedRepostPayload.content,
+                                        ...(embeddedRepostPayload.sig ? { sig: embeddedRepostPayload.sig } : {}),
+                                    },
                                     }
                                     : null;
-                                const embeddedActionState = embeddedRepostItem
-                                    ? buildFeedActionState({
+                                const embeddedRepostNote = embeddedRepostPayload
+                                    ? fromEmbeddedRepost({
+                                        id: embeddedRepostPayload.id,
+                                        pubkey: embeddedRepostPayload.pubkey,
+                                        createdAt: embeddedRepostPayload.createdAt,
+                                        content: embeddedRepostPayload.content,
+                                        tags: embeddedRepostPayload.tags,
+                                    }, 1)
+                                    : null;
+
+                                if (embeddedRepostItem && embeddedRepostNote) {
+                                    embeddedRepostNote.actions = buildFeedActionState({
                                         item: embeddedRepostItem,
                                         canWrite,
                                         engagementByEventId,
@@ -412,20 +413,12 @@ export function FollowingFeedContent({
                                         onOpenThread,
                                         onToggleReaction,
                                         onToggleRepost,
+                                        onQuote: () => onOpenQuoteComposer(withoutNoteActions(embeddedRepostNote)),
                                         onZap,
                                         zapAmounts,
                                         ...(onConfigureZapAmounts ? { onConfigureZapAmounts } : {}),
-                                    })
-                                    : undefined;
-                                const embeddedRepostNote = embeddedRepostPayload
-                                    ? fromEmbeddedRepost({
-                                        id: embeddedRepostPayload.id,
-                                        pubkey: embeddedRepostPayload.pubkey,
-                                        createdAt: embeddedRepostPayload.createdAt,
-                                        content: embeddedRepostPayload.content,
-                                        tags: embeddedRepostPayload.tags,
-                                    }, 1, embeddedActionState)
-                                    : null;
+                                    });
+                                }
 
                                 const note = item.kind === 'repost' && embeddedRepostNote
                                     ? {
@@ -434,6 +427,23 @@ export function FollowingFeedContent({
                                         embedded: embeddedRepostNote,
                                     }
                                     : baseNote;
+
+                                note.actions = buildFeedActionState({
+                                    item,
+                                    canWrite,
+                                    engagementByEventId,
+                                    reactionByEventId,
+                                    repostByEventId,
+                                    pendingReactionByEventId,
+                                    pendingRepostByEventId,
+                                    onOpenThread,
+                                    onToggleReaction,
+                                    onToggleRepost,
+                                    onQuote: () => onOpenQuoteComposer(withoutNoteActions(note)),
+                                    onZap,
+                                    zapAmounts,
+                                    ...(onConfigureZapAmounts ? { onConfigureZapAmounts } : {}),
+                                });
 
                                 return (
                                     <div key={item.id} className="grid gap-2">
@@ -450,47 +460,6 @@ export function FollowingFeedContent({
                         <ListLoadingFooter loading={isLoadingFeed && items.length > 0} label="Cargando publicaciones..." />
 
                     </div>
-
-                    <Card
-                        variant="elevated"
-                        size="sm"
-                        className="nostr-following-feed-compose sticky bottom-0 z-20 w-full max-w-none self-stretch gap-0 rounded-none border-x-0 border-b-0 py-0 shadow-none"
-                    >
-                        <CardContent className="px-4 py-3">
-                            <Textarea
-                                value={postDraft}
-                                aria-label="Redactar publicacion"
-                                className="nostr-following-feed-textarea"
-                                placeholder="Que estas pensando?"
-                                onChange={(event) => setPostDraft(event.target.value)}
-                            />
-                            <div className="nostr-following-feed-compose-actions mt-3 flex items-center justify-between gap-2">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="icon"
-                                    aria-label="Adjuntar imagen (proximamente)"
-                                    disabled
-                                >
-                                    <ImageIcon aria-hidden="true" />
-                                </Button>
-                                <Button
-                                    type="button"
-                                    size="sm"
-                                    className="nostr-following-feed-publish"
-                                    disabled={publishDisabled || postDraft.trim().length === 0}
-                                    onClick={async () => {
-                                        const submitted = await onPublishPost(postDraft);
-                                        if (submitted) {
-                                            setPostDraft('');
-                                        }
-                                    }}
-                                >
-                                    {isPublishingPost ? 'Publicando...' : 'Publicar'}
-                                </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
                 </>
             ) : (
                 <>
@@ -518,7 +487,13 @@ export function FollowingFeedContent({
                             <>
                                 {activeThread.root ? (
                                     (() => {
-                                        const rootActionState = buildRootActionState({
+                                        const rootNote = fromThreadItem(activeThread.root, 'root');
+
+                                        if (!rootNote) {
+                                            return null;
+                                        }
+
+                                        rootNote.actions = buildRootActionState({
                                             item: activeThread.root,
                                             canWrite,
                                             engagementByEventId,
@@ -535,15 +510,11 @@ export function FollowingFeedContent({
                                             },
                                             onToggleReaction,
                                             onToggleRepost,
+                                            onQuote: () => onOpenQuoteComposer(withoutNoteActions(rootNote)),
                                             onZap,
                                             zapAmounts,
                                             ...(onConfigureZapAmounts ? { onConfigureZapAmounts } : {}),
                                         });
-                                        const rootNote = fromThreadItem(activeThread.root, 'root', rootActionState);
-
-                                        if (!rootNote) {
-                                            return null;
-                                        }
 
                                         return (
                                             <div className="nostr-following-feed-thread-node" data-depth={0}>
