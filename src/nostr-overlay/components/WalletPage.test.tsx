@@ -48,9 +48,6 @@ describe('WalletPage', () => {
                 onConnectWebLn={vi.fn()}
                 onDisconnect={vi.fn()}
                 onRefresh={vi.fn()}
-                onGenerateInvoice={vi.fn()}
-                receiveAmountInput=""
-                onReceiveAmountInputChange={vi.fn()}
             />
         );
         mounted.push(rendered);
@@ -60,8 +57,8 @@ describe('WalletPage', () => {
         expect(rendered.container.querySelector('input[aria-label="URI NWC"]')).not.toBeNull();
         expect(rendered.container.textContent || '').toContain('Conectar con NWC');
         expect(rendered.container.textContent || '').toContain('Conectar con WebLN');
-        expect(rendered.container.textContent || '').toContain('Balance no disponible para este metodo');
-        expect(rendered.container.textContent || '').toContain('Este metodo no soporta generar invoices');
+        expect(rendered.container.textContent || '').not.toContain('Balance');
+        expect(rendered.container.textContent || '').not.toContain('Recibir');
     });
 
     test('renders connected wallet details and activity', async () => {
@@ -72,8 +69,7 @@ describe('WalletPage', () => {
                         method: 'webln',
                         capabilities: {
                             payInvoice: true,
-                            getBalance: true,
-                            makeInvoice: true,
+                            makeInvoice: false,
                             notifications: false,
                         },
                         restoreState: 'connected',
@@ -97,19 +93,42 @@ describe('WalletPage', () => {
                 onConnectWebLn={vi.fn()}
                 onDisconnect={vi.fn()}
                 onRefresh={vi.fn()}
-                onGenerateInvoice={vi.fn()}
-                onRequestBalance={vi.fn()}
-                balanceDisplay="210 sats"
-                receiveAmountInput="21"
-                onReceiveAmountInputChange={vi.fn()}
             />
         );
         mounted.push(rendered);
 
         expect(rendered.container.textContent || '').toContain('Conectada por WebLN');
-        expect(rendered.container.textContent || '').toContain('Consultar balance');
-        expect(rendered.container.textContent || '').toContain('Generar invoice');
-        expect(rendered.container.textContent || '').toContain('Copiar invoice');
+        expect(rendered.container.textContent || '').toContain('Refrescar');
+        expect(rendered.container.textContent || '').toContain('Desconectar');
         expect(rendered.container.textContent || '').toContain('21 sats');
+    });
+
+    test('renders remembered wallet without falling back to disconnected empty state', async () => {
+        const rendered = await renderElement(
+            <WalletPage
+                walletState={{
+                    activeConnection: {
+                        method: 'webln',
+                        capabilities: {
+                            payInvoice: true,
+                            makeInvoice: false,
+                            notifications: false,
+                        },
+                        restoreState: 'reconnect-required',
+                    },
+                }}
+                walletActivity={{ items: [] }}
+                nwcUriInput=""
+                onNwcUriInputChange={vi.fn()}
+                onConnectNwc={vi.fn()}
+                onConnectWebLn={vi.fn()}
+                onDisconnect={vi.fn()}
+                onRefresh={vi.fn()}
+            />
+        );
+        mounted.push(rendered);
+
+        expect(rendered.container.textContent || '').toContain('Reconecta WebLN');
+        expect(rendered.container.textContent || '').not.toContain('Sin wallet conectada');
     });
 });

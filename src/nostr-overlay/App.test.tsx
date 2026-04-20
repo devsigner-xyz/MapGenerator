@@ -2263,8 +2263,9 @@ describe('Nostr overlay App', () => {
         expect(walletButton).toBeDefined();
     });
 
-    test('connects WebLN wallet and requests balance from the wallet page', async () => {
+    test('restores a remembered WebLN wallet after reload', async () => {
         const ownerPubkey = 'f'.repeat(64);
+        const enable = vi.fn(async () => {});
         window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify({
             method: 'npub',
             pubkey: ownerPubkey,
@@ -2274,9 +2275,8 @@ describe('Nostr overlay App', () => {
         }));
         Object.assign(window, {
             webln: {
-                enable: vi.fn(async () => {}),
+                enable,
                 sendPayment: vi.fn(async () => ({ preimage: 'abc' })),
-                getBalance: vi.fn(async () => ({ balance: '210' })),
                 makeInvoice: vi.fn(async () => ({ paymentRequest: 'lnbc1invoice', expiresAt: 200 })),
             },
         });
@@ -2323,17 +2323,327 @@ describe('Nostr overlay App', () => {
         });
 
         await waitFor(() => (rendered.container.textContent || '').includes('Conectada por WebLN'));
-
-        const balanceButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
-            (button.textContent || '').includes('Consultar balance')
-        ) as HTMLButtonElement;
-        expect(balanceButton).toBeDefined();
+        expect(enable).toHaveBeenCalledTimes(1);
 
         await act(async () => {
-            balanceButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            rendered.root.unmount();
+        });
+        rendered.container.remove();
+        mounted = mounted.filter((entry) => entry !== rendered);
+
+        const reloaded = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />,
+            { initialEntries: ['/wallet'] }
+        );
+        mounted.push(reloaded);
+
+        await waitFor(() => reloaded.container.querySelector('[data-testid="login-gate-screen"]') === null);
+        await waitFor(() => (reloaded.container.textContent || '').includes('Conectada por WebLN'));
+        expect(enable).toHaveBeenCalledTimes(2);
+    });
+
+    test('marks WebLN wallet as reconnect-required when refresh revalidation fails', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify({
+            method: 'npub',
+            pubkey: ownerPubkey,
+            readonly: true,
+            locked: false,
+            createdAt: Date.now(),
+        }));
+        Object.assign(window, {
+            webln: {
+                enable: vi.fn(async () => {}),
+                sendPayment: vi.fn(async () => ({ preimage: 'abc' })),
+                makeInvoice: vi.fn(async () => ({ paymentRequest: 'lnbc1invoice', expiresAt: 200 })),
+            },
         });
 
-        await waitFor(() => (rendered.container.textContent || '').includes('210 sats'));
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />,
+            { initialEntries: ['/wallet'] }
+        );
+        mounted.push(rendered);
+
+        await waitFor(() => rendered.container.querySelector('[data-testid="login-gate-screen"]') === null);
+        await waitFor(() => rendered.container.querySelector('[data-testid="wallet-page"]') !== null);
+
+        const connectWebLnButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Conectar con WebLN')
+        ) as HTMLButtonElement;
+
+        await act(async () => {
+            connectWebLnButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Conectada por WebLN'));
+
+        const failingEnable = vi.fn(async () => {
+            throw new Error('denied');
+        });
+        Object.assign(window, {
+            webln: {
+                enable: failingEnable,
+                sendPayment: vi.fn(async () => ({ preimage: 'abc' })),
+                makeInvoice: vi.fn(async () => ({ paymentRequest: 'lnbc1invoice', expiresAt: 200 })),
+            },
+        });
+
+        const refreshButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Refrescar')
+        ) as HTMLButtonElement;
+
+        await act(async () => {
+            refreshButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Reconecta WebLN'));
+        expect(failingEnable).toHaveBeenCalledTimes(1);
+    });
+
+    test('keeps remembered WebLN wallet pending reconnection when silent restore fails', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const enable = vi.fn(async () => {});
+        window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify({
+            method: 'npub',
+            pubkey: ownerPubkey,
+            readonly: true,
+            locked: false,
+            createdAt: Date.now(),
+        }));
+        Object.assign(window, {
+            webln: {
+                enable,
+                sendPayment: vi.fn(async () => ({ preimage: 'abc' })),
+                makeInvoice: vi.fn(async () => ({ paymentRequest: 'lnbc1invoice', expiresAt: 200 })),
+            },
+        });
+
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />,
+            { initialEntries: ['/wallet'] }
+        );
+
+        await waitFor(() => rendered.container.querySelector('[data-testid="wallet-page"]') !== null);
+        const connectWebLnButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Conectar con WebLN')
+        ) as HTMLButtonElement;
+
+        await act(async () => {
+            connectWebLnButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Conectada por WebLN'));
+
+        await act(async () => {
+            rendered.root.unmount();
+        });
+        rendered.container.remove();
+
+        Object.assign(window, {
+            webln: {
+                enable: vi.fn(async () => {
+                    throw new Error('denied');
+                }),
+                sendPayment: vi.fn(async () => ({ preimage: 'abc' })),
+                makeInvoice: vi.fn(async () => ({ paymentRequest: 'lnbc1invoice', expiresAt: 200 })),
+            },
+        });
+
+        const reloaded = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />,
+            { initialEntries: ['/wallet'] }
+        );
+        mounted.push(reloaded);
+
+        await waitFor(() => reloaded.container.querySelector('[data-testid="login-gate-screen"]') === null);
+        await waitFor(() => (reloaded.container.textContent || '').includes('Reconecta WebLN'));
+        expect(reloaded.container.textContent || '').not.toContain('Conectada por WebLN');
+    });
+
+    test('keeps remembered WebLN wallet pending reconnection when provider is missing after reload', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify({
+            method: 'npub',
+            pubkey: ownerPubkey,
+            readonly: true,
+            locked: false,
+            createdAt: Date.now(),
+        }));
+        Object.assign(window, {
+            webln: {
+                enable: vi.fn(async () => {}),
+                sendPayment: vi.fn(async () => ({ preimage: 'abc' })),
+                makeInvoice: vi.fn(async () => ({ paymentRequest: 'lnbc1invoice', expiresAt: 200 })),
+            },
+        });
+
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />,
+            { initialEntries: ['/wallet'] }
+        );
+
+        await waitFor(() => rendered.container.querySelector('[data-testid="wallet-page"]') !== null);
+        const connectWebLnButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Conectar con WebLN')
+        ) as HTMLButtonElement;
+
+        await act(async () => {
+            connectWebLnButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Conectada por WebLN'));
+
+        await act(async () => {
+            rendered.root.unmount();
+        });
+        rendered.container.remove();
+        delete (window as Window & { webln?: unknown }).webln;
+
+        const reloaded = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />,
+            { initialEntries: ['/wallet'] }
+        );
+        mounted.push(reloaded);
+
+        await waitFor(() => reloaded.container.querySelector('[data-testid="login-gate-screen"]') === null);
+        await waitFor(() => (reloaded.container.textContent || '').includes('Reconecta WebLN'));
+        expect(reloaded.container.textContent || '').not.toContain('Conectada por WebLN');
     });
 
     test('connects NWC wallet from a validated info event', async () => {
@@ -2344,7 +2654,7 @@ describe('Nostr overlay App', () => {
             kind: 13194,
             created_at: 100,
             tags: [['encryption', 'nip44_v2 nip04']],
-            content: 'pay_invoice get_balance make_invoice',
+            content: 'pay_invoice make_invoice',
         }, walletServiceSecret);
         window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify({
             method: 'npub',
@@ -4975,7 +5285,6 @@ describe('Nostr overlay App', () => {
             webln: {
                 enable: vi.fn(async () => {}),
                 sendPayment,
-                getBalance: vi.fn(async () => ({ balance: '210' })),
                 makeInvoice: vi.fn(async () => ({ paymentRequest: 'lnbc1invoice', expiresAt: 200 })),
             },
         });
@@ -5089,7 +5398,6 @@ describe('Nostr overlay App', () => {
             webln: {
                 enable: vi.fn(async () => {}),
                 sendPayment,
-                getBalance: vi.fn(async () => ({ balance: '210' })),
                 makeInvoice: vi.fn(async () => ({ paymentRequest: 'lnbc1invoice', expiresAt: 200 })),
             },
         });

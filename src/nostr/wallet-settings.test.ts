@@ -28,7 +28,6 @@ describe('wallet-settings', () => {
                 restoreState: 'connected',
                 capabilities: {
                     payInvoice: true,
-                    getBalance: true,
                     makeInvoice: false,
                     notifications: false,
                 },
@@ -59,7 +58,6 @@ describe('wallet-settings', () => {
                 method: 'webln',
                 capabilities: {
                     payInvoice: true,
-                    getBalance: false,
                     makeInvoice: true,
                     notifications: false,
                 },
@@ -89,7 +87,6 @@ describe('wallet-settings', () => {
                 restoreState: 'connected',
                 capabilities: {
                     payInvoice: true,
-                    getBalance: true,
                     makeInvoice: true,
                     notifications: false,
                 },
@@ -114,7 +111,6 @@ describe('wallet-settings', () => {
                 restoreState: 'reconnect-required',
                 capabilities: {
                     payInvoice: true,
-                    getBalance: false,
                     makeInvoice: false,
                     notifications: false,
                 },

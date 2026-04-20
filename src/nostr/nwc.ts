@@ -81,7 +81,6 @@ export function resolveNwcInfoCapabilities(content: string): WalletCapabilities 
     const tokens = [...new Set(content.split(/\s+/).map((item) => item.trim()).filter(Boolean))];
     return {
         payInvoice: tokens.includes('pay_invoice'),
-        getBalance: tokens.includes('get_balance'),
         makeInvoice: tokens.includes('make_invoice'),
         notifications: tokens.includes('notifications'),
     };
@@ -251,15 +250,6 @@ export function createNwcClient(input: CreateNwcClientInput) {
                 preimage: result.preimage,
                 ...(typeof result.fees_paid === 'number' ? { feesPaidMsats: result.fees_paid } : {}),
             };
-        },
-
-        async getBalance(): Promise<{ balance: number }> {
-            const result = await call('get_balance', {});
-            if (typeof result.balance !== 'number') {
-                throw new Error('NWC get_balance response did not include a numeric balance');
-            }
-
-            return { balance: result.balance };
         },
 
         async makeInvoice(inputAmount: { amountMsats: number }): Promise<{ invoice: string; expiresAt?: number }> {

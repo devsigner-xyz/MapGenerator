@@ -1,6 +1,5 @@
 export interface WalletCapabilities {
     payInvoice: boolean;
-    getBalance: boolean;
     makeInvoice: boolean;
     notifications: boolean;
 }

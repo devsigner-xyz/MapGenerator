@@ -53,7 +53,6 @@ function getDefaultSessionStorage(): StorageLike | null {
 function normalizeCapabilities(value: WalletCapabilities | null | undefined): WalletCapabilities {
     return {
         payInvoice: Boolean(value?.payInvoice),
-        getBalance: Boolean(value?.getBalance),
         makeInvoice: Boolean(value?.makeInvoice),
         notifications: Boolean(value?.notifications),
     };

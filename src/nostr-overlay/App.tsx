@@ -164,15 +164,14 @@ export function App({ mapBridge, services }: AppProps) {
     const [zapSettings, setZapSettings] = useState<ZapSettingsState>(() => loadZapSettings());
     const [walletSettings, setWalletSettings] = useState<WalletSettingsState>(() => loadWalletSettings());
     const [walletActivity, setWalletActivity] = useState<WalletActivityState>(() => loadWalletActivity());
-    const [walletReceiveAmountInput, setWalletReceiveAmountInput] = useState('');
-    const [walletReceiveAmountError, setWalletReceiveAmountError] = useState('');
-    const [walletBalanceDisplay, setWalletBalanceDisplay] = useState<string | undefined>(undefined);
-    const [walletGeneratedInvoice, setWalletGeneratedInvoice] = useState<string | undefined>(undefined);
     const [walletNwcUriInput, setWalletNwcUriInput] = useState('');
     const [pendingZapIntent, setPendingZapIntent] = useState<PendingZapIntent | null>(null);
     const [resumingZap, setResumingZap] = useState(false);
     const [socialComposeState, setSocialComposeState] = useState<SocialComposeState | null>(null);
     const [isSubmittingSocialCompose, setIsSubmittingSocialCompose] = useState(false);
+    const shouldAutoRestoreRememberedWebLnRef = useRef(
+        walletSettings.activeConnection?.method === 'webln' && walletSettings.activeConnection.restoreState === 'reconnect-required'
+    );
 
     const fetchNwcInfo = async (connection: {
         walletServicePubkey: string;
@@ -737,13 +736,31 @@ export function App({ mapBridge, services }: AppProps) {
     }, [overlay.ownerPubkey]);
 
     useEffect(() => {
-        setWalletSettings(loadWalletSettings(
+        const nextWalletSettings = loadWalletSettings(
             overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : undefined
-        ));
+        );
+        shouldAutoRestoreRememberedWebLnRef.current = Boolean(
+            nextWalletSettings.activeConnection?.method === 'webln'
+            && nextWalletSettings.activeConnection.restoreState === 'reconnect-required'
+        );
+        setWalletSettings(nextWalletSettings);
         setWalletActivity(loadWalletActivity(
             overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : undefined
         ));
     }, [overlay.ownerPubkey]);
+
+    useEffect(() => {
+        if (!shouldAutoRestoreRememberedWebLnRef.current) {
+            return;
+        }
+        if (walletSettings.activeConnection?.method !== 'webln' || walletSettings.activeConnection.restoreState !== 'reconnect-required') {
+            shouldAutoRestoreRememberedWebLnRef.current = false;
+            return;
+        }
+
+        shouldAutoRestoreRememberedWebLnRef.current = false;
+        void connectWebLnWallet({ silent: true });
+    }, [walletSettings.activeConnection]);
 
     const walletStorageOptions = overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : undefined;
 
@@ -1264,18 +1281,30 @@ export function App({ mapBridge, services }: AppProps) {
         await executeZapIntent(targetPubkey, amount);
     };
 
-    const connectWebLnWallet = async (): Promise<void> => {
+    const connectWebLnWallet = async (options: { silent?: boolean } = {}): Promise<boolean> => {
         const provider = detectWebLnProvider();
         if (!provider) {
-            toast.error('WebLN no está disponible en este navegador.', { duration: 2200 });
-            return;
+            if (!options.silent) {
+                toast.error('WebLN no está disponible en este navegador.', { duration: 2200 });
+            }
+            return false;
         }
 
-        await provider.enable?.();
+        try {
+            await provider.enable?.();
+        } catch {
+            if (!options.silent) {
+                toast.error('No se pudo reconectar la wallet WebLN.', { duration: 2200 });
+            }
+            return false;
+        }
+
         const capabilities = resolveWebLnCapabilities(provider);
         if (!capabilities.payInvoice) {
-            toast.error('El provider WebLN no soporta pagos.', { duration: 2200 });
-            return;
+            if (!options.silent) {
+                toast.error('El provider WebLN no soporta pagos.', { duration: 2200 });
+            }
+            return false;
         }
 
         const nextConnection = {
@@ -1284,13 +1313,14 @@ export function App({ mapBridge, services }: AppProps) {
             restoreState: 'connected',
         } as const;
         persistWalletSettings({ activeConnection: nextConnection });
-        setWalletGeneratedInvoice(undefined);
-        setWalletBalanceDisplay(undefined);
         setWalletNwcUriInput('');
-        toast.success('Wallet conectada', { duration: 1800 });
+        if (!options.silent) {
+            toast.success('Wallet conectada', { duration: 1800 });
+        }
         if (pendingZapIntent?.phase === 'paused' && location.pathname === '/wallet') {
             setPendingZapIntent({ ...pendingZapIntent, phase: 'ready' });
         }
+        return true;
     };
 
     const connectNwcWallet = async (): Promise<void> => {
@@ -1322,9 +1352,6 @@ export function App({ mapBridge, services }: AppProps) {
 
     const disconnectWallet = (): void => {
         persistWalletSettings({ activeConnection: null });
-        setWalletGeneratedInvoice(undefined);
-        setWalletBalanceDisplay(undefined);
-        setWalletReceiveAmountError('');
         setWalletNwcUriInput('');
     };
 
@@ -1334,16 +1361,16 @@ export function App({ mapBridge, services }: AppProps) {
         }
 
         if (walletSettings.activeConnection.method === 'webln') {
-            const provider = detectWebLnProvider();
-            const capabilities = resolveWebLnCapabilities(provider);
-            persistWalletSettings({
-                activeConnection: {
-                    ...walletSettings.activeConnection,
-                    capabilities,
-                },
-            });
-            if (capabilities.getBalance) {
-                await requestWalletBalance();
+            const revalidated = await connectWebLnWallet({ silent: true });
+            if (!revalidated) {
+                const provider = detectWebLnProvider();
+                persistWalletSettings({
+                    activeConnection: {
+                        ...walletSettings.activeConnection,
+                        capabilities: resolveWebLnCapabilities(provider),
+                        restoreState: 'reconnect-required',
+                    },
+                });
             }
             return;
         }
@@ -1356,84 +1383,6 @@ export function App({ mapBridge, services }: AppProps) {
                 encryption: info.encryption,
             },
         });
-    };
-
-    const requestWalletBalance = async (): Promise<void> => {
-        if (!walletSettings.activeConnection?.capabilities.getBalance) {
-            return;
-        }
-        if (walletSettings.activeConnection.method === 'webln' && walletSettings.activeConnection.restoreState !== 'connected') {
-            return;
-        }
-
-        const balanceValue = walletSettings.activeConnection.method === 'webln'
-            ? (() => {
-                const provider = detectWebLnProvider();
-                return provider?.getBalance?.();
-            })()
-            : withNwcClient(walletSettings.activeConnection, async (client) => client.getBalance());
-        const response = await balanceValue;
-        const numeric = typeof (response as { balance?: unknown } | undefined)?.balance === 'string'
-            ? Number((response as { balance: string }).balance)
-            : typeof (response as { balance?: unknown } | undefined)?.balance === 'number'
-                ? Number((response as { balance: number }).balance)
-                : 0;
-        const satsValue = walletSettings.activeConnection.method === 'webln'
-            ? numeric
-            : Math.round(numeric / 1000);
-        setWalletBalanceDisplay(`${satsValue} sats`);
-    };
-
-    const generateWalletInvoice = async (): Promise<void> => {
-        if (!walletSettings.activeConnection?.capabilities.makeInvoice) {
-            return;
-        }
-        if (walletSettings.activeConnection.method === 'webln' && walletSettings.activeConnection.restoreState !== 'connected') {
-            return;
-        }
-
-        const nextAmount = Number(walletReceiveAmountInput.trim());
-        if (!Number.isInteger(nextAmount) || nextAmount < 1) {
-            setWalletReceiveAmountError('Introduce un monto valido en sats.');
-            return;
-        }
-
-        setWalletReceiveAmountError('');
-        const activityId = `receive-${Date.now()}`;
-        persistWalletActivity(addWalletActivity(walletActivity, {
-            id: activityId,
-            status: 'pending',
-            actionType: 'manual-receive',
-            amountMsats: nextAmount * 1000,
-            createdAt: Date.now(),
-            targetType: 'invoice',
-            provider: walletSettings.activeConnection.method,
-        }));
-
-        try {
-            const response = walletSettings.activeConnection.method === 'webln'
-                ? await detectWebLnProvider()?.makeInvoice?.({ amount: nextAmount }) as {
-                    paymentRequest?: string;
-                    expiresAt?: number;
-                } | undefined
-                : await withNwcClient(walletSettings.activeConnection, async (client) => client.makeInvoice({ amountMsats: nextAmount * 1000 }));
-            const invoice = 'paymentRequest' in (response ?? {})
-                ? ((response as { paymentRequest?: string } | undefined)?.paymentRequest ?? '')
-                : ((response as { invoice?: string } | undefined)?.invoice ?? '');
-            if (!invoice) {
-                throw new Error('makeInvoice did not return an invoice');
-            }
-            setWalletGeneratedInvoice(invoice);
-            persistWalletActivity(markWalletActivitySucceeded(loadWalletActivity(walletStorageOptions), activityId, {
-                invoice,
-                ...('expiresAt' in (response ?? {}) && (response as { expiresAt?: number }).expiresAt !== undefined
-                    ? { expiresAt: (response as { expiresAt: number }).expiresAt }
-                    : {}),
-            }));
-        } catch (error) {
-            persistWalletActivity(markWalletActivityFailed(loadWalletActivity(walletStorageOptions), activityId, error instanceof Error ? error.message : 'makeInvoice failed'));
-            toast.error('No se pudo completar el pago.', { duration: 2200 });
-        }
     };
 
     const handleLogout = async (): Promise<void> => {
@@ -1794,22 +1743,6 @@ export function App({ mapBridge, services }: AppProps) {
                             onRefresh={() => {
                                 void refreshWallet();
                             }}
-                            onGenerateInvoice={() => {
-                                void generateWalletInvoice();
-                            }}
-                            onCopyInvoice={() => {
-                                if (walletGeneratedInvoice) {
-                                    void copyText(walletGeneratedInvoice, 'invoice copiada');
-                                }
-                            }}
-                            onRequestBalance={() => {
-                                void requestWalletBalance();
-                            }}
-                            receiveAmountInput={walletReceiveAmountInput}
-                            onReceiveAmountInputChange={setWalletReceiveAmountInput}
-                            receiveAmountError={walletReceiveAmountError}
-                            balanceDisplay={walletBalanceDisplay}
-                            generatedInvoice={walletGeneratedInvoice}
                         />
                     )}
                 />

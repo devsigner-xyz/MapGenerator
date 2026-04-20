@@ -64,7 +64,6 @@ describe('nwc', () => {
     test('resolves capabilities from info content tokens', () => {
         expect(resolveNwcInfoCapabilities(' pay_invoice get_balance make_invoice notifications pay_invoice ')).toEqual({
             payInvoice: true,
-            getBalance: true,
             makeInvoice: true,
             notifications: true,
         });
@@ -102,7 +101,6 @@ describe('nwc', () => {
                 restoreState: 'connected',
                 capabilities: {
                     payInvoice: true,
-                    getBalance: true,
                     makeInvoice: true,
                     notifications: false,
                 },
@@ -146,52 +144,6 @@ describe('nwc', () => {
         await expect(pending).resolves.toEqual({ preimage: 'abc123' });
     });
 
-    test('getBalance resolves numeric balance from response payload', async () => {
-        const fake = createFakeIo();
-        const client = createNwcClient({
-            connection: {
-                method: 'nwc',
-                uri: `nostr+walletconnect://${PUBKEY}?relay=wss://relay.one.example&secret=${SECRET}`,
-                walletServicePubkey: PUBKEY,
-                relays: ['wss://relay.one.example'],
-                secret: SECRET,
-                encryption: 'nip04',
-                restoreState: 'connected',
-                capabilities: {
-                    payInvoice: true,
-                    getBalance: true,
-                    makeInvoice: true,
-                    notifications: false,
-                },
-            },
-            io: fake.io,
-            now: () => 100,
-            timeoutMs: 100,
-            encrypt: async (plaintext) => plaintext,
-            decrypt: async (ciphertext) => ciphertext,
-            verifyEvent: () => true,
-        });
-
-        const pending = client.getBalance();
-        await Promise.resolve();
-        const requestId = fake.published[0]?.id;
-        fake.emit({
-            kind: 23195,
-            pubkey: PUBKEY,
-            tags: [['p', getNwcClientPubkey(SECRET)], ['e', requestId ?? '']],
-            content: JSON.stringify({
-                result_type: 'get_balance',
-                error: null,
-                result: { balance: 210000 },
-            }),
-            created_at: 101,
-            id: 'r'.repeat(64),
-            sig: 'c'.repeat(128),
-        });
-
-        await expect(pending).resolves.toEqual({ balance: 210000 });
-    });
-
     test('makeInvoice resolves invoice and expiry from response payload', async () => {
         const fake = createFakeIo();
         const client = createNwcClient({
@@ -205,7 +157,6 @@ describe('nwc', () => {
                 restoreState: 'connected',
                 capabilities: {
                     payInvoice: true,
-                    getBalance: true,
                     makeInvoice: true,
                     notifications: false,
                 },

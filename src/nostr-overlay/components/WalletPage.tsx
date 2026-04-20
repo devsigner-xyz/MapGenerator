@@ -15,14 +15,6 @@ interface WalletPageProps {
     onConnectWebLn: () => void;
     onDisconnect: () => void;
     onRefresh: () => void;
-    onGenerateInvoice: () => void;
-    onCopyInvoice?: (() => void) | undefined;
-    onRequestBalance?: (() => void) | undefined;
-    receiveAmountInput: string;
-    onReceiveAmountInputChange: (value: string) => void;
-    receiveAmountError?: string | undefined;
-    balanceDisplay?: string | undefined;
-    generatedInvoice?: string | undefined;
 }
 
 function formatActivityAmount(amountMsats: number): string {
@@ -38,24 +30,16 @@ export function WalletPage({
     onConnectWebLn,
     onDisconnect,
     onRefresh,
-    onGenerateInvoice,
-    onCopyInvoice,
-    onRequestBalance,
-    receiveAmountInput,
-    onReceiveAmountInputChange,
-    receiveAmountError,
-    balanceDisplay,
-    generatedInvoice,
 }: WalletPageProps) {
     const connection = walletState.activeConnection;
+    const hasRememberedConnection = connection !== null;
     const isConnected = connection !== null && connection.restoreState === 'connected';
     const statusLabel = connection?.method === 'nwc'
         ? (connection.restoreState === 'connected' ? 'Conectada por NWC' : 'Reconecta NWC')
         : connection?.method === 'webln'
             ? (connection.restoreState === 'connected' ? 'Conectada por WebLN' : 'Reconecta WebLN')
             : 'Sin wallet conectada';
-    const canGetBalance = Boolean(isConnected && connection?.capabilities.getBalance);
-    const canMakeInvoice = Boolean(isConnected && connection?.capabilities.makeInvoice);
+    const reconnectAction = connection?.method === 'webln' ? onConnectWebLn : undefined;
 
     return (
         <section className="nostr-routed-surface" aria-label="Wallet" data-testid="wallet-page">
@@ -85,6 +69,11 @@ export function WalletPage({
                                             <Button type="button" variant="outline" onClick={onRefresh}>Refrescar</Button>
                                             <Button type="button" variant="outline" onClick={onDisconnect}>Desconectar</Button>
                                             <Button type="button" onClick={connection?.method === 'nwc' ? onConnectWebLn : onConnectNwc}>Cambiar</Button>
+                                        </>
+                                    ) : hasRememberedConnection ? (
+                                        <>
+                                            {reconnectAction ? <Button type="button" onClick={reconnectAction}>Reconectar</Button> : null}
+                                            <Button type="button" variant="outline" onClick={onDisconnect}>Desconectar</Button>
                                         </>
                                     ) : (
                                         <Empty>
@@ -116,50 +105,6 @@ export function WalletPage({
                                 </p>
                                 <Button type="button" onClick={onConnectNwc}>Conectar con NWC</Button>
                                 <Button type="button" variant="outline" onClick={onConnectWebLn}>Conectar con WebLN</Button>
-                            </CardContent>
-                        </Card>
-
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Balance</CardTitle>
-                            </CardHeader>
-                            <CardContent className="grid gap-2">
-                                {canGetBalance ? (
-                                    <>
-                                        <span className="text-sm text-muted-foreground">{balanceDisplay ?? 'Balance disponible'}</span>
-                                        <Button type="button" variant="outline" onClick={onRequestBalance}>Consultar balance</Button>
-                                    </>
-                                ) : (
-                                    <span className="text-sm text-muted-foreground">Balance no disponible para este metodo</span>
-                                )}
-                            </CardContent>
-                        </Card>
-
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Recibir</CardTitle>
-                            </CardHeader>
-                            <CardContent className="grid gap-2">
-                                {canMakeInvoice ? (
-                                    <>
-                                        <Input
-                                            type="number"
-                                            min={1}
-                                            step={1}
-                                            aria-label="Monto para generar invoice"
-                                            value={receiveAmountInput}
-                                            onChange={(event) => onReceiveAmountInputChange(event.target.value)}
-                                        />
-                                        {receiveAmountError ? <p role="alert" className="text-sm text-destructive">{receiveAmountError}</p> : null}
-                                        {generatedInvoice ? <p className="break-all text-sm text-muted-foreground">{generatedInvoice}</p> : null}
-                                        <div className="flex flex-wrap gap-2">
-                                            <Button type="button" onClick={onGenerateInvoice}>Generar invoice</Button>
-                                            <Button type="button" variant="outline" onClick={onCopyInvoice}>Copiar invoice</Button>
-                                        </div>
-                                    </>
-                                ) : (
-                                    <span className="text-sm text-muted-foreground">Este metodo no soporta generar invoices</span>
-                                )}
                             </CardContent>
                         </Card>
 
