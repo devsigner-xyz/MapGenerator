@@ -43,6 +43,7 @@ function buildProps() {
         nip65Read: 'NIP-65 lectura',
         nip65Write: 'NIP-65 escritura',
         dmInbox: 'NIP-17 buzón DM',
+        search: 'Búsqueda NIP-50',
     } as const;
 
     return {
@@ -84,5 +85,21 @@ describe('SettingsRelayDetailPage', () => {
         expect(rendered.container.querySelector('.nostr-relay-detail-table-wrap[data-slot="card"]')).not.toBeNull();
         expect(rendered.container.querySelector('[data-testid="relay-detail-admin-actions"]')).not.toBeNull();
         expect(rendered.container.textContent || '').toContain('Detalles del relay');
+    });
+
+    test('renders dedicated label for search relay type', async () => {
+        const props = buildProps();
+        const rendered = await renderElement(<SettingsRelayDetailPage
+            {...props}
+            selectedRelay={{
+                relayUrl: 'wss://search.nos.today',
+                source: 'configured',
+                relayType: 'search',
+            }}
+        />);
+        mounted.push(rendered);
+
+        expect(rendered.container.textContent || '').toContain('Búsqueda NIP-50');
+        expect(rendered.container.textContent || '').toContain('Categoria');
     });
 });

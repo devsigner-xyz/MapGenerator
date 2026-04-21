@@ -1,4 +1,4 @@
-type QueryValue = string | number | boolean | null | undefined;
+type QueryValue = string | number | boolean | Array<string | number | boolean> | null | undefined;
 
 interface BackendErrorEnvelope {
     error: {
@@ -121,6 +121,13 @@ function buildUrl(baseUrl: string, path: string, query?: Record<string, QueryVal
     if (query) {
         for (const [key, value] of Object.entries(query)) {
             if (value === undefined || value === null) {
+                continue;
+            }
+
+            if (Array.isArray(value)) {
+                for (const entry of value) {
+                    params.append(key, String(entry));
+                }
                 continue;
             }
 

@@ -12,6 +12,7 @@ import type {
   UsersSearchQuery,
   UsersSearchResponseDto,
 } from './users.schemas';
+import { DEFAULT_SEARCH_RELAYS, MAX_SEARCH_RELAYS } from './search-relay-defaults';
 
 type NostrEventLike = {
   id: string;
@@ -70,6 +71,49 @@ const dedupeById = (events: NostrEventLike[]): NostrEventLike[] => {
 };
 
 const normalizeQueryText = (value: string): string => value.trim().toLowerCase();
+
+const normalizeRelayUrl = (value: string): string | null => {
+  try {
+    const parsed = new URL(value.trim());
+    if (parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') {
+      return null;
+    }
+
+    parsed.hash = '';
+    parsed.search = '';
+    const normalized = parsed.toString();
+    return normalized.endsWith('/') ? normalized.slice(0, -1) : normalized;
+  } catch {
+    return null;
+  }
+};
+
+const normalizeSearchRelays = (searchRelays?: string[]): string[] => {
+  const source = searchRelays && searchRelays.length > 0
+    ? searchRelays
+    : [...DEFAULT_SEARCH_RELAYS];
+  const normalized = new Set<string>();
+
+  for (const relay of source) {
+    const current = normalizeRelayUrl(relay);
+    if (!current) {
+      continue;
+    }
+
+    normalized.add(current);
+    if (normalized.size >= MAX_SEARCH_RELAYS) {
+      break;
+    }
+  }
+
+  if (normalized.size === 0) {
+    return [...DEFAULT_SEARCH_RELAYS];
+  }
+
+  return [...normalized];
+};
+
+const searchRelaySetKey = (searchRelays?: string[]): string => normalizeSearchRelays(searchRelays).join('|');
 
 const normalizePubkeyCandidate = (value: string): string | null => {
   const normalized = value.trim().toLowerCase();
@@ -176,7 +220,7 @@ class GatewayUsersService implements UsersService {
 
   async searchUsers(query: UsersSearchQuery): Promise<UsersSearchResponseDto> {
     return this.usersGateway.query({
-      key: `users:search:${query.ownerPubkey}:${normalizeQueryText(query.q)}:${query.limit}`,
+      key: `users:search:${query.ownerPubkey}:${normalizeQueryText(query.q)}:${query.limit}:${searchRelaySetKey(query.searchRelays)}`,
       params: query,
     });
   }
@@ -223,33 +267,38 @@ const createPoolFetchers = (options: {
     const exactPubkeys = [...new Set([exactHex, decodedNpub].filter((value): value is string => Boolean(value)))];
 
     const textSearchLimit = Math.max(query.limit * SEARCH_OVERSCAN_FACTOR, query.limit + 1);
+    const textSearchRelays = normalizeSearchRelays(query.searchRelays);
 
-    const events = await queryWithFallback(async (relays) => {
-      if (relays.length === 0) {
+    const events: NostrEventLike[] = await queryWithFallback(async (_relays) => {
+      if (textSearchRelays.length === 0) {
         return [] as NostrEventLike[];
       }
 
-      const requests: Promise<NostrEventLike[]>[] = [];
+      try {
+        const requests: Promise<NostrEventLike[]>[] = [];
 
-      if (exactPubkeys.length > 0) {
-        requests.push(
-          options.pool.querySync(relays, {
-            authors: exactPubkeys,
-            kinds: [METADATA_KIND],
-            limit: exactPubkeys.length,
-          }),
-        );
+        if (exactPubkeys.length > 0) {
+          requests.push(
+            options.pool.querySync(textSearchRelays, {
+              authors: exactPubkeys,
+              kinds: [METADATA_KIND],
+              limit: exactPubkeys.length,
+            }),
+          );
+        }
+
+        const textFilter: Filter & { search?: string } = {
+          kinds: [METADATA_KIND],
+          limit: textSearchLimit,
+        };
+        textFilter.search = normalizedQuery;
+        requests.push(options.pool.querySync(textSearchRelays, textFilter));
+
+        const settled = await Promise.all(requests);
+        return settled.flat();
+      } catch {
+        return [] as NostrEventLike[];
       }
-
-      const textFilter: Filter & { search?: string } = {
-        kinds: [METADATA_KIND],
-        limit: textSearchLimit,
-      };
-      textFilter.search = normalizedQuery;
-      requests.push(options.pool.querySync(relays, textFilter));
-
-      const settled = await Promise.all(requests);
-      return settled.flat();
     });
 
     const latestProfiles = new Map<string, UserProfileDto>();

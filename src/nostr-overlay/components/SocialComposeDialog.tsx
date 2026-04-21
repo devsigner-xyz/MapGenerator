@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
+import type { SearchUsersResult } from '../query/user-search.query';
+import { createMentionDraft, type MentionDraft } from '../mention-serialization';
+import { MentionTextarea } from './MentionTextarea';
 import type { NoteCardModel } from './note-card-model';
 import { withoutNoteActions } from './note-card-model';
 import { NoteCard } from './NoteCard';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
 import type { NostrProfile } from '../../nostr/types';
 
 interface SocialComposeDialogProps {
@@ -13,8 +15,11 @@ interface SocialComposeDialogProps {
     quoteTarget?: NoteCardModel;
     profilesByPubkey: Record<string, NostrProfile>;
     isSubmitting?: boolean;
+    onSearchUsers: (query: string) => Promise<SearchUsersResult>;
+    searchRelaySetKey?: string | undefined;
+    ownerPubkey?: string | undefined;
     onOpenChange: (open: boolean) => void;
-    onSubmit: (content: string) => Promise<void> | void;
+    onSubmit: (content: MentionDraft) => Promise<void> | void;
 }
 
 export function SocialComposeDialog({
@@ -23,14 +28,17 @@ export function SocialComposeDialog({
     quoteTarget,
     profilesByPubkey,
     isSubmitting = false,
+    onSearchUsers,
+    searchRelaySetKey,
+    ownerPubkey,
     onOpenChange,
     onSubmit,
 }: SocialComposeDialogProps) {
-    const [draft, setDraft] = useState('');
+    const [draft, setDraft] = useState<MentionDraft>(createMentionDraft(''));
 
     useEffect(() => {
         if (open) {
-            setDraft('');
+            setDraft(createMentionDraft(''));
         }
     }, [open, mode, quoteTarget?.id]);
 
@@ -45,11 +53,14 @@ export function SocialComposeDialog({
                 </DialogDescription>
 
                 <div className="grid gap-4">
-                    <Textarea
+                    <MentionTextarea
                         aria-label="Redactar publicacion"
                         placeholder={mode === 'quote' ? 'Anade tu comentario' : 'Que estas pensando?'}
                         value={draft}
-                        onChange={(event) => setDraft(event.target.value)}
+                        onSearch={onSearchUsers}
+                        ownerPubkey={ownerPubkey}
+                        searchRelaySetKey={searchRelaySetKey}
+                        onChangeDraft={setDraft}
                     />
 
                     {mode === 'quote' && quoteTarget ? (
@@ -66,7 +77,7 @@ export function SocialComposeDialog({
                     </Button>
                     <Button
                         type="button"
-                        disabled={isSubmitting || draft.trim().length === 0}
+                        disabled={isSubmitting || draft.text.trim().length === 0}
                         onClick={() => {
                             void onSubmit(draft);
                         }}

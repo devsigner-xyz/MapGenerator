@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type MouseEvent } from 'react';
 import {
     addRelay,
+    DEFAULT_SEARCH_RELAYS,
     getRelaySetByType,
     loadRelaySettings,
     removeRelay,
@@ -36,6 +37,8 @@ interface UseRelaysSettingsControllerInput {
 export interface RelaysSettingsController {
     configuredRows: ReturnType<typeof buildRelayRowsByUrl>;
     suggestedRows: ReturnType<typeof buildRelayRowsByUrl>;
+    searchConfiguredRows: ReturnType<typeof buildRelayRowsByUrl>;
+    searchSuggestedRows: ReturnType<typeof buildRelayRowsByUrl>;
     connectedConfiguredRelays: number;
     disconnectedConfiguredRelays: number;
     relayInfoByUrl: Record<string, { data?: RelayInformationDocument }>;
@@ -44,14 +47,22 @@ export interface RelaysSettingsController {
     relayTypeLabels: typeof RELAY_TYPE_LABELS;
     newRelayInput: string;
     newRelayType: RelayType;
+    newSearchRelayInput: string;
     invalidRelayInputs: string[];
+    invalidSearchRelayInputs: string[];
     onNewRelayInputChange: (value: string) => void;
     onNewRelayTypeChange: (value: RelayType) => void;
+    onNewSearchRelayInputChange: (value: string) => void;
     onAddRelays: () => void;
     onRemoveRelay: (relayUrl: string) => void;
     onAddSuggestedRelay: (relayUrl: string, relayTypes: RelayType[]) => void;
     onAddAllSuggestedRelays: () => void;
     onResetRelaysToDefault: () => void;
+    onAddSearchRelays: () => void;
+    onRemoveSearchRelay: (relayUrl: string) => void;
+    onAddSuggestedSearchRelay: (relayUrl: string, relayTypes: RelayType[]) => void;
+    onAddAllSuggestedSearchRelays: () => void;
+    onResetSearchRelaysToDefault: () => void;
     onOpenRelayActionsMenu: (event: MouseEvent<HTMLButtonElement>) => void;
     describeRelay: typeof describeRelay;
     relayAvatarFallback: typeof relayAvatarFallback;
@@ -72,7 +83,9 @@ export function useRelaysSettingsController(input: UseRelaysSettingsControllerIn
     ));
     const [newRelayInput, setNewRelayInput] = useState('');
     const [newRelayType, setNewRelayType] = useState<RelayType>('nip65Both');
+    const [newSearchRelayInput, setNewSearchRelayInput] = useState('');
     const [invalidRelayInputs, setInvalidRelayInputs] = useState<string[]>([]);
+    const [invalidSearchRelayInputs, setInvalidSearchRelayInputs] = useState<string[]>([]);
 
     const persistRelaySettings = (nextState: RelaySettingsState): void => {
         const savedState = saveRelaySettings(nextState, ownerPubkey ? { ownerPubkey } : undefined);
@@ -90,12 +103,26 @@ export function useRelaysSettingsController(input: UseRelaysSettingsControllerIn
             nip65Read: mergeRelaySets(suggestedRelaysByType?.nip65Read ?? []),
             nip65Write: mergeRelaySets(suggestedRelaysByType?.nip65Write ?? []),
             dmInbox: mergeRelaySets(suggestedRelaysByType?.dmInbox ?? []),
+            search: mergeRelaySets(suggestedRelaysByType?.search ?? DEFAULT_SEARCH_RELAYS),
         };
     }, [suggestedRelaysByType, suggestedRelays]);
 
     const configuredRows = useMemo(() => {
-        return buildRelayRowsByUrl(relaySettings.byType);
+        return buildRelayRowsByUrl({
+            ...relaySettings.byType,
+            search: [],
+        });
     }, [relaySettings.byType]);
+
+    const searchConfiguredRows = useMemo(() => {
+        return buildRelayRowsByUrl({
+            nip65Both: [],
+            nip65Read: [],
+            nip65Write: [],
+            dmInbox: [],
+            search: relaySettings.byType.search,
+        });
+    }, [relaySettings.byType.search]);
 
     const suggestedRows = useMemo(() => {
         const missingByType: RelaySettingsByType = {
@@ -103,9 +130,10 @@ export function useRelaysSettingsController(input: UseRelaysSettingsControllerIn
             nip65Read: [],
             nip65Write: [],
             dmInbox: [],
+            search: [],
         };
 
-        for (const relayType of RELAY_TYPES) {
+        for (const relayType of RELAY_TYPES.filter((currentRelayType) => currentRelayType !== 'search')) {
             const configuredSet = new Set(getRelaySetByType(relaySettings, relayType));
             missingByType[relayType] = normalizedSuggestedByType[relayType]
                 .filter((relayUrl) => !configuredSet.has(relayUrl));
@@ -114,18 +142,32 @@ export function useRelaysSettingsController(input: UseRelaysSettingsControllerIn
         return buildRelayRowsByUrl(missingByType);
     }, [normalizedSuggestedByType, relaySettings]);
 
+    const searchSuggestedRows = useMemo(() => {
+        const configuredSet = new Set(relaySettings.byType.search);
+        return buildRelayRowsByUrl({
+            nip65Both: [],
+            nip65Read: [],
+            nip65Write: [],
+            dmInbox: [],
+            search: normalizedSuggestedByType.search.filter((relayUrl) => !configuredSet.has(relayUrl)),
+        });
+    }, [normalizedSuggestedByType.search, relaySettings.byType.search]);
+
     const configuredRelayStatusTargets = useMemo(() => {
-        return [...new Set(configuredRows.map(({ relayUrl }) => relayUrl))];
-    }, [configuredRows]);
+        return [...new Set([
+            ...configuredRows.map(({ relayUrl }) => relayUrl),
+            ...searchConfiguredRows.map(({ relayUrl }) => relayUrl),
+        ])];
+    }, [configuredRows, searchConfiguredRows]);
 
     const suggestedRelayStatusTargets = useMemo(() => {
         const configured = new Set(configuredRelayStatusTargets);
         return [...new Set(
-            suggestedRows
+            [...suggestedRows, ...searchSuggestedRows]
                 .map(({ relayUrl }) => relayUrl)
                 .filter((relayUrl) => !configured.has(relayUrl))
         )];
-    }, [configuredRelayStatusTargets, suggestedRows]);
+    }, [configuredRelayStatusTargets, searchSuggestedRows, suggestedRows]);
 
     const { statusByRelay: configuredRelayConnectionStatusByRelay } = useRelayConnectionSummary(configuredRelayStatusTargets, {
         enabled: true,
@@ -174,8 +216,10 @@ export function useRelaysSettingsController(input: UseRelaysSettingsControllerIn
             ...normalizedSuggestedByType.nip65Read,
             ...normalizedSuggestedByType.nip65Write,
             ...normalizedSuggestedByType.dmInbox,
+            ...relaySettings.byType.search,
+            ...normalizedSuggestedByType.search,
         ])];
-    }, [relaySettings.relays, normalizedSuggestedByType]);
+    }, [relaySettings.byType.search, relaySettings.relays, normalizedSuggestedByType]);
 
     const relayInfoByUrl = useRelayMetadataByUrlQuery({
         relayUrls: relayInfoTargets,
@@ -213,7 +257,7 @@ export function useRelaysSettingsController(input: UseRelaysSettingsControllerIn
 
     const onRemoveRelay = (relayUrl: string): void => {
         let nextState = relaySettings;
-        for (const relayType of RELAY_TYPES) {
+        for (const relayType of RELAY_TYPES.filter((relayType) => relayType !== 'search')) {
             nextState = removeRelay(nextState, relayUrl, relayType);
         }
         persistRelaySettings(nextState);
@@ -246,11 +290,75 @@ export function useRelaysSettingsController(input: UseRelaysSettingsControllerIn
                 nip65Read: bootstrap,
                 nip65Write: bootstrap,
                 dmInbox: [],
+                search: relaySettings.byType.search,
             },
         });
         setInvalidRelayInputs([]);
         setNewRelayInput('');
         setNewRelayType('nip65Both');
+    };
+
+    const onAddSearchRelays = (): void => {
+        const lines = newSearchRelayInput
+            .split('\n')
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0);
+
+        if (lines.length === 0) {
+            setInvalidSearchRelayInputs([]);
+            return;
+        }
+
+        let nextState = relaySettings;
+        const invalid: string[] = [];
+
+        for (const line of lines) {
+            const normalized = normalizeRelayInput(line);
+            if (!normalized) {
+                invalid.push(line);
+                continue;
+            }
+
+            nextState = addRelay(nextState, normalized, 'search');
+        }
+
+        persistRelaySettings(nextState);
+        setInvalidSearchRelayInputs(invalid);
+        setNewSearchRelayInput('');
+    };
+
+    const onRemoveSearchRelay = (relayUrl: string): void => {
+        persistRelaySettings(removeRelay(relaySettings, relayUrl, 'search'));
+    };
+
+    const onAddSuggestedSearchRelay = (relayUrl: string, relayTypes: RelayType[]): void => {
+        let nextState = relaySettings;
+        for (const relayType of relayTypes) {
+            nextState = addRelay(nextState, relayUrl, relayType);
+        }
+        persistRelaySettings(nextState);
+    };
+
+    const onAddAllSuggestedSearchRelays = (): void => {
+        let nextState = relaySettings;
+        for (const row of searchSuggestedRows) {
+            for (const relayType of row.relayTypes) {
+                nextState = addRelay(nextState, row.relayUrl, relayType);
+            }
+        }
+        persistRelaySettings(nextState);
+    };
+
+    const onResetSearchRelaysToDefault = (): void => {
+        persistRelaySettings({
+            ...relaySettings,
+            byType: {
+                ...relaySettings.byType,
+                search: [...DEFAULT_SEARCH_RELAYS],
+            },
+        });
+        setInvalidSearchRelayInputs([]);
+        setNewSearchRelayInput('');
     };
 
     const onOpenRelayActionsMenu = (event: MouseEvent<HTMLButtonElement>): void => {
@@ -267,6 +375,8 @@ export function useRelaysSettingsController(input: UseRelaysSettingsControllerIn
     return {
         configuredRows,
         suggestedRows,
+        searchConfiguredRows,
+        searchSuggestedRows,
         connectedConfiguredRelays,
         disconnectedConfiguredRelays,
         relayInfoByUrl,
@@ -275,14 +385,22 @@ export function useRelaysSettingsController(input: UseRelaysSettingsControllerIn
         relayTypeLabels: RELAY_TYPE_LABELS,
         newRelayInput,
         newRelayType,
+        newSearchRelayInput,
         invalidRelayInputs,
+        invalidSearchRelayInputs,
         onNewRelayInputChange: setNewRelayInput,
         onNewRelayTypeChange: setNewRelayType,
+        onNewSearchRelayInputChange: setNewSearchRelayInput,
         onAddRelays,
         onRemoveRelay,
         onAddSuggestedRelay,
         onAddAllSuggestedRelays,
         onResetRelaysToDefault,
+        onAddSearchRelays,
+        onRemoveSearchRelay,
+        onAddSuggestedSearchRelay,
+        onAddAllSuggestedSearchRelays,
+        onResetSearchRelaysToDefault,
         onOpenRelayActionsMenu,
         describeRelay,
         relayAvatarFallback,

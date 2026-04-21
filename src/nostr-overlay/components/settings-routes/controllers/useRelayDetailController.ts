@@ -54,18 +54,22 @@ export function useRelayDetailController(input: UseRelayDetailControllerInput) {
             nip65Read: mergeRelaySets(suggestedRelaysByType?.nip65Read ?? []),
             nip65Write: mergeRelaySets(suggestedRelaysByType?.nip65Write ?? []),
             dmInbox: mergeRelaySets(suggestedRelaysByType?.dmInbox ?? []),
+            search: mergeRelaySets(suggestedRelaysByType?.search ?? []),
         };
     }, [suggestedRelaysByType, suggestedRelays]);
 
     const relayInfoTargets = useMemo(() => {
         return [...new Set([
+            params.relayUrl,
             ...relaySettings.relays,
+            ...relaySettings.byType.search,
             ...normalizedSuggestedByType.nip65Both,
             ...normalizedSuggestedByType.nip65Read,
             ...normalizedSuggestedByType.nip65Write,
             ...normalizedSuggestedByType.dmInbox,
+            ...normalizedSuggestedByType.search,
         ])];
-    }, [relaySettings.relays, normalizedSuggestedByType]);
+    }, [params.relayUrl, relaySettings.byType.search, relaySettings.relays, normalizedSuggestedByType]);
 
     const relayInfoByUrl = useRelayMetadataByUrlQuery({
         relayUrls: relayInfoTargets,

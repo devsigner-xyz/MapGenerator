@@ -79,11 +79,14 @@ function buildProps() {
         nip65Read: 'NIP-65 lectura',
         nip65Write: 'NIP-65 escritura',
         dmInbox: 'NIP-17 buzón DM',
+        search: 'Búsqueda NIP-50',
     } as const;
 
     return {
         configuredRows: [buildRelayRow()],
         suggestedRows: [buildRelayRow({ relayUrl: 'wss://relay.two', relayTypes: ['nip65Read', 'dmInbox'], primaryRelayType: 'nip65Read' })],
+        searchConfiguredRows: [buildRelayRow({ relayUrl: 'wss://search.nos.today', relayTypes: ['search'], primaryRelayType: 'search' })],
+        searchSuggestedRows: [buildRelayRow({ relayUrl: 'wss://relay.noswhere.com', relayTypes: ['search'], primaryRelayType: 'search' })],
         connectedConfiguredRelays: 1,
         disconnectedConfiguredRelays: 0,
         relayInfoByUrl: {} as Record<string, { data?: RelayInformationDocument }>,
@@ -92,15 +95,23 @@ function buildProps() {
         relayTypeLabels,
         newRelayInput: '',
         newRelayType: 'nip65Both' as const,
+        newSearchRelayInput: '',
         invalidRelayInputs: [],
+        invalidSearchRelayInputs: [],
         onNewRelayInputChange: vi.fn(),
         onNewRelayTypeChange: vi.fn(),
+        onNewSearchRelayInputChange: vi.fn(),
         onAddRelays: vi.fn(),
         onOpenRelayDetails: vi.fn(),
         onRemoveRelay: vi.fn(),
         onAddSuggestedRelay: vi.fn(),
         onAddAllSuggestedRelays: vi.fn(),
         onResetRelaysToDefault: vi.fn(),
+        onAddSearchRelays: vi.fn(),
+        onRemoveSearchRelay: vi.fn(),
+        onAddSuggestedSearchRelay: vi.fn(),
+        onAddAllSuggestedSearchRelays: vi.fn(),
+        onResetSearchRelaysToDefault: vi.fn(),
         onOpenRelayActionsMenu: vi.fn(),
         describeRelay: vi.fn((relayUrl: string): RelayDetails => ({ relayUrl, source: 'configured', host: relayUrl.replace('wss://', '') })),
         relayAvatarFallback: vi.fn(() => 'RL'),
@@ -129,7 +140,19 @@ describe('SettingsRelaysPage', () => {
         const rendered = await renderElement(<SettingsRelaysPage {...buildProps()} />);
         mounted.push(rendered);
 
-        expect(rendered.container.querySelectorAll('.nostr-relay-table-scroll')).toHaveLength(2);
+        expect(rendered.container.querySelectorAll('.nostr-relay-table-scroll')).toHaveLength(4);
+    });
+
+    test('renders search relays as a dedicated section in the same page', async () => {
+        const rendered = await renderElement(<SettingsRelaysPage {...buildProps()} />);
+        mounted.push(rendered);
+
+        const text = rendered.container.textContent || '';
+        expect(text).toContain('Relays de búsqueda');
+        expect(text).toContain('autocomplete de @');
+        expect(text).toContain('búsqueda global de usuarios');
+        expect(rendered.container.querySelector('input[aria-label="URLs de relay de búsqueda"]')).not.toBeNull();
+        expect(Array.from(rendered.container.querySelectorAll('[data-slot="card-title"]')).map((node) => node.textContent?.trim())).toContain('Relays de búsqueda');
     });
 
     test('opens relay actions from the ellipsis button using a dropdown menu', async () => {

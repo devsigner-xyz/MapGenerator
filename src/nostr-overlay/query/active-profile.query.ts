@@ -64,6 +64,7 @@ const EMPTY_NETWORK: ActiveProfileNetworkResult = {
         nip65Read: [],
         nip65Write: [],
         dmInbox: [],
+        search: [],
     },
 };
 

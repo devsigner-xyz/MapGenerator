@@ -23,6 +23,7 @@ export interface SearchUsersApiInput {
     ownerPubkey: string;
     q: string;
     limit?: number;
+    searchRelays?: string[];
 }
 
 export interface UserSearchApiService {
@@ -73,6 +74,7 @@ export function createUserSearchApiService(options: CreateUserSearchApiServiceOp
                     ownerPubkey: input.ownerPubkey,
                     q: input.q,
                     limit: input.limit ?? 20,
+                    ...(input.searchRelays && input.searchRelays.length > 0 ? { searchRelays: input.searchRelays } : {}),
                 },
             });
 

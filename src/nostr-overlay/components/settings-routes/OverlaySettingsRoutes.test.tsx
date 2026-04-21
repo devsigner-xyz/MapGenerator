@@ -196,6 +196,7 @@ describe('Overlay settings routes', () => {
                     nip65Read: [],
                     nip65Write: [],
                     dmInbox: [],
+                    search: [],
                 },
             })
         );

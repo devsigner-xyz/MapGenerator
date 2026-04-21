@@ -89,12 +89,14 @@ export const nostrOverlayQueryKeys = {
             conversationId: input.conversationId,
         },
     ] as const,
-    userSearch: (input: { term: string }) => [
+    userSearch: (input: { term: string; ownerPubkey?: string | undefined; searchRelaySetKey?: string | undefined }) => [
         ROOT_SCOPE,
         SOCIAL_SCOPE,
         'search',
         {
             term: normalizeSearchTerm(input.term),
+            ownerPubkey: input.ownerPubkey ?? 'anonymous',
+            searchRelaySetKey: input.searchRelaySetKey ?? 'default',
         },
     ] as const,
     invalidation: {

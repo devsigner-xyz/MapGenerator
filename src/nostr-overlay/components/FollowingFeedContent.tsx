@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ImageIcon } from 'lucide-react';
 import type { NostrEvent, NostrProfile } from '../../nostr/types';
 import type { SocialEngagementMetrics, SocialFeedItem } from '../../nostr/social-feed-service';
+import type { SearchUsersResult } from '../query/user-search.query';
+import { createMentionDraft, type MentionDraft } from '../mention-serialization';
+import { MentionTextarea } from './MentionTextarea';
 import type { FollowingFeedThreadView } from '../query/following-feed.selectors';
 import { fromEmbeddedRepost, fromFeedItem, fromThreadItem } from './note-card-adapters';
 import type { NoteCardModel } from './note-card-model';
@@ -18,7 +21,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
-import { Textarea } from '@/components/ui/textarea';
 
 function buildThreadReplyTree(replies: FollowingFeedThreadView['replies']) {
     const childrenByParentId = new Map<string, FollowingFeedThreadView['replies']>();
@@ -69,8 +71,11 @@ export interface FollowingFeedViewProps {
         targetEventId: string;
         targetPubkey?: string;
         rootEventId?: string;
-        content: string;
+        content: MentionDraft;
     }) => Promise<boolean>;
+    onSearchUsers: (query: string) => Promise<SearchUsersResult>;
+    ownerPubkey?: string | undefined;
+    searchRelaySetKey?: string | undefined;
     onToggleReaction: (input: { eventId: string; targetPubkey?: string; emoji?: string }) => Promise<boolean>;
     onToggleRepost: (input: { eventId: string; targetPubkey?: string; repostContent?: string }) => Promise<boolean>;
     onOpenQuoteComposer: (note: NoteCardModel) => void;
@@ -165,7 +170,7 @@ export function FollowingFeedContent({
     hasMoreFeed,
     activeThread,
     canWrite,
-    isPublishingPost,
+    isPublishingPost: _isPublishingPost,
     isPublishingReply,
     publishError,
     reactionByEventId,
@@ -176,8 +181,11 @@ export function FollowingFeedContent({
     onOpenThread,
     onCloseThread,
     onLoadMoreThread,
-    onPublishPost,
+    onPublishPost: _onPublishPost,
     onPublishReply,
+    onSearchUsers,
+    ownerPubkey,
+    searchRelaySetKey,
     onToggleReaction,
     onToggleRepost,
     onOpenQuoteComposer,
@@ -192,13 +200,13 @@ export function FollowingFeedContent({
     eventReferencesById,
     onCopyNoteId,
 }: FollowingFeedContentProps) {
-    const [replyDraft, setReplyDraft] = useState('');
+    const [replyDraft, setReplyDraft] = useState<MentionDraft>(createMentionDraft(''));
     const [replyTargetEventId, setReplyTargetEventId] = useState<string | null>(null);
     const [replyTargetPubkey, setReplyTargetPubkey] = useState<string | undefined>(undefined);
 
     useEffect(() => {
         if (!activeThread) {
-            setReplyDraft('');
+            setReplyDraft(createMentionDraft(''));
             setReplyTargetEventId(null);
             setReplyTargetPubkey(undefined);
             return;
@@ -556,16 +564,19 @@ export function FollowingFeedContent({
                                     className="nostr-following-feed-reply-box w-full shadow-none"
                                 >
                                     <CardContent className="px-4 py-4">
-                                        <Textarea
+                                        <MentionTextarea
                                             value={replyDraft}
                                             aria-label="Redactar respuesta"
                                             className="nostr-following-feed-textarea"
                                             placeholder="Escribe tu respuesta"
                                             rows={3}
+                                            onSearch={onSearchUsers}
+                                            ownerPubkey={ownerPubkey}
+                                            searchRelaySetKey={searchRelaySetKey}
+                                            onChangeDraft={setReplyDraft}
                                             onChange={(event) => {
                                                 event.currentTarget.style.height = '0px';
                                                 event.currentTarget.style.height = `${event.currentTarget.scrollHeight}px`;
-                                                setReplyDraft(event.target.value);
                                             }}
                                         />
                                         <div className="nostr-following-feed-compose-actions mt-3 flex items-center justify-between gap-2">
@@ -582,7 +593,7 @@ export function FollowingFeedContent({
                                                 type="button"
                                                 size="sm"
                                                 className="nostr-following-feed-publish"
-                                                disabled={replyDisabled || replyDraft.trim().length === 0}
+                                                disabled={replyDisabled || replyDraft.text.trim().length === 0}
                                                 onClick={async () => {
                                                     if (!replyTargetEventId) {
                                                         return;
@@ -596,7 +607,7 @@ export function FollowingFeedContent({
                                                     };
                                                     const submitted = await onPublishReply(replyInput);
                                                     if (submitted) {
-                                                        setReplyDraft('');
+                                                        setReplyDraft(createMentionDraft(''));
                                                     }
                                                 }}
                                             >

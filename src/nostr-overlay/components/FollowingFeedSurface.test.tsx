@@ -1,7 +1,9 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
 import { nip19 } from 'nostr-tools';
+import { createNostrOverlayQueryClient } from '../query/query-client';
 import { FollowingFeedSurface } from './FollowingFeedSurface';
 
 interface RenderResult {
@@ -13,9 +15,14 @@ async function renderElement(element: ReactElement): Promise<RenderResult> {
     const container = document.createElement('div');
     document.body.appendChild(container);
     const root = createRoot(container);
+    const queryClient = createNostrOverlayQueryClient();
 
     await act(async () => {
-        root.render(element);
+        root.render(
+            <QueryClientProvider client={queryClient}>
+                {element}
+            </QueryClientProvider>
+        );
     });
 
     return { container, root };
@@ -61,6 +68,7 @@ function buildProps(overrides: Partial<Parameters<typeof FollowingFeedSurface>[0
         onLoadMoreThread: async () => {},
         onPublishPost: async () => true,
         onPublishReply: async () => true,
+        onSearchUsers: async () => ({ pubkeys: [], profiles: {} }),
         onToggleReaction: async () => true,
         onToggleRepost: async () => true,
         onOpenQuoteComposer: () => {},
@@ -620,7 +628,10 @@ describe('FollowingFeedSurface', () => {
             targetEventId: 'root-1',
             targetPubkey: 'b'.repeat(64),
             rootEventId: 'root-1',
-            content: 'respuesta surface',
+            content: {
+                text: 'respuesta surface',
+                mentions: [],
+            },
         });
 
         const replyReactionButton = rendered.container.querySelector('button[aria-label="Reaccionar (7)"]') as HTMLButtonElement;

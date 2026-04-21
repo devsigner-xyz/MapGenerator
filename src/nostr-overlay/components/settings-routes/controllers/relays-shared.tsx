@@ -14,6 +14,7 @@ export const RELAY_TYPE_LABELS: Record<RelayType, string> = {
     nip65Read: 'NIP-65 lectura',
     nip65Write: 'NIP-65 escritura',
     dmInbox: 'NIP-17 buzón DM',
+    search: 'Búsqueda NIP-50',
 };
 
 export function buildRelayRowsByUrl(byType: Record<RelayType, string[]>): RelayRow[] {

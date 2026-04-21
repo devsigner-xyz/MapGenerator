@@ -49,6 +49,7 @@ import {
     normalizeToEpochSeconds,
     type FollowingFeedReadStateStorage,
 } from '../query/following-feed-read-state';
+import { createMentionDraft, serializeMentionDraft, type MentionDraft } from '../mention-serialization';
 
 interface UseFollowingFeedControllerOptions {
     ownerPubkey?: string;
@@ -78,19 +79,34 @@ interface ToggleRepostMutationVariables {
 }
 
 interface PublishPostMutationVariables {
+    visibleContent: string;
     content: string;
+    tags: string[][];
 }
 
 interface PublishReplyMutationVariables {
     input: PublishReplyInput;
     rootEventId: string;
+    visibleContent: string;
     content: string;
+    tags: string[][];
 }
 
 interface PublishQuoteMutationVariables {
     input: PublishQuoteInput;
+    visibleContent: string;
     content: string;
     tags: string[][];
+}
+
+type ComposerContentInput = string | MentionDraft;
+
+interface PublishReplyComposerInput extends Omit<PublishReplyInput, 'content'> {
+    content: ComposerContentInput;
+}
+
+interface PublishQuoteComposerInput extends Omit<PublishQuoteInput, 'content'> {
+    content: ComposerContentInput;
 }
 
 interface PublishReplyMutationContext {
@@ -136,6 +152,40 @@ function buildFollowingFeedQueryInput(input: {
     }
 
     return queryInput;
+}
+
+function normalizeComposerInput(input: ComposerContentInput): {
+    visibleContent: string;
+    serializedContent: string;
+    mentionTags: string[][];
+} {
+    const draft = typeof input === 'string' ? createMentionDraft(input) : input;
+    const serialized = serializeMentionDraft(draft);
+
+    return {
+        visibleContent: sanitizeContent(draft.text),
+        serializedContent: sanitizeContent(serialized.content),
+        mentionTags: serialized.tags,
+    };
+}
+
+function mergeUniqueTags(...tagCollections: string[][][]): string[][] {
+    const merged: string[][] = [];
+    const seen = new Set<string>();
+
+    for (const tags of tagCollections) {
+        for (const tag of tags) {
+            const key = tag.join('\u0000');
+            if (seen.has(key)) {
+                continue;
+            }
+
+            seen.add(key);
+            merged.push(tag);
+        }
+    }
+
+    return merged;
 }
 
 export function useFollowingFeedController(options: UseFollowingFeedControllerOptions) {
@@ -304,7 +354,7 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
                 throw new Error('No write gateway available');
             }
 
-            return options.writeGateway.publishTextNote(variables.content, []);
+            return options.writeGateway.publishTextNote(variables.content, variables.tags);
         },
         onMutate: async (variables) => {
             if (!options.ownerPubkey) {
@@ -313,7 +363,7 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
 
             setPublishError(null);
             const tempId = `temp-post:${Date.now()}`;
-            const tempNote = buildTemporaryFeedNote(tempId, options.ownerPubkey, now(), variables.content);
+            const tempNote = buildTemporaryFeedNote(tempId, options.ownerPubkey, now(), variables.visibleContent, variables.tags);
 
             queryClient.setQueryData<InfiniteData<SocialFeedPage>>(feedQueryKey, (current) =>
                 prependFeedItem(current, tempNote)
@@ -387,7 +437,7 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
 
             setPublishError(null);
             const tempId = `temp-quote:${Date.now()}`;
-            const tempNote = buildTemporaryFeedNote(tempId, options.ownerPubkey, now(), variables.content, variables.tags);
+            const tempNote = buildTemporaryFeedNote(tempId, options.ownerPubkey, now(), variables.visibleContent, variables.tags);
 
             queryClient.setQueryData<InfiniteData<SocialFeedPage>>(feedQueryKey, (current) =>
                 prependFeedItem(current, tempNote)
@@ -452,8 +502,7 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
                 throw new Error('No write gateway available');
             }
 
-            const tags = buildReplyTags(variables.input, activeThread);
-            return options.writeGateway.publishTextNote(variables.content, tags);
+            return options.writeGateway.publishTextNote(variables.content, variables.tags);
         },
         onMutate: async (variables): Promise<PublishReplyMutationContext> => {
             const threadKey = nostrOverlayQueryKeys.thread({
@@ -475,7 +524,7 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
                 tempId,
                 options.ownerPubkey,
                 now(),
-                variables.content,
+                variables.visibleContent,
                 variables.input.targetEventId
             );
             applyEngagementDelta(variables.input.targetEventId, 'replies', 1);
@@ -761,53 +810,71 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
         await threadQuery.fetchNextPage();
     }, [activeThreadRootEventId, threadQuery]);
 
-    const publishPost = useCallback(async (content: string): Promise<boolean> => {
-        const normalized = sanitizeContent(content);
-        if (!options.ownerPubkey || !options.canWrite || !options.writeGateway || normalized.length === 0) {
+    const publishPost = useCallback(async (content: ComposerContentInput): Promise<boolean> => {
+        const normalized = normalizeComposerInput(content);
+        if (!options.ownerPubkey || !options.canWrite || !options.writeGateway || normalized.visibleContent.length === 0) {
             return false;
         }
 
         try {
-            await publishPostMutation.mutateAsync({ content: normalized });
+            await publishPostMutation.mutateAsync({
+                visibleContent: normalized.visibleContent,
+                content: normalized.serializedContent,
+                tags: normalized.mentionTags,
+            });
             return true;
         } catch {
             return false;
         }
     }, [options.canWrite, options.ownerPubkey, options.writeGateway, publishPostMutation]);
 
-    const publishReply = useCallback(async (input: PublishReplyInput): Promise<boolean> => {
-        const normalized = sanitizeContent(input.content);
-        if (!options.ownerPubkey || !options.canWrite || !options.writeGateway || normalized.length === 0 || !activeThreadRootEventId) {
+    const publishReply = useCallback(async (input: PublishReplyComposerInput): Promise<boolean> => {
+        const normalized = normalizeComposerInput(input.content);
+        if (!options.ownerPubkey || !options.canWrite || !options.writeGateway || normalized.visibleContent.length === 0 || !activeThreadRootEventId) {
             return false;
         }
 
+        const normalizedInput: PublishReplyInput = {
+            ...input,
+            content: normalized.visibleContent,
+        };
+        const tags = mergeUniqueTags(buildReplyTags(normalizedInput, activeThread), normalized.mentionTags);
+
         try {
             await publishReplyMutation.mutateAsync({
-                input,
+                input: normalizedInput,
                 rootEventId: activeThreadRootEventId,
-                content: normalized,
+                visibleContent: normalized.visibleContent,
+                content: normalized.serializedContent,
+                tags,
             });
             return true;
         } catch {
             return false;
         }
-    }, [activeThreadRootEventId, options.canWrite, options.ownerPubkey, options.writeGateway, publishReplyMutation]);
+    }, [activeThread, activeThreadRootEventId, options.canWrite, options.ownerPubkey, options.writeGateway, publishReplyMutation]);
 
-    const publishQuote = useCallback(async (input: PublishQuoteInput): Promise<boolean> => {
+    const publishQuote = useCallback(async (input: PublishQuoteComposerInput): Promise<boolean> => {
         if (!options.ownerPubkey || !options.canWrite || !options.writeGateway || !input.targetEventId) {
             return false;
         }
 
+        const normalized = normalizeComposerInput(input.content);
         const normalizedInput = {
             ...input,
-            content: sanitizeContent(input.content),
+            content: normalized.visibleContent,
         };
-        const content = buildQuoteContent(normalizedInput);
-        const tags = buildQuoteTags(normalizedInput);
+        const content = buildQuoteContent({
+            ...normalizedInput,
+            content: normalized.serializedContent,
+        });
+        const visibleContent = buildQuoteContent(normalizedInput);
+        const tags = mergeUniqueTags(buildQuoteTags(normalizedInput), normalized.mentionTags);
 
         try {
             await publishQuoteMutation.mutateAsync({
                 input: normalizedInput,
+                visibleContent,
                 content,
                 tags,
             });

@@ -15,6 +15,21 @@ describe('relay-detail-routing', () => {
         expect(path).toContain('type=nip65Both');
     });
 
+    test('supports search relay type in detail routing', () => {
+        const path = buildRelayDetailPath({
+            relayUrl: 'wss://search.nos.today',
+            source: 'configured',
+            relayType: 'search',
+        });
+
+        expect(path).toContain('type=search');
+        expect(parseRelayDetailSearch('?url=wss%3A%2F%2Fsearch.nos.today&source=configured&type=search')).toEqual({
+            relayUrl: 'wss://search.nos.today',
+            source: 'configured',
+            relayType: 'search',
+        });
+    });
+
     test('parses valid relay detail search params', () => {
         const parsed = parseRelayDetailSearch('?url=wss%3A%2F%2Frelay.one&source=suggested&type=dmInbox');
         expect(parsed).toEqual({

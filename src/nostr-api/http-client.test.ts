@@ -29,6 +29,38 @@ describe('createHttpClient', () => {
         expect(fetchMock.mock.calls[0]?.[0]).toBe('https://bff.example/v1/social/ping');
     });
 
+    test('serializes array query values as repeated query params', async () => {
+        const fetchMock = vi.fn<typeof fetch>(async () => {
+            return new Response(JSON.stringify({ ok: true }), {
+                status: 200,
+                headers: {
+                    'content-type': 'application/json',
+                },
+            });
+        });
+        vi.stubGlobal('fetch', fetchMock);
+
+        const client = createHttpClient({
+            baseUrl: 'https://bff.example/v1',
+        });
+
+        await client.getJson('/users/search', {
+            query: {
+                ownerPubkey: 'a'.repeat(64),
+                q: 'alice',
+                searchRelays: ['wss://search.nos.today', 'wss://relay.noswhere.com'],
+            },
+        });
+
+        expect(fetchMock.mock.calls[0]?.[0]).toBe(
+            'https://bff.example/v1/users/search?ownerPubkey='
+            + `${'a'.repeat(64)}`
+            + '&q=alice'
+            + '&searchRelays=wss%3A%2F%2Fsearch.nos.today'
+            + '&searchRelays=wss%3A%2F%2Frelay.noswhere.com'
+        );
+    });
+
     test('normalizes backend error envelope for non-2xx responses', async () => {
         const fetchMock = vi.fn<typeof fetch>(async () => {
             return new Response(JSON.stringify({

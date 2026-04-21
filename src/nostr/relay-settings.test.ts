@@ -21,6 +21,11 @@ describe('relay-settings', () => {
         expect(getRelaySetByType(state, 'nip65Both').length).toBeGreaterThan(0);
         expect(getRelaySetByType(state, 'nip65Read').length).toBeGreaterThan(0);
         expect(getRelaySetByType(state, 'nip65Write').length).toBeGreaterThan(0);
+        expect(getRelaySetByType(state, 'search')).toEqual([
+            'wss://search.nos.today',
+            'wss://relay.noswhere.com',
+            'wss://filter.nostr.wine',
+        ]);
     });
 
     test('falls back to bootstrap relays when storage payload is malformed', () => {
@@ -44,12 +49,14 @@ describe('relay-settings', () => {
                     nip65Read: ['wss://relay.damus.io', 'wss://nos.lol'],
                     nip65Write: ['wss://relay.damus.io'],
                     dmInbox: ['wss://nos.lol'],
+                    search: ['wss://search.nos.today', 'wss://search.nos.today/'],
                 },
             },
             window.localStorage
         );
 
         expect(saved.relays).toEqual(['wss://relay.damus.io', 'wss://nos.lol']);
+        expect(saved.byType.search).toEqual(['wss://search.nos.today']);
         expect(loadRelaySettings(window.localStorage)).toEqual(saved);
     });
 
@@ -61,12 +68,15 @@ describe('relay-settings', () => {
                 nip65Read: [] as string[],
                 nip65Write: [] as string[],
                 dmInbox: [] as string[],
+                search: [] as string[],
             },
         };
 
         const afterAdd = addRelay(initial, 'wss://nos.lol/', 'dmInbox');
         const duplicateAdd = addRelay(afterAdd, 'wss://nos.lol', 'dmInbox');
         const afterRemove = removeRelay(duplicateAdd, 'wss://nos.lol/', 'dmInbox');
+        const afterSearchAdd = addRelay(afterRemove, 'wss://search.nos.today/', 'search');
+        const afterSearchRemove = removeRelay(afterSearchAdd, 'wss://search.nos.today/', 'search');
 
         expect(afterAdd.relays).toEqual(['wss://relay.damus.io', 'wss://nos.lol']);
         expect(getRelaySetByType(afterAdd, 'dmInbox')).toEqual(['wss://nos.lol']);
@@ -74,6 +84,10 @@ describe('relay-settings', () => {
         expect(getRelaySetByType(duplicateAdd, 'dmInbox')).toEqual(['wss://nos.lol']);
         expect(afterRemove.relays).toEqual(['wss://relay.damus.io']);
         expect(getRelaySetByType(afterRemove, 'dmInbox')).toEqual([]);
+        expect(afterSearchAdd.relays).toEqual(['wss://relay.damus.io']);
+        expect(getRelaySetByType(afterSearchAdd, 'search')).toEqual(['wss://search.nos.today']);
+        expect(afterSearchRemove.relays).toEqual(['wss://relay.damus.io']);
+        expect(getRelaySetByType(afterSearchRemove, 'search')).toEqual([]);
     });
 
     test('migrates legacy payload into general relay type', () => {
@@ -87,6 +101,11 @@ describe('relay-settings', () => {
         expect(getRelaySetByType(state, 'dmInbox').length).toBeGreaterThan(0);
         expect(getRelaySetByType(state, 'nip65Read').length).toBeGreaterThan(0);
         expect(getRelaySetByType(state, 'nip65Write').length).toBeGreaterThan(0);
+        expect(getRelaySetByType(state, 'search')).toEqual([
+            'wss://search.nos.today',
+            'wss://relay.noswhere.com',
+            'wss://filter.nostr.wine',
+        ]);
     });
 
     test('migrates v1 typed payload into protocol-aligned categories', () => {
@@ -119,6 +138,7 @@ describe('relay-settings', () => {
                 nip65Read: [],
                 nip65Write: [],
                 dmInbox: [],
+                search: ['wss://search.nos.today'],
             },
         }, { ownerPubkey: ownerA });
 
@@ -127,6 +147,7 @@ describe('relay-settings', () => {
 
         expect(savedA.relays).toEqual(['wss://relay.owner-a.example']);
         expect(loadedA.relays).toEqual(['wss://relay.owner-a.example']);
+        expect(loadedA.byType.search).toEqual(['wss://search.nos.today']);
         expect(loadedB).toEqual(getDefaultRelaySettings());
     });
 

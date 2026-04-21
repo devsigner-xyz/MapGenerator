@@ -25,6 +25,8 @@ export function SettingsRelaysRoute() {
         <SettingsRelaysPage
             configuredRows={relays.configuredRows}
             suggestedRows={relays.suggestedRows}
+            searchConfiguredRows={relays.searchConfiguredRows}
+            searchSuggestedRows={relays.searchSuggestedRows}
             connectedConfiguredRelays={relays.connectedConfiguredRelays}
             disconnectedConfiguredRelays={relays.disconnectedConfiguredRelays}
             relayInfoByUrl={relays.relayInfoByUrl}
@@ -33,9 +35,12 @@ export function SettingsRelaysRoute() {
             relayTypeLabels={relays.relayTypeLabels}
             newRelayInput={relays.newRelayInput}
             newRelayType={relays.newRelayType}
+            newSearchRelayInput={relays.newSearchRelayInput}
             invalidRelayInputs={relays.invalidRelayInputs}
+            invalidSearchRelayInputs={relays.invalidSearchRelayInputs}
             onNewRelayInputChange={relays.onNewRelayInputChange}
             onNewRelayTypeChange={relays.onNewRelayTypeChange}
+            onNewSearchRelayInputChange={relays.onNewSearchRelayInputChange}
             onAddRelays={relays.onAddRelays}
             onOpenRelayDetails={(relayUrl, source, relayType) => {
                 navigate(buildRelayDetailPath({ relayUrl, source, relayType }));
@@ -44,6 +49,11 @@ export function SettingsRelaysRoute() {
             onAddSuggestedRelay={relays.onAddSuggestedRelay}
             onAddAllSuggestedRelays={relays.onAddAllSuggestedRelays}
             onResetRelaysToDefault={relays.onResetRelaysToDefault}
+            onAddSearchRelays={relays.onAddSearchRelays}
+            onRemoveSearchRelay={relays.onRemoveSearchRelay}
+            onAddSuggestedSearchRelay={relays.onAddSuggestedSearchRelay}
+            onAddAllSuggestedSearchRelays={relays.onAddAllSuggestedSearchRelays}
+            onResetSearchRelaysToDefault={relays.onResetSearchRelaysToDefault}
             onOpenRelayActionsMenu={relays.onOpenRelayActionsMenu}
             describeRelay={relays.describeRelay}
             relayAvatarFallback={relays.relayAvatarFallback}

@@ -2,6 +2,7 @@ export interface UsersSearchQuery {
   ownerPubkey: string;
   q: string;
   limit: number;
+  searchRelays?: string[];
 }
 
 export interface UserProfileDto {
@@ -42,6 +43,14 @@ export const usersSearchQuerySchema = {
       type: 'integer',
       minimum: 1,
       maximum: 100,
+    },
+    searchRelays: {
+      type: 'array',
+      maxItems: 10,
+      items: {
+        type: 'string',
+        maxLength: 512,
+      },
     },
   },
 } as const;

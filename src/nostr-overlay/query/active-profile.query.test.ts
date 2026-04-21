@@ -132,6 +132,7 @@ function network(follows: string[] = [], followers: string[] = []): ActiveProfil
             nip65Read: [],
             nip65Write: [],
             dmInbox: [],
+            search: [],
         },
     };
 }
@@ -267,6 +268,7 @@ describe('useActiveProfileQuery', () => {
             nip65Read: ['wss://relay.read.example'],
             nip65Write: ['wss://relay.write.example'],
             dmInbox: ['wss://relay.dm.example'],
+            search: [],
         };
 
         const service: ActiveProfileQueryService = {

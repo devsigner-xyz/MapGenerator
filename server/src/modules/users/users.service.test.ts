@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { RelayGateway } from '../../relay/relay-gateway.types';
 import type { UsersSearchQuery, UsersSearchResponseDto } from './users.schemas';
 import { createUsersService } from './users.service';
+import { DEFAULT_SEARCH_RELAYS } from './search-relay-defaults';
 
 const OWNER_A = 'a'.repeat(64);
 const OWNER_B = 'b'.repeat(64);
@@ -86,6 +87,117 @@ describe('users service', () => {
     expect(firstSearchCall).toBeDefined();
     const searchFilter = firstSearchCall?.[1] as Record<string, unknown> | undefined;
     expect(searchFilter?.search).toBe('alice');
+    expect(firstSearchCall?.[0]).toEqual([...DEFAULT_SEARCH_RELAYS]);
+  });
+
+  it('uses dedicated search relays for text search when provided', async () => {
+    const querySyncSpy = vi.fn<SimplePool['querySync']>(async () => []);
+    const pool = {
+      querySync: querySyncSpy,
+    } as unknown as SimplePool;
+
+    const service = createUsersService({
+      pool,
+      bootstrapRelays: ['wss://relay.damus.io'],
+    });
+
+    await service.searchUsers({
+      ownerPubkey: OWNER_A,
+      q: 'alice',
+      limit: 5,
+      searchRelays: ['wss://search.nos.today', 'wss://relay.noswhere.com'],
+    });
+
+    expect(querySyncSpy.mock.calls[0]?.[0]).toEqual([
+      'wss://search.nos.today',
+      'wss://relay.noswhere.com',
+    ]);
+  });
+
+  it('falls back to curated defaults when no search relays are provided', async () => {
+    const querySyncSpy = vi.fn<SimplePool['querySync']>(async () => []);
+    const pool = {
+      querySync: querySyncSpy,
+    } as unknown as SimplePool;
+
+    const service = createUsersService({
+      pool,
+      bootstrapRelays: ['wss://relay.damus.io'],
+    });
+
+    await service.searchUsers({
+      ownerPubkey: OWNER_A,
+      q: 'alice',
+      limit: 5,
+    });
+
+    expect(querySyncSpy.mock.calls[0]?.[0]).toEqual([...DEFAULT_SEARCH_RELAYS]);
+  });
+
+  it('normalizes, deduplicates, and caps incoming search relays', async () => {
+    const querySyncSpy = vi.fn<SimplePool['querySync']>(async () => []);
+    const pool = {
+      querySync: querySyncSpy,
+    } as unknown as SimplePool;
+
+    const service = createUsersService({
+      pool,
+      bootstrapRelays: ['wss://relay.damus.io'],
+    });
+
+    await service.searchUsers({
+      ownerPubkey: OWNER_A,
+      q: 'alice',
+      limit: 5,
+      searchRelays: [
+        'wss://search.nos.today/',
+        'wss://search.nos.today',
+        'https://invalid.example',
+        'wss://relay.noswhere.com',
+        'wss://filter.nostr.wine',
+        'wss://extra-1.example',
+        'wss://extra-2.example',
+        'wss://extra-3.example',
+        'wss://extra-4.example',
+        'wss://extra-5.example',
+        'wss://extra-6.example',
+        'wss://extra-7.example',
+      ],
+    });
+
+    expect(querySyncSpy.mock.calls[0]?.[0]).toEqual([
+      'wss://search.nos.today',
+      'wss://relay.noswhere.com',
+      'wss://filter.nostr.wine',
+      'wss://extra-1.example',
+      'wss://extra-2.example',
+      'wss://extra-3.example',
+      'wss://extra-4.example',
+      'wss://extra-5.example',
+      'wss://extra-6.example',
+      'wss://extra-7.example',
+    ]);
+  });
+
+  it('falls back to curated defaults when provided search relays normalize to zero valid entries', async () => {
+    const querySyncSpy = vi.fn<SimplePool['querySync']>(async () => []);
+    const pool = {
+      querySync: querySyncSpy,
+    } as unknown as SimplePool;
+
+    const service = createUsersService({
+      pool,
+      bootstrapRelays: ['wss://relay.damus.io'],
+    });
+
+    await service.searchUsers({
+      ownerPubkey: OWNER_A,
+      q: 'alice',
+      limit: 5,
+      searchRelays: ['https://invalid.example'],
+    });
+
+    expect(querySyncSpy.mock.calls[0]?.[0]).toEqual([...DEFAULT_SEARCH_RELAYS]);
   });
 
   it('keeps exact matches first and ranks text matches by recency', async () => {
@@ -160,6 +272,39 @@ describe('users service', () => {
       ownerPubkey: OWNER_B,
       q: 'alice',
       limit: 5,
+    });
+
+    expect(usersGatewayQuery).toHaveBeenCalledTimes(2);
+    expect(usersGatewayQuery.mock.calls[0]?.[0].key).not.toBe(usersGatewayQuery.mock.calls[1]?.[0].key);
+  });
+
+  it('builds distinct cache keys for different search relay sets', async () => {
+    const usersGatewayQuery = vi.fn<RelayGateway<UsersSearchQuery, UsersSearchResponseDto>['query']>(
+      async () => ({
+        pubkeys: [],
+        profiles: {},
+      }),
+    );
+
+    const service = createUsersService({
+      usersGateway: {
+        query: usersGatewayQuery,
+        clearCache: vi.fn(),
+      },
+    });
+
+    await service.searchUsers({
+      ownerPubkey: OWNER_A,
+      q: 'alice',
+      limit: 5,
+      searchRelays: ['wss://search.nos.today'],
+    });
+
+    await service.searchUsers({
+      ownerPubkey: OWNER_A,
+      q: 'alice',
+      limit: 5,
+      searchRelays: ['wss://relay.noswhere.com'],
     });
 
     expect(usersGatewayQuery).toHaveBeenCalledTimes(2);

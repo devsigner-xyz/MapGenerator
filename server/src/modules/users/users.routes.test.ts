@@ -80,6 +80,19 @@ describe('users routes', () => {
     });
   });
 
+  it('accepts repeated searchRelays query params', async () => {
+    const url = `/v1/users/search?ownerPubkey=${OWNER_PUBKEY}&q=alice&limit=20&searchRelays=wss%3A%2F%2Fsearch.nos.today&searchRelays=wss%3A%2F%2Frelay.noswhere.com`;
+    const response = await app.inject({
+      method: 'GET',
+      url,
+      headers: {
+        host: HOST,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+  });
+
   it('returns 400 when query is missing q', async () => {
     const response = await app.inject({
       method: 'GET',

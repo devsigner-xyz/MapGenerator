@@ -66,6 +66,7 @@ import { applyEngagementDeltas, createEmptyEngagementByEventIds } from './query/
 import { useSocialNotificationsController } from './query/social-notifications.query';
 import { useDirectMessagesController } from './query/direct-messages.query';
 import { useActiveProfileQuery } from './query/active-profile.query';
+import type { MentionDraft } from './mention-serialization';
 import type { EasterEggBuildingClickPayload, MapBridge, OccupiedBuildingContextPayload } from './map-bridge';
 import { extractStreetLabelUsernames } from './domain/street-label-users';
 import { getEasterEggEntry } from './easter-eggs/catalog';
@@ -233,6 +234,10 @@ export function App({ mapBridge, services }: AppProps) {
     const [resumingZap, setResumingZap] = useState(false);
     const [socialComposeState, setSocialComposeState] = useState<SocialComposeState | null>(null);
     const [isSubmittingSocialCompose, setIsSubmittingSocialCompose] = useState(false);
+    const userSearchRelaySetKey = useMemo(
+        () => [...new Set(relaySettingsSnapshot.byType.search)].sort((left, right) => left.localeCompare(right)).join('|'),
+        [relaySettingsSnapshot.byType.search]
+    );
     const shouldAutoRestoreRememberedWebLnRef = useRef(
         walletSettings.activeConnection?.method === 'webln' && walletSettings.activeConnection.restoreState === 'reconnect-required'
     );
@@ -1130,7 +1135,7 @@ export function App({ mapBridge, services }: AppProps) {
         return false;
     }, [followingFeed.repostByEventId, followingFeed.toggleRepost]);
 
-    const submitSocialCompose = useCallback(async (content: string): Promise<void> => {
+    const submitSocialCompose = useCallback(async (content: MentionDraft): Promise<void> => {
         if (!socialComposeState) {
             return;
         }
@@ -1780,6 +1785,9 @@ export function App({ mapBridge, services }: AppProps) {
                             onLoadMoreThread={followingFeed.loadNextThreadPage}
                             onPublishPost={followingFeed.publishPost}
                             onPublishReply={followingFeed.publishReply}
+                            onSearchUsers={overlay.searchUsers}
+                            ownerPubkey={overlay.ownerPubkey}
+                            searchRelaySetKey={userSearchRelaySetKey}
                             onToggleReaction={followingFeed.toggleReaction}
                             onToggleRepost={handleToggleRepost}
                             onOpenQuoteComposer={openQuoteComposer}
@@ -1900,6 +1908,7 @@ export function App({ mapBridge, services }: AppProps) {
                         <UserSearchPage
                             onClose={closeGlobalUserSearch}
                             onSearch={overlay.searchUsers}
+                            searchRelaySetKey={userSearchRelaySetKey}
                             onSelectUser={(pubkey) => {
                                 overlay.openActiveProfile(pubkey);
                             }}
@@ -2029,6 +2038,9 @@ export function App({ mapBridge, services }: AppProps) {
                     {...(socialComposeState.quoteTarget ? { quoteTarget: socialComposeState.quoteTarget } : {})}
                     profilesByPubkey={richContentProfilesByPubkey}
                     isSubmitting={isSubmittingSocialCompose}
+                    onSearchUsers={overlay.searchUsers}
+                    ownerPubkey={overlay.ownerPubkey}
+                    searchRelaySetKey={userSearchRelaySetKey}
                     onOpenChange={(open) => {
                         if (!open) {
                             closeSocialCompose();

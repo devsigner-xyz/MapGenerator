@@ -21,6 +21,8 @@ import type { RelayDetails, RelayInformationDocument, RelayRow, RelaySource } fr
 interface SettingsRelaysPageProps {
     configuredRows: RelayRow[];
     suggestedRows: RelayRow[];
+    searchConfiguredRows: RelayRow[];
+    searchSuggestedRows: RelayRow[];
     connectedConfiguredRelays: number;
     disconnectedConfiguredRelays: number;
     relayInfoByUrl: Record<string, { data?: RelayInformationDocument }>;
@@ -29,15 +31,23 @@ interface SettingsRelaysPageProps {
     relayTypeLabels: Record<RelayType, string>;
     newRelayInput: string;
     newRelayType: RelayType;
+    newSearchRelayInput: string;
     invalidRelayInputs: string[];
+    invalidSearchRelayInputs: string[];
     onNewRelayInputChange: (value: string) => void;
     onNewRelayTypeChange: (value: RelayType) => void;
+    onNewSearchRelayInputChange: (value: string) => void;
     onAddRelays: () => void;
     onOpenRelayDetails: (relayUrl: string, source: RelaySource, relayType: RelayType) => void;
     onRemoveRelay: (relayUrl: string) => void;
     onAddSuggestedRelay: (relayUrl: string, relayTypes: RelayType[]) => void;
     onAddAllSuggestedRelays: () => void;
     onResetRelaysToDefault: () => void;
+    onAddSearchRelays: () => void;
+    onRemoveSearchRelay: (relayUrl: string) => void;
+    onAddSuggestedSearchRelay: (relayUrl: string, relayTypes: RelayType[]) => void;
+    onAddAllSuggestedSearchRelays: () => void;
+    onResetSearchRelaysToDefault: () => void;
     onOpenRelayActionsMenu: (event: MouseEvent<HTMLButtonElement>) => void;
     describeRelay: (relayUrl: string, source: RelaySource) => RelayDetails;
     relayAvatarFallback: (details: RelayDetails, document?: RelayInformationDocument) => string;
@@ -45,6 +55,10 @@ interface SettingsRelaysPageProps {
 }
 
 function compactRelayTypes(relayTypes: RelayType[]): RelayType[] {
+    if (relayTypes.includes('search')) {
+        return ['search'];
+    }
+
     const hasBoth = relayTypes.includes('nip65Both');
     const hasRead = relayTypes.includes('nip65Read');
     const hasWrite = relayTypes.includes('nip65Write');
@@ -69,6 +83,8 @@ function compactRelayTypes(relayTypes: RelayType[]): RelayType[] {
 export function SettingsRelaysPage({
     configuredRows,
     suggestedRows,
+    searchConfiguredRows,
+    searchSuggestedRows,
     connectedConfiguredRelays,
     disconnectedConfiguredRelays,
     relayInfoByUrl,
@@ -77,15 +93,23 @@ export function SettingsRelaysPage({
     relayTypeLabels,
     newRelayInput,
     newRelayType,
+    newSearchRelayInput,
     invalidRelayInputs,
+    invalidSearchRelayInputs,
     onNewRelayInputChange,
     onNewRelayTypeChange,
+    onNewSearchRelayInputChange,
     onAddRelays,
     onOpenRelayDetails,
     onRemoveRelay,
     onAddSuggestedRelay,
     onAddAllSuggestedRelays,
     onResetRelaysToDefault,
+    onAddSearchRelays,
+    onRemoveSearchRelay,
+    onAddSuggestedSearchRelay,
+    onAddAllSuggestedSearchRelays,
+    onResetSearchRelaysToDefault,
     onOpenRelayActionsMenu,
     describeRelay,
     relayAvatarFallback,
@@ -97,7 +121,9 @@ export function SettingsRelaysPage({
         `Sin conexión: ${disconnectedConfiguredRelays}`,
     ];
     const relayInputErrorId = 'relay-input-error';
+    const searchRelayInputErrorId = 'search-relay-input-error';
     const hasInvalidRelayInputs = invalidRelayInputs.length > 0;
+    const hasInvalidSearchRelayInputs = invalidSearchRelayInputs.length > 0;
 
     return (
         <>
@@ -234,7 +260,7 @@ export function SettingsRelaysPage({
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent align="end">
                                                     <DropdownMenuGroup>
-                                                        {Object.keys(relayTypeLabels).map((relayType) => (
+                                                        {Object.keys(relayTypeLabels).filter((relayType) => relayType !== 'search').map((relayType) => (
                                                             <DropdownMenuItem
                                                                 key={`relay-type-${relayType}`}
                                                                 onSelect={() => onNewRelayTypeChange(relayType as RelayType)}
@@ -353,6 +379,213 @@ export function SettingsRelaysPage({
                                     </CardContent>
                                 </Card>
                             ) : null}
+
+                            <Card variant="elevated" size="sm" className="nostr-relay-search nostr-relays-panel gap-0 py-0">
+                                <CardHeader className="border-b px-3 py-3">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <CardTitle>Relays de búsqueda</CardTitle>
+                                        <Button type="button" variant="ghost" size="sm" onClick={onResetSearchRelaysToDefault}>
+                                            Restablecer por defecto
+                                        </Button>
+                                    </div>
+                                    <CardDescription>
+                                        Se usan para búsqueda global de usuarios, autocomplete de @ y consultas NIP-50.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="flex flex-col gap-3 px-3 py-3">
+                                    <InputGroup>
+                                        <InputGroupInput
+                                            aria-label="URLs de relay de búsqueda"
+                                            type="url"
+                                            inputMode="url"
+                                            name="searchRelayUrls"
+                                            autoComplete="off"
+                                            spellCheck={false}
+                                            aria-invalid={hasInvalidSearchRelayInputs}
+                                            aria-describedby={hasInvalidSearchRelayInputs ? searchRelayInputErrorId : undefined}
+                                            placeholder="wss://search.example"
+                                            value={newSearchRelayInput}
+                                            onChange={(event) => onNewSearchRelayInputChange(event.target.value)}
+                                        />
+                                        <InputGroupAddon align="inline-end">
+                                            <InputGroupButton variant="secondary" onClick={onAddSearchRelays}>
+                                                Añadir
+                                            </InputGroupButton>
+                                        </InputGroupAddon>
+                                    </InputGroup>
+
+                                    {hasInvalidSearchRelayInputs ? (
+                                        <p id={searchRelayInputErrorId} role="alert" className="nostr-settings-error">
+                                            Entradas invalidas: {invalidSearchRelayInputs.join(', ')}
+                                        </p>
+                                    ) : null}
+
+                                    <div className="flex flex-col gap-3">
+                                        <div>
+                                            <div className="nostr-relay-suggested-header mb-2">
+                                                <h3 className="text-sm font-semibold">Configurados</h3>
+                                            </div>
+                                            <div className="nostr-relay-table-scroll">
+                                                <Table className="nostr-relay-table">
+                                                    <TableHeader>
+                                                        <TableRow>
+                                                            <TableHead>Relay</TableHead>
+                                                            <TableHead>Tipo</TableHead>
+                                                            <TableHead>Estado</TableHead>
+                                                            <TableHead className="nostr-relay-actions-head">Acciones</TableHead>
+                                                        </TableRow>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        {searchConfiguredRows.map(({ relayUrl, relayTypes, primaryRelayType }) => {
+                                                            const details = describeRelay(relayUrl, 'configured');
+                                                            const info = relayInfoByUrl[relayUrl];
+                                                            const document = info?.data;
+                                                            const relayConnectionStatus = relayConnectionStatusByRelay[relayUrl];
+                                                            const compactedRelayTypes = compactRelayTypes(relayTypes);
+                                                            const relayTypeSummary = compactedRelayTypes.map((relayType) => relayTypeLabels[relayType]).join(', ');
+                                                            const detailRelayType = compactedRelayTypes[0] ?? primaryRelayType;
+
+                                                            return (
+                                                                <TableRow key={`search-configured-${relayUrl}`}>
+                                                                    <TableCell className="nostr-relay-url-cell">
+                                                                        <div className="nostr-relay-main-cell">
+                                                                            <Avatar className="size-8">
+                                                                                <AvatarFallback>{relayAvatarFallback(details, document)}</AvatarFallback>
+                                                                            </Avatar>
+                                                                            <div className="min-w-0">
+                                                                                <p className="nostr-relay-summary-primary">{document?.name || relayUrl}</p>
+                                                                            </div>
+                                                                        </div>
+                                                                    </TableCell>
+                                                                    <TableCell>
+                                                                        <div className="nostr-relay-nip-badges">
+                                                                            {compactedRelayTypes.map((relayType) => (
+                                                                                <Badge key={`search-configured-type-${relayUrl}-${relayType}`} variant="outline">
+                                                                                    {relayTypeLabels[relayType]}
+                                                                                </Badge>
+                                                                            ))}
+                                                                        </div>
+                                                                    </TableCell>
+                                                                    <TableCell>{relayConnectionBadge(relayConnectionStatus)}</TableCell>
+                                                                    <TableCell className="nostr-relay-actions-cell">
+                                                                        <DropdownMenu>
+                                                                            <DropdownMenuTrigger asChild>
+                                                                                <Button
+                                                                                    type="button"
+                                                                                    variant="outline"
+                                                                                    size="icon-sm"
+                                                                                    aria-label={`Abrir acciones para ${relayUrl} (${relayTypeSummary})`}
+                                                                                    onClick={onOpenRelayActionsMenu}
+                                                                                >
+                                                                                    <EllipsisVerticalIcon data-icon="inline-start" />
+                                                                                </Button>
+                                                                            </DropdownMenuTrigger>
+                                                                            <DropdownMenuContent align="end">
+                                                                                <DropdownMenuGroup>
+                                                                                    <DropdownMenuItem onSelect={() => onOpenRelayDetails(relayUrl, 'configured', detailRelayType)}>
+                                                                                        Detalles
+                                                                                    </DropdownMenuItem>
+                                                                                    <DropdownMenuItem variant="destructive" onSelect={() => onRemoveSearchRelay(relayUrl)}>
+                                                                                        Eliminar
+                                                                                    </DropdownMenuItem>
+                                                                                </DropdownMenuGroup>
+                                                                            </DropdownMenuContent>
+                                                                        </DropdownMenu>
+                                                                    </TableCell>
+                                                                </TableRow>
+                                                            );
+                                                        })}
+                                                    </TableBody>
+                                                </Table>
+                                            </div>
+                                        </div>
+
+                                        {searchSuggestedRows.length > 0 ? (
+                                            <div>
+                                                <div className="nostr-relay-suggested-header mb-2">
+                                                    <h3 className="text-sm font-semibold">Sugeridos</h3>
+                                                    <Button type="button" variant="outline" className="nostr-relay-add-suggested" onClick={onAddAllSuggestedSearchRelays}>
+                                                        Agregar todos
+                                                    </Button>
+                                                </div>
+                                                <div className="nostr-relay-table-scroll">
+                                                    <Table className="nostr-relay-table">
+                                                        <TableHeader>
+                                                            <TableRow>
+                                                                <TableHead>Relay</TableHead>
+                                                                <TableHead>Tipo</TableHead>
+                                                                <TableHead>Estado</TableHead>
+                                                                <TableHead className="nostr-relay-actions-head">Acciones</TableHead>
+                                                            </TableRow>
+                                                        </TableHeader>
+                                                        <TableBody>
+                                                            {searchSuggestedRows.map(({ relayUrl, relayTypes, primaryRelayType }) => {
+                                                                const details = describeRelay(relayUrl, 'suggested');
+                                                                const info = relayInfoByUrl[relayUrl];
+                                                                const document = info?.data;
+                                                                const relayConnectionStatus = relayConnectionStatusByRelay[relayUrl];
+                                                                const compactedRelayTypes = compactRelayTypes(relayTypes);
+                                                                const relayTypeSummary = compactedRelayTypes.map((relayType) => relayTypeLabels[relayType]).join(', ');
+                                                                const detailRelayType = compactedRelayTypes[0] ?? primaryRelayType;
+
+                                                                return (
+                                                                    <TableRow key={`search-suggested-${relayUrl}`}>
+                                                                        <TableCell className="nostr-relay-url-cell">
+                                                                            <div className="nostr-relay-main-cell">
+                                                                                <Avatar className="size-8">
+                                                                                    <AvatarFallback>{relayAvatarFallback(details, document)}</AvatarFallback>
+                                                                                </Avatar>
+                                                                                <div className="min-w-0">
+                                                                                    <p className="nostr-relay-summary-primary">{document?.name || relayUrl}</p>
+                                                                                </div>
+                                                                            </div>
+                                                                        </TableCell>
+                                                                        <TableCell>
+                                                                            <div className="nostr-relay-nip-badges">
+                                                                                {compactedRelayTypes.map((relayType) => (
+                                                                                    <Badge key={`search-suggested-type-${relayUrl}-${relayType}`} variant="outline">
+                                                                                        {relayTypeLabels[relayType]}
+                                                                                    </Badge>
+                                                                                ))}
+                                                                            </div>
+                                                                        </TableCell>
+                                                                        <TableCell>{relayConnectionBadge(relayConnectionStatus)}</TableCell>
+                                                                        <TableCell className="nostr-relay-actions-cell">
+                                                                            <DropdownMenu>
+                                                                                <DropdownMenuTrigger asChild>
+                                                                                    <Button
+                                                                                        type="button"
+                                                                                        variant="outline"
+                                                                                        size="icon-sm"
+                                                                                        aria-label={`Abrir acciones sugeridas para ${relayUrl} (${relayTypeSummary})`}
+                                                                                        onClick={onOpenRelayActionsMenu}
+                                                                                    >
+                                                                                        <EllipsisVerticalIcon data-icon="inline-start" />
+                                                                                    </Button>
+                                                                                </DropdownMenuTrigger>
+                                                                                <DropdownMenuContent align="end">
+                                                                                    <DropdownMenuGroup>
+                                                                                        <DropdownMenuItem onSelect={() => onOpenRelayDetails(relayUrl, 'suggested', detailRelayType)}>
+                                                                                            Detalles
+                                                                                        </DropdownMenuItem>
+                                                                                        <DropdownMenuItem onSelect={() => onAddSuggestedSearchRelay(relayUrl, relayTypes)}>
+                                                                                            Añadir
+                                                                                        </DropdownMenuItem>
+                                                                                    </DropdownMenuGroup>
+                                                                                </DropdownMenuContent>
+                                                                            </DropdownMenu>
+                                                                        </TableCell>
+                                                                    </TableRow>
+                                                                );
+                                                            })}
+                                                        </TableBody>
+                                                    </Table>
+                                                </div>
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                </CardContent>
+                            </Card>
                         </div>
                     </div>
                 </div>

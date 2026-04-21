@@ -311,6 +311,33 @@ async function waitFor(condition: () => boolean): Promise<void> {
     throw new Error('Condition was not met in time');
 }
 
+async function fillTextarea(textarea: HTMLTextAreaElement, value: string, selectionStart = value.length): Promise<void> {
+    await act(async () => {
+        const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+        valueSetter?.call(textarea, value);
+        textarea.setSelectionRange(selectionStart, selectionStart);
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+        textarea.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+}
+
+async function waitForMentionSuggestions(): Promise<void> {
+    await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 320));
+    });
+}
+
+async function chooseMentionSuggestion(label: string): Promise<void> {
+    await waitFor(() => Boolean(document.body.querySelector(`button[aria-label="Mencionar a ${label}"]`)));
+    const suggestion = document.body.querySelector(`button[aria-label="Mencionar a ${label}"]`) as HTMLButtonElement;
+    expect(suggestion).toBeDefined();
+
+    await act(async () => {
+        suggestion.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        suggestion.click();
+    });
+}
+
 async function openDropdownTrigger(button: HTMLButtonElement): Promise<void> {
     await act(async () => {
         button.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
@@ -1520,6 +1547,7 @@ describe('Nostr overlay App', () => {
                 hasMore: false,
             });
 
+        const mentionPubkey = 'b'.repeat(64);
         const publishReplyDeferred = createDeferred<{
             id: string;
             pubkey: string;
@@ -1577,6 +1605,12 @@ describe('Nostr overlay App', () => {
                     fetchProfilesFn: vi.fn().mockResolvedValue({
                         [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
                     }),
+                    searchUsersFn: vi.fn(async () => ({
+                        pubkeys: [mentionPubkey],
+                        profiles: {
+                            [mentionPubkey]: { pubkey: mentionPubkey, displayName: 'Bruno' },
+                        },
+                    })),
                     fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
                         followers: [],
                         scannedBatches: 1,
@@ -1606,12 +1640,9 @@ describe('Nostr overlay App', () => {
         const replyTextarea = document.body.querySelector('.nostr-following-feed-reply-box textarea') as HTMLTextAreaElement | null;
         expect(replyTextarea).not.toBeNull();
 
-        await act(async () => {
-            const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
-            valueSetter?.call(replyTextarea, 'respuesta optimista');
-            replyTextarea.dispatchEvent(new Event('input', { bubbles: true }));
-            replyTextarea.dispatchEvent(new Event('change', { bubbles: true }));
-        });
+        await fillTextarea(replyTextarea as HTMLTextAreaElement, 'respuesta optimista @br');
+        await waitForMentionSuggestions();
+        await chooseMentionSuggestion('Bruno');
 
         const sendReplyButton = Array.from(rendered.container.querySelectorAll('.nostr-following-feed-reply-box button')).find((button) =>
             (button.textContent || '').includes('Responder')
@@ -1639,13 +1670,14 @@ describe('Nostr overlay App', () => {
         await waitFor(() => (rendered.container.textContent || '').includes('respuesta final'));
         expect(rendered.container.textContent || '').not.toContain('respuesta optimista');
 
-        expect(publishTextNote).toHaveBeenCalledWith(
-            'respuesta optimista',
-            expect.arrayContaining([
-                ['e', 'note-1', '', 'root'],
-                ['e', 'note-1', '', 'reply'],
-            ])
-        );
+        const [replyContent, replyTags] = publishTextNote.mock.calls[0] as [string, string[][]];
+        expect(replyContent).toContain('respuesta optimista');
+        expect(replyContent).toContain('nostr:nprofile1');
+        expect(replyTags).toEqual(expect.arrayContaining([
+            ['e', 'note-1', '', 'root'],
+            ['e', 'note-1', '', 'reply'],
+            ['p', mentionPubkey],
+        ]));
     });
 
     test('feed route hash entry keeps overlay renderable', async () => {
@@ -3001,6 +3033,7 @@ describe('Nostr overlay App', () => {
 
     test('publishes from the global compose dialog and shows success toast', async () => {
         const ownerPubkey = 'f'.repeat(64);
+        const mentionPubkey = 'a'.repeat(64);
         const socialPublisher = {
             publishEvent: vi.fn(async () => ({
                 id: 'a'.repeat(64),
@@ -3024,7 +3057,15 @@ describe('Nostr overlay App', () => {
         const rendered = await renderApp(
             <App
                 mapBridge={createMapBridgeStub().bridge}
-                services={createBasicOverlayServices(ownerPubkey, { socialPublisher })}
+                services={createBasicOverlayServices(ownerPubkey, {
+                    socialPublisher,
+                    searchUsersFn: vi.fn(async () => ({
+                        pubkeys: [mentionPubkey],
+                        profiles: {
+                            [mentionPubkey]: { pubkey: mentionPubkey, displayName: 'Alice' },
+                        },
+                    })),
+                })}
             />
         );
         mounted.push(rendered);
@@ -3038,12 +3079,9 @@ describe('Nostr overlay App', () => {
         });
 
         const textarea = document.body.querySelector('textarea[aria-label="Redactar publicacion"]') as HTMLTextAreaElement;
-        await act(async () => {
-            const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
-            valueSetter?.call(textarea, 'hola desde dialogo');
-            textarea.dispatchEvent(new Event('input', { bubbles: true }));
-            textarea.dispatchEvent(new Event('change', { bubbles: true }));
-        });
+        await fillTextarea(textarea, 'hola @al');
+        await waitForMentionSuggestions();
+        await chooseMentionSuggestion('Alice');
 
         const submitButton = document.body.querySelector('[data-slot="dialog-footer"] button:last-of-type') as HTMLButtonElement;
 
@@ -3052,13 +3090,17 @@ describe('Nostr overlay App', () => {
         });
 
         await waitFor(() => socialPublisher.publishTextNote.mock.calls.length > 0);
-        expect(socialPublisher.publishTextNote).toHaveBeenCalledWith('hola desde dialogo', []);
+        const [publishedContent, publishedTags] = socialPublisher.publishTextNote.mock.calls[0] as [string, string[][]];
+        expect(publishedContent).toContain('hola ');
+        expect(publishedContent).toContain('nostr:nprofile1');
+        expect(publishedTags).toEqual([['p', mentionPubkey]]);
         await waitFor(() => (document.body.textContent || '').includes('Publicacion enviada'));
     });
 
     test('opens quote dialog from repost menu and publishes quote content with nevent reference', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const targetPubkey = 'a'.repeat(64);
+        const mentionPubkey = targetPubkey;
         const socialFeed = createSocialFeedServiceMock();
         (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mockResolvedValue({
             items: [
@@ -3115,6 +3157,12 @@ describe('Nostr overlay App', () => {
                         [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
                         [targetPubkey]: { pubkey: targetPubkey, displayName: 'Alice' },
                     }),
+                    searchUsersFn: vi.fn(async () => ({
+                        pubkeys: [mentionPubkey],
+                        profiles: {
+                            [mentionPubkey]: { pubkey: mentionPubkey, displayName: 'Alice' },
+                        },
+                    })),
                 })}
             />
         );
@@ -3145,12 +3193,9 @@ describe('Nostr overlay App', () => {
         await waitFor(() => Boolean(document.body.querySelector('[data-slot="dialog-content"]')));
         await waitFor(() => (document.body.textContent || '').includes('nota original'));
         const textarea = document.body.querySelector('textarea[aria-label="Redactar publicacion"]') as HTMLTextAreaElement;
-        await act(async () => {
-            const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
-            valueSetter?.call(textarea, 'mi comentario');
-            textarea.dispatchEvent(new Event('input', { bubbles: true }));
-            textarea.dispatchEvent(new Event('change', { bubbles: true }));
-        });
+        await fillTextarea(textarea, 'mi comentario @al');
+        await waitForMentionSuggestions();
+        await chooseMentionSuggestion('Alice');
 
         const submitButton = document.body.querySelector('[data-slot="dialog-footer"] button:last-of-type') as HTMLButtonElement;
         await act(async () => {
@@ -3160,11 +3205,13 @@ describe('Nostr overlay App', () => {
         await waitFor(() => socialPublisher.publishTextNote.mock.calls.length > 0);
         const [quoteContent, quoteTags] = socialPublisher.publishTextNote.mock.calls[0] as [string, string[][]];
         expect(quoteContent).toContain('mi comentario');
+        expect(quoteContent).toContain('nostr:nprofile1');
         expect(quoteContent).toContain('nostr:nevent1');
         expect(quoteTags).toEqual(expect.arrayContaining([
             ['q', '1'.repeat(64)],
             ['p', targetPubkey],
         ]));
+        expect(quoteTags.filter((tag) => tag[0] === 'p' && tag[1] === targetPubkey)).toHaveLength(1);
         await waitFor(() => (document.body.textContent || '').includes('Cita publicada'));
     });
 
@@ -3775,6 +3822,7 @@ describe('Nostr overlay App', () => {
                     nip65Read: Array.from({ length: 6 }, (_, index) => `wss://relay.read-${index}.example`),
                     nip65Write: Array.from({ length: 6 }, (_, index) => `wss://relay.write-${index}.example`),
                     dmInbox: Array.from({ length: 6 }, (_, index) => `wss://relay.inbox-${index}.example`),
+                    search: [],
                 },
             })
         );
@@ -7077,6 +7125,7 @@ describe('Nostr overlay App', () => {
                     nip65Read: [],
                     nip65Write: [],
                     dmInbox: [],
+                    search: [],
                 },
             })
         );
@@ -7147,6 +7196,7 @@ describe('Nostr overlay App', () => {
                     nip65Read: [],
                     nip65Write: [],
                     dmInbox: [],
+                    search: [],
                 },
             })
         );
@@ -7624,6 +7674,7 @@ describe('Nostr overlay App', () => {
                     nip65Read: ['wss://relay.suggested.example'],
                     nip65Write: ['wss://relay.suggested.example'],
                     dmInbox: [],
+                    search: [],
                 },
             })
         );

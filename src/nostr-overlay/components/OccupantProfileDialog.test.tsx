@@ -385,6 +385,7 @@ describe('OccupantProfileDialog', () => {
                         nip65Read: ['wss://relay.read.example'],
                         nip65Write: ['wss://relay.write.example'],
                         dmInbox: ['wss://relay.dm.example'],
+                        search: [],
                     },
                 })}
             />
@@ -417,6 +418,7 @@ describe('OccupantProfileDialog', () => {
                         nip65Read: ['wss://relay.both.example', 'wss://relay.read.example'],
                         nip65Write: ['wss://relay.both.example'],
                         dmInbox: ['wss://relay.dm.example'],
+                        search: [],
                     },
                     onAddRelaySuggestion,
                     onAddAllRelaySuggestions,

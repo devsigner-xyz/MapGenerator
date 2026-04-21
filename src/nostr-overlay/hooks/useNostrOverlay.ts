@@ -47,6 +47,7 @@ import type { ActiveProfileQueryService } from '../query/active-profile.query';
 import { nostrOverlayQueryKeys } from '../query/keys';
 import { toast } from 'sonner';
 import { createSocialPublisher, type SocialPublisher } from '../social-publisher';
+import { mergeUserSearchResults, searchLocalUsers } from '../search/local-user-search';
 
 export type OverlayStatus =
     | 'idle'
@@ -115,6 +116,8 @@ interface UseNostrOverlayOptions {
 
 const DM_INBOX_RELAY_CAP = 8;
 const DM_OUTBOX_RELAY_CAP = 8;
+const USER_SEARCH_LIMIT = 20;
+const EMPTY_SEARCH_RESULT = { pubkeys: [], profiles: {} };
 const AUTH_PROOF_TIMEOUT_MS = 8_000;
 const RELAY_METADATA_TIMEOUT_MS = 4_000;
 
@@ -166,6 +169,7 @@ function createInitialData(): OverlayData {
             nip65Read: [],
             nip65Write: [],
             dmInbox: [],
+            search: [],
         },
         selectedPubkey: undefined,
         ...createEmptyActiveProfileState(),
@@ -997,6 +1001,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 nip65Read: [],
                 nip65Write: [],
                 dmInbox: [],
+                search: [],
             };
             try {
                 const [relayListEvent, dmInboxRelayListEvent] = await Promise.all([
@@ -1016,6 +1021,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 suggestedRelaysByType = {
                     ...nip65ByType,
                     dmInbox: dmInboxRelays,
+                    search: [],
                 };
                 suggestedRelays = relayListFromKind10002Event(relayListEvent);
             } catch {
@@ -1025,6 +1031,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                     nip65Read: [],
                     nip65Write: [],
                     dmInbox: [],
+                    search: [],
                 };
             }
 
@@ -1664,41 +1671,57 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
 
     const searchUsers = async (query: string): Promise<{ pubkeys: string[]; profiles: Record<string, NostrProfile> }> => {
         const normalizedQuery = query.trim();
-        if (!normalizedQuery) {
-            return {
-                pubkeys: [],
-                profiles: {},
-            };
-        }
-
         const current = latestStateRef.current;
-        let result: { pubkeys: string[]; profiles: Record<string, NostrProfile> };
-
-        if (searchUsersFn) {
-            const relays = resolveOverlayRelays(current.data.relayHints);
-            const client = createClient(relays);
-            const cacheKeyScope = relays.join('|');
-            result = await searchUsersFn({
-                query: normalizedQuery,
-                client,
-                limit: 20,
-                cacheKeyScope,
-            });
-        } else {
-            const ownerPubkey = current.data.ownerPubkey;
-            if (!ownerPubkey) {
-                return {
-                    pubkeys: [],
-                    profiles: {},
-                };
-            }
-
-            result = await userSearchApiService.searchUsers({
-                ownerPubkey,
-                q: normalizedQuery,
-                limit: 20,
-            });
+        const localResult = searchLocalUsers({
+            query: normalizedQuery,
+            ownerPubkey: current.data.ownerPubkey,
+            followedPubkeys: current.data.follows,
+            profiles: current.data.profiles,
+            limit: USER_SEARCH_LIMIT,
+        });
+        if (!normalizedQuery) {
+            return localResult;
         }
+
+        let result: { pubkeys: string[]; profiles: Record<string, NostrProfile> };
+        const ownerPubkey = current.data.ownerPubkey;
+        const relaySettings = loadRelaySettings(createRelaySettingsInput(ownerPubkey));
+        const searchRelays = relaySettings.byType.search;
+
+        try {
+            if (searchUsersFn) {
+                const relays = searchRelays.length > 0 ? searchRelays : resolveOverlayRelays(current.data.relayHints);
+                const client = createClient(relays);
+                const cacheKeyScope = relays.join('|');
+                result = await searchUsersFn({
+                    query: normalizedQuery,
+                    client,
+                    limit: USER_SEARCH_LIMIT,
+                    cacheKeyScope,
+                });
+            } else {
+                if (!ownerPubkey) {
+                    return localResult;
+                }
+
+                result = await userSearchApiService.searchUsers({
+                    ownerPubkey,
+                    q: normalizedQuery,
+                    limit: USER_SEARCH_LIMIT,
+                    searchRelays,
+                });
+            }
+        } catch {
+            result = EMPTY_SEARCH_RESULT;
+        }
+
+        result = mergeUserSearchResults({
+            query: normalizedQuery,
+            followedPubkeys: current.data.follows,
+            local: localResult,
+            remote: result,
+            limit: USER_SEARCH_LIMIT,
+        });
 
         if (Object.keys(result.profiles).length > 0) {
             setState((nextState) => ({
@@ -1774,6 +1797,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                             nip65Read: [],
                             nip65Write: [],
                             dmInbox: [],
+                            search: [],
                         },
                     };
                 }
@@ -1795,6 +1819,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                     return {
                         ...relaySuggestionsByTypeFromKind10002Event(relayListEvent),
                         dmInbox: dmInboxRelayListFromKind10050Event(dmInboxRelayListEvent),
+                        search: [],
                     };
                 }).catch(() => {
                     return {
@@ -1802,6 +1827,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                         nip65Read: [],
                         nip65Write: [],
                         dmInbox: [],
+                        search: [],
                     };
                 });
 

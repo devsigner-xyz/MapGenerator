@@ -18,8 +18,9 @@ import { type SearchUsersResult, useUserSearchQuery } from '../query/user-search
 interface UserSearchPageProps {
     onClose: () => void;
     onSearch: (query: string) => Promise<SearchUsersResult>;
+    searchRelaySetKey?: string | undefined;
     onSelectUser: (pubkey: string) => void;
-    ownerPubkey?: string;
+    ownerPubkey?: string | undefined;
     followedPubkeys?: string[];
     onFollowUser?: (pubkey: string) => void | Promise<void>;
     onMessageUser?: (pubkey: string) => void | Promise<void>;
@@ -43,6 +44,7 @@ function profileShortNpub(pubkey: string): string {
 export function UserSearchPage({
     onClose,
     onSearch,
+    searchRelaySetKey,
     onSelectUser,
     ownerPubkey,
     followedPubkeys = [],
@@ -67,6 +69,8 @@ export function UserSearchPage({
     const searchQuery = useUserSearchQuery({
         term: debouncedQuery,
         enabled: true,
+        ownerPubkey,
+        searchRelaySetKey,
         onSearch,
     });
 

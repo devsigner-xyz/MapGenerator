@@ -49,7 +49,11 @@ describe('nostr overlay query standards', () => {
         expect(
             nostrOverlayQueryKeys.userSearch({ term: '  alice  ' })
         ).toEqual(
-            ['nostr-overlay', 'social', 'search', { term: 'alice' }]
+            ['nostr-overlay', 'social', 'search', {
+                term: 'alice',
+                ownerPubkey: 'anonymous',
+                searchRelaySetKey: 'default',
+            }]
         );
 
         expect(

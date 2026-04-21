@@ -3,7 +3,13 @@ import { buildStorageScopeKeys } from './storage-scope';
 
 export const RELAY_SETTINGS_STORAGE_KEY = 'nostr.overlay.relays.v1';
 
-export const RELAY_TYPES = ['nip65Both', 'nip65Read', 'nip65Write', 'dmInbox'] as const;
+export const DEFAULT_SEARCH_RELAYS = [
+    'wss://search.nos.today',
+    'wss://relay.noswhere.com',
+    'wss://filter.nostr.wine',
+];
+
+export const RELAY_TYPES = ['nip65Both', 'nip65Read', 'nip65Write', 'dmInbox', 'search'] as const;
 export type RelayType = (typeof RELAY_TYPES)[number];
 
 export interface RelaySettingsByType {
@@ -11,6 +17,7 @@ export interface RelaySettingsByType {
     nip65Read: string[];
     nip65Write: string[];
     dmInbox: string[];
+    search: string[];
 }
 
 interface LegacyRelaySettingsByType {
@@ -84,6 +91,7 @@ function normalizeByType(byType: Partial<Record<RelayType, string[]>> | LegacyRe
         nip65Read: normalizeRelayList(typed.nip65Read ?? legacy.dmInbox ?? []),
         nip65Write: normalizeRelayList(typed.nip65Write ?? legacy.dmOutbox ?? []),
         dmInbox: normalizeRelayList(typed.dmInbox ?? legacy.dmInbox ?? []),
+        search: normalizeRelayList(typed.search ?? DEFAULT_SEARCH_RELAYS),
     };
 }
 
@@ -162,6 +170,7 @@ export function getDefaultRelaySettings(): RelaySettingsState {
         nip65Read: bootstrap,
         nip65Write: bootstrap,
         dmInbox: DEFAULT_DM_INBOX_RELAYS,
+        search: [...DEFAULT_SEARCH_RELAYS],
     });
 
     return {
@@ -286,6 +295,7 @@ export function removeRelay(state: RelaySettingsState, relayUrl: string, relayTy
         nip65Read: state.byType.nip65Read.filter((relay) => relay !== normalized),
         nip65Write: state.byType.nip65Write.filter((relay) => relay !== normalized),
         dmInbox: state.byType.dmInbox.filter((relay) => relay !== normalized),
+        search: state.byType.search.filter((relay) => relay !== normalized),
     });
 
     return {
