@@ -19,6 +19,7 @@ import {
 } from '../nostr/wallet-activity';
 import type { WalletActivityState, WalletSettingsState } from '../nostr/wallet-types';
 import { detectWebLnProvider, resolveWebLnCapabilities } from '../nostr/webln';
+import { requestEventZapInvoice } from '../nostr/zaps';
 import { requestProfileZapInvoice } from '../nostr/zaps';
 import { profileHasZapEndpoint } from '../nostr/zaps';
 import { createNwcClient, createNwcRelayIo, parseNwcConnectionUri, resolveNwcEncryptionMode, resolveNwcInfoCapabilities } from '../nostr/nwc';
@@ -61,7 +62,7 @@ import { useNostrOverlay, type MapLoaderStage, type NostrOverlayServices } from 
 import { useNip05Verification } from './hooks/useNip05Verification';
 import { useFollowingFeedController } from './hooks/useFollowingFeedController';
 import { useFollowingFeedEngagementQuery } from './query/following-feed.query';
-import { createEmptyEngagementByEventIds } from './query/following-feed.selectors';
+import { applyEngagementDeltas, createEmptyEngagementByEventIds } from './query/following-feed.selectors';
 import { useSocialNotificationsController } from './query/social-notifications.query';
 import { useDirectMessagesController } from './query/direct-messages.query';
 import { useActiveProfileQuery } from './query/active-profile.query';
@@ -81,6 +82,7 @@ import type { NostrEvent } from '../nostr/types';
 import { buildSettingsPath, settingsViewFromPathname, type SettingsRouteView } from './settings/settings-routing';
 import { useRelayConnectionSummary } from './hooks/useRelayConnectionSummary';
 import type { NoteCardModel } from './components/note-card-model';
+import type { SocialEngagementByEventId } from '../nostr/social-feed-service';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Spinner } from '@/components/ui/spinner';
 import {
@@ -111,11 +113,72 @@ interface EasterEggDialogState extends EasterEggBuildingClickPayload {
 interface PendingZapIntent {
     targetPubkey: string;
     amount: number;
+    eventId?: string;
+    eventKind?: number;
     originPath: string;
     phase: 'navigating' | 'ready' | 'paused';
 }
 
+interface ZapIntentInput {
+    targetPubkey: string;
+    amount: number;
+    eventId?: string;
+    eventKind?: number;
+}
+
 type ZapExecutionResult = 'success' | 'retryable_failure' | 'definitive_failure';
+
+interface OptimisticZapEntry {
+    baselineZaps: number;
+    baselineZapSats: number;
+    deltaZaps: number;
+    deltaZapSats: number;
+}
+
+function applyOptimisticZapMetrics(
+    baseByEventId: SocialEngagementByEventId,
+    optimisticByEventId: Record<string, OptimisticZapEntry>,
+): SocialEngagementByEventId {
+    const eventIds = [...new Set([...Object.keys(baseByEventId), ...Object.keys(optimisticByEventId)])];
+    if (eventIds.length === 0) {
+        return baseByEventId;
+    }
+
+    const deltaByEventId: SocialEngagementByEventId = {};
+    for (const eventId of Object.keys(optimisticByEventId)) {
+        const optimistic = optimisticByEventId[eventId];
+        if (!optimistic) {
+            continue;
+        }
+
+        const base = baseByEventId[eventId] ?? {
+            replies: 0,
+            reposts: 0,
+            reactions: 0,
+            zaps: 0,
+            zapSats: 0,
+        };
+        const hasCaughtUp = base.zaps >= optimistic.baselineZaps + optimistic.deltaZaps
+            && base.zapSats >= optimistic.baselineZapSats + optimistic.deltaZapSats;
+        if (hasCaughtUp) {
+            continue;
+        }
+
+        deltaByEventId[eventId] = {
+            replies: 0,
+            reposts: 0,
+            reactions: 0,
+            zaps: optimistic.deltaZaps,
+            zapSats: optimistic.deltaZapSats,
+        };
+    }
+
+    return applyEngagementDeltas({
+        eventIds,
+        baseByEventId,
+        deltaByEventId,
+    });
+}
 
 interface SocialComposeState {
     mode: 'post' | 'quote';
@@ -166,6 +229,7 @@ export function App({ mapBridge, services }: AppProps) {
     const [walletActivity, setWalletActivity] = useState<WalletActivityState>(() => loadWalletActivity());
     const [walletNwcUriInput, setWalletNwcUriInput] = useState('');
     const [pendingZapIntent, setPendingZapIntent] = useState<PendingZapIntent | null>(null);
+    const [optimisticZapByEventId, setOptimisticZapByEventId] = useState<Record<string, OptimisticZapEntry>>({});
     const [resumingZap, setResumingZap] = useState(false);
     const [socialComposeState, setSocialComposeState] = useState<SocialComposeState | null>(null);
     const [isSubmittingSocialCompose, setIsSubmittingSocialCompose] = useState(false);
@@ -541,6 +605,48 @@ export function App({ mapBridge, services }: AppProps) {
             ...activeProfileEngagementQuery.data,
         };
     }, [activeProfileEngagementQuery.data, activeProfilePostEventIds]);
+    const activeProfileEngagementWithOptimisticByEventId = useMemo(
+        () => applyOptimisticZapMetrics(activeProfileEngagementByEventId, optimisticZapByEventId),
+        [activeProfileEngagementByEventId, optimisticZapByEventId],
+    );
+    const followingFeedEngagementByEventId = useMemo(
+        () => applyOptimisticZapMetrics(followingFeed.engagementByEventId, optimisticZapByEventId),
+        [followingFeed.engagementByEventId, optimisticZapByEventId],
+    );
+    const optimisticZapBaseByEventId = useMemo(
+        () => ({
+            ...activeProfileEngagementByEventId,
+            ...followingFeed.engagementByEventId,
+        }),
+        [activeProfileEngagementByEventId, followingFeed.engagementByEventId],
+    );
+    useEffect(() => {
+        setOptimisticZapByEventId((current) => {
+            let changed = false;
+            const next: Record<string, OptimisticZapEntry> = {};
+
+            for (const [eventId, optimistic] of Object.entries(current)) {
+                const base = optimisticZapBaseByEventId[eventId] ?? {
+                    replies: 0,
+                    reposts: 0,
+                    reactions: 0,
+                    zaps: 0,
+                    zapSats: 0,
+                };
+                const hasCaughtUp = base.zaps >= optimistic.baselineZaps + optimistic.deltaZaps
+                    && base.zapSats >= optimistic.baselineZapSats + optimistic.deltaZapSats;
+
+                if (hasCaughtUp) {
+                    changed = true;
+                    continue;
+                }
+
+                next[eventId] = optimistic;
+            }
+
+            return changed ? next : current;
+        });
+    }, [optimisticZapBaseByEventId]);
     const richContentProfilesByPubkey = useMemo(() => ({
         ...overlay.followerProfiles,
         ...overlay.profiles,
@@ -1194,9 +1300,36 @@ export function App({ mapBridge, services }: AppProps) {
         openChatConversation(pubkey, true);
     };
 
+    const recordOptimisticZap = useCallback((input: { eventId?: string; amount: number }) => {
+        const eventId = input.eventId;
+        if (!eventId) {
+            return;
+        }
+
+        setOptimisticZapByEventId((current) => {
+            const base = optimisticZapBaseByEventId[eventId] ?? {
+                replies: 0,
+                reposts: 0,
+                reactions: 0,
+                zaps: 0,
+                zapSats: 0,
+            };
+            const existing = current[eventId];
+
+            return {
+                ...current,
+                [eventId]: {
+                    baselineZaps: existing?.baselineZaps ?? base.zaps,
+                    baselineZapSats: existing?.baselineZapSats ?? base.zapSats,
+                    deltaZaps: (existing?.deltaZaps ?? 0) + 1,
+                    deltaZapSats: (existing?.deltaZapSats ?? 0) + input.amount,
+                },
+            };
+        });
+    }, [optimisticZapBaseByEventId]);
+
     const executeZapIntent = useCallback(async (
-        targetPubkey: string,
-        amount: number,
+        input: ZapIntentInput,
         connectionOverride: WalletSettingsState['activeConnection'] = walletSettings.activeConnection
     ): Promise<ZapExecutionResult> => {
         if (!connectionOverride) {
@@ -1208,9 +1341,9 @@ export function App({ mapBridge, services }: AppProps) {
             return 'definitive_failure';
         }
 
-        const profile = overlay.profiles[targetPubkey]
-            ?? overlay.followerProfiles[targetPubkey]
-            ?? (overlay.ownerPubkey === targetPubkey ? overlay.ownerProfile : undefined);
+        const profile = overlay.profiles[input.targetPubkey]
+            ?? overlay.followerProfiles[input.targetPubkey]
+            ?? (overlay.ownerPubkey === input.targetPubkey ? overlay.ownerProfile : undefined);
         const writeRelays = [...new Set([
             ...relaySettingsSnapshot.byType.nip65Both,
             ...relaySettingsSnapshot.byType.nip65Write,
@@ -1219,26 +1352,36 @@ export function App({ mapBridge, services }: AppProps) {
             toast.error('No se puede enviar este zap.', { duration: 2200 });
             return 'definitive_failure';
         }
-        const activityId = `zap-${targetPubkey}-${Date.now()}`;
+        const activityId = `zap-${input.eventId ?? input.targetPubkey}-${Date.now()}`;
         persistWalletActivity(addWalletActivity(walletActivity, {
             id: activityId,
             status: 'pending',
             actionType: 'zap-payment',
-            amountMsats: amount * 1000,
+            amountMsats: input.amount * 1000,
             createdAt: Date.now(),
-            targetType: 'profile',
-            targetId: targetPubkey,
+            targetType: input.eventId ? 'event' : 'profile',
+            targetId: input.eventId ?? input.targetPubkey,
             provider: connectionOverride.method,
         }));
 
         try {
-            const invoice = await requestProfileZapInvoice({
-                amountSats: amount,
-                profilePubkey: targetPubkey,
-                profile,
-                relays: writeRelays,
-                writeGateway: overlay.writeGateway,
-            });
+            const invoice = input.eventId
+                ? await requestEventZapInvoice({
+                    amountSats: input.amount,
+                    eventId: input.eventId,
+                    ...(typeof input.eventKind === 'number' ? { eventKind: input.eventKind } : {}),
+                    profilePubkey: input.targetPubkey,
+                    profile,
+                    relays: writeRelays,
+                    writeGateway: overlay.writeGateway,
+                })
+                : await requestProfileZapInvoice({
+                    amountSats: input.amount,
+                    profilePubkey: input.targetPubkey,
+                    profile,
+                    relays: writeRelays,
+                    writeGateway: overlay.writeGateway,
+                });
             try {
                 if (connectionOverride.method === 'webln') {
                     const provider = detectWebLnProvider();
@@ -1252,6 +1395,7 @@ export function App({ mapBridge, services }: AppProps) {
                     });
                 }
                 persistWalletActivity(markWalletActivitySucceeded(loadWalletActivity(walletStorageOptions), activityId));
+                recordOptimisticZap({ ...(input.eventId ? { eventId: input.eventId } : {}), amount: input.amount });
                 toast.success('Pago enviado.', { duration: 1800 });
                 return 'success';
             } catch {
@@ -1264,13 +1408,12 @@ export function App({ mapBridge, services }: AppProps) {
             toast.error('No se puede enviar este zap.', { duration: 2200 });
             return 'definitive_failure';
         }
-    }, [walletSettings.activeConnection, overlay.writeGateway, overlay.profiles, overlay.followerProfiles, overlay.ownerPubkey, overlay.ownerProfile, relaySettingsSnapshot.byType.nip65Both, relaySettingsSnapshot.byType.nip65Write, walletActivity, walletStorageOptions]);
+    }, [walletSettings.activeConnection, overlay.writeGateway, overlay.profiles, overlay.followerProfiles, overlay.ownerPubkey, overlay.ownerProfile, relaySettingsSnapshot.byType.nip65Both, relaySettingsSnapshot.byType.nip65Write, walletActivity, walletStorageOptions, recordOptimisticZap]);
 
-    const handleZapIntent = async (targetPubkey: string, amount: number): Promise<void> => {
+    const handleZapIntent = async (input: ZapIntentInput): Promise<void> => {
         if (!isWalletReadyForPayments(walletSettings.activeConnection)) {
             setPendingZapIntent({
-                targetPubkey,
-                amount,
+                ...input,
                 originPath: `${location.pathname}${location.search}`,
                 phase: 'navigating',
             });
@@ -1278,7 +1421,7 @@ export function App({ mapBridge, services }: AppProps) {
             return;
         }
 
-        await executeZapIntent(targetPubkey, amount);
+        await executeZapIntent(input);
     };
 
     const connectWebLnWallet = async (options: { silent?: boolean } = {}): Promise<boolean> => {
@@ -1407,7 +1550,7 @@ export function App({ mapBridge, services }: AppProps) {
         }
 
         setResumingZap(true);
-        void executeZapIntent(pendingZapIntent.targetPubkey, pendingZapIntent.amount)
+        void executeZapIntent(pendingZapIntent)
             .then((result) => {
                 if (result === 'success' || result === 'definitive_failure') {
                     setPendingZapIntent(null);
@@ -1490,7 +1633,7 @@ export function App({ mapBridge, services }: AppProps) {
                         {...(overlay.canWrite ? { onFollowPerson: followPerson } : {})}
                         onViewPersonDetails={(pubkey) => overlay.openActiveProfile(pubkey)}
                         zapAmounts={zapSettings.amounts}
-                        {...(overlay.canWrite ? { onZapPerson: handleZapIntent } : {})}
+                        {...(overlay.canWrite ? { onZapPerson: (pubkey: string, amount: number) => handleZapIntent({ targetPubkey: pubkey, amount }) } : {})}
                         onConfigureZapAmounts={() => openSettingsPage('zaps')}
                         onCopyOwnerNpub={copyOwnerIdentifier}
                         verificationByPubkey={verificationByPubkey}
@@ -1554,7 +1697,7 @@ export function App({ mapBridge, services }: AppProps) {
                                                 key={`zap-${amount}`}
                                                 onSelect={() => {
                                                     closeOccupiedContextMenu();
-                                                    void handleZapIntent(buildingContextMenu.pubkey, amount);
+                                                    void handleZapIntent({ targetPubkey: buildingContextMenu.pubkey, amount });
                                                 }}
                                             >
                                                 {`${amount} sats`}
@@ -1607,7 +1750,7 @@ export function App({ mapBridge, services }: AppProps) {
                             items={followingFeed.items}
                             hasFollows={followingFeed.hasFollows}
                             profilesByPubkey={richContentProfilesByPubkey}
-                            engagementByEventId={followingFeed.engagementByEventId}
+                            engagementByEventId={followingFeedEngagementByEventId}
                             {...(followingFeed.activeHashtag ? { activeHashtag: followingFeed.activeHashtag } : {})}
                             {...(followingFeed.activeHashtag ? { onClearHashtag: clearFollowingFeedHashtagFilter } : {})}
                             onSelectHashtag={selectFollowingFeedHashtag}
@@ -1640,7 +1783,12 @@ export function App({ mapBridge, services }: AppProps) {
                             onToggleReaction={followingFeed.toggleReaction}
                             onToggleRepost={handleToggleRepost}
                             onOpenQuoteComposer={openQuoteComposer}
-                            onZap={({ targetPubkey, amount }) => handleZapIntent(targetPubkey || '', amount)}
+                            onZap={({ eventId, eventKind, targetPubkey, amount }) => handleZapIntent({
+                                targetPubkey: targetPubkey || '',
+                                amount,
+                                eventId,
+                                ...(typeof eventKind === 'number' ? { eventKind } : {}),
+                            })}
                             zapAmounts={zapSettings.amounts}
                             onConfigureZapAmounts={() => openSettingsPage('zaps')}
                         />
@@ -1815,7 +1963,7 @@ export function App({ mapBridge, services }: AppProps) {
                     statsLoading={activeProfileData.statsLoading}
                     {...(activeProfileData.statsError ? { statsError: activeProfileData.statsError } : {})}
                     posts={activeProfileData.posts}
-                    engagementByEventId={activeProfileEngagementByEventId}
+                    engagementByEventId={activeProfileEngagementWithOptimisticByEventId}
                     postsLoading={activeProfileData.postsLoading}
                     {...(activeProfileData.postsError ? { postsError: activeProfileData.postsError } : {})}
                     hasMorePosts={activeProfileData.hasMorePosts}
@@ -1847,7 +1995,12 @@ export function App({ mapBridge, services }: AppProps) {
                     onToggleReaction={followingFeed.toggleReaction}
                     onToggleRepost={handleToggleRepost}
                     onOpenQuoteComposer={openQuoteComposer}
-                    onZap={({ targetPubkey, amount }) => handleZapIntent(targetPubkey || '', amount)}
+                    onZap={({ eventId, eventKind, targetPubkey, amount }) => handleZapIntent({
+                        targetPubkey: targetPubkey || '',
+                        amount,
+                        eventId,
+                        ...(typeof eventKind === 'number' ? { eventKind } : {}),
+                    })}
                     zapAmounts={zapSettings.amounts}
                     onConfigureZapAmounts={() => openSettingsPage('zaps')}
                     onResolveProfiles={resolveMentionProfiles}

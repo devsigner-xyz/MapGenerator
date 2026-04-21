@@ -68,7 +68,7 @@ export interface FollowingFeedViewProps {
     onToggleReaction: (input: { eventId: string; targetPubkey?: string; emoji?: string }) => Promise<boolean>;
     onToggleRepost: (input: { eventId: string; targetPubkey?: string; repostContent?: string }) => Promise<boolean>;
     onOpenQuoteComposer: (note: NoteCardModel) => void;
-    onZap: (input: { eventId: string; targetPubkey?: string; amount: number }) => Promise<void> | void;
+    onZap: (input: { eventId: string; eventKind?: number; targetPubkey?: string; amount: number }) => Promise<void> | void;
     zapAmounts: number[];
     onConfigureZapAmounts?: () => void;
     onSelectHashtag?: (hashtag: string) => void;

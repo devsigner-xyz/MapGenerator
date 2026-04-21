@@ -346,6 +346,7 @@ describe('FollowingFeedSurface', () => {
 
         expect(onZap).toHaveBeenCalledWith({
             eventId: 'note-1',
+            eventKind: 1,
             targetPubkey: 'a'.repeat(64),
             amount: 21,
         });

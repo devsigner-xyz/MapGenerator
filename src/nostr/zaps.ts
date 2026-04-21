@@ -25,6 +25,11 @@ interface RequestProfileZapInvoiceInput {
     now?: () => number;
 }
 
+interface RequestEventZapInvoiceInput extends RequestProfileZapInvoiceInput {
+    eventId: string;
+    eventKind?: number;
+}
+
 interface LnurlPayMetadata {
     callback: string;
     allowsNostr: boolean;
@@ -44,6 +49,31 @@ export function buildLightningAddressUrl(lud16: string): string {
     }
 
     return `https://${domain}/.well-known/lnurlp/${name}`;
+}
+
+function buildZapRequestTags(input: {
+    relays: string[];
+    profilePubkey: string;
+    amountMsats: number;
+    encodedLnurl: string;
+    eventId?: string;
+    eventKind?: number;
+}): string[][] {
+    const tags: string[][] = [
+        ['relays', ...input.relays],
+        ['p', input.profilePubkey],
+        ['amount', String(input.amountMsats)],
+        ['lnurl', input.encodedLnurl],
+    ];
+
+    if (input.eventId) {
+        tags.push(['e', input.eventId]);
+        if (typeof input.eventKind === 'number' && Number.isFinite(input.eventKind)) {
+            tags.push(['k', String(input.eventKind)]);
+        }
+    }
+
+    return tags;
 }
 
 function encodeLnurl(url: string): string {
@@ -79,6 +109,16 @@ function parseMetadata(value: unknown): LnurlPayMetadata {
 }
 
 export async function requestProfileZapInvoice(input: RequestProfileZapInvoiceInput): Promise<string> {
+    return requestZapInvoice(input);
+}
+
+export async function requestEventZapInvoice(input: RequestEventZapInvoiceInput): Promise<string> {
+    return requestZapInvoice(input);
+}
+
+async function requestZapInvoice(
+    input: RequestProfileZapInvoiceInput | RequestEventZapInvoiceInput,
+): Promise<string> {
     const fetchFn = input.fetchFn ?? (async (url: string) => fetch(url) as Promise<FetchLikeResponse>);
     const now = input.now ?? (() => Math.floor(Date.now() / 1000));
     const lnurlUrl = resolveLnurlPayUrl(input.profile);
@@ -101,12 +141,14 @@ export async function requestProfileZapInvoice(input: RequestProfileZapInvoiceIn
         kind: 9734,
         content: '',
         created_at: now(),
-        tags: [
-            ['relays', ...input.relays],
-            ['p', input.profilePubkey],
-            ['amount', String(amountMsats)],
-            ['lnurl', encodedLnurl],
-        ],
+        tags: buildZapRequestTags({
+            relays: input.relays,
+            profilePubkey: input.profilePubkey,
+            amountMsats,
+            encodedLnurl,
+            ...('eventId' in input ? { eventId: input.eventId } : {}),
+            ...('eventKind' in input ? { eventKind: input.eventKind } : {}),
+        }),
     });
 
     const callbackUrl = new URL(metadata.callback);

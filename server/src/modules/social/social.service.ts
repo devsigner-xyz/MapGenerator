@@ -139,16 +139,41 @@ const parseZapSats = (event: NostrEventLike): number => {
   const amountTag = event.tags.find(
     (tag) => Array.isArray(tag) && tag[0] === 'amount' && typeof tag[1] === 'string',
   );
-  if (!amountTag || !amountTag[1]) {
+  if (amountTag && amountTag[1]) {
+    const parsedAmount = Number(amountTag[1]);
+    if (Number.isFinite(parsedAmount) && parsedAmount > 0) {
+      return Math.floor(parsedAmount / 1000);
+    }
+  }
+
+  const descriptionTag = event.tags.find(
+    (tag) => Array.isArray(tag) && tag[0] === 'description' && typeof tag[1] === 'string',
+  );
+  if (!descriptionTag || !descriptionTag[1]) {
     return 0;
   }
 
-  const parsedAmount = Number(amountTag[1]);
-  if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+  try {
+    const parsed = JSON.parse(descriptionTag[1]) as { tags?: unknown };
+    if (!parsed || !Array.isArray(parsed.tags)) {
+      return 0;
+    }
+
+    for (const rawTag of parsed.tags) {
+      if (!Array.isArray(rawTag) || rawTag[0] !== 'amount' || typeof rawTag[1] !== 'string') {
+        continue;
+      }
+
+      const parsedAmount = Number(rawTag[1]);
+      if (Number.isFinite(parsedAmount) && parsedAmount > 0) {
+        return Math.floor(parsedAmount / 1000);
+      }
+    }
+  } catch {
     return 0;
   }
 
-  return Math.floor(parsedAmount / 1000);
+  return 0;
 };
 
 const paginateEvents = (

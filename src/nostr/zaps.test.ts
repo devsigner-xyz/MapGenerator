@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from 'vitest';
 import { bech32 } from '@scure/base';
-import { buildLightningAddressUrl, profileHasZapEndpoint, requestProfileZapInvoice } from './zaps';
+import { buildLightningAddressUrl, profileHasZapEndpoint, requestEventZapInvoice, requestProfileZapInvoice } from './zaps';
 
 describe('zaps', () => {
     test('builds lnurlp url from lud16', () => {
@@ -99,5 +99,57 @@ describe('zaps', () => {
         expect(String(fetchFn.mock.calls[1]?.[0])).toContain('amount=21000');
         expect(String(fetchFn.mock.calls[1]?.[0])).toContain('nostr=');
         expect(String(fetchFn.mock.calls[1]?.[0])).toContain(`lnurl=${encodeURIComponent(encodedLnurl)}`);
+    });
+
+    test('requests an event zap invoice with e and k tags in the signed 9734 event', async () => {
+        const encodedLnurl = bech32.encode('lnurl', bech32.toWords(new TextEncoder().encode('https://getalby.com/.well-known/lnurlp/alice')), 2000);
+        const fetchFn = vi.fn()
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    callback: 'https://wallet.example/cb',
+                    allowsNostr: true,
+                    nostrPubkey: 'b'.repeat(64),
+                    minSendable: 1_000,
+                    maxSendable: 1_000_000,
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({ pr: 'lnbc1invoice' }),
+            });
+        const publishEvent = vi.fn(async (event) => ({
+            ...event,
+            id: 'e'.repeat(64),
+            pubkey: 'f'.repeat(64),
+            sig: 'c'.repeat(128),
+        }));
+
+        const invoice = await requestEventZapInvoice({
+            amountSats: 21,
+            eventId: '9'.repeat(64),
+            eventKind: 1,
+            profilePubkey: 'a'.repeat(64),
+            profile: { pubkey: 'a'.repeat(64), lud16: 'alice@getalby.com' },
+            relays: ['wss://relay.one.example'],
+            writeGateway: { publishEvent },
+            fetchFn,
+            now: () => 100,
+        });
+
+        expect(invoice).toBe('lnbc1invoice');
+        expect(publishEvent).toHaveBeenCalledWith(expect.objectContaining({
+            kind: 9734,
+            created_at: 100,
+            content: '',
+            tags: expect.arrayContaining([
+                ['p', 'a'.repeat(64)],
+                ['e', '9'.repeat(64)],
+                ['k', '1'],
+                ['amount', '21000'],
+                ['lnurl', encodedLnurl],
+            ]),
+        }));
+        expect(fetchFn).toHaveBeenCalledTimes(2);
     });
 });

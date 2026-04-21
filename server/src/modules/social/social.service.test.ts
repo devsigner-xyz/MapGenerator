@@ -242,4 +242,105 @@ describe('social service pagination', () => {
       zapSats: 3,
     });
   });
+
+  it('parses zap sats from receipt description when amount tag is missing', async () => {
+    const eventA = 'd'.repeat(64);
+
+    const pool = {
+      querySync: vi.fn(async (_relays: string[], filter: Record<string, unknown>) => {
+        if (!Array.isArray(filter.kinds) || filter.kinds[0] !== 9735) {
+          return [];
+        }
+
+        return [
+          {
+            id: '3'.repeat(64),
+            pubkey: FOLLOW,
+            kind: 9735,
+            created_at: 12,
+            tags: [
+              ['e', eventA],
+              ['description', JSON.stringify({
+                kind: 9734,
+                tags: [
+                  ['e', eventA],
+                  ['amount', '21000'],
+                ],
+              })],
+            ],
+            content: '',
+          },
+        ];
+      }),
+    } as unknown as SimplePool;
+
+    const service = createSocialService({
+      pool,
+      bootstrapRelays: ['wss://relay.damus.io'],
+    });
+
+    const result = await service.getEngagement({
+      eventIds: [eventA],
+      until: 999,
+    });
+
+    expect(result.byEventId[eventA]).toEqual({
+      replies: 0,
+      reposts: 0,
+      reactions: 0,
+      zaps: 1,
+      zapSats: 21,
+    });
+  });
+
+  it('prefers top-level amount tag over description amount when both are present', async () => {
+    const eventA = 'd'.repeat(64);
+
+    const pool = {
+      querySync: vi.fn(async (_relays: string[], filter: Record<string, unknown>) => {
+        if (!Array.isArray(filter.kinds) || filter.kinds[0] !== 9735) {
+          return [];
+        }
+
+        return [
+          {
+            id: '4'.repeat(64),
+            pubkey: FOLLOW,
+            kind: 9735,
+            created_at: 13,
+            tags: [
+              ['e', eventA],
+              ['amount', '21000'],
+              ['description', JSON.stringify({
+                kind: 9734,
+                tags: [
+                  ['e', eventA],
+                  ['amount', '64000'],
+                ],
+              })],
+            ],
+            content: '',
+          },
+        ];
+      }),
+    } as unknown as SimplePool;
+
+    const service = createSocialService({
+      pool,
+      bootstrapRelays: ['wss://relay.damus.io'],
+    });
+
+    const result = await service.getEngagement({
+      eventIds: [eventA],
+      until: 999,
+    });
+
+    expect(result.byEventId[eventA]).toEqual({
+      replies: 0,
+      reposts: 0,
+      reactions: 0,
+      zaps: 1,
+      zapSats: 21,
+    });
+  });
 });

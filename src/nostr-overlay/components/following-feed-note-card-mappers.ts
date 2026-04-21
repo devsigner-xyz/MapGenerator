@@ -13,7 +13,7 @@ const EMPTY_ENGAGEMENT_METRICS: SocialEngagementMetrics = {
 interface BuildActionStateBaseInput {
     canWrite: boolean;
     zapAmounts: number[];
-    onZap: (input: { eventId: string; targetPubkey?: string; amount: number }) => Promise<void> | void;
+    onZap: (input: { eventId: string; eventKind?: number; targetPubkey?: string; amount: number }) => Promise<void> | void;
     onConfigureZapAmounts?: () => void;
     engagementByEventId: Record<string, SocialEngagementMetrics>;
     reactionByEventId: Record<string, boolean>;
@@ -125,6 +125,7 @@ export function buildFeedActionState({
         onQuote,
         onZap: (amount) => onZap({
             eventId: item.id,
+            eventKind: item.rawEvent.kind,
             targetPubkey: item.pubkey,
             amount,
         }),
@@ -185,6 +186,7 @@ export function buildPreviewActionState({
         onQuote,
         onZap: (amount) => onZap({
             eventId: item.id,
+            eventKind: item.rawEvent?.kind ?? 1,
             targetPubkey: item.pubkey,
             amount,
         }),
@@ -244,6 +246,7 @@ export function buildRootActionState({
         onQuote,
         onZap: (amount) => onZap({
             eventId: item.id,
+            eventKind: item.rawEvent.kind,
             targetPubkey: item.pubkey,
             amount,
         }),
