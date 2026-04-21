@@ -10,6 +10,28 @@ interface RenderResult {
     root: Root;
 }
 
+async function waitForCondition(check: () => boolean): Promise<void> {
+    const deadline = Date.now() + 1000;
+    while (Date.now() < deadline) {
+        if (check()) {
+            return;
+        }
+
+        await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        });
+    }
+
+    throw new Error('Condition was not met in time');
+}
+
+async function openDropdownTrigger(button: HTMLButtonElement): Promise<void> {
+    await act(async () => {
+        button.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+        button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+}
+
 async function renderElement(element: React.ReactElement): Promise<RenderResult> {
     const container = document.createElement('div');
     document.body.appendChild(container);
@@ -87,15 +109,85 @@ function buildProps() {
 }
 
 describe('SettingsRelaysPage', () => {
-    test('uses card surfaces for configured table and sidebar panels', async () => {
+    test('stacks configured, add relay, and suggested sections without sidebar copy', async () => {
         const rendered = await renderElement(<SettingsRelaysPage {...buildProps()} />);
         mounted.push(rendered);
 
+        const text = rendered.container.textContent || '';
+        const titleNodes = Array.from(rendered.container.querySelectorAll('[data-slot="card-title"]'));
+        const titles = titleNodes.map((node) => node.textContent?.trim());
+
         expect(rendered.container.querySelector('[data-slot="overlay-page-header"]')).not.toBeNull();
-        expect(rendered.container.querySelector('.nostr-relay-table-wrap[data-slot="card"]')).not.toBeNull();
-        expect(rendered.container.querySelectorAll('.nostr-relays-sidebar-panel[data-slot="card"]').length).toBeGreaterThanOrEqual(2);
-        expect(rendered.container.querySelector('.nostr-relays-sidebar .nostr-relay-table-wrap')).not.toBeNull();
+        expect(rendered.container.querySelector('.nostr-relays-sidebar')).toBeNull();
+        expect(text).not.toContain('Conecta varios relays. Puedes agregar uno por vez y elegir categoria.');
+        expect(rendered.container.querySelector('.nostr-relay-table-card')).not.toBeNull();
+        expect(titles.slice(0, 3)).toEqual(['Relays configurados', 'Añadir relay', 'Relays sugeridos']);
         expect(rendered.container.querySelector('button[aria-label="Categoria del relay"]')).not.toBeNull();
+    });
+
+    test('renders dedicated scroll wrappers for configured and suggested tables', async () => {
+        const rendered = await renderElement(<SettingsRelaysPage {...buildProps()} />);
+        mounted.push(rendered);
+
+        expect(rendered.container.querySelectorAll('.nostr-relay-table-scroll')).toHaveLength(2);
+    });
+
+    test('opens relay actions from the ellipsis button using a dropdown menu', async () => {
+        const rendered = await renderElement(<SettingsRelaysPage {...buildProps()} />);
+        mounted.push(rendered);
+
+        const actionButton = rendered.container.querySelector('button[aria-label^="Abrir acciones para"]') as HTMLButtonElement;
+        expect(actionButton).not.toBeNull();
+
+        await openDropdownTrigger(actionButton);
+        await waitForCondition(() => Array.from(document.body.querySelectorAll('[data-slot="dropdown-menu-item"]')).some((node) =>
+            (node.textContent || '').trim() === 'Detalles'
+        ));
+
+        const actions = Array.from(document.body.querySelectorAll('[data-slot="dropdown-menu-item"]')).map((node) =>
+            (node.textContent || '').trim()
+        );
+        expect(actions).toEqual(expect.arrayContaining(['Detalles', 'Eliminar']));
+    });
+
+    test('does not render insecure relay icons', async () => {
+        const rendered = await renderElement(<SettingsRelaysPage {...buildProps()} relayInfoByUrl={{ 'wss://relay.one': { data: { icon: 'http://relay.one/icon.png' } } }} />);
+        mounted.push(rendered);
+
+        const insecureIcon = rendered.container.querySelector('img[src="http://relay.one/icon.png"]');
+        expect(insecureIcon).toBeNull();
+    });
+
+    test('does not render third-party https relay icons from metadata', async () => {
+        const rendered = await renderElement(<SettingsRelaysPage {...buildProps()} relayInfoByUrl={{ 'wss://relay.one': { data: { icon: 'https://relay.one/icon.png' } } }} />);
+        mounted.push(rendered);
+
+        const thirdPartyIcon = rendered.container.querySelector('img[src="https://relay.one/icon.png"]');
+        expect(thirdPartyIcon).toBeNull();
+    });
+
+    test('renders the add-relay input with url semantics', async () => {
+        const rendered = await renderElement(<SettingsRelaysPage {...buildProps()} />);
+        mounted.push(rendered);
+
+        const relayInput = rendered.container.querySelector('input[aria-label="URLs de relay"]') as HTMLInputElement;
+        expect(relayInput).not.toBeNull();
+        expect(relayInput.getAttribute('type')).toBe('url');
+        expect(relayInput.getAttribute('inputmode')).toBe('url');
+        expect(relayInput.getAttribute('name')).toBe('relayUrls');
+        expect(relayInput.getAttribute('autocomplete')).toBe('off');
+        expect(relayInput.getAttribute('spellcheck')).toBe('false');
+    });
+
+    test('announces invalid relay input state accessibly', async () => {
+        const rendered = await renderElement(<SettingsRelaysPage {...buildProps()} invalidRelayInputs={['foo']} />);
+        mounted.push(rendered);
+
+        const relayInput = rendered.container.querySelector('input[aria-label="URLs de relay"]') as HTMLInputElement;
+        const errorMessage = rendered.container.querySelector('#relay-input-error');
+        expect(relayInput.getAttribute('aria-invalid')).toBe('true');
+        expect(relayInput.getAttribute('aria-describedby')).toBe('relay-input-error');
+        expect(errorMessage?.getAttribute('role')).toBe('alert');
     });
 
     test('renders relay summary counters with badge primitives', async () => {

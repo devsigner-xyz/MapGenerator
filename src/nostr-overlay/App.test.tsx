@@ -1602,9 +1602,9 @@ describe('Nostr overlay App', () => {
             openThreadButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
-        await waitFor(() => (rendered.container.textContent || '').includes('Hilo'));
-        const replyTextarea = rendered.container.querySelector('.nostr-following-feed-reply-box textarea') as HTMLTextAreaElement;
-        expect(replyTextarea).toBeDefined();
+        await waitFor(() => document.body.querySelector('.nostr-following-feed-reply-box textarea') !== null);
+        const replyTextarea = document.body.querySelector('.nostr-following-feed-reply-box textarea') as HTMLTextAreaElement | null;
+        expect(replyTextarea).not.toBeNull();
 
         await act(async () => {
             const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;

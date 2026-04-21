@@ -1,11 +1,10 @@
 import type { MouseEvent, ReactElement } from 'react';
 import type { RelayType } from '../../../nostr/relay-settings';
 import type { RelayConnectionStatus } from '../../hooks/useRelayConnectionSummary';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ContextMenu, ContextMenuContent, ContextMenuGroup, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -97,6 +96,8 @@ export function SettingsRelaysPage({
         `Conectados: ${connectedConfiguredRelays}`,
         `Sin conexión: ${disconnectedConfiguredRelays}`,
     ];
+    const relayInputErrorId = 'relay-input-error';
+    const hasInvalidRelayInputs = invalidRelayInputs.length > 0;
 
     return (
         <>
@@ -106,24 +107,21 @@ export function SettingsRelaysPage({
             />
             <div className="grid min-h-0 gap-2.5 overflow-x-hidden overflow-y-auto pr-px" data-testid="settings-page-body">
                 <div className="nostr-relays-content">
-                    <p className="nostr-relays-help">Conecta varios relays. Puedes agregar uno por vez y elegir categoria.</p>
-
-                    <div className="nostr-relays-layout">
-                        <div className="nostr-relays-main">
-                            <div className="nostr-relay-connection-summary" role="status" aria-live="polite">
-                                {summaryBadges.map((label) => (
-                                    <Badge key={label} variant="outline">
-                                        {label}
-                                    </Badge>
-                                ))}
-                            </div>
-
-                            <Card variant="elevated" size="sm" className="nostr-relay-table-wrap gap-0 py-0">
-                                <CardHeader className="border-b px-3 py-3">
-                                    <CardTitle>Relays configurados</CardTitle>
-                                            <CardDescription>Estado actual y categorias activas de tus relays.</CardDescription>
-                                </CardHeader>
-                                <CardContent className="px-0 py-0">
+                    <div className="nostr-relays-main">
+                        <Card size="sm" className="nostr-relay-table-card gap-0 py-0">
+                            <CardHeader className="border-b px-3 py-3">
+                                <CardTitle>Relays configurados</CardTitle>
+                                <CardDescription>Estado actual y categorias activas de tus relays.</CardDescription>
+                                <div className="nostr-relay-connection-summary" role="status" aria-live="polite">
+                                    {summaryBadges.map((label) => (
+                                        <Badge key={label} variant="outline">
+                                            {label}
+                                        </Badge>
+                                    ))}
+                                </div>
+                            </CardHeader>
+                            <CardContent className="px-0 py-0">
+                                <div className="nostr-relay-table-scroll">
                                     <Table className="nostr-relay-table">
                                         <TableHeader>
                                             <TableRow>
@@ -148,7 +146,6 @@ export function SettingsRelaysPage({
                                                         <TableCell className="nostr-relay-url-cell">
                                                             <div className="nostr-relay-main-cell">
                                                                 <Avatar className="size-8">
-                                                                    {document?.icon ? <AvatarImage src={document.icon} alt={document.name || details.host} /> : null}
                                                                     <AvatarFallback>{relayAvatarFallback(details, document)}</AvatarFallback>
                                                                 </Avatar>
                                                                 <div className="min-w-0">
@@ -169,8 +166,8 @@ export function SettingsRelaysPage({
                                                             {relayConnectionBadge(relayConnectionStatus)}
                                                         </TableCell>
                                                         <TableCell className="nostr-relay-actions-cell">
-                                                            <ContextMenu>
-                                                                <ContextMenuTrigger asChild>
+                                                            <DropdownMenu>
+                                                                <DropdownMenuTrigger asChild>
                                                                     <Button
                                                                         type="button"
                                                                         variant="outline"
@@ -180,30 +177,30 @@ export function SettingsRelaysPage({
                                                                     >
                                                                         <EllipsisVerticalIcon data-icon="inline-start" />
                                                                     </Button>
-                                                                </ContextMenuTrigger>
-                                                                <ContextMenuContent>
-                                                                    <ContextMenuGroup>
-                                                                        <ContextMenuItem onSelect={() => onOpenRelayDetails(relayUrl, 'configured', detailRelayType)}>
+                                                                </DropdownMenuTrigger>
+                                                                <DropdownMenuContent align="end">
+                                                                    <DropdownMenuGroup>
+                                                                        <DropdownMenuItem onSelect={() => onOpenRelayDetails(relayUrl, 'configured', detailRelayType)}>
                                                                             Detalles
-                                                                        </ContextMenuItem>
-                                                                        <ContextMenuItem variant="destructive" onSelect={() => onRemoveRelay(relayUrl)}>
+                                                                        </DropdownMenuItem>
+                                                                        <DropdownMenuItem variant="destructive" onSelect={() => onRemoveRelay(relayUrl)}>
                                                                             Eliminar
-                                                                        </ContextMenuItem>
-                                                                    </ContextMenuGroup>
-                                                                </ContextMenuContent>
-                                                            </ContextMenu>
+                                                                        </DropdownMenuItem>
+                                                                    </DropdownMenuGroup>
+                                                                </DropdownMenuContent>
+                                                            </DropdownMenu>
                                                         </TableCell>
                                                     </TableRow>
                                                 );
                                             })}
                                         </TableBody>
                                     </Table>
-                                </CardContent>
-                            </Card>
-                        </div>
+                                </div>
+                            </CardContent>
+                        </Card>
 
-                        <aside className="nostr-relays-sidebar" aria-label="Panel de relays">
-                            <Card variant="elevated" size="sm" className="nostr-relays-sidebar-panel gap-0 py-0">
+                        <div className="nostr-relays-secondary-stack">
+                            <Card variant="elevated" size="sm" className="nostr-relays-panel gap-0 py-0">
                                 <CardHeader className="border-b px-3 py-3">
                                     <div className="flex items-center justify-between gap-2">
                                         <CardTitle className="nostr-relays-sidebar-title">Añadir relay</CardTitle>
@@ -216,6 +213,13 @@ export function SettingsRelaysPage({
                                     <InputGroup>
                                         <InputGroupInput
                                             aria-label="URLs de relay"
+                                            type="url"
+                                            inputMode="url"
+                                            name="relayUrls"
+                                            autoComplete="off"
+                                            spellCheck={false}
+                                            aria-invalid={hasInvalidRelayInputs}
+                                            aria-describedby={hasInvalidRelayInputs ? relayInputErrorId : undefined}
                                             placeholder="wss://relay.example"
                                             value={newRelayInput}
                                             onChange={(event) => onNewRelayInputChange(event.target.value)}
@@ -251,8 +255,8 @@ export function SettingsRelaysPage({
                                         </InputGroupAddon>
                                     </InputGroup>
 
-                                    {invalidRelayInputs.length > 0 ? (
-                                        <p className="nostr-settings-error">
+                                    {hasInvalidRelayInputs ? (
+                                        <p id={relayInputErrorId} role="alert" className="nostr-settings-error">
                                             Entradas invalidas: {invalidRelayInputs.join(', ')}
                                         </p>
                                     ) : null}
@@ -260,9 +264,9 @@ export function SettingsRelaysPage({
                             </Card>
 
                             {suggestedRows.length > 0 ? (
-                                <Card variant="elevated" size="sm" className="nostr-relay-suggested nostr-relays-sidebar-panel gap-0 py-0">
-                                <CardHeader className="border-b px-3 py-3">
-                                    <div className="nostr-relay-suggested-header">
+                                <Card variant="elevated" size="sm" className="nostr-relay-suggested nostr-relays-panel gap-0 py-0">
+                                    <CardHeader className="border-b px-3 py-3">
+                                        <div className="nostr-relay-suggested-header">
                                             <CardTitle>Relays sugeridos</CardTitle>
                                             <Button type="button" variant="outline" className="nostr-relay-add-suggested" onClick={onAddAllSuggestedRelays}>
                                                 Agregar todos
@@ -271,7 +275,7 @@ export function SettingsRelaysPage({
                                         <CardDescription>Relays sugeridos por protocolo (NIP-65 / NIP-17).</CardDescription>
                                     </CardHeader>
                                     <CardContent className="px-0 py-0">
-                                        <div className="nostr-relay-table-wrap">
+                                        <div className="nostr-relay-table-scroll">
                                             <Table className="nostr-relay-table">
                                                 <TableHeader>
                                                     <TableRow>
@@ -296,7 +300,6 @@ export function SettingsRelaysPage({
                                                                 <TableCell className="nostr-relay-url-cell">
                                                                     <div className="nostr-relay-main-cell">
                                                                         <Avatar className="size-8">
-                                                                            {document?.icon ? <AvatarImage src={document.icon} alt={document.name || details.host} /> : null}
                                                                             <AvatarFallback>{relayAvatarFallback(details, document)}</AvatarFallback>
                                                                         </Avatar>
                                                                         <div className="min-w-0">
@@ -317,8 +320,8 @@ export function SettingsRelaysPage({
                                                                     {relayConnectionBadge(relayConnectionStatus)}
                                                                 </TableCell>
                                                                 <TableCell className="nostr-relay-actions-cell">
-                                                                    <ContextMenu>
-                                                                        <ContextMenuTrigger asChild>
+                                                                    <DropdownMenu>
+                                                                        <DropdownMenuTrigger asChild>
                                                                             <Button
                                                                                 type="button"
                                                                                 variant="outline"
@@ -328,18 +331,18 @@ export function SettingsRelaysPage({
                                                                             >
                                                                                 <EllipsisVerticalIcon data-icon="inline-start" />
                                                                             </Button>
-                                                                        </ContextMenuTrigger>
-                                                                        <ContextMenuContent>
-                                                                            <ContextMenuGroup>
-                                                                                <ContextMenuItem onSelect={() => onOpenRelayDetails(relayUrl, 'suggested', detailRelayType)}>
+                                                                        </DropdownMenuTrigger>
+                                                                        <DropdownMenuContent align="end">
+                                                                            <DropdownMenuGroup>
+                                                                                <DropdownMenuItem onSelect={() => onOpenRelayDetails(relayUrl, 'suggested', detailRelayType)}>
                                                                                     Detalles
-                                                                                </ContextMenuItem>
-                                                                                <ContextMenuItem onSelect={() => onAddSuggestedRelay(relayUrl, relayTypes)}>
+                                                                                </DropdownMenuItem>
+                                                                                <DropdownMenuItem onSelect={() => onAddSuggestedRelay(relayUrl, relayTypes)}>
                                                                                     Añadir
-                                                                                </ContextMenuItem>
-                                                                            </ContextMenuGroup>
-                                                                        </ContextMenuContent>
-                                                                    </ContextMenu>
+                                                                                </DropdownMenuItem>
+                                                                            </DropdownMenuGroup>
+                                                                        </DropdownMenuContent>
+                                                                    </DropdownMenu>
                                                                 </TableCell>
                                                             </TableRow>
                                                         );
@@ -350,7 +353,7 @@ export function SettingsRelaysPage({
                                     </CardContent>
                                 </Card>
                             ) : null}
-                        </aside>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -460,6 +460,42 @@ describe('NoteCard', () => {
         expect(rendered.container.querySelector(`button[aria-label="Abrir nota referenciada ${note.id}"]`)).toBeNull();
     });
 
+    test('does not render empty fallback when note only has video media', async () => {
+        const { container } = await renderNoteCard({
+            ...defaultNoteFixture,
+            id: 'media-only-note',
+            content: 'https://example.com/demo-video.mp4',
+        });
+
+        expect(container.textContent || '').not.toContain('(sin contenido)');
+        expect(container.querySelector('video.nostr-rich-media-video')).not.toBeNull();
+    });
+
+    test('wraps text and media in a stacked rich content container', async () => {
+        const { container } = await renderNoteCard({
+            ...defaultNoteFixture,
+            id: 'text-and-media-note',
+            content: 'hola https://example.com/demo-video.mp4',
+        });
+
+        const stack = container.querySelector('.nostr-rich-content-stack') as HTMLDivElement | null;
+        expect(stack).not.toBeNull();
+        expect(stack?.querySelector('p.nostr-rich-content-text')).not.toBeNull();
+        expect(stack?.querySelector('.nostr-rich-media-grid')).not.toBeNull();
+    });
+
+    test('uses compact note header spacing with only horizontal padding', async () => {
+        const { container } = await renderDefault();
+
+        const cardHeader = container.querySelector('[data-slot="card-header"]') as HTMLDivElement | null;
+        const headerItem = cardHeader?.querySelector('[data-slot="item"]') as HTMLDivElement | null;
+
+        expect(cardHeader?.className).toContain('px-4');
+        expect(cardHeader?.className).toContain('py-0');
+        expect(headerItem?.className).toContain('px-0');
+        expect(headerItem?.className).toContain('py-0');
+    });
+
     test('copy id button triggers callback', async () => {
         const { container, onCopyNoteId } = await renderDefault();
         const menuButton = container.querySelector('button[aria-label="Abrir acciones para la nota note-1"]') as HTMLButtonElement;

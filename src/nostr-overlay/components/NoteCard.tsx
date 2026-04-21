@@ -111,7 +111,7 @@ function NoteHeaderItem({ note, profile }: NoteHeaderItemProps) {
     const authorName = profileDisplayName(note.pubkey, profile);
 
     return (
-        <Item>
+        <Item className="px-0 py-0">
             <ItemMedia>
                 <Avatar size="lg">
                     {profile?.picture ? <AvatarImage src={profile.picture} alt={authorName} /> : null}
@@ -320,7 +320,6 @@ export function NoteCard({
     const isDeepNested = note.nestingLevel >= 2;
     const profile = profilesByPubkey[note.pubkey];
     const { visibleEntries, hiddenReferencesCount } = buildVisibleNestedEntries(note);
-    const hasOwnContent = note.content.trim().length > 0;
     const noteActionState = note.actions
         ? {
             ...note.actions,
@@ -420,7 +419,7 @@ export function NoteCard({
     return (
         <article onClick={handleCardClick} className={openDetail ? 'cursor-pointer' : undefined}>
             <Card size={note.variant === 'nested' ? 'sm' : 'default'} className="border border-border/70">
-                <CardHeader>
+                <CardHeader className="px-4 py-0 group-data-[size=sm]/card:px-3">
                     <NoteHeaderItem
                         note={note}
                         profile={profile}
@@ -457,7 +456,6 @@ export function NoteCard({
                             {...(eventReferencesById ? { eventReferencesById } : {})}
                             renderEventReferenceCard={({ eventId, event }) => renderNestedReference(eventId, event, note.nestingLevel + 1)}
                             profilesByPubkey={profilesByPubkey}
-                            emptyFallback={!hasOwnContent && note.embedded ? null : <p>(sin contenido)</p>}
                         />
                     )}
 

@@ -984,13 +984,7 @@
 .nostr-relays-content {
     display: grid;
     gap: 0.6rem;
-}
-
-.nostr-relays-layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
-    gap: 0.65rem;
-    align-items: start;
+    min-width: 0;
 }
 
 .nostr-relays-main {
@@ -999,7 +993,7 @@
     min-width: 0;
 }
 
-.nostr-relays-sidebar {
+.nostr-relays-secondary-stack {
     display: grid;
     gap: 0.6rem;
     min-width: 0;
@@ -1012,26 +1006,37 @@
     color: #314b59;
 }
 
-.nostr-relays-help {
-    margin: 0;
-    font-size: 0.86rem;
-    color: #425764;
-}
-
 .nostr-relay-connection-summary {
     display: flex;
     flex-wrap: wrap;
     gap: 0.45rem;
 }
 
-.nostr-relay-table-wrap {
-    max-height: none;
-    overflow: visible;
+.nostr-relay-table-card {
+    min-width: 0;
+    box-shadow: none;
+}
+
+.nostr-relay-table-scroll {
+    max-height: 800px;
+    min-width: 0;
+    overscroll-behavior: contain;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+.nostr-relay-table-scroll [data-slot="table-container"] {
+    overflow-x: hidden;
 }
 
 .nostr-relay-table {
     width: 100%;
     table-layout: fixed;
+}
+
+.nostr-relay-table [data-slot="table-head"],
+.nostr-relay-table [data-slot="table-cell"] {
+    white-space: normal;
 }
 
 .nostr-relay-main-cell {
@@ -1043,6 +1048,7 @@
 .nostr-relay-actions-head {
     width: 4.2rem;
     text-align: right;
+    white-space: nowrap;
 }
 
 .nostr-relay-url-cell {
@@ -1084,6 +1090,7 @@
 
 .nostr-relay-actions-cell {
     text-align: right;
+    white-space: nowrap;
 }
 
 .nostr-relay-detail-table-wrap {
@@ -1197,11 +1204,6 @@
     margin: 0;
     color: #b1473c;
     font-size: 0.82rem;
-}
-
-.nostr-relays-sidebar .nostr-relay-table-wrap {
-    max-height: min(44vh, 340px);
-    overflow: auto;
 }
 
 .nostr-relay-suggested-header {
@@ -1473,7 +1475,8 @@
 
 .nostr-following-feed-textarea {
     min-height: 70px;
-    resize: vertical;
+    overflow-y: hidden;
+    resize: none;
 }
 
 .nostr-following-feed-compose-actions {
@@ -1484,7 +1487,6 @@
 .nostr-following-feed-list,
 .nostr-following-feed-thread-list {
     max-height: min(58vh, 520px);
-    max-width: 600px;
     display: grid;
     gap: 1.2rem;
     box-sizing: border-box;
@@ -1492,20 +1494,82 @@
     padding-left: 0.9rem;
 }
 
+.nostr-following-feed-list {
+    max-width: 600px;
+}
+
 .nostr-following-feed-thread-list {
     padding-bottom: 0.4rem;
 }
 
-.nostr-following-feed-thread-node {
-    display: grid;
-    gap: 0.75rem;
+.nostr-following-feed-thread-list.nostr-following-feed-thread-list-detail {
+    --nostr-thread-rail-width: 24px;
+    --nostr-thread-row-gap: 10px;
+    width: 100%;
+    max-width: none;
+    gap: 0;
 }
 
-.nostr-following-feed-thread-children {
+.nostr-following-feed-thread-list-detail .nostr-following-feed-thread-node {
     display: grid;
-    gap: 0.75rem;
-    padding-left: 1.1rem;
-    border-left: 1px solid rgba(206, 214, 222, 0.9);
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: var(--nostr-thread-row-gap);
+    gap: 0;
+}
+
+.nostr-following-feed-thread-list-detail .nostr-following-feed-thread-row {
+    display: contents;
+}
+
+.nostr-following-feed-thread-list-detail .nostr-following-feed-thread-node[data-visual-depth="0"] {
+    column-gap: 0;
+}
+
+.nostr-following-feed-thread-list-detail .nostr-following-feed-thread-indent {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    min-width: 0;
+    grid-column: 1;
+    grid-row: 1 / -1;
+}
+
+.nostr-following-feed-thread-list-detail .nostr-following-feed-thread-rail {
+    width: var(--nostr-thread-rail-width);
+    min-width: var(--nostr-thread-rail-width);
+    position: relative;
+}
+
+.nostr-following-feed-thread-list-detail .nostr-following-feed-thread-rail::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 1px;
+    background: color-mix(in srgb, var(--border) 78%, transparent);
+}
+
+.nostr-following-feed-thread-list-detail .nostr-following-feed-thread-body {
+    min-width: 0;
+    width: 100%;
+    max-width: 600px;
+    grid-column: 2;
+    padding-block: 0.6rem;
+}
+
+.nostr-following-feed-thread-list-detail .nostr-following-feed-thread-children {
+    grid-column: 1 / -1;
+    display: grid;
+    gap: 0;
+}
+
+.nostr-following-feed-thread-list-detail > .nostr-following-feed-reply-box {
+    width: 100%;
+    max-width: 600px;
+    height: min-content;
+    align-self: start;
+    padding-block: 0.6rem;
 }
 
 
@@ -1630,6 +1694,12 @@
 
 .nostr-rich-event-reference-id {
     font-family: ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.nostr-rich-content-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
 }
 
 .nostr-rich-media-grid {
@@ -2429,6 +2499,11 @@
         max-height: min(52vh, 420px);
     }
 
+    .nostr-following-feed-thread-list.nostr-following-feed-thread-list-detail {
+        --nostr-thread-rail-width: 24px;
+        --nostr-thread-row-gap: 6px;
+    }
+
     .nostr-chat-layout {
         grid-template-columns: minmax(0, 1fr);
         min-height: min(72vh, 620px);
@@ -2442,10 +2517,6 @@
     .nostr-settings-page-relays {
         width: calc(100vw - 20px) !important;
         max-width: calc(100vw - 20px) !important;
-    }
-
-    .nostr-relays-layout {
-        grid-template-columns: minmax(0, 1fr);
     }
 
     .nostr-relay-detail-key {

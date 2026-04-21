@@ -691,7 +691,7 @@ export function RichNostrContent({
     const safeLightboxIndex = lightboxIndex < 0 ? 0 : Math.min(lightboxIndex, imageSlides.length - 1);
 
     return (
-        <>
+        <div className="nostr-rich-content-stack">
             {normalizedContent && hasVisibleInlineToken ? (
                 <p className={textClassName || 'nostr-rich-content-text'}>
                     {inlineNodes}
@@ -756,6 +756,6 @@ export function RichNostrContent({
                     },
                 }}
             />
-        </>
+        </div>
     );
 }

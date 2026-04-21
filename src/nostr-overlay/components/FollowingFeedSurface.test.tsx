@@ -456,7 +456,7 @@ describe('FollowingFeedSurface', () => {
         expect(repostButton.disabled).toBe(true);
     });
 
-    test('keeps thread actions working inside routed surface', async () => {
+    test('renders thread reply composer under the root note without thread kind labels or helper text', async () => {
         const onPublishReply = vi.fn(async () => true);
         const onToggleReaction = vi.fn(async () => true);
         const onToggleRepost = vi.fn(async () => true);
@@ -529,26 +529,34 @@ describe('FollowingFeedSurface', () => {
         mounted.push(rendered);
 
         const replyCard = rendered.container.querySelector('.nostr-following-feed-reply-box[data-slot="card"]');
+        const threadList = rendered.container.querySelector('[data-testid="following-feed-thread-list"]') as HTMLDivElement;
+        const rootNode = rendered.container.querySelector('.nostr-following-feed-thread-node[data-depth="0"]') as HTMLElement;
+        const firstReplyNode = rendered.container.querySelector('.nostr-following-feed-thread-node[data-depth="1"]') as HTMLElement;
         expect(replyCard).not.toBeNull();
         expect(replyCard?.getAttribute('data-variant')).toBe('elevated');
-        expect(replyCard?.className).toContain('sticky');
-        expect(replyCard?.className).toContain('bottom-0');
-        expect(replyCard?.className).toContain('z-20');
+        expect(replyCard?.className).not.toContain('h-min');
+        expect(replyCard?.className).not.toContain('sticky');
+        expect(replyCard?.className).not.toContain('bottom-0');
+        expect(replyCard?.className).not.toContain('z-20');
+        expect(threadList.children[0]).toBe(rootNode);
+        expect(threadList.children[1]).toBe(replyCard);
+        expect(threadList.children[2]).toBe(firstReplyNode);
 
         const textarea = rendered.container.querySelector('.nostr-following-feed-reply-box textarea') as HTMLTextAreaElement;
         const actionsRow = rendered.container.querySelector('.nostr-following-feed-reply-box .nostr-following-feed-compose-actions') as HTMLElement;
         const imageButton = actionsRow.querySelector('button[aria-label="Adjuntar imagen (proximamente)"]') as HTMLButtonElement;
         const actionButtons = Array.from(actionsRow.querySelectorAll('button'));
-        const replyTarget = rendered.container.querySelector('.nostr-following-feed-reply-target') as HTMLParagraphElement;
         expect(textarea).toBeDefined();
         expect(actionsRow).toBeDefined();
         expect(imageButton).toBeDefined();
         expect(imageButton.disabled).toBe(true);
         expect(imageButton.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
         expect(actionButtons[0]).toBe(imageButton);
-        expect(replyTarget.getAttribute('aria-live')).toBe('polite');
-        expect(replyTarget.id).toBeTruthy();
-        expect(textarea.getAttribute('aria-describedby')).toBe(replyTarget.id);
+        expect(textarea.getAttribute('aria-describedby')).toBeNull();
+        expect(textarea.getAttribute('rows')).toBe('3');
+        expect(rendered.container.querySelector('.nostr-following-feed-reply-target')).toBeNull();
+        expect(rootNode.textContent || '').not.toContain('Raiz');
+        expect(firstReplyNode.textContent || '').not.toContain('Reply');
 
         await act(async () => {
             const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
@@ -621,6 +629,75 @@ describe('FollowingFeedSurface', () => {
         expect(rendered.container.querySelector('[aria-label="Sats recibidos: 21"]')).toBeDefined();
     });
 
+    test('auto-grows thread reply textarea while keeping replies below it', async () => {
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    activeThread: {
+                        rootEventId: 'root-1',
+                        root: {
+                            id: 'root-1',
+                            pubkey: 'b'.repeat(64),
+                            createdAt: 500,
+                            eventKind: 1,
+                            content: 'root',
+                            rawEvent: {
+                                id: 'root-1',
+                                pubkey: 'b'.repeat(64),
+                                kind: 1,
+                                created_at: 500,
+                                tags: [],
+                                content: 'root',
+                            },
+                        },
+                        replies: [
+                            {
+                                id: 'reply-1',
+                                pubkey: 'c'.repeat(64),
+                                createdAt: 510,
+                                eventKind: 1,
+                                content: 'reply uno',
+                                targetEventId: 'root-1',
+                                rawEvent: {
+                                    id: 'reply-1',
+                                    pubkey: 'c'.repeat(64),
+                                    kind: 1,
+                                    created_at: 510,
+                                    tags: [['e', 'root-1']],
+                                    content: 'reply uno',
+                                    sig: '1'.repeat(128),
+                                },
+                            },
+                        ],
+                        isLoading: false,
+                        isLoadingMore: false,
+                        error: null,
+                        hasMore: false,
+                    },
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const threadList = rendered.container.querySelector('[data-testid="following-feed-thread-list"]') as HTMLDivElement;
+        const replyCard = rendered.container.querySelector('.nostr-following-feed-reply-box[data-slot="card"]') as HTMLElement;
+        const firstReplyNode = rendered.container.querySelector('.nostr-following-feed-thread-node[data-depth="1"]') as HTMLElement;
+        const textarea = rendered.container.querySelector('.nostr-following-feed-reply-box textarea') as HTMLTextAreaElement;
+        expect(threadList.children[1]).toBe(replyCard);
+        expect(threadList.children[2]).toBe(firstReplyNode);
+
+        Object.defineProperty(textarea, 'scrollHeight', { configurable: true, value: 148 });
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+            valueSetter?.call(textarea, 'respuesta surface\nsegunda linea\ntercera linea');
+            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            textarea.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        expect(textarea.style.height).toBe('148px');
+    });
+
     test('renders thread back action inside header actions', async () => {
         const rendered = await renderElement(
             <FollowingFeedSurface
@@ -670,6 +747,9 @@ describe('FollowingFeedSurface', () => {
 
         const centeredState = rendered.container.querySelector('.nostr-following-feed-thread-empty-state') as HTMLElement;
         expect(centeredState).toBeDefined();
+        const threadList = rendered.container.querySelector('[data-testid="following-feed-thread-list"]') as HTMLDivElement;
+        expect(threadList.className).toContain('nostr-following-feed-thread-list-detail');
+        expect(rendered.container.querySelector('.nostr-following-feed-thread-node[data-depth="0"]')).toBeNull();
 
         const empty = centeredState.querySelector('[data-slot="empty"]') as HTMLElement;
         expect(empty).toBeDefined();
@@ -856,9 +936,188 @@ describe('FollowingFeedSurface', () => {
         );
         mounted.push(rendered);
 
-        const nestedReply = rendered.container.querySelector('.nostr-following-feed-thread-node[data-depth="2"]');
+        const rootNode = rendered.container.querySelector('.nostr-following-feed-thread-node[data-depth="0"]') as HTMLElement;
+        expect(rootNode).not.toBeNull();
+        expect(rootNode.getAttribute('data-visual-depth')).toBe('0');
+        const rootIndent = rootNode.querySelector(':scope > .nostr-following-feed-thread-row > .nostr-following-feed-thread-indent') as HTMLElement;
+        expect(rootIndent).not.toBeNull();
+        expect(rootIndent.querySelectorAll('.nostr-following-feed-thread-rail')).toHaveLength(0);
+
+        const parentReply = rendered.container.querySelector('.nostr-following-feed-thread-node[data-depth="1"]') as HTMLElement;
+        expect(parentReply).not.toBeNull();
+        expect(parentReply.getAttribute('data-visual-depth')).toBe('1');
+        const parentIndent = parentReply.querySelector(':scope > .nostr-following-feed-thread-row > .nostr-following-feed-thread-indent') as HTMLElement;
+        expect(parentIndent.querySelectorAll('.nostr-following-feed-thread-rail')).toHaveLength(1);
+
+        const nestedReply = rendered.container.querySelector('.nostr-following-feed-thread-node[data-depth="2"]') as HTMLElement;
         expect(nestedReply).not.toBeNull();
-        expect(nestedReply?.textContent || '').toContain('reply child');
+        expect(nestedReply.getAttribute('data-visual-depth')).toBe('2');
+        const nestedIndent = nestedReply.querySelector(':scope > .nostr-following-feed-thread-row > .nostr-following-feed-thread-indent') as HTMLElement;
+        expect(nestedIndent.querySelectorAll('.nostr-following-feed-thread-rail')).toHaveLength(2);
+        expect(nestedReply.textContent || '').toContain('reply child');
+        expect(parentReply.contains(nestedReply)).toBe(true);
+    });
+
+    test('keeps root wrapper when thread root has no replies', async () => {
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    activeThread: {
+                        rootEventId: 'root-1',
+                        root: {
+                            id: 'root-1',
+                            pubkey: 'b'.repeat(64),
+                            createdAt: 500,
+                            eventKind: 1,
+                            content: 'root only',
+                            rawEvent: {
+                                id: 'root-1',
+                                pubkey: 'b'.repeat(64),
+                                kind: 1,
+                                created_at: 500,
+                                tags: [],
+                                content: 'root only',
+                            },
+                        },
+                        replies: [],
+                        isLoading: false,
+                        isLoadingMore: false,
+                        error: null,
+                        hasMore: false,
+                    },
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const threadList = rendered.container.querySelector('[data-testid="following-feed-thread-list"]') as HTMLDivElement;
+        const rootNode = rendered.container.querySelector('.nostr-following-feed-thread-node[data-depth="0"]') as HTMLElement;
+        expect(threadList.className).toContain('nostr-following-feed-thread-list-detail');
+        expect(rootNode).not.toBeNull();
+        expect(rootNode.getAttribute('data-visual-depth')).toBe('0');
+        const rootIndent = rootNode.querySelector(':scope > .nostr-following-feed-thread-row > .nostr-following-feed-thread-indent') as HTMLElement;
+        expect(rootIndent.querySelectorAll('.nostr-following-feed-thread-rail')).toHaveLength(0);
+        expect(rendered.container.textContent || '').toContain('Sin respuestas');
+    });
+
+    test('caps visual nesting depth at four rails while preserving real depth', async () => {
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    activeThread: {
+                        rootEventId: 'root-1',
+                        root: {
+                            id: 'root-1',
+                            pubkey: 'b'.repeat(64),
+                            createdAt: 500,
+                            eventKind: 1,
+                            content: 'root',
+                            rawEvent: {
+                                id: 'root-1',
+                                pubkey: 'b'.repeat(64),
+                                kind: 1,
+                                created_at: 500,
+                                tags: [],
+                                content: 'root',
+                            },
+                        },
+                        replies: [
+                            {
+                                id: 'reply-1',
+                                pubkey: 'c'.repeat(64),
+                                createdAt: 510,
+                                eventKind: 1,
+                                content: 'reply-1',
+                                targetEventId: 'root-1',
+                                rawEvent: {
+                                    id: 'reply-1',
+                                    pubkey: 'c'.repeat(64),
+                                    kind: 1,
+                                    created_at: 510,
+                                    tags: [['e', 'root-1', '', 'reply']],
+                                    content: 'reply-1',
+                                },
+                            },
+                            {
+                                id: 'reply-2',
+                                pubkey: 'd'.repeat(64),
+                                createdAt: 520,
+                                eventKind: 1,
+                                content: 'reply-2',
+                                targetEventId: 'reply-1',
+                                rawEvent: {
+                                    id: 'reply-2',
+                                    pubkey: 'd'.repeat(64),
+                                    kind: 1,
+                                    created_at: 520,
+                                    tags: [['e', 'root-1', '', 'root'], ['e', 'reply-1', '', 'reply']],
+                                    content: 'reply-2',
+                                },
+                            },
+                            {
+                                id: 'reply-3',
+                                pubkey: 'e'.repeat(64),
+                                createdAt: 530,
+                                eventKind: 1,
+                                content: 'reply-3',
+                                targetEventId: 'reply-2',
+                                rawEvent: {
+                                    id: 'reply-3',
+                                    pubkey: 'e'.repeat(64),
+                                    kind: 1,
+                                    created_at: 530,
+                                    tags: [['e', 'root-1', '', 'root'], ['e', 'reply-2', '', 'reply']],
+                                    content: 'reply-3',
+                                },
+                            },
+                            {
+                                id: 'reply-4',
+                                pubkey: 'f'.repeat(64),
+                                createdAt: 540,
+                                eventKind: 1,
+                                content: 'reply-4',
+                                targetEventId: 'reply-3',
+                                rawEvent: {
+                                    id: 'reply-4',
+                                    pubkey: 'f'.repeat(64),
+                                    kind: 1,
+                                    created_at: 540,
+                                    tags: [['e', 'root-1', '', 'root'], ['e', 'reply-3', '', 'reply']],
+                                    content: 'reply-4',
+                                },
+                            },
+                            {
+                                id: 'reply-5',
+                                pubkey: '1'.repeat(64),
+                                createdAt: 550,
+                                eventKind: 1,
+                                content: 'reply-5',
+                                targetEventId: 'reply-4',
+                                rawEvent: {
+                                    id: 'reply-5',
+                                    pubkey: '1'.repeat(64),
+                                    kind: 1,
+                                    created_at: 550,
+                                    tags: [['e', 'root-1', '', 'root'], ['e', 'reply-4', '', 'reply']],
+                                    content: 'reply-5',
+                                },
+                            },
+                        ],
+                        isLoading: false,
+                        isLoadingMore: false,
+                        error: null,
+                        hasMore: false,
+                    },
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const deepReply = rendered.container.querySelector('.nostr-following-feed-thread-node[data-depth="5"]') as HTMLElement;
+        expect(deepReply).not.toBeNull();
+        expect(deepReply.getAttribute('data-visual-depth')).toBe('4');
+        const deepIndent = deepReply.querySelector(':scope > .nostr-following-feed-thread-row > .nostr-following-feed-thread-indent') as HTMLElement;
+        expect(deepIndent.querySelectorAll('.nostr-following-feed-thread-rail')).toHaveLength(4);
     });
 
     test('repost renders the reposted note embedded inside the repost card', async () => {
