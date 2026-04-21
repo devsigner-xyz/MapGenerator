@@ -54,6 +54,15 @@ const DEFAULT_DM_INBOX_RELAYS = [
     'wss://vault.iris.to',
 ];
 
+function removeRelayFromNip65Sets(byType: RelaySettingsByType, relayUrl: string): RelaySettingsByType {
+    return {
+        ...byType,
+        nip65Both: byType.nip65Both.filter((relay) => relay !== relayUrl),
+        nip65Read: byType.nip65Read.filter((relay) => relay !== relayUrl),
+        nip65Write: byType.nip65Write.filter((relay) => relay !== relayUrl),
+    };
+}
+
 function getDefaultStorage(): StorageLike | null {
     if (typeof window === 'undefined') {
         return null;
@@ -82,15 +91,21 @@ function normalizeRelayList(relays: string[]): string[] {
     return mergeRelaySets(relays);
 }
 
+function isLegacyByType(byType: Partial<Record<RelayType, string[]>> | LegacyRelaySettingsByType): byType is LegacyRelaySettingsByType {
+    return 'general' in byType
+        || 'dmOutbox' in byType
+        || (!('nip65Both' in byType) && !('nip65Read' in byType) && !('nip65Write' in byType) && !('search' in byType));
+}
+
 function normalizeByType(byType: Partial<Record<RelayType, string[]>> | LegacyRelaySettingsByType): RelaySettingsByType {
-    const typed = byType as Partial<Record<RelayType, string[]>>;
-    const legacy = byType as LegacyRelaySettingsByType;
+    const legacy = isLegacyByType(byType) ? byType : undefined;
+    const typed = legacy ? {} : byType as Partial<Record<RelayType, string[]>>;
 
     return {
-        nip65Both: normalizeRelayList(typed.nip65Both ?? legacy.general ?? []),
-        nip65Read: normalizeRelayList(typed.nip65Read ?? legacy.dmInbox ?? []),
-        nip65Write: normalizeRelayList(typed.nip65Write ?? legacy.dmOutbox ?? []),
-        dmInbox: normalizeRelayList(typed.dmInbox ?? legacy.dmInbox ?? []),
+        nip65Both: normalizeRelayList(typed.nip65Both ?? legacy?.general ?? []),
+        nip65Read: normalizeRelayList(typed.nip65Read ?? legacy?.dmInbox ?? []),
+        nip65Write: normalizeRelayList(typed.nip65Write ?? legacy?.dmOutbox ?? []),
+        dmInbox: normalizeRelayList(typed.dmInbox ?? []),
         search: normalizeRelayList(typed.search ?? DEFAULT_SEARCH_RELAYS),
     };
 }
@@ -177,6 +192,10 @@ export function getDefaultRelaySettings(): RelaySettingsState {
         relays: buildAllRelays(byType),
         byType,
     };
+}
+
+export function getDefaultDmInboxRelays(): string[] {
+    return [...DEFAULT_DM_INBOX_RELAYS];
 }
 
 export function getRelaySetByType(state: RelaySettingsState, relayType: RelayType): string[] {
@@ -270,6 +289,41 @@ export function addRelay(state: RelaySettingsState, relayUrl: string, relayType:
     return {
         byType,
         relays: buildAllRelays(byType),
+    };
+}
+
+export function setRelayNip65Access(
+    state: RelaySettingsState,
+    relayUrl: string,
+    access: { read: boolean; write: boolean }
+): RelaySettingsState {
+    const normalized = normalizeRelayUrl(relayUrl);
+    if (!normalized) {
+        return state;
+    }
+
+    const existsInNip65 = [state.byType.nip65Both, state.byType.nip65Read, state.byType.nip65Write].some((set) =>
+        set.includes(normalized)
+    );
+    if (!existsInNip65) {
+        return state;
+    }
+
+    const byType = removeRelayFromNip65Sets(state.byType, normalized);
+
+    if (access.read && access.write) {
+        byType.nip65Both = [...byType.nip65Both, normalized];
+    } else if (access.read) {
+        byType.nip65Read = [...byType.nip65Read, normalized];
+    } else if (access.write) {
+        byType.nip65Write = [...byType.nip65Write, normalized];
+    }
+
+    const normalizedByType = normalizeByType(byType);
+
+    return {
+        byType: normalizedByType,
+        relays: buildAllRelays(normalizedByType),
     };
 }
 

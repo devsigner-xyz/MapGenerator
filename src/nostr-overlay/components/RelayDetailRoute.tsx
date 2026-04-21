@@ -53,6 +53,7 @@ export function RelayDetailRoute({
 
                     <SettingsRelayDetailPage
                         selectedRelay={relayDetail.selectedRelay}
+                        activeRelayTypes={relayDetail.activeRelayTypes}
                         selectedRelayDetails={relayDetail.selectedRelayDetails}
                         {...(relayDetail.selectedRelayInfo ? { selectedRelayInfo: relayDetail.selectedRelayInfo } : {})}
                         {...(relayDetail.selectedRelayDocument ? { selectedRelayDocument: relayDetail.selectedRelayDocument } : {})}

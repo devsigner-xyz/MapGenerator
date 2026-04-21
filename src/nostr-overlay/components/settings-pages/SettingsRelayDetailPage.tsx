@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { AlertTriangleIcon } from 'lucide-react';
-import type { RelayType } from '../../../nostr/relay-settings';
+import { RELAY_TYPES, type RelayType } from '../../../nostr/relay-settings';
 import type { RelayConnectionStatus } from '../../hooks/useRelayConnectionSummary';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +14,7 @@ import type { RelayDetails, RelayFee, RelayInformationDocument, RelayInfoState, 
 
 interface SettingsRelayDetailPageProps {
     selectedRelay: RelaySelection;
+    activeRelayTypes: RelayType[];
     selectedRelayDetails: RelayDetails;
     selectedRelayInfo?: RelayInfoState;
     selectedRelayDocument?: RelayInformationDocument;
@@ -32,6 +33,7 @@ interface SettingsRelayDetailPageProps {
 
 export function SettingsRelayDetailPage({
     selectedRelay,
+    activeRelayTypes,
     selectedRelayDetails,
     selectedRelayInfo,
     selectedRelayDocument,
@@ -47,6 +49,8 @@ export function SettingsRelayDetailPage({
     formatRelayFee,
     onCopyRelayIdentity,
 }: SettingsRelayDetailPageProps) {
+    const orderedActiveRelayTypes = RELAY_TYPES.filter((relayType) => activeRelayTypes.includes(relayType));
+
     return (
         <>
             <OverlayPageHeader
@@ -107,8 +111,16 @@ export function SettingsRelayDetailPage({
                             <TableCell className="nostr-relay-detail-value">{selectedRelayDetails.relayUrl}</TableCell>
                         </TableRow>
                         <TableRow>
-                            <TableHead className="nostr-relay-detail-key">Categoria</TableHead>
-                            <TableCell className="nostr-relay-detail-value">{relayTypeLabels[selectedRelay.relayType]}</TableCell>
+                            <TableHead className="nostr-relay-detail-key">{selectedRelay.source === 'configured' ? 'Usos activos' : 'Categoria'}</TableHead>
+                            <TableCell className="nostr-relay-detail-value">
+                                {selectedRelay.source === 'configured' ? (
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {orderedActiveRelayTypes.map((relayType) => (
+                                            <Badge key={relayType} variant="secondary">{relayTypeLabels[relayType]}</Badge>
+                                        ))}
+                                    </div>
+                                ) : relayTypeLabels[selectedRelay.relayType]}
+                            </TableCell>
                         </TableRow>
                         <TableRow>
                             <TableHead className="nostr-relay-detail-key">Conexión</TableHead>

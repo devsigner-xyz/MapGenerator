@@ -13,14 +13,18 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
+import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ChevronDownIcon, EllipsisVerticalIcon } from 'lucide-react';
+import { EllipsisVerticalIcon } from 'lucide-react';
 import { OverlayPageHeader } from '../OverlayPageHeader';
+import { SettingsDmRelaysSection } from './SettingsDmRelaysSection';
 import type { RelayDetails, RelayInformationDocument, RelayRow, RelaySource } from './types';
 
 interface SettingsRelaysPageProps {
     configuredRows: RelayRow[];
     suggestedRows: RelayRow[];
+    dmConfiguredRows: RelayRow[];
+    dmSuggestedRows: RelayRow[];
     searchConfiguredRows: RelayRow[];
     searchSuggestedRows: RelayRow[];
     connectedConfiguredRelays: number;
@@ -30,19 +34,26 @@ interface SettingsRelaysPageProps {
     relayConnectionStatusByRelay: Record<string, RelayConnectionStatus | undefined>;
     relayTypeLabels: Record<RelayType, string>;
     newRelayInput: string;
-    newRelayType: RelayType;
+    newDmRelayInput: string;
     newSearchRelayInput: string;
     invalidRelayInputs: string[];
+    invalidDmRelayInputs: string[];
     invalidSearchRelayInputs: string[];
     onNewRelayInputChange: (value: string) => void;
-    onNewRelayTypeChange: (value: RelayType) => void;
+    onNewDmRelayInputChange: (value: string) => void;
     onNewSearchRelayInputChange: (value: string) => void;
     onAddRelays: () => void;
     onOpenRelayDetails: (relayUrl: string, source: RelaySource, relayType: RelayType) => void;
     onRemoveRelay: (relayUrl: string) => void;
+    onSetConfiguredRelayNip65Access: (relayUrl: string, access: { read: boolean; write: boolean }) => void;
     onAddSuggestedRelay: (relayUrl: string, relayTypes: RelayType[]) => void;
     onAddAllSuggestedRelays: () => void;
     onResetRelaysToDefault: () => void;
+    onAddDmRelays: () => void;
+    onRemoveDmRelay: (relayUrl: string) => void;
+    onAddSuggestedDmRelay: (relayUrl: string, relayTypes: RelayType[]) => void;
+    onAddAllSuggestedDmRelays: () => void;
+    onResetDmRelaysToDefault: () => void;
     onAddSearchRelays: () => void;
     onRemoveSearchRelay: (relayUrl: string) => void;
     onAddSuggestedSearchRelay: (relayUrl: string, relayTypes: RelayType[]) => void;
@@ -80,9 +91,19 @@ function compactRelayTypes(relayTypes: RelayType[]): RelayType[] {
     return compacted;
 }
 
+function hasNip65ReadAccess(relayTypes: RelayType[]): boolean {
+    return relayTypes.includes('nip65Both') || relayTypes.includes('nip65Read');
+}
+
+function hasNip65WriteAccess(relayTypes: RelayType[]): boolean {
+    return relayTypes.includes('nip65Both') || relayTypes.includes('nip65Write');
+}
+
 export function SettingsRelaysPage({
     configuredRows,
     suggestedRows,
+    dmConfiguredRows,
+    dmSuggestedRows,
     searchConfiguredRows,
     searchSuggestedRows,
     connectedConfiguredRelays,
@@ -92,19 +113,26 @@ export function SettingsRelaysPage({
     relayConnectionStatusByRelay,
     relayTypeLabels,
     newRelayInput,
-    newRelayType,
+    newDmRelayInput,
     newSearchRelayInput,
     invalidRelayInputs,
+    invalidDmRelayInputs,
     invalidSearchRelayInputs,
     onNewRelayInputChange,
-    onNewRelayTypeChange,
+    onNewDmRelayInputChange,
     onNewSearchRelayInputChange,
     onAddRelays,
     onOpenRelayDetails,
     onRemoveRelay,
+    onSetConfiguredRelayNip65Access,
     onAddSuggestedRelay,
     onAddAllSuggestedRelays,
     onResetRelaysToDefault,
+    onAddDmRelays,
+    onRemoveDmRelay,
+    onAddSuggestedDmRelay,
+    onAddAllSuggestedDmRelays,
+    onResetDmRelaysToDefault,
     onAddSearchRelays,
     onRemoveSearchRelay,
     onAddSuggestedSearchRelay,
@@ -131,7 +159,7 @@ export function SettingsRelaysPage({
                 title="Relays"
                 description="Relays configurados, sugeridos y estado de conexion Nostr."
             />
-            <div className="grid min-h-0 gap-2.5 overflow-x-hidden overflow-y-auto pr-px" data-testid="settings-page-body">
+            <div className="grid min-h-0 gap-2.5 overflow-x-hidden overflow-y-auto px-1" data-testid="settings-page-body">
                 <div className="nostr-relays-content">
                     <div className="nostr-relays-main">
                         <Card size="sm" className="nostr-relay-table-card gap-0 py-0">
@@ -152,7 +180,8 @@ export function SettingsRelaysPage({
                                         <TableHeader>
                                             <TableRow>
                                                 <TableHead>Relay</TableHead>
-                                                <TableHead>Tipo</TableHead>
+                                                <TableHead>Read</TableHead>
+                                                <TableHead>Write</TableHead>
                                                 <TableHead>Estado</TableHead>
                                                 <TableHead className="nostr-relay-actions-head">Acciones</TableHead>
                                             </TableRow>
@@ -166,6 +195,8 @@ export function SettingsRelaysPage({
                                                 const compactedRelayTypes = compactRelayTypes(relayTypes);
                                                 const relayTypeSummary = compactedRelayTypes.map((relayType) => relayTypeLabels[relayType]).join(', ');
                                                 const detailRelayType = compactedRelayTypes[0] ?? primaryRelayType;
+                                                const readEnabled = hasNip65ReadAccess(relayTypes);
+                                                const writeEnabled = hasNip65WriteAccess(relayTypes);
 
                                                 return (
                                                     <TableRow key={`configured-${relayUrl}`}>
@@ -180,13 +211,18 @@ export function SettingsRelaysPage({
                                                             </div>
                                                         </TableCell>
                                                         <TableCell>
-                                                            <div className="nostr-relay-nip-badges">
-                                                                {compactedRelayTypes.map((relayType) => (
-                                                                    <Badge key={`configured-type-${relayUrl}-${relayType}`} variant="outline">
-                                                                        {relayTypeLabels[relayType]}
-                                                                    </Badge>
-                                                                ))}
-                                                            </div>
+                                                            <Switch
+                                                                aria-label={`Lectura para ${relayUrl}`}
+                                                                checked={readEnabled}
+                                                                onCheckedChange={(checked) => onSetConfiguredRelayNip65Access(relayUrl, { read: checked, write: writeEnabled })}
+                                                            />
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Switch
+                                                                aria-label={`Escritura para ${relayUrl}`}
+                                                                checked={writeEnabled}
+                                                                onCheckedChange={(checked) => onSetConfiguredRelayNip65Access(relayUrl, { read: readEnabled, write: checked })}
+                                                            />
                                                         </TableCell>
                                                         <TableCell>
                                                             {relayConnectionBadge(relayConnectionStatus)}
@@ -226,7 +262,7 @@ export function SettingsRelaysPage({
                         </Card>
 
                         <div className="nostr-relays-secondary-stack">
-                            <Card variant="elevated" size="sm" className="nostr-relays-panel gap-0 py-0">
+                            <Card size="sm" className="nostr-relays-panel gap-0 py-0">
                                 <CardHeader className="border-b px-3 py-3">
                                     <div className="flex items-center justify-between gap-2">
                                         <CardTitle className="nostr-relays-sidebar-title">Añadir relay</CardTitle>
@@ -251,27 +287,6 @@ export function SettingsRelaysPage({
                                             onChange={(event) => onNewRelayInputChange(event.target.value)}
                                         />
                                         <InputGroupAddon align="inline-end">
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <InputGroupButton variant="ghost" aria-label="Categoria del relay">
-                                                        {relayTypeLabels[newRelayType]}
-                                                        <ChevronDownIcon />
-                                                    </InputGroupButton>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                    <DropdownMenuGroup>
-                                                        {Object.keys(relayTypeLabels).filter((relayType) => relayType !== 'search').map((relayType) => (
-                                                            <DropdownMenuItem
-                                                                key={`relay-type-${relayType}`}
-                                                                onSelect={() => onNewRelayTypeChange(relayType as RelayType)}
-                                                            >
-                                                                {relayTypeLabels[relayType as RelayType]}
-                                                            </DropdownMenuItem>
-                                                        ))}
-                                                    </DropdownMenuGroup>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-
                                             <InputGroupButton
                                                 variant="secondary"
                                                 onClick={onAddRelays}
@@ -290,7 +305,7 @@ export function SettingsRelaysPage({
                             </Card>
 
                             {suggestedRows.length > 0 ? (
-                                <Card variant="elevated" size="sm" className="nostr-relay-suggested nostr-relays-panel gap-0 py-0">
+                                <Card size="sm" className="nostr-relay-suggested nostr-relays-panel gap-0 py-0">
                                     <CardHeader className="border-b px-3 py-3">
                                         <div className="nostr-relay-suggested-header">
                                             <CardTitle>Relays sugeridos</CardTitle>
@@ -298,7 +313,7 @@ export function SettingsRelaysPage({
                                                 Agregar todos
                                             </Button>
                                         </div>
-                                        <CardDescription>Relays sugeridos por protocolo (NIP-65 / NIP-17).</CardDescription>
+                                        <CardDescription>Relays sugeridos por protocolo (NIP-65).</CardDescription>
                                     </CardHeader>
                                     <CardContent className="px-0 py-0">
                                         <div className="nostr-relay-table-scroll">
@@ -380,7 +395,28 @@ export function SettingsRelaysPage({
                                 </Card>
                             ) : null}
 
-                            <Card variant="elevated" size="sm" className="nostr-relay-search nostr-relays-panel gap-0 py-0">
+                            <SettingsDmRelaysSection
+                                configuredRows={dmConfiguredRows}
+                                suggestedRows={dmSuggestedRows}
+                                relayInfoByUrl={relayInfoByUrl}
+                                relayConnectionStatusByRelay={relayConnectionStatusByRelay}
+                                relayTypeLabels={relayTypeLabels}
+                                newRelayInput={newDmRelayInput}
+                                invalidRelayInputs={invalidDmRelayInputs}
+                                onNewRelayInputChange={onNewDmRelayInputChange}
+                                onAddRelays={onAddDmRelays}
+                                onOpenRelayDetails={onOpenRelayDetails}
+                                onRemoveRelay={onRemoveDmRelay}
+                                onAddSuggestedRelay={onAddSuggestedDmRelay}
+                                onAddAllSuggestedRelays={onAddAllSuggestedDmRelays}
+                                onResetRelaysToDefault={onResetDmRelaysToDefault}
+                                onOpenRelayActionsMenu={onOpenRelayActionsMenu}
+                                describeRelay={describeRelay}
+                                relayAvatarFallback={relayAvatarFallback}
+                                relayConnectionBadge={relayConnectionBadge}
+                            />
+
+                            <Card size="sm" className="nostr-relay-search nostr-relays-panel gap-0 py-0">
                                 <CardHeader className="border-b px-3 py-3">
                                     <div className="flex items-center justify-between gap-2">
                                         <CardTitle>Relays de búsqueda</CardTitle>

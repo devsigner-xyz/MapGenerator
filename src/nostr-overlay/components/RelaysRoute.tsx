@@ -42,6 +42,8 @@ export function RelaysRoute({
                     <SettingsRelaysPage
                         configuredRows={relays.configuredRows}
                         suggestedRows={relays.suggestedRows}
+                        dmConfiguredRows={relays.dmConfiguredRows}
+                        dmSuggestedRows={relays.dmSuggestedRows}
                         searchConfiguredRows={relays.searchConfiguredRows}
                         searchSuggestedRows={relays.searchSuggestedRows}
                         connectedConfiguredRelays={relays.connectedConfiguredRelays}
@@ -51,21 +53,28 @@ export function RelaysRoute({
                         relayConnectionStatusByRelay={relays.relayConnectionStatusByRelay}
                         relayTypeLabels={relays.relayTypeLabels}
                         newRelayInput={relays.newRelayInput}
-                        newRelayType={relays.newRelayType}
+                        newDmRelayInput={relays.newDmRelayInput}
                         newSearchRelayInput={relays.newSearchRelayInput}
                         invalidRelayInputs={relays.invalidRelayInputs}
+                        invalidDmRelayInputs={relays.invalidDmRelayInputs}
                         invalidSearchRelayInputs={relays.invalidSearchRelayInputs}
                         onNewRelayInputChange={relays.onNewRelayInputChange}
-                        onNewRelayTypeChange={relays.onNewRelayTypeChange}
+                        onNewDmRelayInputChange={relays.onNewDmRelayInputChange}
                         onNewSearchRelayInputChange={relays.onNewSearchRelayInputChange}
                         onAddRelays={relays.onAddRelays}
                         onOpenRelayDetails={(relayUrl, source, relayType) => {
                             navigate(buildRelayDetailPath({ relayUrl, source, relayType }));
                         }}
                         onRemoveRelay={relays.onRemoveRelay}
+                        onSetConfiguredRelayNip65Access={relays.onSetConfiguredRelayNip65Access}
                         onAddSuggestedRelay={relays.onAddSuggestedRelay}
                         onAddAllSuggestedRelays={relays.onAddAllSuggestedRelays}
                         onResetRelaysToDefault={relays.onResetRelaysToDefault}
+                        onAddDmRelays={relays.onAddDmRelays}
+                        onRemoveDmRelay={relays.onRemoveDmRelay}
+                        onAddSuggestedDmRelay={relays.onAddSuggestedDmRelay}
+                        onAddAllSuggestedDmRelays={relays.onAddAllSuggestedDmRelays}
+                        onResetDmRelaysToDefault={relays.onResetDmRelaysToDefault}
                         onAddSearchRelays={relays.onAddSearchRelays}
                         onRemoveSearchRelay={relays.onRemoveSearchRelay}
                         onAddSuggestedSearchRelay={relays.onAddSuggestedSearchRelay}

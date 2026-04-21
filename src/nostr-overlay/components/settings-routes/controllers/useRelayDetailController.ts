@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { loadRelaySettings, type RelaySettingsByType } from '../../../../nostr/relay-settings';
+import { loadRelaySettings, RELAY_TYPES, type RelaySettingsByType, type RelayType } from '../../../../nostr/relay-settings';
 import { mergeRelaySets } from '../../../../nostr/relay-policy';
 import { useRelayConnectionSummary, type RelayConnectionProbe } from '../../../hooks/useRelayConnectionSummary';
 import { useRelayMetadataByUrlQuery } from '../../../query/relay-metadata.query';
@@ -13,6 +13,33 @@ import {
     RELAY_TYPE_LABELS,
     toAdminIdentity,
 } from './relays-shared';
+
+function getConfiguredActiveRelayTypes(byType: RelaySettingsByType, relayUrl: string): RelayType[] {
+    const hasNip65Both = byType.nip65Both.includes(relayUrl);
+    const hasNip65Read = byType.nip65Read.includes(relayUrl);
+    const hasNip65Write = byType.nip65Write.includes(relayUrl);
+    const activeRelayTypes: RelayType[] = [];
+
+    if (hasNip65Both || (hasNip65Read && hasNip65Write)) {
+        activeRelayTypes.push('nip65Both');
+    } else {
+        if (hasNip65Read) {
+            activeRelayTypes.push('nip65Read');
+        }
+        if (hasNip65Write) {
+            activeRelayTypes.push('nip65Write');
+        }
+    }
+
+    if (byType.dmInbox.includes(relayUrl)) {
+        activeRelayTypes.push('dmInbox');
+    }
+    if (byType.search.includes(relayUrl)) {
+        activeRelayTypes.push('search');
+    }
+
+    return activeRelayTypes;
+}
 
 interface UseRelayDetailControllerInput {
     ownerPubkey?: string;
@@ -84,6 +111,13 @@ export function useRelayDetailController(input: UseRelayDetailControllerInput) {
     });
 
     const selectedRelay = params;
+    const activeRelayTypes = useMemo<RelayType[]>(() => {
+        if (selectedRelay.source !== 'configured') {
+            return [selectedRelay.relayType];
+        }
+
+        return getConfiguredActiveRelayTypes(relaySettings.byType, selectedRelay.relayUrl);
+    }, [relaySettings.byType, selectedRelay]);
     const selectedRelayDetails = describeRelay(selectedRelay.relayUrl, selectedRelay.source);
     const selectedRelayInfo = relayInfoByUrl[selectedRelay.relayUrl];
     const selectedRelayDocument = selectedRelayInfo?.status === 'ready' ? selectedRelayInfo.data : undefined;
@@ -119,6 +153,7 @@ export function useRelayDetailController(input: UseRelayDetailControllerInput) {
 
     return {
         selectedRelay,
+        activeRelayTypes,
         selectedRelayDetails,
         selectedRelayInfo,
         selectedRelayDocument,

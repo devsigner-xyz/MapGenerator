@@ -2,11 +2,11 @@ import { useEffect, useMemo, useState, type MouseEvent } from 'react';
 import {
     addRelay,
     DEFAULT_SEARCH_RELAYS,
-    getRelaySetByType,
+    getDefaultDmInboxRelays,
     loadRelaySettings,
     removeRelay,
-    RELAY_TYPES,
     saveRelaySettings,
+    setRelayNip65Access,
     type RelaySettingsByType,
     type RelaySettingsState,
     type RelayType,
@@ -24,6 +24,12 @@ import {
     relayConnectionBadge,
     describeRelay,
 } from './relays-shared';
+import { buildConfiguredSectionRows, buildSuggestedSectionRows } from './relay-section-partitions';
+import {
+    buildConfiguredRelayStatusTargets,
+    buildRelayInfoTargets,
+    buildSuggestedRelayStatusTargets,
+} from './relay-section-targets';
 
 interface UseRelaysSettingsControllerInput {
     ownerPubkey?: string;
@@ -37,6 +43,8 @@ interface UseRelaysSettingsControllerInput {
 export interface RelaysSettingsController {
     configuredRows: ReturnType<typeof buildRelayRowsByUrl>;
     suggestedRows: ReturnType<typeof buildRelayRowsByUrl>;
+    dmConfiguredRows: ReturnType<typeof buildRelayRowsByUrl>;
+    dmSuggestedRows: ReturnType<typeof buildRelayRowsByUrl>;
     searchConfiguredRows: ReturnType<typeof buildRelayRowsByUrl>;
     searchSuggestedRows: ReturnType<typeof buildRelayRowsByUrl>;
     connectedConfiguredRelays: number;
@@ -46,18 +54,25 @@ export interface RelaysSettingsController {
     relayConnectionStatusByRelay: Record<string, RelayConnectionStatus | undefined>;
     relayTypeLabels: typeof RELAY_TYPE_LABELS;
     newRelayInput: string;
-    newRelayType: RelayType;
+    newDmRelayInput: string;
     newSearchRelayInput: string;
     invalidRelayInputs: string[];
+    invalidDmRelayInputs: string[];
     invalidSearchRelayInputs: string[];
     onNewRelayInputChange: (value: string) => void;
-    onNewRelayTypeChange: (value: RelayType) => void;
+    onNewDmRelayInputChange: (value: string) => void;
     onNewSearchRelayInputChange: (value: string) => void;
     onAddRelays: () => void;
     onRemoveRelay: (relayUrl: string) => void;
+    onSetConfiguredRelayNip65Access: (relayUrl: string, access: { read: boolean; write: boolean }) => void;
     onAddSuggestedRelay: (relayUrl: string, relayTypes: RelayType[]) => void;
     onAddAllSuggestedRelays: () => void;
     onResetRelaysToDefault: () => void;
+    onAddDmRelays: () => void;
+    onRemoveDmRelay: (relayUrl: string) => void;
+    onAddSuggestedDmRelay: (relayUrl: string, relayTypes: RelayType[]) => void;
+    onAddAllSuggestedDmRelays: () => void;
+    onResetDmRelaysToDefault: () => void;
     onAddSearchRelays: () => void;
     onRemoveSearchRelay: (relayUrl: string) => void;
     onAddSuggestedSearchRelay: (relayUrl: string, relayTypes: RelayType[]) => void;
@@ -82,9 +97,10 @@ export function useRelaysSettingsController(input: UseRelaysSettingsControllerIn
         ownerPubkey ? { ownerPubkey } : undefined
     ));
     const [newRelayInput, setNewRelayInput] = useState('');
-    const [newRelayType, setNewRelayType] = useState<RelayType>('nip65Both');
+    const [newDmRelayInput, setNewDmRelayInput] = useState('');
     const [newSearchRelayInput, setNewSearchRelayInput] = useState('');
     const [invalidRelayInputs, setInvalidRelayInputs] = useState<string[]>([]);
+    const [invalidDmRelayInputs, setInvalidDmRelayInputs] = useState<string[]>([]);
     const [invalidSearchRelayInputs, setInvalidSearchRelayInputs] = useState<string[]>([]);
 
     const persistRelaySettings = (nextState: RelaySettingsState): void => {
@@ -107,69 +123,38 @@ export function useRelaysSettingsController(input: UseRelaysSettingsControllerIn
         };
     }, [suggestedRelaysByType, suggestedRelays]);
 
-    const configuredRows = useMemo(() => {
-        return buildRelayRowsByUrl({
-            ...relaySettings.byType,
-            search: [],
-        });
-    }, [relaySettings.byType]);
+    const {
+        configuredRows,
+        dmConfiguredRows,
+        searchConfiguredRows,
+    } = useMemo(() => buildConfiguredSectionRows(relaySettings.byType), [relaySettings.byType]);
 
-    const searchConfiguredRows = useMemo(() => {
-        return buildRelayRowsByUrl({
-            nip65Both: [],
-            nip65Read: [],
-            nip65Write: [],
-            dmInbox: [],
-            search: relaySettings.byType.search,
-        });
-    }, [relaySettings.byType.search]);
+    const {
+        suggestedRows,
+        dmSuggestedRows,
+        searchSuggestedRows,
+    } = useMemo(() => buildSuggestedSectionRows({
+        relaySettings,
+        normalizedSuggestedByType,
+    }), [normalizedSuggestedByType, relaySettings]);
 
-    const suggestedRows = useMemo(() => {
-        const missingByType: RelaySettingsByType = {
-            nip65Both: [],
-            nip65Read: [],
-            nip65Write: [],
-            dmInbox: [],
-            search: [],
-        };
+    const {
+        nip65ConfiguredRelayStatusTargets,
+        allConfiguredRelayStatusTargets,
+    } = useMemo(() => buildConfiguredRelayStatusTargets({
+        configuredRows,
+        dmConfiguredRows,
+        searchConfiguredRows,
+    }), [configuredRows, dmConfiguredRows, searchConfiguredRows]);
 
-        for (const relayType of RELAY_TYPES.filter((currentRelayType) => currentRelayType !== 'search')) {
-            const configuredSet = new Set(getRelaySetByType(relaySettings, relayType));
-            missingByType[relayType] = normalizedSuggestedByType[relayType]
-                .filter((relayUrl) => !configuredSet.has(relayUrl));
-        }
+    const suggestedRelayStatusTargets = useMemo(() => buildSuggestedRelayStatusTargets({
+        configuredRelayStatusTargets: allConfiguredRelayStatusTargets,
+        suggestedRows,
+        dmSuggestedRows,
+        searchSuggestedRows,
+    }), [allConfiguredRelayStatusTargets, suggestedRows, dmSuggestedRows, searchSuggestedRows]);
 
-        return buildRelayRowsByUrl(missingByType);
-    }, [normalizedSuggestedByType, relaySettings]);
-
-    const searchSuggestedRows = useMemo(() => {
-        const configuredSet = new Set(relaySettings.byType.search);
-        return buildRelayRowsByUrl({
-            nip65Both: [],
-            nip65Read: [],
-            nip65Write: [],
-            dmInbox: [],
-            search: normalizedSuggestedByType.search.filter((relayUrl) => !configuredSet.has(relayUrl)),
-        });
-    }, [normalizedSuggestedByType.search, relaySettings.byType.search]);
-
-    const configuredRelayStatusTargets = useMemo(() => {
-        return [...new Set([
-            ...configuredRows.map(({ relayUrl }) => relayUrl),
-            ...searchConfiguredRows.map(({ relayUrl }) => relayUrl),
-        ])];
-    }, [configuredRows, searchConfiguredRows]);
-
-    const suggestedRelayStatusTargets = useMemo(() => {
-        const configured = new Set(configuredRelayStatusTargets);
-        return [...new Set(
-            [...suggestedRows, ...searchSuggestedRows]
-                .map(({ relayUrl }) => relayUrl)
-                .filter((relayUrl) => !configured.has(relayUrl))
-        )];
-    }, [configuredRelayStatusTargets, searchSuggestedRows, suggestedRows]);
-
-    const { statusByRelay: configuredRelayConnectionStatusByRelay } = useRelayConnectionSummary(configuredRelayStatusTargets, {
+    const { statusByRelay: configuredRelayConnectionStatusByRelay } = useRelayConnectionSummary(allConfiguredRelayStatusTargets, {
         enabled: true,
         ...(relayConnectionProbe ? { probe: relayConnectionProbe } : {}),
         ...(relayConnectionRefreshIntervalMs !== undefined ? { refreshIntervalMs: relayConnectionRefreshIntervalMs } : {}),
@@ -177,14 +162,21 @@ export function useRelaysSettingsController(input: UseRelaysSettingsControllerIn
     });
 
     const checkingConfiguredRelays = useMemo(() => {
-        return configuredRelayStatusTargets.reduce((count, relayUrl) => {
+        return nip65ConfiguredRelayStatusTargets.reduce((count, relayUrl) => {
             const status = configuredRelayConnectionStatusByRelay[relayUrl];
             return count + (status === 'connected' || status === 'disconnected' ? 0 : 1);
         }, 0);
-    }, [configuredRelayStatusTargets, configuredRelayConnectionStatusByRelay]);
+    }, [nip65ConfiguredRelayStatusTargets, configuredRelayConnectionStatusByRelay]);
+
+    const checkingAllConfiguredRelays = useMemo(() => {
+        return allConfiguredRelayStatusTargets.reduce((count, relayUrl) => {
+            const status = configuredRelayConnectionStatusByRelay[relayUrl];
+            return count + (status === 'connected' || status === 'disconnected' ? 0 : 1);
+        }, 0);
+    }, [allConfiguredRelayStatusTargets, configuredRelayConnectionStatusByRelay]);
 
     const { statusByRelay: suggestedRelayConnectionStatusByRelay } = useRelayConnectionSummary(suggestedRelayStatusTargets, {
-        enabled: checkingConfiguredRelays === 0,
+        enabled: checkingAllConfiguredRelays === 0,
         ...(relayConnectionProbe ? { probe: relayConnectionProbe } : {}),
         refreshIntervalMs: 0,
         maxConcurrentProbes: 2,
@@ -198,28 +190,21 @@ export function useRelaysSettingsController(input: UseRelaysSettingsControllerIn
     }, [suggestedRelayConnectionStatusByRelay, configuredRelayConnectionStatusByRelay]);
 
     const connectedConfiguredRelays = useMemo(() => {
-        return configuredRelayStatusTargets.reduce(
+        return nip65ConfiguredRelayStatusTargets.reduce(
             (count, relayUrl) => count + (configuredRelayConnectionStatusByRelay[relayUrl] === 'connected' ? 1 : 0),
             0
         );
-    }, [configuredRelayStatusTargets, configuredRelayConnectionStatusByRelay]);
+    }, [nip65ConfiguredRelayStatusTargets, configuredRelayConnectionStatusByRelay]);
 
     const disconnectedConfiguredRelays = Math.max(
         0,
-        configuredRelayStatusTargets.length - connectedConfiguredRelays - checkingConfiguredRelays
+        nip65ConfiguredRelayStatusTargets.length - connectedConfiguredRelays - checkingConfiguredRelays
     );
 
-    const relayInfoTargets = useMemo(() => {
-        return [...new Set([
-            ...relaySettings.relays,
-            ...normalizedSuggestedByType.nip65Both,
-            ...normalizedSuggestedByType.nip65Read,
-            ...normalizedSuggestedByType.nip65Write,
-            ...normalizedSuggestedByType.dmInbox,
-            ...relaySettings.byType.search,
-            ...normalizedSuggestedByType.search,
-        ])];
-    }, [relaySettings.byType.search, relaySettings.relays, normalizedSuggestedByType]);
+    const relayInfoTargets = useMemo(() => buildRelayInfoTargets({
+        relaySettings,
+        normalizedSuggestedByType,
+    }), [relaySettings, normalizedSuggestedByType]);
 
     const relayInfoByUrl = useRelayMetadataByUrlQuery({
         relayUrls: relayInfoTargets,
@@ -247,7 +232,7 @@ export function useRelaysSettingsController(input: UseRelaysSettingsControllerIn
                 continue;
             }
 
-            nextState = addRelay(nextState, normalized, newRelayType);
+            nextState = addRelay(nextState, normalized, 'nip65Both');
         }
 
         persistRelaySettings(nextState);
@@ -256,11 +241,11 @@ export function useRelaysSettingsController(input: UseRelaysSettingsControllerIn
     };
 
     const onRemoveRelay = (relayUrl: string): void => {
-        let nextState = relaySettings;
-        for (const relayType of RELAY_TYPES.filter((relayType) => relayType !== 'search')) {
-            nextState = removeRelay(nextState, relayUrl, relayType);
-        }
-        persistRelaySettings(nextState);
+        persistRelaySettings(setRelayNip65Access(relaySettings, relayUrl, { read: false, write: false }));
+    };
+
+    const onSetConfiguredRelayNip65Access = (relayUrl: string, access: { read: boolean; write: boolean }): void => {
+        persistRelaySettings(setRelayNip65Access(relaySettings, relayUrl, access));
     };
 
     const onAddSuggestedRelay = (relayUrl: string, relayTypes: RelayType[]): void => {
@@ -284,18 +269,80 @@ export function useRelaysSettingsController(input: UseRelaysSettingsControllerIn
     const onResetRelaysToDefault = (): void => {
         const bootstrap = getBootstrapRelays();
         persistRelaySettings({
-            relays: bootstrap,
+            relays: relaySettings.relays,
             byType: {
                 nip65Both: bootstrap,
                 nip65Read: bootstrap,
                 nip65Write: bootstrap,
-                dmInbox: [],
+                dmInbox: relaySettings.byType.dmInbox,
                 search: relaySettings.byType.search,
             },
         });
         setInvalidRelayInputs([]);
         setNewRelayInput('');
-        setNewRelayType('nip65Both');
+    };
+
+    const onAddDmRelays = (): void => {
+        const lines = newDmRelayInput
+            .split('\n')
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0);
+
+        if (lines.length === 0) {
+            setInvalidDmRelayInputs([]);
+            return;
+        }
+
+        let nextState = relaySettings;
+        const invalid: string[] = [];
+
+        for (const line of lines) {
+            const normalized = normalizeRelayInput(line);
+            if (!normalized) {
+                invalid.push(line);
+                continue;
+            }
+
+            nextState = addRelay(nextState, normalized, 'dmInbox');
+        }
+
+        persistRelaySettings(nextState);
+        setInvalidDmRelayInputs(invalid);
+        setNewDmRelayInput('');
+    };
+
+    const onRemoveDmRelay = (relayUrl: string): void => {
+        persistRelaySettings(removeRelay(relaySettings, relayUrl, 'dmInbox'));
+    };
+
+    const onAddSuggestedDmRelay = (relayUrl: string, relayTypes: RelayType[]): void => {
+        let nextState = relaySettings;
+        for (const relayType of relayTypes) {
+            nextState = addRelay(nextState, relayUrl, relayType);
+        }
+        persistRelaySettings(nextState);
+    };
+
+    const onAddAllSuggestedDmRelays = (): void => {
+        let nextState = relaySettings;
+        for (const row of dmSuggestedRows) {
+            for (const relayType of row.relayTypes) {
+                nextState = addRelay(nextState, row.relayUrl, relayType);
+            }
+        }
+        persistRelaySettings(nextState);
+    };
+
+    const onResetDmRelaysToDefault = (): void => {
+        persistRelaySettings({
+            relays: relaySettings.relays,
+            byType: {
+                ...relaySettings.byType,
+                dmInbox: getDefaultDmInboxRelays(),
+            },
+        });
+        setInvalidDmRelayInputs([]);
+        setNewDmRelayInput('');
     };
 
     const onAddSearchRelays = (): void => {
@@ -375,6 +422,8 @@ export function useRelaysSettingsController(input: UseRelaysSettingsControllerIn
     return {
         configuredRows,
         suggestedRows,
+        dmConfiguredRows,
+        dmSuggestedRows,
         searchConfiguredRows,
         searchSuggestedRows,
         connectedConfiguredRelays,
@@ -384,18 +433,25 @@ export function useRelaysSettingsController(input: UseRelaysSettingsControllerIn
         relayConnectionStatusByRelay,
         relayTypeLabels: RELAY_TYPE_LABELS,
         newRelayInput,
-        newRelayType,
+        newDmRelayInput,
         newSearchRelayInput,
         invalidRelayInputs,
+        invalidDmRelayInputs,
         invalidSearchRelayInputs,
         onNewRelayInputChange: setNewRelayInput,
-        onNewRelayTypeChange: setNewRelayType,
+        onNewDmRelayInputChange: setNewDmRelayInput,
         onNewSearchRelayInputChange: setNewSearchRelayInput,
         onAddRelays,
         onRemoveRelay,
+        onSetConfiguredRelayNip65Access,
         onAddSuggestedRelay,
         onAddAllSuggestedRelays,
         onResetRelaysToDefault,
+        onAddDmRelays,
+        onRemoveDmRelay,
+        onAddSuggestedDmRelay,
+        onAddAllSuggestedDmRelays,
+        onResetDmRelaysToDefault,
         onAddSearchRelays,
         onRemoveSearchRelay,
         onAddSuggestedSearchRelay,

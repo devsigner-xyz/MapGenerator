@@ -1,6 +1,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
+import type { RelayType } from '../../../nostr/relay-settings';
 import { Badge } from '@/components/ui/badge';
 import { SettingsRelayDetailPage } from './SettingsRelayDetailPage';
 
@@ -38,6 +39,7 @@ afterEach(async () => {
 });
 
 function buildProps() {
+    const activeRelayTypes: RelayType[] = ['nip65Both'];
     const relayTypeLabels = {
         nip65Both: 'NIP-65 lectura+escritura',
         nip65Read: 'NIP-65 lectura',
@@ -52,6 +54,7 @@ function buildProps() {
             source: 'configured' as const,
             relayType: 'nip65Both' as const,
         },
+        activeRelayTypes,
         selectedRelayDetails: {
             relayUrl: 'wss://relay.one',
             source: 'configured' as const,
@@ -87,19 +90,53 @@ describe('SettingsRelayDetailPage', () => {
         expect(rendered.container.textContent || '').toContain('Detalles del relay');
     });
 
-    test('renders dedicated label for search relay type', async () => {
+    test('configured relays render active uses as badges in stable order', async () => {
+        const props = buildProps();
+        const rendered = await renderElement(<SettingsRelayDetailPage
+            {...props}
+            selectedRelay={{
+                relayUrl: 'wss://relay.multi',
+                source: 'configured',
+                relayType: 'dmInbox',
+            }}
+            activeRelayTypes={['search', 'dmInbox', 'nip65Both']}
+        />);
+        mounted.push(rendered);
+
+        const text = rendered.container.textContent || '';
+        expect(text).toContain('Usos activos');
+        expect(text).not.toContain('Categoria');
+
+        const activeUsesRow = Array.from(rendered.container.querySelectorAll('tr')).find((row) => row.textContent?.includes('Usos activos'));
+        const badges = Array.from(activeUsesRow?.querySelectorAll('[data-slot="badge"]') ?? []);
+        expect(badges.map((badge) => badge.textContent?.trim())).toEqual([
+            'NIP-65 lectura+escritura',
+            'NIP-17 buzón DM',
+            'Búsqueda NIP-50',
+        ]);
+    });
+
+    test('suggested relays keep the suggested category label without consulting active uses', async () => {
         const props = buildProps();
         const rendered = await renderElement(<SettingsRelayDetailPage
             {...props}
             selectedRelay={{
                 relayUrl: 'wss://search.nos.today',
-                source: 'configured',
+                source: 'suggested',
                 relayType: 'search',
             }}
+            selectedRelayDetails={{
+                relayUrl: 'wss://search.nos.today',
+                source: 'suggested',
+                host: 'search.nos.today',
+            }}
+            activeRelayTypes={['nip65Both', 'dmInbox']}
         />);
         mounted.push(rendered);
 
-        expect(rendered.container.textContent || '').toContain('Búsqueda NIP-50');
-        expect(rendered.container.textContent || '').toContain('Categoria');
+        const text = rendered.container.textContent || '';
+        expect(text).toContain('Categoria');
+        expect(text).toContain('Búsqueda NIP-50');
+        expect(text).not.toContain('Usos activos');
     });
 });

@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, test } from 'vitest';
 import {
     addRelay,
+    getDefaultDmInboxRelays,
     getDefaultRelaySettings,
+    setRelayNip65Access,
     getRelaySetByType,
     loadRelaySettings,
     RELAY_SETTINGS_STORAGE_KEY,
@@ -90,6 +92,103 @@ describe('relay-settings', () => {
         expect(getRelaySetByType(afterSearchRemove, 'search')).toEqual([]);
     });
 
+    test('rewrites a relay across NIP-65 access states', () => {
+        const relayUrl = 'wss://relay.example';
+        const initial = {
+            relays: [relayUrl],
+            byType: {
+                nip65Both: [relayUrl],
+                nip65Read: [],
+                nip65Write: [],
+                dmInbox: [],
+                search: [],
+            },
+        };
+
+        const readOnly = setRelayNip65Access(initial, relayUrl, { read: true, write: false });
+        const writeOnly = setRelayNip65Access(readOnly, relayUrl, { read: false, write: true });
+        const off = setRelayNip65Access(writeOnly, relayUrl, { read: false, write: false });
+
+        expect(getRelaySetByType(readOnly, 'nip65Both')).toEqual([]);
+        expect(getRelaySetByType(readOnly, 'nip65Read')).toEqual([relayUrl]);
+        expect(getRelaySetByType(readOnly, 'nip65Write')).toEqual([]);
+
+        expect(getRelaySetByType(writeOnly, 'nip65Both')).toEqual([]);
+        expect(getRelaySetByType(writeOnly, 'nip65Read')).toEqual([]);
+        expect(getRelaySetByType(writeOnly, 'nip65Write')).toEqual([relayUrl]);
+
+        expect(getRelaySetByType(off, 'nip65Both')).toEqual([]);
+        expect(getRelaySetByType(off, 'nip65Read')).toEqual([]);
+        expect(getRelaySetByType(off, 'nip65Write')).toEqual([]);
+    });
+
+    test('rewriting NIP-65 access does not change dmInbox or search relays', () => {
+        const relayUrl = 'wss://relay.example';
+        const initial = {
+            relays: [relayUrl, 'wss://dm.example'],
+            byType: {
+                nip65Both: [relayUrl],
+                nip65Read: [],
+                nip65Write: [],
+                dmInbox: ['wss://dm.example'],
+                search: ['wss://search.example'],
+            },
+        };
+
+        const nextState = setRelayNip65Access(initial, relayUrl, { read: false, write: false });
+
+        expect(getRelaySetByType(nextState, 'nip65Both')).toEqual([]);
+        expect(getRelaySetByType(nextState, 'nip65Read')).toEqual([]);
+        expect(getRelaySetByType(nextState, 'nip65Write')).toEqual([]);
+        expect(getRelaySetByType(nextState, 'dmInbox')).toEqual(['wss://dm.example']);
+        expect(getRelaySetByType(nextState, 'search')).toEqual(['wss://search.example']);
+    });
+
+    test('rewriting NIP-65 access preserves overlapping dmInbox relays', () => {
+        const relayUrl = 'wss://relay.example';
+        const initial = {
+            relays: [relayUrl],
+            byType: {
+                nip65Both: [relayUrl],
+                nip65Read: [],
+                nip65Write: [],
+                dmInbox: [relayUrl],
+                search: [],
+            },
+        };
+
+        const nextState = setRelayNip65Access(initial, relayUrl, { read: false, write: false });
+
+        expect(getRelaySetByType(nextState, 'nip65Both')).toEqual([]);
+        expect(getRelaySetByType(nextState, 'nip65Read')).toEqual([]);
+        expect(getRelaySetByType(nextState, 'nip65Write')).toEqual([]);
+        expect(getRelaySetByType(nextState, 'dmInbox')).toEqual([relayUrl]);
+    });
+
+    test('rewriting NIP-65 access does not introduce a missing relay', () => {
+        const initial = {
+            relays: ['wss://existing.example'],
+            byType: {
+                nip65Both: ['wss://existing.example'],
+                nip65Read: [],
+                nip65Write: [],
+                dmInbox: [],
+                search: [],
+            },
+        };
+
+        const nextState = setRelayNip65Access(initial, 'wss://relay.example', { read: true, write: false });
+
+        expect(nextState).toEqual(initial);
+    });
+
+    test('returns a copy of default dm inbox relays', () => {
+        const defaults = getDefaultDmInboxRelays();
+        defaults.push('wss://mutated.example');
+
+        expect(getDefaultDmInboxRelays()).not.toContain('wss://mutated.example');
+    });
+
     test('migrates legacy payload into general relay type', () => {
         window.localStorage.setItem(
             RELAY_SETTINGS_STORAGE_KEY,
@@ -125,6 +224,7 @@ describe('relay-settings', () => {
         expect(getRelaySetByType(state, 'nip65Both')).toEqual(['wss://relay.general.example']);
         expect(getRelaySetByType(state, 'nip65Read')).toEqual(['wss://relay.legacy.read.example']);
         expect(getRelaySetByType(state, 'nip65Write')).toEqual(['wss://relay.legacy.write.example']);
+        expect(getRelaySetByType(state, 'dmInbox')).toEqual([]);
     });
 
     test('keeps relay settings isolated per owner pubkey', () => {

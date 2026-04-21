@@ -999,6 +999,10 @@
     min-width: 0;
 }
 
+.nostr-relays-panel {
+    min-width: 0;
+}
+
 .nostr-relays-sidebar-title {
     margin: 0;
     font-size: 0.82rem;
@@ -1014,19 +1018,17 @@
 
 .nostr-relay-table-card {
     min-width: 0;
-    box-shadow: none;
 }
 
 .nostr-relay-table-scroll {
-    max-height: 800px;
     min-width: 0;
-    overscroll-behavior: contain;
-    overflow-x: hidden;
-    overflow-y: auto;
+    max-height: none;
+    overflow: visible;
 }
 
-.nostr-relay-table-scroll [data-slot="table-container"] {
-    overflow-x: hidden;
+.nostr-relay-table-scroll > [data-slot="table-container"] {
+    min-width: 0;
+    overflow: visible !important;
 }
 
 .nostr-relay-table {
@@ -1092,6 +1094,7 @@
     text-align: right;
     white-space: nowrap;
 }
+
 
 .nostr-relay-detail-table-wrap {
     overflow: visible;
