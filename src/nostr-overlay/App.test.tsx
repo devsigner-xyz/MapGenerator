@@ -251,6 +251,24 @@ function createSocialFeedServiceMock() {
     };
 }
 
+function createFeedNote(id: string, pubkey: string, createdAt: number, content: string) {
+    return {
+        id,
+        pubkey,
+        createdAt,
+        content,
+        kind: 'note' as const,
+        rawEvent: {
+            id,
+            pubkey,
+            kind: 1,
+            created_at: createdAt,
+            tags: [],
+            content,
+        },
+    };
+}
+
 function createBasicOverlayServices(ownerPubkey: string = 'f'.repeat(64), overrides: Partial<NostrOverlayServices> = {}): NostrOverlayServices {
     return {
         createClient: () => ({
@@ -1307,6 +1325,547 @@ describe('Nostr overlay App', () => {
         expect(threadCalls[0]?.[0]).toMatchObject({ rootEventId: 'note-1' });
         expect(threadCalls[0]?.[0]).not.toHaveProperty('until');
         expect(threadCalls[1]?.[0]).toMatchObject({ rootEventId: 'note-1', until: 70 });
+    });
+
+    test('buffers new agora items found by polling and applies them only after CTA click', { timeout: 15_000 }, async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+        const socialFeed = createSocialFeedServiceMock();
+        const intervalCallbacks: Array<() => void> = [];
+        const setIntervalSpy = vi.spyOn(window, 'setInterval').mockImplementation(((handler: TimerHandler) => {
+            if (typeof handler === 'function') {
+                intervalCallbacks.push(handler as () => void);
+            }
+            return 1 as unknown as number;
+        }) as typeof window.setInterval);
+        const clearIntervalSpy = vi.spyOn(window, 'clearInterval').mockImplementation(() => undefined);
+        (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>)
+            .mockResolvedValueOnce({
+                items: [
+                    createFeedNote('note-2', followedPubkey, 102, 'nota visible 2'),
+                    createFeedNote('note-1', followedPubkey, 101, 'nota visible 1'),
+                ],
+                hasMore: false,
+            })
+            .mockResolvedValueOnce({
+                items: [
+                    createFeedNote('note-3', followedPubkey, 103, 'nota nueva'),
+                    createFeedNote('note-2', followedPubkey, 102, 'nota visible 2'),
+                    createFeedNote('note-1', followedPubkey, 101, 'nota visible 1'),
+                ],
+                hasMore: false,
+            });
+
+        try {
+            const { bridge } = createMapBridgeStub();
+            const rendered = await renderApp(
+                <App
+                    mapBridge={bridge}
+                    services={{
+                        createClient: () => ({
+                            connect: async () => {},
+                            fetchLatestReplaceableEvent: async () => null,
+                            fetchEvents: async () => [],
+                        }),
+                        fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                            ownerPubkey,
+                            follows: [followedPubkey],
+                            relayHints: [],
+                        }),
+                        fetchProfilesFn: vi.fn().mockResolvedValue({
+                            [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                        }),
+                        fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                            followers: [],
+                            scannedBatches: 1,
+                            complete: true,
+                        }),
+                        socialFeedService: socialFeed.service,
+                    }}
+                />,
+                { initialEntries: ['/'] }
+            );
+            mounted.push(rendered);
+
+            await loginWithNip07(rendered.container);
+            await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+            const feedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir Agora"]') as HTMLButtonElement;
+            expect(feedButton).toBeDefined();
+
+            await act(async () => {
+                feedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            });
+
+            await waitFor(() => (rendered.container.textContent || '').includes('nota visible 2'));
+            expect(rendered.container.textContent || '').not.toContain('nota nueva');
+            expect(intervalCallbacks.length).toBeGreaterThan(0);
+
+            await act(async () => {
+                for (const callback of intervalCallbacks) {
+                    await callback();
+                }
+            });
+
+            await waitFor(() => (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mock.calls.length >= 2);
+            await waitFor(() => (rendered.container.textContent || '').includes('Ver 1 publicacion nueva'));
+            expect(rendered.container.textContent || '').not.toContain('nota nueva');
+
+            const applyButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+                (button.textContent || '').includes('Ver 1 publicacion nueva')
+            ) as HTMLButtonElement;
+            expect(applyButton).toBeDefined();
+
+            await act(async () => {
+                applyButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            });
+
+            await waitFor(() => (rendered.container.textContent || '').includes('nota nueva'));
+            expect(rendered.container.textContent || '').not.toContain('Ver 1 publicacion nueva');
+        } finally {
+            setIntervalSpy.mockRestore();
+            clearIntervalSpy.mockRestore();
+        }
+    });
+
+    test('applying buffered agora updates resets the historical pagination cursor to the latest first page', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+        const socialFeed = createSocialFeedServiceMock();
+        const intervalCallbacks: Array<() => void> = [];
+        const setIntervalSpy = vi.spyOn(window, 'setInterval').mockImplementation(((handler: TimerHandler) => {
+            if (typeof handler === 'function') {
+                intervalCallbacks.push(handler as () => void);
+            }
+            return 1 as unknown as number;
+        }) as typeof window.setInterval);
+        const clearIntervalSpy = vi.spyOn(window, 'clearInterval').mockImplementation(() => undefined);
+
+        const initialItems = Array.from({ length: 10 }, (_, index) =>
+            createFeedNote(`old-${index + 1}`, followedPubkey, 110 - index, `nota vieja ${index + 1}`)
+        );
+        const refreshedItems = Array.from({ length: 10 }, (_, index) =>
+            createFeedNote(`new-${index + 1}`, followedPubkey, 210 - index, `nota nueva ${index + 1}`)
+        );
+
+        (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>)
+            .mockResolvedValueOnce({
+                items: initialItems,
+                hasMore: true,
+                nextUntil: 100,
+            })
+            .mockResolvedValueOnce({
+                items: refreshedItems,
+                hasMore: true,
+                nextUntil: 200,
+            })
+            .mockResolvedValueOnce({
+                items: [createFeedNote('older-after-refresh', followedPubkey, 199, 'pagina siguiente tras refresh')],
+                hasMore: false,
+                nextUntil: undefined,
+            });
+
+        try {
+            const { bridge } = createMapBridgeStub();
+            const rendered = await renderApp(
+                <App
+                    mapBridge={bridge}
+                    services={{
+                        createClient: () => ({
+                            connect: async () => {},
+                            fetchLatestReplaceableEvent: async () => null,
+                            fetchEvents: async () => [],
+                        }),
+                        fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                            ownerPubkey,
+                            follows: [followedPubkey],
+                            relayHints: [],
+                        }),
+                        fetchProfilesFn: vi.fn().mockResolvedValue({
+                            [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                        }),
+                        fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                            followers: [],
+                            scannedBatches: 1,
+                            complete: true,
+                        }),
+                        socialFeedService: socialFeed.service,
+                    }}
+                />,
+                { initialEntries: ['/'] }
+            );
+            mounted.push(rendered);
+
+            await loginWithNip07(rendered.container);
+            await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+            const feedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir Agora"]') as HTMLButtonElement;
+            expect(feedButton).toBeDefined();
+
+            await act(async () => {
+                feedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            });
+
+            await waitFor(() => (rendered.container.textContent || '').includes('nota vieja 1'));
+            expect(intervalCallbacks.length).toBeGreaterThan(0);
+
+            await act(async () => {
+                for (const callback of intervalCallbacks) {
+                    await callback();
+                }
+            });
+
+            await waitFor(() => (rendered.container.textContent || '').includes('Ver 10 publicaciones nuevas'));
+
+            const applyButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+                (button.textContent || '').includes('Ver 10 publicaciones nuevas')
+            ) as HTMLButtonElement;
+            expect(applyButton).toBeDefined();
+
+            await act(async () => {
+                applyButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            });
+
+            await waitFor(() => (rendered.container.textContent || '').includes('nota nueva 1'));
+
+            const feedList = rendered.container.querySelector('[data-testid="following-feed-list"]') as HTMLDivElement | null;
+            expect(feedList).not.toBeNull();
+
+            Object.defineProperty(feedList, 'scrollHeight', { configurable: true, value: 500 });
+            Object.defineProperty(feedList, 'clientHeight', { configurable: true, value: 300 });
+            Object.defineProperty(feedList, 'scrollTop', { configurable: true, value: 130 });
+
+            await act(async () => {
+                feedList?.dispatchEvent(new Event('scroll', { bubbles: true }));
+            });
+
+            await waitFor(() => (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mock.calls.length >= 3);
+
+            const feedCalls = (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mock.calls;
+            expect(feedCalls[2]?.[0]).toMatchObject({ limit: 10, until: 200 });
+        } finally {
+            setIntervalSpy.mockRestore();
+            clearIntervalSpy.mockRestore();
+        }
+    });
+
+    test('manual agora refresh reloads first page and applies newly found items immediately', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+        const socialFeed = createSocialFeedServiceMock();
+        (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>)
+            .mockResolvedValueOnce({
+                items: [
+                    createFeedNote('note-2', followedPubkey, 102, 'nota visible 2'),
+                    createFeedNote('note-1', followedPubkey, 101, 'nota visible 1'),
+                ],
+                hasMore: false,
+            })
+            .mockResolvedValueOnce({
+                items: [
+                    createFeedNote('note-3', followedPubkey, 103, 'nota refrescada'),
+                    createFeedNote('note-2', followedPubkey, 102, 'nota visible 2'),
+                    createFeedNote('note-1', followedPubkey, 101, 'nota visible 1'),
+                ],
+                hasMore: false,
+            });
+
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [followedPubkey],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                    socialFeedService: socialFeed.service,
+                }}
+            />,
+            { initialEntries: ['/'] }
+        );
+        mounted.push(rendered);
+
+        await loginWithNip07(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const feedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir Agora"]') as HTMLButtonElement;
+        expect(feedButton).toBeDefined();
+
+        await act(async () => {
+            feedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('nota visible 2'));
+        expect(rendered.container.textContent || '').not.toContain('nota refrescada');
+
+        const refreshButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').trim() === 'Actualizar'
+        ) as HTMLButtonElement;
+        expect(refreshButton).toBeDefined();
+
+        await act(async () => {
+            refreshButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mock.calls.length >= 2);
+        await waitFor(() => (rendered.container.textContent || '').includes('nota refrescada'));
+    });
+
+    test('manual agora refresh shows loading state on refresh button while request is in flight', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+        const socialFeed = createSocialFeedServiceMock();
+        const deferredRefresh = createDeferred<{ items: ReturnType<typeof createFeedNote>[]; hasMore: boolean }>();
+        (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>)
+            .mockResolvedValueOnce({
+                items: [createFeedNote('note-1', followedPubkey, 101, 'nota visible 1')],
+                hasMore: false,
+            })
+            .mockImplementationOnce(async () => deferredRefresh.promise);
+
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [followedPubkey],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                    socialFeedService: socialFeed.service,
+                }}
+            />,
+            { initialEntries: ['/'] }
+        );
+        mounted.push(rendered);
+
+        await loginWithNip07(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const feedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir Agora"]') as HTMLButtonElement;
+        expect(feedButton).toBeDefined();
+
+        await act(async () => {
+            feedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('nota visible 1'));
+
+        const refreshButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').trim() === 'Actualizar'
+        ) as HTMLButtonElement;
+        expect(refreshButton).toBeDefined();
+
+        await act(async () => {
+            refreshButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Actualizando'));
+        const loadingRefreshButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Actualizando')
+        ) as HTMLButtonElement;
+        expect(loadingRefreshButton).toBeDefined();
+        expect(loadingRefreshButton.disabled).toBe(true);
+        expect(loadingRefreshButton.querySelector('svg[aria-label="Loading"]')).not.toBeNull();
+
+        deferredRefresh.resolve({
+            items: [
+                createFeedNote('note-2', followedPubkey, 102, 'nota refrescada'),
+                createFeedNote('note-1', followedPubkey, 101, 'nota visible 1'),
+            ],
+            hasMore: false,
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('nota refrescada'));
+        await waitFor(() => (rendered.container.textContent || '').includes('Actualizar'));
+    });
+
+    test('shows a feed error when manual agora refresh fails', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+        const socialFeed = createSocialFeedServiceMock();
+        (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>)
+            .mockResolvedValueOnce({
+                items: [createFeedNote('note-1', followedPubkey, 101, 'nota visible 1')],
+                hasMore: false,
+            })
+            .mockRejectedValueOnce(new Error('fallo refresh manual'));
+
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [followedPubkey],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                    socialFeedService: socialFeed.service,
+                }}
+            />,
+            { initialEntries: ['/'] }
+        );
+        mounted.push(rendered);
+
+        await loginWithNip07(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const feedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir Agora"]') as HTMLButtonElement;
+        expect(feedButton).toBeDefined();
+
+        await act(async () => {
+            feedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('nota visible 1'));
+
+        const refreshButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').trim() === 'Actualizar'
+        ) as HTMLButtonElement;
+        expect(refreshButton).toBeDefined();
+
+        await act(async () => {
+            refreshButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('No se pudo actualizar el Agora. Intenta de nuevo.'));
+    });
+
+    test('surfaces polling refresh failures safely and clears the error after a later successful poll', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+        const socialFeed = createSocialFeedServiceMock();
+        const intervalCallbacks: Array<() => void> = [];
+        const setIntervalSpy = vi.spyOn(window, 'setInterval').mockImplementation(((handler: TimerHandler) => {
+            if (typeof handler === 'function') {
+                intervalCallbacks.push(handler as () => void);
+            }
+            return 1 as unknown as number;
+        }) as typeof window.setInterval);
+        const clearIntervalSpy = vi.spyOn(window, 'clearInterval').mockImplementation(() => undefined);
+
+        (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>)
+            .mockResolvedValueOnce({
+                items: [createFeedNote('note-1', followedPubkey, 101, 'nota visible 1')],
+                hasMore: false,
+            })
+            .mockRejectedValueOnce(new Error('fallo polling'))
+            .mockResolvedValueOnce({
+                items: [
+                    createFeedNote('note-2', followedPubkey, 102, 'nota recuperada'),
+                    createFeedNote('note-1', followedPubkey, 101, 'nota visible 1'),
+                ],
+                hasMore: false,
+            });
+
+        try {
+            const { bridge } = createMapBridgeStub();
+            const rendered = await renderApp(
+                <App
+                    mapBridge={bridge}
+                    services={{
+                        createClient: () => ({
+                            connect: async () => {},
+                            fetchLatestReplaceableEvent: async () => null,
+                            fetchEvents: async () => [],
+                        }),
+                        fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                            ownerPubkey,
+                            follows: [followedPubkey],
+                            relayHints: [],
+                        }),
+                        fetchProfilesFn: vi.fn().mockResolvedValue({
+                            [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                        }),
+                        fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                            followers: [],
+                            scannedBatches: 1,
+                            complete: true,
+                        }),
+                        socialFeedService: socialFeed.service,
+                    }}
+                />,
+                { initialEntries: ['/'] }
+            );
+            mounted.push(rendered);
+
+            await loginWithNip07(rendered.container);
+            await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+            const feedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir Agora"]') as HTMLButtonElement;
+            expect(feedButton).toBeDefined();
+
+            await act(async () => {
+                feedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            });
+
+            await waitFor(() => (rendered.container.textContent || '').includes('nota visible 1'));
+            expect(intervalCallbacks.length).toBeGreaterThan(0);
+
+            await act(async () => {
+                for (const callback of intervalCallbacks) {
+                    await callback();
+                }
+            });
+
+            await waitFor(() => (rendered.container.textContent || '').includes('No se pudo actualizar el Agora. Intenta de nuevo.'));
+            expect(rendered.container.textContent || '').not.toContain('nota recuperada');
+
+            await act(async () => {
+                for (const callback of intervalCallbacks) {
+                    await callback();
+                }
+            });
+
+            await waitFor(() => (rendered.container.textContent || '').includes('Ver 1 publicacion nueva'));
+            expect(rendered.container.textContent || '').not.toContain('No se pudo actualizar el Agora. Intenta de nuevo.');
+        } finally {
+            setIntervalSpy.mockRestore();
+            clearIntervalSpy.mockRestore();
+        }
     });
 
     test('applies optimistic reaction and repost counters and rolls back on mutation failure', async () => {

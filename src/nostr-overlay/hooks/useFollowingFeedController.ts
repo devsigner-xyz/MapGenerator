@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type InfiniteData, useMutation, useMutationState, useQueryClient } from '@tanstack/react-query';
 import type {
     SocialEngagementByEventId,
@@ -49,6 +49,9 @@ import {
     normalizeToEpochSeconds,
     type FollowingFeedReadStateStorage,
 } from '../query/following-feed-read-state';
+
+const FOLLOWING_FEED_REFRESH_INTERVAL_MS = 15_000;
+const FOLLOWING_FEED_REFRESH_ERROR_MESSAGE = 'No se pudo actualizar el Agora. Intenta de nuevo.';
 import { createMentionDraft, serializeMentionDraft, type MentionDraft } from '../mention-serialization';
 
 interface UseFollowingFeedControllerOptions {
@@ -208,11 +211,16 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
     );
     const [activeThreadRootEventId, setActiveThreadRootEventId] = useState<string | null>(null);
     const [publishError, setPublishError] = useState<string | null>(null);
+    const [refreshError, setRefreshError] = useState<string | null>(null);
+    const [pendingLatestFeedPage, setPendingLatestFeedPage] = useState<SocialFeedPage | null>(null);
+    const [pendingNewCount, setPendingNewCount] = useState(0);
+    const [isRefreshingFeed, setIsRefreshingFeed] = useState(false);
     const [reactionByEventId, setReactionByEventId] = useState<Record<string, boolean>>({});
     const [repostByEventId, setRepostByEventId] = useState<Record<string, boolean>>({});
     const [reactionEventIdByTarget, setReactionEventIdByTarget] = useState<Record<string, string>>({});
     const [repostEventIdByTarget, setRepostEventIdByTarget] = useState<Record<string, string>>({});
     const [engagementDeltaByEventId, setEngagementDeltaByEventId] = useState<SocialEngagementByEventId>({});
+    const refreshInFlightRef = useRef(false);
 
     const follows = useMemo(() => normalizeEventIds(options.follows), [options.follows]);
     const hasFollows = follows.length > 0;
@@ -266,6 +274,14 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
 
         setLastReadAt(storage.getLastReadAt(options.ownerPubkey));
     }, [options.ownerPubkey, storage]);
+
+    useEffect(() => {
+        setPendingLatestFeedPage(null);
+        setPendingNewCount(0);
+        setRefreshError(null);
+        setIsRefreshingFeed(false);
+        refreshInFlightRef.current = false;
+    }, [feedQueryKey]);
 
     const threadQuery = useThreadInfiniteQuery({
         rootEventId: activeThreadRootEventId,
@@ -762,6 +778,85 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
         [items, lastReadAt]
     );
 
+    const hasPendingNewItems = pendingNewCount > 0;
+
+    const replaceLatestPageInFeedCache = useCallback((latestPage: SocialFeedPage) => {
+        queryClient.setQueryData<InfiniteData<SocialFeedPage>>(feedQueryKey, {
+            pages: [latestPage],
+            pageParams: [undefined],
+        });
+    }, [feedQueryKey, queryClient]);
+
+    const loadLatestFeedPage = useCallback(async (): Promise<SocialFeedPage | null> => {
+        if (activeHashtag) {
+            return options.service.loadHashtagFeed({
+                hashtag: activeHashtag,
+                limit: feedPageSize,
+            });
+        }
+
+        if (follows.length === 0) {
+            return null;
+        }
+
+        return options.service.loadFollowingFeed({
+            follows,
+            limit: feedPageSize,
+        });
+    }, [activeHashtag, feedPageSize, follows, options.service]);
+
+    const refreshFeed = useCallback(async (mode: 'buffer' | 'apply' = 'apply'): Promise<void> => {
+        if (refreshInFlightRef.current || feedQuery.isPending || feedQuery.isFetching) {
+            return;
+        }
+
+        refreshInFlightRef.current = true;
+        setIsRefreshingFeed(true);
+        setRefreshError(null);
+
+        try {
+            const latestPage = await loadLatestFeedPage();
+            if (!latestPage) {
+                if (mode === 'apply') {
+                    setPendingLatestFeedPage(null);
+                    setPendingNewCount(0);
+                }
+                return;
+            }
+
+            if (mode === 'apply') {
+                replaceLatestPageInFeedCache(latestPage);
+                setPendingLatestFeedPage(null);
+                setPendingNewCount(0);
+                return;
+            }
+
+            const seenIds = new Set(items.map((item) => item.id));
+            const freshItems = latestPage.items.filter((item) => !seenIds.has(item.id));
+            if (freshItems.length === 0) {
+                return;
+            }
+
+            setPendingLatestFeedPage(latestPage);
+            setPendingNewCount(freshItems.length);
+        } catch {
+            setRefreshError(FOLLOWING_FEED_REFRESH_ERROR_MESSAGE);
+        } finally {
+            refreshInFlightRef.current = false;
+            setIsRefreshingFeed(false);
+        }
+    }, [feedQuery.isFetching, feedQuery.isPending, items, loadLatestFeedPage, replaceLatestPageInFeedCache]);
+
+    const applyPendingNewItems = useCallback(() => {
+        if (!pendingLatestFeedPage || pendingNewCount === 0) {
+            return;
+        }
+
+        replaceLatestPageInFeedCache(pendingLatestFeedPage);
+        setPendingLatestFeedPage(null);
+        setPendingNewCount(0);
+    }, [pendingLatestFeedPage, pendingNewCount, replaceLatestPageInFeedCache]);
+
     const open = useCallback(() => {
         setIsOpen(true);
 
@@ -781,6 +876,20 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
     const close = useCallback(() => {
         setIsOpen(false);
     }, []);
+
+    useEffect(() => {
+        if (!isOpen || (!activeHashtag && follows.length === 0)) {
+            return;
+        }
+
+        const intervalHandle = window.setInterval(() => {
+            void refreshFeed('buffer');
+        }, FOLLOWING_FEED_REFRESH_INTERVAL_MS);
+
+        return () => {
+            window.clearInterval(intervalHandle);
+        };
+    }, [activeHashtag, follows.length, isOpen, refreshFeed]);
 
     const loadNextFeedPage = useCallback(async () => {
         if (!feedQuery.hasNextPage || feedQuery.isFetchingNextPage) {
@@ -945,8 +1054,11 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
         items,
         hasFollows,
         hasUnread,
+        pendingNewCount,
+        hasPendingNewItems,
         isLoadingFeed: feedQuery.isPending || feedQuery.isFetchingNextPage,
-        feedError: feedQuery.error?.message ?? null,
+        isRefreshingFeed,
+        feedError: refreshError ?? feedQuery.error?.message ?? null,
         hasMoreFeed: Boolean(feedQuery.hasNextPage),
         activeThread,
         publishError,
@@ -961,6 +1073,8 @@ export function useFollowingFeedController(options: UseFollowingFeedControllerOp
         activeHashtag,
         open,
         close,
+        refreshFeed,
+        applyPendingNewItems,
         loadNextFeedPage,
         openThread,
         closeThread,

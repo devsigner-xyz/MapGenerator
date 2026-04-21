@@ -47,10 +47,13 @@ afterEach(async () => {
 function buildProps(overrides: Partial<Parameters<typeof FollowingFeedSurface>[0]> = {}): Parameters<typeof FollowingFeedSurface>[0] {
     return {
         items: [],
+        pendingNewCount: 0,
+        hasPendingNewItems: false,
         hasFollows: true,
         profilesByPubkey: {},
         engagementByEventId: {},
         isLoadingFeed: false,
+        isRefreshingFeed: false,
         feedError: null,
         hasMoreFeed: false,
         activeThread: null,
@@ -63,6 +66,8 @@ function buildProps(overrides: Partial<Parameters<typeof FollowingFeedSurface>[0
         pendingReactionByEventId: {},
         pendingRepostByEventId: {},
         onLoadMoreFeed: async () => {},
+        onApplyPendingNewItems: () => {},
+        onRefreshFeed: async () => {},
         onOpenThread: async () => {},
         onCloseThread: () => {},
         onLoadMoreThread: async () => {},
@@ -88,6 +93,114 @@ function buildProps(overrides: Partial<Parameters<typeof FollowingFeedSurface>[0
 }
 
 describe('FollowingFeedSurface', () => {
+    test('renders new posts CTA and applies pending items on click', async () => {
+        const onApplyPendingNewItems = vi.fn();
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    pendingNewCount: 2,
+                    hasPendingNewItems: true,
+                    onApplyPendingNewItems,
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const ctaButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Ver 2 publicaciones nuevas')
+        ) as HTMLButtonElement;
+        expect(ctaButton).toBeDefined();
+        const headerActions = rendered.container.querySelector('.nostr-following-feed-header-actions') as HTMLDivElement;
+        expect(headerActions).toBeDefined();
+        expect(headerActions.contains(ctaButton)).toBe(true);
+
+        await act(async () => {
+            ctaButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onApplyPendingNewItems).toHaveBeenCalledTimes(1);
+    });
+
+    test('renders manual refresh button and triggers refresh handler', async () => {
+        const onRefreshFeed = vi.fn(async () => {});
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    onRefreshFeed,
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const refreshButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').trim() === 'Actualizar'
+        ) as HTMLButtonElement;
+        expect(refreshButton).toBeDefined();
+
+        await act(async () => {
+            refreshButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onRefreshFeed).toHaveBeenCalledTimes(1);
+    });
+
+    test('shows loading state with spinner on refresh button while feed refresh is in progress', async () => {
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    isRefreshingFeed: true,
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const refreshButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Actualizando')
+        ) as HTMLButtonElement;
+        expect(refreshButton).toBeDefined();
+        expect(refreshButton.disabled).toBe(true);
+        expect(refreshButton.querySelector('svg[aria-label="Loading"]')).not.toBeNull();
+    });
+
+    test('hides new posts CTA and manual refresh actions while thread view is open', async () => {
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    pendingNewCount: 3,
+                    hasPendingNewItems: true,
+                    activeThread: {
+                        rootEventId: 'root-1',
+                        root: {
+                            id: 'root-1',
+                            pubkey: 'b'.repeat(64),
+                            createdAt: 500,
+                            eventKind: 1,
+                            content: 'root',
+                            rawEvent: {
+                                id: 'root-1',
+                                pubkey: 'b'.repeat(64),
+                                kind: 1,
+                                created_at: 500,
+                                tags: [],
+                                content: 'root',
+                            },
+                        },
+                        replies: [],
+                        isLoading: false,
+                        isLoadingMore: false,
+                        error: null,
+                        hasMore: false,
+                    },
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const text = rendered.container.textContent || '';
+        expect(text).not.toContain('Ver 3 publicaciones nuevas');
+        expect(text).not.toContain('Actualizar');
+    });
+
     test('feed scroll requests next query page without rendering manual load more button', async () => {
         const onLoadMoreFeed = vi.fn(async () => {});
         const rendered = await renderElement(

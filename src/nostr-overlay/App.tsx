@@ -1753,6 +1753,8 @@ export function App({ mapBridge, services }: AppProps) {
                     element={(
                         <FollowingFeedSurface
                             items={followingFeed.items}
+                            pendingNewCount={followingFeed.pendingNewCount}
+                            hasPendingNewItems={followingFeed.hasPendingNewItems}
                             hasFollows={followingFeed.hasFollows}
                             profilesByPubkey={richContentProfilesByPubkey}
                             engagementByEventId={followingFeedEngagementByEventId}
@@ -1768,6 +1770,7 @@ export function App({ mapBridge, services }: AppProps) {
                                 void copyNoteIdentifier(noteId);
                             }}
                             isLoadingFeed={followingFeed.isLoadingFeed}
+                            isRefreshingFeed={followingFeed.isRefreshingFeed}
                             feedError={followingFeed.feedError}
                             hasMoreFeed={followingFeed.hasMoreFeed}
                             activeThread={followingFeed.activeThread}
@@ -1780,6 +1783,8 @@ export function App({ mapBridge, services }: AppProps) {
                             pendingReactionByEventId={followingFeed.pendingReactionByEventId}
                             pendingRepostByEventId={followingFeed.pendingRepostByEventId}
                             onLoadMoreFeed={followingFeed.loadNextFeedPage}
+                            onApplyPendingNewItems={followingFeed.applyPendingNewItems}
+                            onRefreshFeed={followingFeed.refreshFeed}
                             onOpenThread={followingFeed.openThread}
                             onCloseThread={followingFeed.closeThread}
                             onLoadMoreThread={followingFeed.loadNextThreadPage}

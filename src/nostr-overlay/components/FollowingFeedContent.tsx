@@ -47,10 +47,13 @@ function getVisualThreadDepth(depth: number): number {
 
 export interface FollowingFeedViewProps {
     items: SocialFeedItem[];
+    pendingNewCount: number;
+    hasPendingNewItems: boolean;
     hasFollows: boolean;
     profilesByPubkey: Record<string, NostrProfile>;
     engagementByEventId: Record<string, SocialEngagementMetrics>;
     isLoadingFeed: boolean;
+    isRefreshingFeed: boolean;
     feedError: string | null;
     hasMoreFeed: boolean;
     activeThread: FollowingFeedThreadView | null;
@@ -63,6 +66,8 @@ export interface FollowingFeedViewProps {
     pendingReactionByEventId: Record<string, boolean>;
     pendingRepostByEventId: Record<string, boolean>;
     onLoadMoreFeed: () => Promise<void> | void;
+    onApplyPendingNewItems: () => Promise<void> | void;
+    onRefreshFeed: () => Promise<void> | void;
     onOpenThread: (rootEventId: string) => Promise<void> | void;
     onCloseThread: () => void;
     onLoadMoreThread: () => Promise<void> | void;
@@ -239,7 +244,6 @@ export function FollowingFeedContent({
     };
 
     const replyDisabled = !canWrite || isPublishingReply || !replyTargetEventId;
-
     const resolvedSubtitle = activeThread
         ? 'Respuestas y actividad de la conversación seleccionada.'
         : (headerSubtitle || 'Timeline en tiempo real de personas que sigues');

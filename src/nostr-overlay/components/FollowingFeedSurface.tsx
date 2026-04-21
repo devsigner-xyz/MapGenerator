@@ -1,5 +1,6 @@
 import { FollowingFeedContent, type FollowingFeedViewProps } from './FollowingFeedContent';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 
 interface FollowingFeedSurfaceProps extends FollowingFeedViewProps {
     activeHashtag?: string;
@@ -10,12 +11,35 @@ export function FollowingFeedSurface({ activeHashtag, onClearHashtag, ...feedPro
     const headerSubtitle = activeHashtag
         ? `Filtrando por #${activeHashtag}`
         : 'Timeline en tiempo real de personas que sigues';
+    const showFeedHeaderActions = !feedProps.activeThread;
+    const pendingItemsLabel = feedProps.pendingNewCount === 1
+        ? 'Ver 1 publicacion nueva'
+        : `Ver ${feedProps.pendingNewCount} publicaciones nuevas`;
 
-    const headerActions = activeHashtag && onClearHashtag
+    const headerActions = showFeedHeaderActions
         ? (
-            <Button type="button" variant="outline" size="sm" onClick={onClearHashtag}>
-                Quitar filtro
-            </Button>
+            <>
+                {feedProps.hasPendingNewItems ? (
+                    <Button type="button" size="sm" onClick={feedProps.onApplyPendingNewItems}>
+                        {pendingItemsLabel}
+                    </Button>
+                ) : null}
+                <Button type="button" variant="outline" size="sm" onClick={() => {
+                    void feedProps.onRefreshFeed();
+                }} disabled={feedProps.isRefreshingFeed}>
+                    {feedProps.isRefreshingFeed ? (
+                        <>
+                            <Spinner className="size-4" />
+                            Actualizando
+                        </>
+                    ) : 'Actualizar'}
+                </Button>
+                {activeHashtag && onClearHashtag ? (
+                    <Button type="button" variant="outline" size="sm" onClick={onClearHashtag}>
+                        Quitar filtro
+                    </Button>
+                ) : null}
+            </>
         )
         : undefined;
 
