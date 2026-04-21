@@ -264,7 +264,7 @@ export function FollowingFeedContent({
         if (!replyNote) {
             return null;
         }
-        replyNote.kindLabel = undefined;
+        delete replyNote.kindLabel;
 
         const visualDepth = getVisualThreadDepth(depth);
 
@@ -463,7 +463,7 @@ export function FollowingFeedContent({
                                 });
 
                                 return (
-                                    <div key={item.id} className="grid gap-2">
+                                    <div key={item.id} className="nostr-following-feed-note-shell grid gap-2">
                                         <NoteCard
                                             note={note}
                                             profilesByPubkey={profilesByPubkey}
@@ -532,7 +532,7 @@ export function FollowingFeedContent({
                                             zapAmounts,
                                             ...(onConfigureZapAmounts ? { onConfigureZapAmounts } : {}),
                                         });
-                                        rootNote.kindLabel = undefined;
+                                        delete rootNote.kindLabel;
 
                                         return (
                                             <div className="nostr-following-feed-thread-node" data-depth={0} data-visual-depth={0}>

@@ -454,7 +454,7 @@ describe('OccupantProfileDialog', () => {
         ]);
     });
 
-    test('shows follow action in network tabs and disables already followed people', async () => {
+    test('shows follow action in network tabs and allows unfollow from following state', async () => {
         const onFollowProfile = vi.fn(() => new Promise<void>(() => {}));
         const rendered = await renderElement(
             <OccupantProfileDialog
@@ -490,14 +490,74 @@ describe('OccupantProfileDialog', () => {
             return text.includes('Bob') && text.includes('Carol');
         });
 
-        const followedBobButton = document.body.querySelector('button[aria-label="Ya sigues a Bob"]') as HTMLButtonElement;
+        const followedBobButton = document.body.querySelector('button[aria-label="Dejar de seguir a Bob"]') as HTMLButtonElement;
         const followCarolButton = document.body.querySelector('button[aria-label="Seguir a Carol"]') as HTMLButtonElement;
         expect(followedBobButton).toBeDefined();
-        expect(followedBobButton.disabled).toBe(true);
+        expect(followedBobButton.disabled).toBe(false);
         expect((followedBobButton.textContent || '').trim()).toBe('Siguiendo');
         expect(followCarolButton).toBeDefined();
         expect(followCarolButton.disabled).toBe(false);
         expect((followCarolButton.textContent || '').trim()).toBe('Seguir');
+
+        await act(async () => {
+            followedBobButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onFollowProfile).toHaveBeenCalledTimes(2);
+        expect(onFollowProfile).toHaveBeenLastCalledWith('b'.repeat(64));
+        expect(followedBobButton.disabled).toBe(true);
+        expect((followedBobButton.textContent || '').trim()).toBe('Siguiendo');
+    });
+
+    test('shows follow action in header for the active profile and allows unfollow', async () => {
+        const onFollowProfile = vi.fn(() => new Promise<void>(() => {}));
+        const rendered = await renderElement(
+            <OccupantProfileDialog
+                {...buildProps({
+                    ownerPubkey: 'f'.repeat(64),
+                    onFollowProfile,
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const followAliceButton = document.body.querySelector('button[aria-label="Seguir a Alice"]') as HTMLButtonElement;
+        expect(followAliceButton).toBeDefined();
+        expect(followAliceButton.disabled).toBe(false);
+        expect((followAliceButton.textContent || '').trim()).toBe('Seguir');
+
+        await act(async () => {
+            followAliceButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onFollowProfile).toHaveBeenCalledTimes(1);
+        expect(onFollowProfile).toHaveBeenCalledWith('a'.repeat(64));
+        expect(followAliceButton.disabled).toBe(true);
+        expect((followAliceButton.textContent || '').trim()).toBe('Siguiendo');
+
+        const rerendered = await renderElement(
+            <OccupantProfileDialog
+                {...buildProps({
+                    ownerPubkey: 'f'.repeat(64),
+                    ownerFollows: ['a'.repeat(64)],
+                    onFollowProfile,
+                })}
+            />
+        );
+        mounted.push(rerendered);
+
+        const followingAliceButton = rerendered.container.querySelector('button[aria-label="Dejar de seguir a Alice"]') as HTMLButtonElement;
+        expect(followingAliceButton).toBeDefined();
+        expect(followingAliceButton.disabled).toBe(false);
+
+        await act(async () => {
+            followingAliceButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onFollowProfile).toHaveBeenCalledTimes(2);
+        expect(onFollowProfile).toHaveBeenLastCalledWith('a'.repeat(64));
+        expect(followingAliceButton.disabled).toBe(true);
+        expect((followingAliceButton.textContent || '').trim()).toBe('Siguiendo');
     });
 
     test('shows action menu in network tabs and executes copy, message, and details actions', async () => {

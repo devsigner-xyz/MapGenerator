@@ -207,6 +207,40 @@ describe('FollowingFeedSurface', () => {
         expect(onPublishPost).not.toHaveBeenCalled();
     });
 
+    test('wraps feed notes in a constrained shell while keeping the scroll list full width', async () => {
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    items: [
+                        {
+                            id: 'note-1',
+                            pubkey: 'a'.repeat(64),
+                            createdAt: 100,
+                            content: 'hola agora',
+                            kind: 'note',
+                            rawEvent: {
+                                id: 'note-1',
+                                pubkey: 'a'.repeat(64),
+                                kind: 1,
+                                created_at: 100,
+                                tags: [],
+                                content: 'hola agora',
+                            },
+                        },
+                    ],
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const feedList = rendered.container.querySelector('[data-testid="following-feed-list"]') as HTMLDivElement;
+        expect(feedList).toBeDefined();
+
+        const noteShell = feedList.querySelector('.nostr-following-feed-note-shell') as HTMLDivElement;
+        expect(noteShell).toBeDefined();
+        expect(noteShell.querySelector('[data-slot="card"]')).not.toBeNull();
+    });
+
     test('renders no-follows empty state using Empty component copy', async () => {
         const rendered = await renderElement(
             <FollowingFeedSurface

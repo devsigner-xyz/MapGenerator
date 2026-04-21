@@ -440,7 +440,7 @@ describe('PeopleListTab', () => {
         expect(zapSubmenuTrigger).toBeUndefined();
     });
 
-    test('shows follow action and disables rows already followed', async () => {
+    test('shows follow action and allows toggling followed rows', async () => {
         const alice = makePubkey(1);
         const bob = makePubkey(2);
         const followDeferred = new Promise<void>(() => {});
@@ -462,13 +462,22 @@ describe('PeopleListTab', () => {
         mounted.push(rendered);
 
         const followAliceButton = rendered.container.querySelector('button[aria-label="Seguir a Alice"]') as HTMLButtonElement;
-        const followedBobButton = rendered.container.querySelector('button[aria-label="Ya sigues a Bob"]') as HTMLButtonElement;
+        const followedBobButton = rendered.container.querySelector('button[aria-label="Dejar de seguir a Bob"]') as HTMLButtonElement;
 
         expect(followAliceButton).toBeDefined();
         expect(followAliceButton.disabled).toBe(false);
         expect((followAliceButton.textContent || '').trim()).toBe('Seguir');
 
         expect(followedBobButton).toBeDefined();
+        expect(followedBobButton.disabled).toBe(false);
+        expect((followedBobButton.textContent || '').trim()).toBe('Siguiendo');
+
+        await act(async () => {
+            followedBobButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onFollowPerson).toHaveBeenCalledTimes(1);
+        expect(onFollowPerson).toHaveBeenCalledWith(bob);
         expect(followedBobButton.disabled).toBe(true);
         expect((followedBobButton.textContent || '').trim()).toBe('Siguiendo');
 
@@ -476,7 +485,7 @@ describe('PeopleListTab', () => {
             followAliceButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
-        expect(onFollowPerson).toHaveBeenCalledTimes(1);
+        expect(onFollowPerson).toHaveBeenCalledTimes(2);
         expect(onFollowPerson).toHaveBeenCalledWith(alice);
         expect(followAliceButton.disabled).toBe(true);
         expect((followAliceButton.textContent || '').trim()).toBe('Siguiendo');

@@ -19,6 +19,9 @@ interface UserSearchPageProps {
     onClose: () => void;
     onSearch: (query: string) => Promise<SearchUsersResult>;
     onSelectUser: (pubkey: string) => void;
+    ownerPubkey?: string;
+    followedPubkeys?: string[];
+    onFollowUser?: (pubkey: string) => void | Promise<void>;
     onMessageUser?: (pubkey: string) => void | Promise<void>;
 }
 
@@ -41,10 +44,15 @@ export function UserSearchPage({
     onClose,
     onSearch,
     onSelectUser,
+    ownerPubkey,
+    followedPubkeys = [],
+    onFollowUser,
     onMessageUser,
 }: UserSearchPageProps) {
     const [query, setQuery] = useState('');
     const [debouncedQuery, setDebouncedQuery] = useState('');
+    const [pendingFollowByPubkey, setPendingFollowByPubkey] = useState<Record<string, boolean>>({});
+    const followedSet = useMemo(() => new Set(followedPubkeys), [followedPubkeys]);
 
     useEffect(() => {
         const timer = window.setTimeout(() => {
@@ -66,6 +74,31 @@ export function UserSearchPage({
         () => searchQuery.result.pubkeys.map((pubkey) => ({ pubkey, profile: searchQuery.result.profiles[pubkey] })),
         [searchQuery.result]
     );
+
+    const followUser = (pubkey: string): void => {
+        if (typeof onFollowUser !== 'function') {
+            return;
+        }
+
+        setPendingFollowByPubkey((current) => ({
+            ...current,
+            [pubkey]: true,
+        }));
+
+        void Promise.resolve(onFollowUser(pubkey))
+            .catch((): void => undefined)
+            .finally((): void => {
+                setPendingFollowByPubkey((current) => {
+                    if (!current[pubkey]) {
+                        return current;
+                    }
+
+                    const next = { ...current };
+                    delete next[pubkey];
+                    return next;
+                });
+            });
+    };
 
     const resultsContent = !query.trim() ? (
         <Empty className="nostr-global-search-empty">
@@ -101,6 +134,15 @@ export function UserSearchPage({
     ) : (
         rows.map(({ pubkey, profile }) => {
             const display = profileDisplayName(pubkey, profile);
+            const canFollow = typeof onFollowUser === 'function' && ownerPubkey !== pubkey;
+            const isFollowPending = Object.prototype.hasOwnProperty.call(pendingFollowByPubkey, pubkey);
+            const isFollowed = isFollowPending ? true : followedSet.has(pubkey);
+            const followLabel = isFollowed ? 'Following' : 'Follow';
+            const followAriaLabel = isFollowPending
+                ? `Updating follow state for ${display}`
+                : isFollowed
+                    ? `Unfollow ${display}`
+                    : `Follow ${display}`;
             return (
                 <CommandItem
                     key={pubkey}
@@ -127,23 +169,44 @@ export function UserSearchPage({
                             </ItemContent>
                         </div>
 
-                        {onMessageUser ? (
+                        {(onMessageUser || canFollow) ? (
                             <ItemActions>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onPointerDown={(event: { stopPropagation: () => void }) => {
-                                        event.stopPropagation();
-                                    }}
-                                    onClick={(event: { stopPropagation: () => void }) => {
-                                        event.stopPropagation();
-                                        void onMessageUser(pubkey);
-                                        onClose();
-                                    }}
-                                >
-                                    Mensaje
-                                </Button>
+                                {canFollow ? (
+                                    <Button
+                                        type="button"
+                                        variant={isFollowed ? 'secondary' : 'outline'}
+                                        size="sm"
+                                        disabled={isFollowPending}
+                                        aria-label={followAriaLabel}
+                                        onPointerDown={(event: { stopPropagation: () => void }) => {
+                                            event.stopPropagation();
+                                        }}
+                                        onClick={(event: { stopPropagation: () => void }) => {
+                                            event.stopPropagation();
+                                            followUser(pubkey);
+                                        }}
+                                    >
+                                        {followLabel}
+                                    </Button>
+                                ) : null}
+
+                                {onMessageUser ? (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onPointerDown={(event: { stopPropagation: () => void }) => {
+                                            event.stopPropagation();
+                                        }}
+                                        onClick={(event: { stopPropagation: () => void }) => {
+                                            event.stopPropagation();
+                                            void onMessageUser(pubkey);
+                                            onClose();
+                                        }}
+                                    >
+                                        Mensaje
+                                    </Button>
+                                ) : null}
                             </ItemActions>
                         ) : null}
                     </Item>

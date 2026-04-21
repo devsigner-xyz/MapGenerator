@@ -252,11 +252,15 @@ export function PeopleListTab({
         const npub = pubkeyToNpub(pubkey);
         const npubLabel = npub.startsWith('npub1') ? truncateIdentifier(npub) : `${pubkey.slice(0, 8)}...${pubkey.slice(-6)}`;
         const verification = verificationByPubkey[pubkey];
-        const isFollowed = followedSet.has(pubkey);
-        const isFollowPending = Boolean(pendingFollowByPubkey[pubkey]);
-        const followDisabled = isFollowed || isFollowPending;
-        const followLabel = followDisabled ? 'Siguiendo' : 'Seguir';
-        const followAriaLabel = followDisabled ? `Ya sigues a ${display}` : `Seguir a ${display}`;
+        const isFollowPending = Object.prototype.hasOwnProperty.call(pendingFollowByPubkey, pubkey);
+        const isFollowed = isFollowPending ? true : followedSet.has(pubkey);
+        const followDisabled = isFollowPending;
+        const followLabel = isFollowed ? 'Siguiendo' : 'Seguir';
+        const followAriaLabel = isFollowPending
+            ? `Actualizando seguimiento de ${display}`
+            : isFollowed
+                ? `Dejar de seguir a ${display}`
+                : `Seguir a ${display}`;
         const nip05IdentifierProps = {
             ...(profile ? { profile } : {}),
             ...(verification ? { verification } : {}),
@@ -322,7 +326,7 @@ export function PeopleListTab({
                 {canFollow ? (
                     <Button
                         type="button"
-                        variant={followDisabled ? 'secondary' : 'outline'}
+                        variant={isFollowed ? 'secondary' : 'outline'}
                         size="xs"
                         className="shrink-0"
                         disabled={followDisabled}

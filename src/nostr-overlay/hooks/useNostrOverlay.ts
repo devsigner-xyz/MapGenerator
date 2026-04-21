@@ -1439,10 +1439,9 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             return;
         }
 
-        const nextFollows = dedupe([...current.data.follows, normalizedPubkey]);
-        if (nextFollows.length === current.data.follows.length) {
-            return;
-        }
+        const nextFollows = current.data.follows.includes(normalizedPubkey)
+            ? current.data.follows.filter((entry) => entry !== normalizedPubkey)
+            : dedupe([...current.data.follows, normalizedPubkey]);
 
         await writeGateway.publishContactList(nextFollows);
 
@@ -1452,7 +1451,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             }
 
             const updatedFollows = nextState.data.follows.includes(normalizedPubkey)
-                ? nextState.data.follows
+                ? nextState.data.follows.filter((entry) => entry !== normalizedPubkey)
                 : dedupe([...nextState.data.follows, normalizedPubkey]);
 
             const assignmentPubkeys = dedupe([...updatedFollows, ...nextState.data.featuredPubkeys]);

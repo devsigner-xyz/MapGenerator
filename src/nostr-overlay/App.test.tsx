@@ -4548,8 +4548,94 @@ describe('Nostr overlay App', () => {
         expect(publishContactList).toHaveBeenCalledWith([followedPubkey, followerPubkey]);
 
         await waitFor(() => {
-            const followingButton = rendered.container.querySelector('button[aria-label="Ya sigues a Bob"]') as HTMLButtonElement | null;
-            return Boolean(followingButton && followingButton.disabled);
+            const followingButton = rendered.container.querySelector('button[aria-label="Dejar de seguir a Bob"]') as HTMLButtonElement | null;
+            return Boolean(followingButton && !followingButton.disabled);
+        });
+    });
+
+    test('allows unfollowing from following tab and updates row state to follow', async () => {
+        const ownerPubkey = SAMPLE_AUTH_PUBKEY;
+        const followedPubkey = 'a'.repeat(64);
+        const publishContactList = vi.fn(async () => ({
+            id: '1'.repeat(64),
+            pubkey: ownerPubkey,
+            kind: 3,
+            created_at: Math.floor(Date.now() / 1000),
+            tags: [],
+            content: '',
+            sig: '2'.repeat(128),
+        }));
+
+        vi.spyOn(writeGatewayModule, 'createWriteGateway').mockReturnValue({
+            publishEvent: vi.fn(async (event: any) => ({
+                ...event,
+                id: '3'.repeat(64),
+                pubkey: ownerPubkey,
+                sig: '4'.repeat(128),
+            })),
+            publishContactList,
+            encryptDm: vi.fn(async (_pubkey: string, plaintext: string) => plaintext),
+            decryptDm: vi.fn(async (_pubkey: string, ciphertext: string) => ciphertext),
+        } as any);
+
+        const { bridge } = createMapBridgeStub(8);
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [followedPubkey],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+                        [followedPubkey]: { pubkey: followedPubkey, displayName: 'Alice' },
+                    }),
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        await loginWithNip07(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const followingTab = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Sigues (1)')
+        ) as HTMLButtonElement;
+        expect(followingTab).toBeDefined();
+
+        await act(async () => {
+            followingTab.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+            followingTab.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Alice'));
+
+        const followingAliceButton = rendered.container.querySelector('button[aria-label="Dejar de seguir a Alice"]') as HTMLButtonElement;
+        expect(followingAliceButton).toBeDefined();
+        expect(followingAliceButton.disabled).toBe(false);
+
+        await act(async () => {
+            followingAliceButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(publishContactList).toHaveBeenCalledTimes(1);
+        expect(publishContactList).toHaveBeenCalledWith([]);
+
+        await waitFor(() => {
+            const text = rendered.container.textContent || '';
+            return text.includes('No hay cuentas seguidas todavía.') && !text.includes('Alice');
         });
     });
 

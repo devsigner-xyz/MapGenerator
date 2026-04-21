@@ -980,7 +980,7 @@ export function App({ mapBridge, services }: AppProps) {
         try {
             await overlay.followPerson(pubkey);
         } catch (error) {
-            const message = error instanceof Error ? error.message : 'No se pudo seguir esta cuenta';
+            const message = error instanceof Error ? error.message : 'No se pudo actualizar el seguimiento de esta cuenta';
             toast.error(message, { duration: 2200 });
         }
     };
@@ -1903,6 +1903,9 @@ export function App({ mapBridge, services }: AppProps) {
                             onSelectUser={(pubkey) => {
                                 overlay.openActiveProfile(pubkey);
                             }}
+                            {...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {})}
+                            followedPubkeys={overlay.follows}
+                            {...(overlay.canWrite ? { onFollowUser: followPerson } : {})}
                             {...(canAccessDirectMessages ? { onMessageUser: openDmFromContextMenu } : {})}
                         />
                     )}

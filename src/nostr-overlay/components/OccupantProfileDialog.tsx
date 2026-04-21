@@ -117,6 +117,23 @@ function truncateIdentifier(identifier: string): string {
     return `${identifier.slice(0, 14)}...${identifier.slice(-6)}`;
 }
 
+function buildFollowActionState(targetPubkey: string, displayName: string, ownerFollowSet: Set<string>, pendingFollowByPubkey: Record<string, boolean>) {
+    const isFollowPending = Object.prototype.hasOwnProperty.call(pendingFollowByPubkey, targetPubkey);
+    const isFollowed = isFollowPending ? true : ownerFollowSet.has(targetPubkey);
+    const isDisabled = isFollowPending;
+
+    return {
+        isFollowed,
+        isDisabled,
+        label: isFollowed ? 'Siguiendo' : 'Seguir',
+        ariaLabel: isFollowPending
+            ? `Actualizando seguimiento de ${displayName}`
+            : isFollowed
+                ? `Dejar de seguir a ${displayName}`
+                : `Seguir a ${displayName}`,
+    };
+}
+
 const NETWORK_PAGE_SIZE = 20;
 const NETWORK_LOAD_DELAY_MS = 120;
 type OccupantProfileTab = 'info' | 'feed' | 'followers' | 'following';
@@ -213,6 +230,8 @@ export function OccupantProfileDialog({
     );
     const canAddRelaySuggestions = typeof onAddRelaySuggestion === 'function';
     const canAddAllRelaySuggestions = typeof onAddAllRelaySuggestions === 'function' && relaySuggestionRows.length > 1;
+    const canFollowActiveProfile = typeof onFollowProfile === 'function' && ownerPubkey !== pubkey;
+    const activeProfileFollowState = buildFollowActionState(pubkey, displayName, ownerFollowSet, pendingFollowByPubkey);
 
     const npubValue = useMemo(() => {
         try {
@@ -448,11 +467,7 @@ export function OccupantProfileDialog({
         const canCopy = typeof onCopyNpub === 'function';
         const canSendMessage = typeof onSendMessage === 'function' && ownerPubkey !== personPubkey;
         const canViewDetails = typeof onSelectProfile === 'function';
-        const isFollowed = ownerFollowSet.has(personPubkey);
-        const isFollowPending = Boolean(pendingFollowByPubkey[personPubkey]);
-        const followDisabled = isFollowed || isFollowPending;
-        const followLabel = followDisabled ? 'Siguiendo' : 'Seguir';
-        const followAriaLabel = followDisabled ? `Ya sigues a ${personDisplay}` : `Seguir a ${personDisplay}`;
+        const followState = buildFollowActionState(personPubkey, personDisplay, ownerFollowSet, pendingFollowByPubkey);
 
         const contextMenuActionProps = {
             ...(canCopy ? { onCopyNpub: () => onCopyNpub?.(pubkeyToNpub(personPubkey)) } : {}),
@@ -496,13 +511,13 @@ export function OccupantProfileDialog({
                     <Button
                         type="button"
                         size="xs"
-                        variant={followDisabled ? 'secondary' : 'outline'}
+                        variant={followState.isFollowed ? 'secondary' : 'outline'}
                         className="shrink-0"
-                        disabled={followDisabled}
-                        aria-label={followAriaLabel}
+                        disabled={followState.isDisabled}
+                        aria-label={followState.ariaLabel}
                         onClick={() => followProfile(personPubkey)}
                     >
-                        {followLabel}
+                        {followState.label}
                     </Button>
                 ) : null}
 
@@ -589,31 +604,47 @@ export function OccupantProfileDialog({
                             </Avatar>
                         )}
 
-                        <div className="min-w-0 space-y-1">
-                            <p className="nostr-dialog-name nostr-identity-row inline-flex max-w-full items-center gap-2 text-base font-semibold text-foreground">
-                                <span className="truncate">{resolveName(pubkey, profile)}</span>
-                                {isNip05Verified ? (
-                                    <Badge className="nostr-verified-badge" variant="secondary" title="NIP-05 verificado" aria-label="NIP-05 verificado">
-                                        <CircleCheckIcon aria-hidden="true" className="size-3" />
-                                    </Badge>
-                                ) : null}
-                            </p>
-                            <div className="nostr-dialog-pubkey-row flex items-center gap-1">
-                                <p className="nostr-dialog-pubkey truncate text-sm text-muted-foreground">{npubLabel}</p>
+                        <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
+                            <div className="min-w-0 space-y-1">
+                                <p className="nostr-dialog-name nostr-identity-row inline-flex max-w-full items-center gap-2 text-base font-semibold text-foreground">
+                                    <span className="truncate">{resolveName(pubkey, profile)}</span>
+                                    {isNip05Verified ? (
+                                        <Badge className="nostr-verified-badge" variant="secondary" title="NIP-05 verificado" aria-label="NIP-05 verificado">
+                                            <CircleCheckIcon aria-hidden="true" className="size-3" />
+                                        </Badge>
+                                    ) : null}
+                                </p>
+                                <div className="nostr-dialog-pubkey-row flex items-center gap-1">
+                                    <p className="nostr-dialog-pubkey truncate text-sm text-muted-foreground">{npubLabel}</p>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon-xs"
+                                        className="nostr-dialog-copy-npub shrink-0"
+                                        aria-label="Copiar npub"
+                                        title="Copiar npub"
+                                        onClick={() => {
+                                            void copyNpubToClipboard();
+                                        }}
+                                    >
+                                        <CopyIcon data-icon="inline-start" aria-hidden="true" />
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {canFollowActiveProfile ? (
                                 <Button
                                     type="button"
-                                    variant="ghost"
-                                    size="icon-xs"
-                                    className="nostr-dialog-copy-npub shrink-0"
-                                    aria-label="Copiar npub"
-                                    title="Copiar npub"
-                                    onClick={() => {
-                                        void copyNpubToClipboard();
-                                    }}
+                                    size="xs"
+                                    variant={activeProfileFollowState.isFollowed ? 'secondary' : 'outline'}
+                                    className="shrink-0 self-start"
+                                    disabled={activeProfileFollowState.isDisabled}
+                                    aria-label={activeProfileFollowState.ariaLabel}
+                                    onClick={() => followProfile(pubkey)}
                                 >
-                                    <CopyIcon data-icon="inline-start" aria-hidden="true" />
+                                    {activeProfileFollowState.label}
                                 </Button>
-                            </div>
+                            ) : null}
                         </div>
                     </div>
 

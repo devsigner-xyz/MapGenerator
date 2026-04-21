@@ -225,6 +225,64 @@ describe('UserSearchPage', () => {
         }
     });
 
+    test('renders message and follow actions in search results and toggles follow state', async () => {
+        vi.useFakeTimers();
+        const pubkey = 'd'.repeat(64);
+        const onClose = vi.fn();
+        const onMessageUser = vi.fn();
+        const onFollowUser = vi.fn(() => new Promise<void>(() => {}));
+        const onSearch = vi.fn(async () => ({
+            pubkeys: [pubkey],
+            profiles: {
+                [pubkey]: { pubkey, displayName: 'Dora' },
+            },
+        }));
+
+        try {
+            const rendered = await renderElement(
+                <UserSearchPage
+                    onClose={onClose}
+                    onSearch={onSearch}
+                    onSelectUser={() => {}}
+                    onMessageUser={onMessageUser}
+                    onFollowUser={onFollowUser}
+                    followedPubkeys={[pubkey]}
+                />
+            );
+            mounted.push(rendered);
+
+            const input = rendered.container.querySelector('input[aria-label="Buscar usuarios globalmente"]') as HTMLInputElement;
+            await typeSearchValue(input, 'dora');
+            await flushDebounce();
+
+            await waitForAssertion(() => {
+                expect(rendered.container.textContent || '').toContain('Dora');
+            });
+
+            const messageButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+                (button.textContent || '').trim() === 'Mensaje'
+            ) as HTMLButtonElement;
+            const followButton = rendered.container.querySelector('button[aria-label="Unfollow Dora"]') as HTMLButtonElement;
+            expect(messageButton).toBeDefined();
+            expect(messageButton.textContent || '').toContain('Mensaje');
+            expect(followButton).toBeDefined();
+            expect(followButton.disabled).toBe(false);
+            expect((followButton.textContent || '').trim()).toBe('Following');
+
+            await act(async () => {
+                followButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            });
+
+            expect(onFollowUser).toHaveBeenCalledTimes(1);
+            expect(onFollowUser).toHaveBeenCalledWith(pubkey);
+            expect(onClose).not.toHaveBeenCalled();
+            expect(followButton.disabled).toBe(true);
+            expect((followButton.textContent || '').trim()).toBe('Following');
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     test('shows loading and empty states while searching', async () => {
         vi.useFakeTimers();
         const deferred = createDeferred<{ pubkeys: string[]; profiles: Record<string, NostrProfile> }>();

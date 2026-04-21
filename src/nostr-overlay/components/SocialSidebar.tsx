@@ -131,6 +131,8 @@ export function SocialSidebar({
                         {...(followingPeople.length > 0 ? { searchQuery: followingSearch } : {})}
                         {...(followingPeople.length > 0 ? { onSearchQueryChange: setFollowingSearch } : {})}
                         {...(followingPeople.length > 0 ? { searchAriaLabel: 'Buscar en seguidos' } : {})}
+                        followedPubkeys={followingPeople}
+                        {...(onFollowPerson ? { onFollowPerson } : {})}
                         verificationByPubkey={verificationByPubkey}
                     />
                 </TabsContent>

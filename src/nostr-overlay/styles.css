@@ -1495,7 +1495,13 @@
 }
 
 .nostr-following-feed-list {
-    max-width: 600px;
+    width: 100%;
+    max-width: none;
+}
+
+.nostr-following-feed-note-shell {
+    width: min(100%, 600px);
+    justify-self: start;
 }
 
 .nostr-following-feed-thread-list {
