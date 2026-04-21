@@ -1,8 +1,8 @@
-import Util from '../util';
 import FieldIntegrator from '../impl/integrator';
 import {StreamlineParams} from '../impl/streamlines';
 import {WaterParams} from '../impl/water_generator';
 import WaterGenerator from '../impl/water_generator';
+import { inflateGenerationBounds, type GenerationBounds } from './map_generation_context';
 import Vector from '../vector';
 import RoadGUI from './road_gui';
 import TensorField from '../impl/tensor_field';
@@ -46,15 +46,15 @@ export default class WaterGUI extends RoadGUI {
         return this;
     }
 
-    generateRoads(): Promise<void> {
+    async generateRoads(bounds?: GenerationBounds): Promise<void> {
         this.preGenerateCallback();
 
-        this.domainController.zoom = this.domainController.zoom / Util.DRAW_INFLATE_AMOUNT;
+        const generationBounds = inflateGenerationBounds(this.resolveGenerationBounds(bounds));
+        this.setPathIterations(generationBounds.worldDimensions);
         this.streamlines = new WaterGenerator(
-            this.integrator, this.domainController.origin,
-            this.domainController.worldDimensions,
+            this.integrator, generationBounds.origin,
+            generationBounds.worldDimensions,
             Object.assign({},this.params), this.tensorField);
-        this.domainController.zoom = this.domainController.zoom * Util.DRAW_INFLATE_AMOUNT;
 
         this.streamlines.createCoast();
         this.streamlines.createRiver();

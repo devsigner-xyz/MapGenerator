@@ -122,14 +122,14 @@ Expected: PASS.
 - [ ] **Step 6: Escribir tests RED del helper de objetivo**
 
 Casos:
-- `[]` devuelve exactamente `24`
+- `[]` devuelve exactamente `600`
 - al aumentar `follows`, aumenta `targetBuildings`
 - al disminuir `follows`, disminuye `targetBuildings`
-- `['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j']` devuelve exactamente `24`
-- `50` `follows` únicos devuelven exactamente `66`
+- `['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j']` devuelve exactamente `600`
+- `50` `follows` únicos devuelven exactamente `600`
 - `['AA', ' aa ', 'Aa']` o fixture equivalente normalizado cuenta como un solo follow tras trim + lowercase
 - `['', '  ', 'Alice', 'alice']` o fixture equivalente descarta entradas vacías y cuenta un solo follow válido
-- una lista muy grande de `follows` queda capada a `600`
+- una lista muy grande de `follows` sigue creciendo por encima del suelo de `600`
 - deduplica `follows` repetidos
 - siempre devuelve un valor mayor que el número de `follows` deduplicados
 
@@ -161,7 +161,7 @@ Contrato:
 - descartar entradas vacías tras la normalización
 - `systemBuffer = 8`
 - `emptyHeadroom = Math.max(6, Math.ceil(followedResidentCount * 0.15))`
-- `targetBuildings = Math.min(600, Math.max(24, followedResidentCount + systemBuffer + emptyHeadroom))`
+- `targetBuildings = Math.max(600, followedResidentCount + systemBuffer + emptyHeadroom)`
 
 - [ ] **Step 10: Ejecutar GREEN del helper de objetivo**
 
@@ -179,10 +179,10 @@ Casos:
 - la carga autenticada usa `mapBridge.regenerateMap({ targetBuildings })` después de resolver `follows`
 - la carga autenticada ya no llama a `mapBridge.ensureGenerated()` en ese path
 - la carga autenticada dispara exactamente una llamada a `regenerateMap({ targetBuildings })` por carga de `follows`
-- un fixture con `['a'.repeat(64)]` produce `targetBuildings = 24`
-- un fixture con `50` `follows` únicos produce `targetBuildings = 66`
+- un fixture con `['a'.repeat(64)]` produce `targetBuildings = 600`
+- un fixture con `50` `follows` únicos produce `targetBuildings = 600`
 - el botón de `Regenerar mapa` reutiliza el `follows` más reciente del estado
-- dos regeneraciones manuales con esos dos estados producen exactamente `24` y `66`
+- dos regeneraciones manuales con esos dos estados producen exactamente `600` y `600`
 - seguir o dejar de seguir una cuenta no dispara `regenerateMap()` automáticamente en caliente
 
 - [ ] **Step 12: Ejecutar RED de integración del overlay**

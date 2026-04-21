@@ -19,6 +19,7 @@ import { fetchLatestPostsByPubkey } from '../../nostr/posts';
 import { fetchProfileStats } from '../../nostr/profile-stats';
 import { fetchProfiles } from '../../nostr/profiles';
 import { searchUsers as searchUsersDomain } from '../../nostr/user-search';
+import { buildFollowDrivenTargetBuildings } from '../domain/map-generation-target';
 import type { SocialFeedService } from '../../nostr/social-feed-service';
 import { getDefaultRelaySettings, getRelaySetByType, loadRelaySettings, saveRelaySettings, type RelaySettingsByType } from '../../nostr/relay-settings';
 import {
@@ -267,6 +268,10 @@ function getReservedSpecialBuildingIndexes(mapBridge: MapBridge): number[] {
 
 function dedupe(values: string[]): string[] {
     return [...new Set(values)];
+}
+
+function resolveTargetBuildingsFromFollows(follows: string[]): number {
+    return buildFollowDrivenTargetBuildings({ follows });
 }
 
 function hasSameRelaySet(left: string[], right: string[]): boolean {
@@ -1071,7 +1076,8 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             }));
             setMapLoaderStage('building_map');
 
-            await mapBridge.ensureGenerated();
+            const targetBuildings = resolveTargetBuildingsFromFollows(follows);
+            await mapBridge.regenerateMap({ targetBuildings });
             const buildings = mapBridge.listBuildings();
             const reservedBuildingIndexes = getReservedSpecialBuildingIndexes(mapBridge);
             const assignments = assignPubkeysToBuildings({
@@ -1337,7 +1343,9 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             }
 
             skipNextMapGeneratedRef.current = true;
-            await mapBridge.regenerateMap();
+            await mapBridge.regenerateMap({
+                targetBuildings: resolveTargetBuildingsFromFollows(current.data.follows),
+            });
 
             const buildings = mapBridge.listBuildings();
             const reservedBuildingIndexes = getReservedSpecialBuildingIndexes(mapBridge);

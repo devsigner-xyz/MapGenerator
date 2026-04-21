@@ -130,7 +130,7 @@ followedResidentCount = dedupe(
 ).length
 systemBuffer = 8
 emptyHeadroom = max(6, ceil(followedResidentCount * 0.15))
-targetBuildings = min(600, max(24, followedResidentCount + systemBuffer + emptyHeadroom))
+targetBuildings = max(600, followedResidentCount + systemBuffer + emptyHeadroom)
 ```
 
 Intención de cada término:
@@ -138,8 +138,7 @@ Intención de cada término:
 - `followedResidentCount`: mantiene que la métrica principal sea exactamente `follows`, como se acordó
 - `systemBuffer`: absorbe edificios especiales, easter eggs, ocupantes destacados y pequeñas variaciones sin obligar al overlay a depender de detalles internos del mapa
 - `emptyHeadroom`: asegura huecos vacíos y evita una ciudad completamente saturada
-- `max(24, ...)`: mantiene una ciudad mínima razonable cuando el usuario sigue a poca gente o a nadie
-- `min(600, ...)`: limita el coste procedural para redes seguidas muy grandes
+- `max(600, ...)`: garantiza un suelo visual y funcional para cuentas con pocos seguidos
 
 La métrica principal sigue siendo `follows`; el resto del cálculo es margen técnico y visual.
 

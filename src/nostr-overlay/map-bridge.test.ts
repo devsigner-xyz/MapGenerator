@@ -1,9 +1,10 @@
 import { describe, expect, test, vi } from 'vitest';
+import type { MapGenerationOptions } from '../map-generation-options';
 import { createMapBridge, type MapMainApi } from './map-bridge';
 
 function createMainApiStub(overrides: Partial<MapMainApi> = {}): MapMainApi {
     return {
-        generateMap: vi.fn().mockResolvedValue(undefined),
+        generateMap: vi.fn().mockImplementation(async (_options?: MapGenerationOptions) => undefined),
         roadsEmpty: vi.fn().mockReturnValue(false),
         getBuildingCentroidsWorld: vi.fn().mockReturnValue([{ x: 10, y: 20 }, { x: 30, y: 40 }]),
         getEasterEggBuildings: vi.fn().mockReturnValue([]),
@@ -53,6 +54,24 @@ describe('createMapBridge', () => {
         await bridge.regenerateMap();
 
         expect(api.generateMap).toHaveBeenCalledTimes(1);
+    });
+
+    test('regenerateMap forwards targetBuildings options to map api', async () => {
+        const api = createMainApiStub({ roadsEmpty: vi.fn().mockReturnValue(false) });
+        const bridge = createMapBridge(api);
+
+        await bridge.regenerateMap({ targetBuildings: 80 });
+
+        expect(api.generateMap).toHaveBeenCalledWith({ targetBuildings: 80 });
+    });
+
+    test('regenerateMap without options forwards undefined to map api', async () => {
+        const api = createMainApiStub({ roadsEmpty: vi.fn().mockReturnValue(false) });
+        const bridge = createMapBridge(api);
+
+        await bridge.regenerateMap();
+
+        expect(api.generateMap).toHaveBeenCalledWith(undefined);
     });
 
     test('listBuildings returns indexed centroid slots from map api', () => {

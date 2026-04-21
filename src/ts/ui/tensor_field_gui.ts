@@ -4,6 +4,7 @@ import DragController from './drag_controller';
 import TensorField from '../impl/tensor_field';
 import {NoiseParams} from '../impl/tensor_field';
 import {BasisField, FIELD_TYPE} from '../impl/basis_field';
+import { type GenerationBounds, resolveInitialGenerationBounds } from './map_generation_context';
 import Util from '../util';
 import Vector from '../vector';
 
@@ -36,32 +37,35 @@ export default class TensorFieldGUI extends TensorField {
     /**
      * 4 Grids, one radial
      */
-    setRecommended(): void {
+    setRecommended(bounds?: GenerationBounds): void {
+        const generationBounds = this.resolveGenerationBounds(bounds);
         this.reset();
-        const size = this.domainController.worldDimensions.multiplyScalar(this.TENSOR_SPAWN_SCALE);
-        const newOrigin = this.domainController.worldDimensions
+        const size = generationBounds.worldDimensions.clone().multiplyScalar(this.TENSOR_SPAWN_SCALE);
+        const newOrigin = generationBounds.worldDimensions.clone()
             .multiplyScalar((1 - this.TENSOR_SPAWN_SCALE) / 2)
-            .add(this.domainController.origin);
-        this.addGridAtLocation(newOrigin);
-        this.addGridAtLocation(newOrigin.clone().add(size));
-        this.addGridAtLocation(newOrigin.clone().add(new Vector(size.x, 0)));
-        this.addGridAtLocation(newOrigin.clone().add(new Vector(0, size.y)));
-        this.addRadialRandom();
+            .add(generationBounds.origin);
+        this.addGridAtLocation(newOrigin, generationBounds);
+        this.addGridAtLocation(newOrigin.clone().add(size), generationBounds);
+        this.addGridAtLocation(newOrigin.clone().add(new Vector(size.x, 0)), generationBounds);
+        this.addGridAtLocation(newOrigin.clone().add(new Vector(0, size.y)), generationBounds);
+        this.addRadialRandom(generationBounds);
     }
 
-    addRadialRandom(): void {
-        const width = this.domainController.worldDimensions.x;
-        this.addRadial(this.randomLocation(),
+    addRadialRandom(bounds?: GenerationBounds): void {
+        const generationBounds = this.resolveGenerationBounds(bounds);
+        const width = generationBounds.worldDimensions.x;
+        this.addRadial(this.randomLocation(generationBounds),
             Util.randomRange(width / 10, width / 5),  // Size
             Util.randomRange(50));  // Decay
     }
 
-    addGridRandom(): void {
-        this.addGridAtLocation(this.randomLocation());
+    addGridRandom(bounds?: GenerationBounds): void {
+        const generationBounds = this.resolveGenerationBounds(bounds);
+        this.addGridAtLocation(this.randomLocation(generationBounds), generationBounds);
     }
 
-    private addGridAtLocation(location: Vector): void {
-        const width = this.domainController.worldDimensions.x;
+    private addGridAtLocation(location: Vector, bounds: GenerationBounds): void {
+        const width = bounds.worldDimensions.x;
         this.addGrid(location,
             Util.randomRange(width / 4, width),  // Size
             Util.randomRange(50),  // Decay
@@ -72,11 +76,26 @@ export default class TensorFieldGUI extends TensorField {
      * World-space random location for tensor field spawn
      * Sampled from middle of screen (shrunk rectangle)
      */
-    private randomLocation(): Vector {
-        const size = this.domainController.worldDimensions.multiplyScalar(this.TENSOR_SPAWN_SCALE);
+    private randomLocation(bounds: GenerationBounds): Vector {
+        const size = bounds.worldDimensions.clone().multiplyScalar(this.TENSOR_SPAWN_SCALE);
         const location = new Vector(Math.random(), Math.random()).multiply(size);
-        const newOrigin = this.domainController.worldDimensions.multiplyScalar((1 - this.TENSOR_SPAWN_SCALE) / 2);
-        return location.add(this.domainController.origin).add(newOrigin);
+        const newOrigin = bounds.worldDimensions.clone().multiplyScalar((1 - this.TENSOR_SPAWN_SCALE) / 2);
+        return location.add(bounds.origin).add(newOrigin);
+    }
+
+    private resolveGenerationBounds(bounds?: GenerationBounds): GenerationBounds {
+        if (bounds) {
+            return {
+                origin: bounds.origin.clone(),
+                worldDimensions: bounds.worldDimensions.clone(),
+            };
+        }
+
+        const viewCenter = this.domainController.origin.add(this.domainController.worldDimensions.divideScalar(2));
+        return resolveInitialGenerationBounds({
+            viewCenter,
+            screenDimensions: this.domainController.screenDimensions,
+        });
     }
 
     private getCrossLocations(): Vector[] {

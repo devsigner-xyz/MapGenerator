@@ -3,6 +3,7 @@ import TensorField from '../impl/tensor_field';
 import {RK4Integrator} from '../impl/integrator';
 import {StreamlineParams} from '../impl/streamlines';
 import {WaterParams} from '../impl/water_generator';
+import { type GenerationBounds } from './map_generation_context';
 import Graph from '../impl/graph';
 import RoadGUI from './road_gui';
 import WaterGUI from './water_gui';
@@ -237,9 +238,19 @@ export default class MainGUI {
     }
 
     addParks(): void {
-        const g = new Graph(this.majorRoads.allStreamlines
+        const allStreamlines = this.majorRoads.allStreamlines
             .concat(this.mainRoads.allStreamlines)
-            .concat(this.minorRoads.allStreamlines), this.minorParams.dstep);
+            .concat(this.minorRoads.allStreamlines);
+
+        if (allStreamlines.length === 0) {
+            this.intersections = [];
+            this.bigParks = [];
+            this.smallParks = [];
+            this.redraw = true;
+            return;
+        }
+
+        const g = new Graph(allStreamlines, this.minorParams.dstep);
         this.intersections = g.intersections;
 
         const p = new PolygonFinder(g.nodes, {
@@ -294,11 +305,11 @@ export default class MainGUI {
         this.tensorField.parks.push(...this.smallParks);
     }
 
-    async generateEverything() {
-        this.coastline.generateRoads();
-        await this.mainRoads.generateRoads();
-        await this.majorRoads.generateRoads(this.animate);
-        await this.minorRoads.generateRoads(this.animate);
+    async generateEverything(bounds?: GenerationBounds) {
+        await this.coastline.generateRoads(bounds);
+        await this.mainRoads.generateRoads(bounds, this.animate);
+        await this.majorRoads.generateRoads(bounds, this.animate);
+        await this.minorRoads.generateRoads(bounds, this.animate);
         this.redraw = true;
         await this.buildings.generate(this.animate);
         this.recalculateSpecialBuildingAssignments();

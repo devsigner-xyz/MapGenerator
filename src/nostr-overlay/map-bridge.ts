@@ -1,5 +1,6 @@
 import type { EasterEggId } from '../ts/ui/easter_eggs';
 import type { SpecialBuildingId } from '../ts/ui/special_buildings';
+import type { MapGenerationOptions } from '../map-generation-options';
 
 export interface WorldPoint {
     x: number;
@@ -39,7 +40,7 @@ export interface SpecialBuildingSlot {
 }
 
 export interface MapMainApi {
-    generateMap(): Promise<void> | void;
+    generateMap(options?: MapGenerationOptions): Promise<void> | void;
     roadsEmpty(): boolean;
     getBuildingCentroidsWorld(): WorldPoint[];
     getEasterEggBuildings?(): EasterEggBuildingSlot[];
@@ -71,7 +72,7 @@ export interface MapMainApi {
 
 export interface MapBridge {
     ensureGenerated(): Promise<void>;
-    regenerateMap(): Promise<void>;
+    regenerateMap(options?: MapGenerationOptions): Promise<void>;
     listBuildings(): MapBuildingSlot[];
     listEasterEggBuildings?(): EasterEggBuildingSlot[];
     listSpecialBuildings(): SpecialBuildingSlot[];
@@ -103,12 +104,12 @@ export function createMapBridge(mainApi: MapMainApi): MapBridge {
     return {
         async ensureGenerated(): Promise<void> {
             if (mainApi.roadsEmpty()) {
-                await Promise.resolve(mainApi.generateMap());
+                await Promise.resolve(mainApi.generateMap(undefined));
             }
         },
 
-        async regenerateMap(): Promise<void> {
-            await Promise.resolve(mainApi.generateMap());
+        async regenerateMap(options?: MapGenerationOptions): Promise<void> {
+            await Promise.resolve(mainApi.generateMap(options));
         },
 
         listBuildings(): MapBuildingSlot[] {

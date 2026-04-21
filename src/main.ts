@@ -17,8 +17,11 @@ import { shouldRegenerateMapOnViewportInsetChange } from './ts/ui/viewport_inset
 import { SVG } from '@svgdotjs/svg.js';
 import type ModelGenerator from './ts/model_generator';
 import { saveAs } from 'file-saver';
+import type { MapGenerationOptions } from './map-generation-options';
 import { mountNostrOverlay } from './nostr-overlay/bootstrap';
+import { createLatestRequestRunner } from './ts/ui/map_generation_request_guard';
 import { createMiddlePanState, stopMiddlePanState, type MiddlePanState, updateMiddlePanState } from './ts/ui/middle_pan_drag';
+import { runMapGeneration } from './ts/ui/map_generation_runner';
 import { createViewChangeScheduler } from './ts/ui/view_change_scheduler';
 import type { EasterEggId } from './ts/ui/easter_eggs';
 import type { SpecialBuildingId } from './ts/ui/special_buildings';
@@ -87,7 +90,6 @@ class Main {
     private cameraX = 0;
     private cameraY = 0;
 
-    private firstGenerate = true;  // Don't randomise tensor field on first generate
     private modelGenerator: ModelGenerator | undefined;
     private mapGeneratedListeners: Array<() => void> = [];
     private occupiedBuildingClickListeners: Array<(payload: OccupiedBuildingClickPayload) => void> = [];
@@ -98,6 +100,7 @@ class Main {
     private viewChangeScheduler = createViewChangeScheduler(() => this.notifyViewChanged());
     private viewportInsetLeft = 0;
     private lastFrameTime = performance.now();
+    private readonly runLatestGeneration: (options?: MapGenerationOptions) => Promise<void>;
 
     constructor() {
         // GUI Setup
@@ -173,6 +176,17 @@ class Main {
         this.changeColourScheme(this.colourScheme);
         this.mountSettingsPanel(null);
         this.tensorField.setRecommended();
+        this.runLatestGeneration = createLatestRequestRunner(async (options?: MapGenerationOptions) => {
+            const viewCenter = this.domainController.origin.add(this.domainController.worldDimensions.divideScalar(2));
+            await runMapGeneration({
+                viewCenter,
+                screenDimensions: this.domainController.screenDimensions,
+                ...(options?.targetBuildings === undefined ? {} : { targetBuildings: options.targetBuildings }),
+                tensorField: this.tensorField,
+                mainGui: this.mainGui,
+            });
+            this.notifyMapGenerated();
+        });
         window.addEventListener('beforeunload', () => {
             this.viewChangeScheduler.dispose();
         });
@@ -190,15 +204,8 @@ class Main {
         void this.generateMap();
     }
 
-    async generateMap(): Promise<void> {
-        if (!this.firstGenerate) {
-            this.tensorField.setRecommended();
-        } else {
-            this.firstGenerate = false;
-        }
-        
-        await this.mainGui.generateEverything();
-        this.notifyMapGenerated();
+    async generateMap(options?: MapGenerationOptions): Promise<void> {
+        await this.runLatestGeneration(options);
     }
 
     async ensureGenerated(): Promise<void> {

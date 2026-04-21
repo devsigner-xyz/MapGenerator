@@ -913,6 +913,9 @@ describe('Nostr overlay App', () => {
         const settingsButton = rendered.container.querySelector('button[aria-label="Abrir ajustes"]') as HTMLButtonElement;
         expect(settingsButton.getAttribute('title')).toBe('Settings');
 
+        await waitFor(() => (bridge.regenerateMap as any).mock.calls.length > 0);
+        (bridge.regenerateMap as any).mockClear();
+
         await act(async () => {
             regenerateButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
@@ -5333,7 +5336,7 @@ describe('Nostr overlay App', () => {
         const mapDeferred = createDeferred<void>();
 
         const { bridge } = createMapBridgeStub(6);
-        (bridge.ensureGenerated as any).mockImplementation(() => mapDeferred.promise);
+        (bridge.regenerateMap as any).mockImplementation(() => mapDeferred.promise);
 
         const rendered = await renderApp(
             <App

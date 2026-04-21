@@ -1,8 +1,14 @@
 import DomainController from './domain_controller';
-import Util from '../util';
 import FieldIntegrator from '../impl/integrator';
 import {StreamlineParams} from '../impl/streamlines';
 import StreamlineGenerator from '../impl/streamlines';
+import {
+    calculatePathIterations,
+    inflateGenerationBounds,
+    resolveInitialGenerationBounds,
+    type GenerationBounds,
+} from './map_generation_context';
+import Util from '../util';
 import Vector from '../vector';
 
 /**
@@ -28,14 +34,13 @@ export default class RoadGUI {
             this.integrator, this.domainController.origin,
             this.domainController.worldDimensions, this.params);
 
-        // Update path iterations based on window size
-        this.setPathIterations();
-        window.addEventListener('resize', (): void => this.setPathIterations());
+        this.setPathIterations(this.domainController.screenDimensions);
+        window.addEventListener('resize', (): void => this.setPathIterations(this.domainController.screenDimensions));
     }
 
     initFolder(): RoadGUI {
         const roadGUI = {
-            Generate: () => this.generateRoads(this._animate).then(() => this.redraw()),
+            Generate: () => this.generateRoads(undefined, this._animate).then(() => this.redraw()),
             JoinDangling: (): void => {
                 this.streamlines.joinDanglingStreamlines();
                 this.redraw();
@@ -90,14 +95,16 @@ export default class RoadGUI {
         this.streamlines.clearStreamlines();
     }
 
-    async generateRoads(animate=false): Promise<unknown> {
+    async generateRoads(bounds?: GenerationBounds, animate=false): Promise<unknown> {
         this.preGenerateCallback();
 
-        this.domainController.zoom = this.domainController.zoom / Util.DRAW_INFLATE_AMOUNT;
+        const generationBounds = inflateGenerationBounds(this.resolveGenerationBounds(bounds));
+        this.setPathIterations(generationBounds.worldDimensions);
         this.streamlines = new StreamlineGenerator(
-            this.integrator, this.domainController.origin,
-            this.domainController.worldDimensions, Object.assign({},this.params));
-        this.domainController.zoom = this.domainController.zoom * Util.DRAW_INFLATE_AMOUNT;
+            this.integrator,
+            generationBounds.origin,
+            generationBounds.worldDimensions,
+            Object.assign({}, this.params));
 
         for (const s of this.existingStreamlines) {
             this.streamlines.addExistingStreamlines(s.streamlines)   
@@ -130,9 +137,23 @@ export default class RoadGUI {
     /**
      * Sets path iterations so that a road can cover the screen
      */
-    private setPathIterations(): void {
-        const max = 1.5 * Math.max(window.innerWidth, window.innerHeight);
-        this.params.pathIterations = max/this.params.dstep;
+    protected setPathIterations(worldDimensions: Vector): void {
+        this.params.pathIterations = calculatePathIterations(worldDimensions, this.params.dstep);
         Util.updateGui(this.guiFolder);
+    }
+
+    protected resolveGenerationBounds(bounds?: GenerationBounds): GenerationBounds {
+        if (bounds) {
+            return {
+                origin: bounds.origin.clone(),
+                worldDimensions: bounds.worldDimensions.clone(),
+            };
+        }
+
+        const viewCenter = this.domainController.origin.add(this.domainController.worldDimensions.divideScalar(2));
+        return resolveInitialGenerationBounds({
+            viewCenter,
+            screenDimensions: this.domainController.screenDimensions,
+        });
     }
 }
