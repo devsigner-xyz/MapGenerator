@@ -6874,6 +6874,74 @@ describe('Nostr overlay App', () => {
         expect(lastTrafficSpeed).toBeGreaterThan(1.4);
     });
 
+    test('persists agora feed layout from header toggle and reflects it in interface settings', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const socialFeed = createSocialFeedServiceMock();
+        (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mockResolvedValue({
+            items: [createFeedNote('layout-note-1', 'a'.repeat(64), 100, 'hola agora')],
+            hasMore: false,
+        });
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    ...createBasicOverlayServices(ownerPubkey),
+                    socialFeedService: socialFeed.service,
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        await loginWithNip07(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const feedButton = rendered.container.querySelector('.nostr-panel-toolbar button[aria-label="Abrir Agora"]') as HTMLButtonElement;
+        expect(feedButton).toBeDefined();
+
+        await act(async () => {
+            feedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Agora'));
+        await waitFor(() => Array.from(rendered.container.querySelectorAll('[data-slot="toggle-group-item"]')).some((item) =>
+            (item.textContent || '').trim() === 'Masonry'
+        ));
+
+        const masonryButton = Array.from(rendered.container.querySelectorAll('[data-slot="toggle-group-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Masonry'
+        ) as HTMLButtonElement | undefined;
+        expect(masonryButton).toBeDefined();
+
+        await act(async () => {
+            masonryButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const storedUiSettings = JSON.parse(window.localStorage.getItem(UI_SETTINGS_STORAGE_KEY) || '{}') as { agoraFeedLayout?: string };
+        expect(storedUiSettings.agoraFeedLayout).toBe('masonry');
+
+        await selectSettingsContextAction(rendered.container, 'Interfaz');
+        await waitFor(() => (rendered.container.textContent || '').includes('Etiquetas de calles'));
+
+        const settingsMasonryButton = Array.from(rendered.container.querySelectorAll('[data-slot="toggle-group-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Masonry'
+        ) as HTMLButtonElement | undefined;
+        expect(settingsMasonryButton).toBeDefined();
+        expect(settingsMasonryButton?.getAttribute('data-state')).toBe('on');
+
+        const settingsListButton = Array.from(rendered.container.querySelectorAll('[data-slot="toggle-group-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Lista'
+        ) as HTMLButtonElement | undefined;
+        expect(settingsListButton).toBeDefined();
+
+        await act(async () => {
+            settingsListButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        const updatedUiSettings = JSON.parse(window.localStorage.getItem(UI_SETTINGS_STORAGE_KEY) || '{}') as { agoraFeedLayout?: string };
+        expect(updatedUiSettings.agoraFeedLayout).toBe('list');
+    });
+
     test('can collapse panel to compact icon row and restore it', async () => {
         const { bridge } = createMapBridgeStub();
         const rendered = await renderApp(<App mapBridge={bridge} services={createBasicOverlayServices()} />);

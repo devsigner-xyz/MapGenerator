@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ImageIcon } from 'lucide-react';
+import type { AgoraFeedLayout } from '../../nostr/ui-settings';
 import type { NostrEvent, NostrProfile } from '../../nostr/types';
 import type { SocialEngagementMetrics, SocialFeedItem } from '../../nostr/social-feed-service';
 import type { SearchUsersResult } from '../query/user-search.query';
@@ -21,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
+import { cn } from '@/lib/utils';
 
 function buildThreadReplyTree(replies: FollowingFeedThreadView['replies']) {
     const childrenByParentId = new Map<string, FollowingFeedThreadView['replies']>();
@@ -100,6 +102,7 @@ export interface FollowingFeedViewProps {
 }
 
 interface FollowingFeedContentProps extends FollowingFeedViewProps {
+    agoraFeedLayout?: AgoraFeedLayout;
     className?: string;
     headerActions?: ReactNode;
     headerSubtitle?: string;
@@ -163,6 +166,7 @@ function shouldLoadMore(container: HTMLDivElement): boolean {
 
 export function FollowingFeedContent({
     className,
+    agoraFeedLayout = 'list',
     headerActions,
     headerSubtitle,
     activeHashtag,
@@ -395,44 +399,78 @@ export function FollowingFeedContent({
                                 </Empty>
                             )
                         ) : (
-                            items.map((item) => {
-                                const baseNote = fromFeedItem(item);
-                                if (!baseNote) {
-                                    return null;
-                                }
+                            <div
+                                className={cn(
+                                    'nostr-following-feed-items',
+                                    agoraFeedLayout === 'masonry'
+                                        ? 'nostr-following-feed-list-layout-masonry'
+                                        : 'nostr-following-feed-list-layout-list'
+                                )}
+                            >
+                                {items.map((item) => {
+                                    const baseNote = fromFeedItem(item);
+                                    if (!baseNote) {
+                                        return null;
+                                    }
 
-                                const embeddedRepostPayload = item.kind === 'repost' ? parseEmbeddedRepostEvent(item.content) : null;
-                                const embeddedRepostItem = embeddedRepostPayload
-                                    ? {
-                                        id: embeddedRepostPayload.id,
-                                        pubkey: embeddedRepostPayload.pubkey,
-                                        createdAt: embeddedRepostPayload.createdAt,
-                                        content: embeddedRepostPayload.content,
-                                        kind: embeddedRepostPayload.kind === 1 ? 'note' as const : 'repost' as const,
-                                        rawEvent: {
+                                    const embeddedRepostPayload = item.kind === 'repost' ? parseEmbeddedRepostEvent(item.content) : null;
+                                    const embeddedRepostItem = embeddedRepostPayload
+                                        ? {
                                             id: embeddedRepostPayload.id,
                                             pubkey: embeddedRepostPayload.pubkey,
-                                        kind: embeddedRepostPayload.kind,
-                                        created_at: embeddedRepostPayload.createdAt,
-                                        tags: embeddedRepostPayload.tags,
-                                        content: embeddedRepostPayload.content,
-                                        ...(embeddedRepostPayload.sig ? { sig: embeddedRepostPayload.sig } : {}),
-                                    },
-                                    }
-                                    : null;
-                                const embeddedRepostNote = embeddedRepostPayload
-                                    ? fromEmbeddedRepost({
-                                        id: embeddedRepostPayload.id,
-                                        pubkey: embeddedRepostPayload.pubkey,
-                                        createdAt: embeddedRepostPayload.createdAt,
-                                        content: embeddedRepostPayload.content,
-                                        tags: embeddedRepostPayload.tags,
-                                    }, 1)
-                                    : null;
+                                            createdAt: embeddedRepostPayload.createdAt,
+                                            content: embeddedRepostPayload.content,
+                                            kind: embeddedRepostPayload.kind === 1 ? 'note' as const : 'repost' as const,
+                                            rawEvent: {
+                                                id: embeddedRepostPayload.id,
+                                                pubkey: embeddedRepostPayload.pubkey,
+                                            kind: embeddedRepostPayload.kind,
+                                            created_at: embeddedRepostPayload.createdAt,
+                                            tags: embeddedRepostPayload.tags,
+                                            content: embeddedRepostPayload.content,
+                                            ...(embeddedRepostPayload.sig ? { sig: embeddedRepostPayload.sig } : {}),
+                                        },
+                                        }
+                                        : null;
+                                    const embeddedRepostNote = embeddedRepostPayload
+                                        ? fromEmbeddedRepost({
+                                            id: embeddedRepostPayload.id,
+                                            pubkey: embeddedRepostPayload.pubkey,
+                                            createdAt: embeddedRepostPayload.createdAt,
+                                            content: embeddedRepostPayload.content,
+                                            tags: embeddedRepostPayload.tags,
+                                        }, 1)
+                                        : null;
 
-                                if (embeddedRepostItem && embeddedRepostNote) {
-                                    embeddedRepostNote.actions = buildFeedActionState({
-                                        item: embeddedRepostItem,
+                                    if (embeddedRepostItem && embeddedRepostNote) {
+                                        embeddedRepostNote.actions = buildFeedActionState({
+                                            item: embeddedRepostItem,
+                                            canWrite,
+                                            engagementByEventId,
+                                            reactionByEventId,
+                                            repostByEventId,
+                                            pendingReactionByEventId,
+                                            pendingRepostByEventId,
+                                            onOpenThread,
+                                            onToggleReaction,
+                                            onToggleRepost,
+                                            onQuote: () => onOpenQuoteComposer(withoutNoteActions(embeddedRepostNote)),
+                                            onZap,
+                                            zapAmounts,
+                                            ...(onConfigureZapAmounts ? { onConfigureZapAmounts } : {}),
+                                        });
+                                    }
+
+                                    const note = item.kind === 'repost' && embeddedRepostNote
+                                        ? {
+                                            ...baseNote,
+                                            content: '',
+                                            embedded: embeddedRepostNote,
+                                        }
+                                        : baseNote;
+
+                                    note.actions = buildFeedActionState({
+                                        item,
                                         canWrite,
                                         engagementByEventId,
                                         reactionByEventId,
@@ -442,48 +480,23 @@ export function FollowingFeedContent({
                                         onOpenThread,
                                         onToggleReaction,
                                         onToggleRepost,
-                                        onQuote: () => onOpenQuoteComposer(withoutNoteActions(embeddedRepostNote)),
+                                        onQuote: () => onOpenQuoteComposer(withoutNoteActions(note)),
                                         onZap,
                                         zapAmounts,
                                         ...(onConfigureZapAmounts ? { onConfigureZapAmounts } : {}),
                                     });
-                                }
 
-                                const note = item.kind === 'repost' && embeddedRepostNote
-                                    ? {
-                                        ...baseNote,
-                                        content: '',
-                                        embedded: embeddedRepostNote,
-                                    }
-                                    : baseNote;
-
-                                note.actions = buildFeedActionState({
-                                    item,
-                                    canWrite,
-                                    engagementByEventId,
-                                    reactionByEventId,
-                                    repostByEventId,
-                                    pendingReactionByEventId,
-                                    pendingRepostByEventId,
-                                    onOpenThread,
-                                    onToggleReaction,
-                                    onToggleRepost,
-                                    onQuote: () => onOpenQuoteComposer(withoutNoteActions(note)),
-                                    onZap,
-                                    zapAmounts,
-                                    ...(onConfigureZapAmounts ? { onConfigureZapAmounts } : {}),
-                                });
-
-                                return (
-                                    <div key={item.id} className="nostr-following-feed-note-shell grid gap-2">
-                                        <NoteCard
-                                            note={note}
-                                            profilesByPubkey={profilesByPubkey}
-                                            {...noteCardProps}
-                                        />
-                                    </div>
-                                );
-                            })
+                                    return (
+                                        <div key={item.id} className="nostr-following-feed-note-shell grid gap-2">
+                                            <NoteCard
+                                                note={note}
+                                                profilesByPubkey={profilesByPubkey}
+                                                {...noteCardProps}
+                                            />
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         )}
 
                         <ListLoadingFooter loading={isLoadingFeed && items.length > 0} label="Cargando publicaciones..." />

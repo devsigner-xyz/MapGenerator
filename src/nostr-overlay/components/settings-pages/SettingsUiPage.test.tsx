@@ -48,4 +48,41 @@ describe('SettingsUiPage', () => {
         expect(rendered.container.querySelector('[data-testid="settings-ui-traffic-speed-row"]')).not.toBeNull();
         expect(rendered.container.textContent || '').toContain('Interfaz');
     });
+
+    test('renders agora layout control and persists selected layout', async () => {
+        const onPersistUiSettings = vi.fn();
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+        const root = createRoot(container);
+
+        await act(async () => {
+            root.render(
+                <SettingsUiPage
+                    uiSettings={getDefaultUiSettings()}
+                    onPersistUiSettings={onPersistUiSettings}
+                />
+            );
+        });
+
+        mounted.push({ container, root });
+
+        const toggleGroup = container.querySelector('[data-testid="settings-ui-agora-layout"] [data-slot="toggle-group"]') as HTMLDivElement | null;
+        expect(toggleGroup).not.toBeNull();
+        expect(toggleGroup?.textContent).toContain('Lista');
+        expect(toggleGroup?.textContent).toContain('Masonry');
+
+        const masonryButton = Array.from(container.querySelectorAll('[data-testid="settings-ui-agora-layout"] [data-slot="toggle-group-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Masonry'
+        ) as HTMLButtonElement | undefined;
+        expect(masonryButton).toBeDefined();
+
+        await act(async () => {
+            masonryButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onPersistUiSettings).toHaveBeenCalledWith({
+            ...getDefaultUiSettings(),
+            agoraFeedLayout: 'masonry',
+        });
+    });
 });

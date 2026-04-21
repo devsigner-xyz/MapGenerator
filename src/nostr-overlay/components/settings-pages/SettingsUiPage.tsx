@@ -3,6 +3,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { OverlayPageHeader } from '../OverlayPageHeader';
 
 interface SettingsUiPageProps {
@@ -105,6 +106,38 @@ export function SettingsUiPage({ uiSettings, onPersistUiSettings }: SettingsUiPa
                             });
                         }}
                     />
+
+                    <Separator className="nostr-divider" />
+
+                    <div className="grid gap-2" data-testid="settings-ui-agora-layout">
+                        <div className="flex items-center justify-between gap-2">
+                            <Label>Layout de Agora</Label>
+                        </div>
+                        <ToggleGroup
+                            type="single"
+                            required
+                            variant="outline"
+                            size="sm"
+                            value={uiSettings.agoraFeedLayout}
+                            onValueChange={(value) => {
+                                if (value !== 'list' && value !== 'masonry') {
+                                    return;
+                                }
+
+                                onPersistUiSettings({
+                                    ...uiSettings,
+                                    agoraFeedLayout: value,
+                                });
+                            }}
+                        >
+                            <ToggleGroupItem value="list" aria-label="Seleccionar layout lista para Agora">
+                                Lista
+                            </ToggleGroupItem>
+                            <ToggleGroupItem value="masonry" aria-label="Seleccionar layout masonry para Agora">
+                                Masonry
+                            </ToggleGroupItem>
+                        </ToggleGroup>
+                    </div>
 
                     <Separator className="nostr-divider" />
 

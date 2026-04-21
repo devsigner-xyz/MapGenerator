@@ -1292,6 +1292,13 @@ export function App({ mapBridge, services }: AppProps) {
         toast.success(enabled ? 'Coches activados' : 'Coches desactivados', { duration: 1800 });
     };
 
+    const setAgoraFeedLayout = (layout: UiSettingsState['agoraFeedLayout']): void => {
+        setUiSettings((currentSettings) => saveUiSettings({
+            ...currentSettings,
+            agoraFeedLayout: layout,
+        }));
+    };
+
     const openSettingsPage = (view: SettingsRouteView = 'ui'): void => {
         navigate(buildSettingsPath(view));
     };
@@ -1752,6 +1759,8 @@ export function App({ mapBridge, services }: AppProps) {
                     path="/agora"
                     element={(
                         <FollowingFeedSurface
+                            agoraFeedLayout={uiSettings.agoraFeedLayout}
+                            onAgoraFeedLayoutChange={setAgoraFeedLayout}
                             items={followingFeed.items}
                             pendingNewCount={followingFeed.pendingNewCount}
                             hasPendingNewItems={followingFeed.hasPendingNewItems}

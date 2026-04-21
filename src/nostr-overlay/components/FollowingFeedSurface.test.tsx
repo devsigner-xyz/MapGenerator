@@ -93,6 +93,49 @@ function buildProps(overrides: Partial<Parameters<typeof FollowingFeedSurface>[0
 }
 
 describe('FollowingFeedSurface', () => {
+    test('renders layout toggle in feed header and forwards changes', async () => {
+        const onAgoraFeedLayoutChange = vi.fn();
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    ...({ agoraFeedLayout: 'list', onAgoraFeedLayoutChange } as any),
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const toggleGroup = rendered.container.querySelector('.nostr-following-feed-header-actions [data-slot="toggle-group"]') as HTMLDivElement | null;
+        expect(toggleGroup).not.toBeNull();
+        expect(toggleGroup?.textContent).toContain('Lista');
+        expect(toggleGroup?.textContent).toContain('Masonry');
+
+        const masonryButton = Array.from(rendered.container.querySelectorAll('[data-slot="toggle-group-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Masonry'
+        ) as HTMLButtonElement | undefined;
+        expect(masonryButton).toBeDefined();
+
+        await act(async () => {
+            masonryButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onAgoraFeedLayoutChange).toHaveBeenCalledWith('masonry');
+    });
+
+    test('keeps layout toggle visible when hashtag filter is active', async () => {
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    ...({ agoraFeedLayout: 'masonry', onAgoraFeedLayoutChange: vi.fn() } as any),
+                    activeHashtag: 'NostrCity',
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const toggleGroup = rendered.container.querySelector('.nostr-following-feed-header-actions [data-slot="toggle-group"]');
+        expect(toggleGroup).not.toBeNull();
+    });
+
     test('renders new posts CTA and applies pending items on click', async () => {
         const onApplyPendingNewItems = vi.fn();
         const rendered = await renderElement(
@@ -166,6 +209,7 @@ describe('FollowingFeedSurface', () => {
         const rendered = await renderElement(
             <FollowingFeedSurface
                 {...buildProps({
+                    ...({ agoraFeedLayout: 'list', onAgoraFeedLayoutChange: vi.fn() } as any),
                     pendingNewCount: 3,
                     hasPendingNewItems: true,
                     activeThread: {
@@ -199,6 +243,7 @@ describe('FollowingFeedSurface', () => {
         const text = rendered.container.textContent || '';
         expect(text).not.toContain('Ver 3 publicaciones nuevas');
         expect(text).not.toContain('Actualizar');
+        expect(rendered.container.querySelector('[data-slot="toggle-group"]')).toBeNull();
     });
 
     test('feed scroll requests next query page without rendering manual load more button', async () => {
@@ -328,10 +373,11 @@ describe('FollowingFeedSurface', () => {
         expect(onPublishPost).not.toHaveBeenCalled();
     });
 
-    test('wraps feed notes in a constrained shell while keeping the scroll list full width', async () => {
+    test('wraps feed notes in a dedicated list-layout container', async () => {
         const rendered = await renderElement(
             <FollowingFeedSurface
                 {...buildProps({
+                    ...({ agoraFeedLayout: 'masonry', onAgoraFeedLayoutChange: vi.fn() } as any),
                     items: [
                         {
                             id: 'note-1',
@@ -356,10 +402,52 @@ describe('FollowingFeedSurface', () => {
 
         const feedList = rendered.container.querySelector('[data-testid="following-feed-list"]') as HTMLDivElement;
         expect(feedList).toBeDefined();
+        expect(feedList.className).toContain('nostr-following-feed-list');
 
-        const noteShell = feedList.querySelector('.nostr-following-feed-note-shell') as HTMLDivElement;
+        const itemsWrapper = feedList.querySelector('.nostr-following-feed-items') as HTMLDivElement;
+        expect(itemsWrapper).toBeDefined();
+        expect(itemsWrapper.className).toContain('nostr-following-feed-list-layout-masonry');
+
+        const noteShell = itemsWrapper.querySelector('.nostr-following-feed-note-shell') as HTMLDivElement;
         expect(noteShell).toBeDefined();
         expect(noteShell.querySelector('[data-slot="card"]')).not.toBeNull();
+    });
+
+    test('keeps the loading footer outside the masonry items wrapper', async () => {
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    ...({ agoraFeedLayout: 'masonry', onAgoraFeedLayoutChange: vi.fn() } as any),
+                    isLoadingFeed: true,
+                    items: [
+                        {
+                            id: 'note-1',
+                            pubkey: 'a'.repeat(64),
+                            createdAt: 100,
+                            content: 'hola agora',
+                            kind: 'note',
+                            rawEvent: {
+                                id: 'note-1',
+                                pubkey: 'a'.repeat(64),
+                                kind: 1,
+                                created_at: 100,
+                                tags: [],
+                                content: 'hola agora',
+                            },
+                        },
+                    ],
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const feedList = rendered.container.querySelector('[data-testid="following-feed-list"]') as HTMLDivElement;
+        const itemsWrapper = feedList.querySelector('.nostr-following-feed-items') as HTMLDivElement;
+        expect(itemsWrapper).toBeDefined();
+
+        const loadingFooter = Array.from(feedList.children).find((child) => (child.textContent || '').includes('Cargando publicaciones...')) as HTMLDivElement | undefined;
+        expect(loadingFooter).toBeDefined();
+        expect(itemsWrapper.contains(loadingFooter || null)).toBe(false);
     });
 
     test('renders no-follows empty state using Empty component copy', async () => {
@@ -1347,7 +1435,7 @@ describe('FollowingFeedSurface', () => {
         expect(text).not.toContain('(sin contenido)');
         expect(text).toContain('nota citada');
 
-        const itemWrapper = rendered.container.querySelector('.nostr-following-feed-list > .grid.gap-2') as HTMLDivElement;
+        const itemWrapper = rendered.container.querySelector('.nostr-following-feed-items > .grid.gap-2') as HTMLDivElement;
         expect(itemWrapper).not.toBeNull();
         expect(itemWrapper.children).toHaveLength(1);
 

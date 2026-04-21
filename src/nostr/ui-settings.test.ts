@@ -14,6 +14,7 @@ describe('ui-settings', () => {
     test('returns default settings when storage is empty', () => {
         const state = loadUiSettings(window.localStorage);
         expect(state).toEqual(getDefaultUiSettings());
+        expect(state.agoraFeedLayout).toBe('list');
         expect(state.occupiedLabelsZoomLevel).toBe(8);
         expect(state.streetLabelsEnabled).toBe(true);
         expect(state.specialMarkersEnabled).toBe(true);
@@ -31,6 +32,7 @@ describe('ui-settings', () => {
     test('normalizes zoom threshold when saving', () => {
         const saved = saveUiSettings(
             {
+                agoraFeedLayout: 'masonry',
                 occupiedLabelsZoomLevel: 99,
                 streetLabelsEnabled: true,
                 specialMarkersEnabled: false,
@@ -44,9 +46,11 @@ describe('ui-settings', () => {
 
         expect(saved.occupiedLabelsZoomLevel).toBe(20);
         expect(saved.streetLabelsZoomLevel).toBe(20);
+        expect(saved.agoraFeedLayout).toBe('masonry');
         expect(saved.specialMarkersEnabled).toBe(false);
         expect(saved.trafficParticlesCount).toBe(50);
         expect(saved.trafficParticlesSpeed).toBe(3);
+        expect(loadUiSettings(window.localStorage).agoraFeedLayout).toBe('masonry');
         expect(loadUiSettings(window.localStorage).occupiedLabelsZoomLevel).toBe(20);
         expect(loadUiSettings(window.localStorage).streetLabelsZoomLevel).toBe(20);
         expect(loadUiSettings(window.localStorage).trafficParticlesCount).toBe(50);
@@ -56,6 +60,7 @@ describe('ui-settings', () => {
     test('normalizes traffic particle settings when saving out-of-range values', () => {
         const saved = saveUiSettings(
             {
+                agoraFeedLayout: 'list',
                 occupiedLabelsZoomLevel: 8,
                 streetLabelsEnabled: true,
                 specialMarkersEnabled: true,
@@ -69,8 +74,10 @@ describe('ui-settings', () => {
 
         expect(saved.trafficParticlesCount).toBe(0);
         expect(saved.trafficParticlesSpeed).toBe(0.2);
+        expect(saved.agoraFeedLayout).toBe('list');
 
         const loaded = loadUiSettings(window.localStorage);
+        expect(loaded.agoraFeedLayout).toBe('list');
         expect(loaded.trafficParticlesCount).toBe(0);
         expect(loaded.trafficParticlesSpeed).toBe(0.2);
     });
@@ -114,6 +121,7 @@ describe('ui-settings', () => {
 
     test('normalizes special markers flag when payload is malformed', () => {
         window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({
+            agoraFeedLayout: 'gallery',
             occupiedLabelsZoomLevel: 8,
             streetLabelsEnabled: true,
             specialMarkersEnabled: 'enabled',
@@ -122,6 +130,7 @@ describe('ui-settings', () => {
         }));
 
         const loaded = loadUiSettings(window.localStorage);
+        expect(loaded.agoraFeedLayout).toBe('list');
         expect(loaded.specialMarkersEnabled).toBe(true);
     });
 });
