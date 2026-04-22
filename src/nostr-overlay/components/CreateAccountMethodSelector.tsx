@@ -1,4 +1,5 @@
 import { ChevronRightIcon } from 'lucide-react';
+import { useI18n } from '@/i18n/useI18n';
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/components/ui/item';
 
 export type CreateAccountMethod = 'external' | 'local';
@@ -9,14 +10,16 @@ interface CreateAccountMethodSelectorProps {
 }
 
 export function CreateAccountMethodSelector({ disabled = false, onSelectMethod }: CreateAccountMethodSelectorProps) {
+    const { t } = useI18n();
+
     return (
-        <section className="flex flex-col gap-4" aria-label="Selector de alta de Nostr">
+        <section className="flex flex-col gap-4" aria-label={t('auth.createMethod.aria')}>
             <ItemGroup>
                 <Item asChild variant="outline" className="w-full">
                     <button type="button" disabled={disabled} onClick={() => onSelectMethod('external')}>
                         <ItemContent>
-                            <ItemTitle>Usar app o extension</ItemTitle>
-                            <ItemDescription>Conecta una extension o un signer externo.</ItemDescription>
+                            <ItemTitle>{t('auth.createMethod.external.title')}</ItemTitle>
+                            <ItemDescription>{t('auth.createMethod.external.description')}</ItemDescription>
                         </ItemContent>
                         <ItemActions className="text-muted-foreground">
                             <ChevronRightIcon aria-hidden="true" />
@@ -26,8 +29,8 @@ export function CreateAccountMethodSelector({ disabled = false, onSelectMethod }
                 <Item asChild variant="outline" className="w-full">
                     <button type="button" disabled={disabled} onClick={() => onSelectMethod('local')}>
                         <ItemContent>
-                            <ItemTitle>Crear cuenta local</ItemTitle>
-                            <ItemDescription>Crea una cuenta nueva en este dispositivo.</ItemDescription>
+                            <ItemTitle>{t('auth.createMethod.local.title')}</ItemTitle>
+                            <ItemDescription>{t('auth.createMethod.local.description')}</ItemDescription>
                         </ItemContent>
                         <ItemActions className="text-muted-foreground">
                             <ChevronRightIcon aria-hidden="true" />

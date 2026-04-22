@@ -85,4 +85,29 @@ describe('SettingsUiPage', () => {
             agoraFeedLayout: 'masonry',
         });
     });
+
+    test('renders language selector row for choosing spanish or english', async () => {
+        const onPersistUiSettings = vi.fn();
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+        const root = createRoot(container);
+
+        await act(async () => {
+            root.render(
+                <SettingsUiPage
+                    uiSettings={{
+                        ...getDefaultUiSettings(),
+                        language: 'es',
+                    } as Parameters<typeof SettingsUiPage>[0]['uiSettings']}
+                    onPersistUiSettings={onPersistUiSettings}
+                />
+            );
+        });
+
+        mounted.push({ container, root });
+
+        expect(container.querySelector('[data-testid="settings-ui-language-row"]')).not.toBeNull();
+        expect(container.textContent || '').toContain('Idioma');
+        expect(container.textContent || '').toContain('Español');
+    });
 });

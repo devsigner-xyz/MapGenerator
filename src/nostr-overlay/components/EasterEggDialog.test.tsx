@@ -1,6 +1,7 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
+import { UI_SETTINGS_STORAGE_KEY } from '../../nostr/ui-settings';
 import { EasterEggDialog } from './EasterEggDialog';
 
 interface RenderResult {
@@ -15,6 +16,7 @@ beforeAll(() => {
 });
 
 afterEach(async () => {
+    window.localStorage.clear();
     for (const entry of mounted) {
         await act(async () => {
             entry.root.unmount();
@@ -80,5 +82,31 @@ describe('EasterEggDialog', () => {
         const textBlock = rendered.container.querySelector('pre.nostr-easter-egg-text') as HTMLPreElement;
         expect(textBlock).toBeDefined();
         expect(textBlock.textContent || '').toContain('barbed wire fences');
+    });
+
+    test('renders english chrome and actions when ui language is en', async () => {
+        window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ language: 'en' }));
+
+        const rendered = await renderDialog(
+            <EasterEggDialog
+                buildingIndex={0}
+                onClose={vi.fn()}
+                entry={{
+                    id: 'bitcoin_whitepaper',
+                    kind: 'pdf',
+                    title: 'Bitcoin: A Peer-to-Peer Electronic Cash System',
+                    sourceUrl: 'https://bitcoin.org/bitcoin.pdf',
+                    pdfPath: '/easter-eggs/bitcoin.pdf',
+                    downloadFileName: 'bitcoin.pdf',
+                }}
+            />
+        );
+
+        const text = rendered.container.textContent || '';
+        expect(text).toContain('Building #1');
+        expect(text).toContain('Download PDF');
+        expect(text).toContain('Open / Expand');
+        expect(text).toContain('Source');
+        expect(rendered.container.querySelector('button[aria-label="Close easter egg"]')).not.toBeNull();
     });
 });

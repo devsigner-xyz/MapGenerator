@@ -1,4 +1,5 @@
 import { ContextMenuItem } from '@/components/ui/context-menu';
+import { useI18n } from '@/i18n/useI18n';
 
 interface PersonContextMenuItemsProps {
     onCopyNpub?: () => void | Promise<void>;
@@ -25,6 +26,7 @@ export function PersonContextMenuItems({
     closeMenu,
     testIdPrefix,
 }: PersonContextMenuItemsProps) {
+    const { t } = useI18n();
     const run = (action?: () => void | Promise<void>) => {
         if (!action) {
             return;
@@ -38,7 +40,7 @@ export function PersonContextMenuItems({
         <>
             {onLocateOnMap ? (
                 <ContextMenuItem onSelect={() => run(onLocateOnMap)}>
-                    Ubicar en el mapa
+                    {t('personMenu.locateOnMap')}
                 </ContextMenuItem>
             ) : null}
             {onCopyNpub ? (
@@ -46,7 +48,7 @@ export function PersonContextMenuItems({
                     data-testid={prefixedTestId(testIdPrefix, 'copy-npub')}
                     onSelect={() => run(onCopyNpub)}
                 >
-                    Copiar npub
+                    {t('personMenu.copyNpub')}
                 </ContextMenuItem>
             ) : null}
             {onSendMessage ? (
@@ -54,7 +56,7 @@ export function PersonContextMenuItems({
                     data-testid={prefixedTestId(testIdPrefix, 'write-dm')}
                     onSelect={() => run(onSendMessage)}
                 >
-                    Enviar mensaje
+                    {t('personMenu.sendMessage')}
                 </ContextMenuItem>
             ) : null}
             {onViewDetails ? (
@@ -62,7 +64,7 @@ export function PersonContextMenuItems({
                     data-testid={prefixedTestId(testIdPrefix, 'view-details')}
                     onSelect={() => run(onViewDetails)}
                 >
-                    Ver detalles
+                    {t('personMenu.viewDetails')}
                 </ContextMenuItem>
             ) : null}
         </>

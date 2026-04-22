@@ -2,6 +2,7 @@ import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
 import { encodeHexToNpub } from '../../nostr/npub';
+import { UI_SETTINGS_STORAGE_KEY } from '../../nostr/ui-settings';
 import type { NostrProfile } from '../../nostr/types';
 import { PeopleListTab } from './PeopleListTab';
 
@@ -60,6 +61,7 @@ beforeAll(() => {
 });
 
 afterEach(async () => {
+    window.localStorage.clear();
     for (const entry of mounted) {
         await act(async () => {
             entry.root.unmount();
@@ -629,5 +631,42 @@ describe('PeopleListTab', () => {
         expect(updatedScrollContainer).toBeDefined();
         await waitFor(() => updatedScrollContainer.scrollTop === 0);
         expect(updatedScrollContainer.scrollTop).toBe(0);
+    });
+
+    test('renders english search and follow copy when ui language is en', async () => {
+        window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ language: 'en' }));
+
+        const alice = makePubkey(1);
+        const bob = makePubkey(2);
+        const rendered = await renderElement(
+            <PeopleListTab
+                people={[alice, bob]}
+                profiles={{
+                    [alice]: { pubkey: alice, displayName: 'Alice' },
+                    [bob]: { pubkey: bob, displayName: 'Bob' },
+                }}
+                emptyText="No results"
+                loading={false}
+                searchQuery="alice"
+                onSearchQueryChange={vi.fn()}
+                searchAriaLabel="Search people"
+                onFollowPerson={vi.fn()}
+                onLocatePerson={vi.fn()}
+                onCopyNpub={vi.fn()}
+                onSendMessage={vi.fn()}
+                onViewDetails={vi.fn()}
+            />
+        );
+        mounted.push(rendered);
+
+        const input = rendered.container.querySelector('input[aria-label="Search people"]') as HTMLInputElement;
+        expect(input).toBeDefined();
+
+        const followButton = rendered.container.querySelector('button[aria-label="Follow Alice"]') as HTMLButtonElement;
+        expect(followButton).toBeDefined();
+        expect((followButton.textContent || '').trim()).toBe('Follow');
+
+        const actionsButton = rendered.container.querySelector('button[aria-label="Open actions for Alice"]') as HTMLButtonElement;
+        expect(actionsButton).toBeDefined();
     });
 });

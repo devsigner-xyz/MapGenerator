@@ -1,34 +1,37 @@
 import { OverlayPageHeader } from '../OverlayPageHeader';
+import { useI18n } from '@/i18n/useI18n';
 
 export function SettingsAboutPage() {
+    const { t } = useI18n();
+
     return (
         <>
             <OverlayPageHeader
-                title="Acerca de"
-                description="Informacion general de protocolo y funcionalidades disponibles."
+                title={t('settings.about.title')}
+                description={t('settings.about.description')}
             />
             <div className="grid min-h-0 gap-2.5 overflow-x-hidden overflow-y-auto pr-px" data-testid="settings-page-body">
                 <div className="nostr-shortcuts-content">
                     <div className="nostr-about-section">
-                        <h4>NIPs soportadas</h4>
+                        <h4>{t('settings.about.supportedNips')}</h4>
                         <ul>
                             <li>NIP-19 (npub)</li>
                             <li>NIP-65 (relay list metadata)</li>
                             <li>NIP-17 (DM inbox relays)</li>
-                            <li>Kind 0 (metadata de perfil)</li>
-                            <li>Kind 1 (publicaciones)</li>
-                            <li>Kind 3 (follows/followers)</li>
+                            <li>{t('settings.about.profileMetadata')}</li>
+                            <li>{t('settings.about.posts')}</li>
+                            <li>{t('settings.about.follows')}</li>
                         </ul>
                     </div>
 
                     <div className="nostr-about-section">
-                        <h4>Caracteristicas</h4>
+                        <h4>{t('settings.about.features')}</h4>
                         <ul>
-                            <li>Overlay social sobre el mapa</li>
-                            <li>Foco de ocupantes y perfil detallado</li>
-                            <li>Carga progresiva de red y publicaciones</li>
-                            <li>Configuracion de relays desde ajustes</li>
-                            <li>Estadisticas de ciudad en tiempo real</li>
+                            <li>{t('settings.about.feature.overlay')}</li>
+                            <li>{t('settings.about.feature.focus')}</li>
+                            <li>{t('settings.about.feature.progressiveLoad')}</li>
+                            <li>{t('settings.about.feature.relaySettings')}</li>
+                            <li>{t('settings.about.feature.cityStats')}</li>
                         </ul>
                     </div>
                 </div>

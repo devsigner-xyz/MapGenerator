@@ -1,6 +1,7 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, test } from 'vitest';
+import { UI_SETTINGS_STORAGE_KEY } from '../../nostr/ui-settings';
 import { NotificationsPage } from './NotificationsPage';
 import type { SocialNotificationItem } from '../../nostr/social-notifications-service';
 
@@ -28,6 +29,7 @@ beforeAll(() => {
 });
 
 afterEach(async () => {
+    window.localStorage.clear();
     for (const entry of mounted) {
         await act(async () => {
             entry.root.unmount();
@@ -140,5 +142,23 @@ describe('NotificationsPage', () => {
         mounted.push(rendered);
 
         expect(rendered.container.querySelector('button[aria-label="Cerrar notificaciones"]')).toBeNull();
+    });
+
+    test('renders english notifications copy when ui language is en', async () => {
+        window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ language: 'en' }));
+
+        const rendered = await renderElement(
+            <NotificationsPage
+                hasUnread
+                notifications={[]}
+            />
+        );
+        mounted.push(rendered);
+
+        const text = rendered.container.textContent || '';
+        expect(text).toContain('Notifications');
+        expect(text).toContain('Recent activity from people and content you follow.');
+        expect(text).toContain('No notifications');
+        expect(text).toContain('You have no pending notifications.');
     });
 });

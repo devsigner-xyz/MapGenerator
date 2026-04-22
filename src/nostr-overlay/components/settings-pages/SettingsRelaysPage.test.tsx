@@ -1,6 +1,7 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
+import { UI_SETTINGS_STORAGE_KEY } from '../../../nostr/ui-settings';
 import { Badge } from '@/components/ui/badge';
 import { SettingsRelaysPage } from './SettingsRelaysPage';
 import type { RelayDetails, RelayInformationDocument, RelayRow } from './types';
@@ -142,6 +143,7 @@ beforeAll(() => {
 });
 
 afterEach(async () => {
+    window.localStorage.clear();
     for (const entry of mounted) {
         await act(async () => {
             entry.root.unmount();
@@ -249,6 +251,20 @@ describe('SettingsRelaysPage', () => {
         await clickElement(readSwitch);
 
         expect(props.onSetConfiguredRelayNip65Access).toHaveBeenCalledWith('wss://relay.one', { read: false, write: true });
+    });
+
+    test('renders relay settings copy in english when ui language is en', async () => {
+        window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ language: 'en' }));
+
+        const props = buildProps();
+        const rendered = await renderElement(<SettingsRelaysPage {...props} />);
+        mounted.push(rendered);
+
+        expect(getCardTitles(rendered.container)).toContain('Configured relays');
+        expect(rendered.container.textContent || '').toContain('Add relay');
+        expect(rendered.container.textContent || '').toContain('Reset to default');
+        expect(rendered.container.textContent || '').toContain('Suggested relays');
+        expect(rendered.container.textContent || '').not.toContain('Relays configurados');
     });
 
     test('reflects read-only and write-only configured relay access in the switches', async () => {

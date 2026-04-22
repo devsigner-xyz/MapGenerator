@@ -558,6 +558,22 @@ describe('Nostr overlay App', () => {
         expect((bridge.setViewportInsetLeft as any).mock.calls.at(-1)?.[0]).toBe(0);
     });
 
+    test('renders auth flow copy in english when ui language is set to en', async () => {
+        window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ language: 'en' }));
+
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(<App mapBridge={bridge} />);
+        mounted.push(rendered);
+
+        await waitFor(() => rendered.container.querySelector('input[name="npub"]') !== null);
+
+        const content = rendered.container.textContent || '';
+        expect(content).toContain('Access method');
+        expect(content).toContain('npub (read-only)');
+        expect(content).toContain('Create account');
+        expect(content).not.toContain('Metodo de acceso');
+    });
+
     test('renders the scoped create-account selector copy and footer inside the auth flow', async () => {
         const { bridge } = createMapBridgeStub();
         const rendered = await renderApp(<App mapBridge={bridge} />);
@@ -725,7 +741,7 @@ describe('Nostr overlay App', () => {
         await waitFor(() => (rendered.container.textContent || '').includes('Recuperando sesión'));
         expect(rendered.container.textContent || '').not.toContain('Metodo de acceso');
         expect(rendered.container.querySelector('input[name="npub"]')).toBeNull();
-        expect(rendered.container.textContent || '').toContain('Conectando a relay...');
+        expect(rendered.container.textContent || '').toContain('Conectando a relays...');
 
         await act(async () => {
             followsDeferred.resolve({
@@ -857,7 +873,7 @@ describe('Nostr overlay App', () => {
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
         expect(rendered.container.textContent || '').not.toContain('Accede o explora');
         expect(rendered.container.textContent || '').not.toContain('Modo solo lectura. Cambia a extension o bunker para habilitar acciones de escritura.');
-        expect(rendered.container.textContent || '').toContain('Read Only');
+        expect(rendered.container.textContent || '').toContain('Solo lectura');
 
         expect(rendered.container.querySelector('.nostr-profile-avatar')).toBeNull();
         expect(rendered.container.querySelector('.nostr-profile-name')).toBeNull();
@@ -911,7 +927,7 @@ describe('Nostr overlay App', () => {
         expect(regenerateButton).toBeDefined();
         expect(regenerateButton.getAttribute('title')).toBe('New map');
         const settingsButton = rendered.container.querySelector('button[aria-label="Abrir ajustes"]') as HTMLButtonElement;
-        expect(settingsButton.getAttribute('title')).toBe('Settings');
+        expect(settingsButton.getAttribute('title')).toBe('Ajustes');
 
         await waitFor(() => (bridge.regenerateMap as any).mock.calls.length > 0);
         (bridge.regenerateMap as any).mockClear();
@@ -5374,7 +5390,7 @@ describe('Nostr overlay App', () => {
         });
 
         expect(rendered.container.querySelector('[data-testid="login-gate-screen"]')).not.toBeNull();
-        await waitFor(() => (rendered.container.textContent || '').includes('Conectando a relay'));
+        await waitFor(() => (rendered.container.textContent || '').includes('Conectando a relays'));
 
         await act(async () => {
             followsDeferred.resolve({
@@ -5618,7 +5634,7 @@ describe('Nostr overlay App', () => {
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
     });
 
-    test('shows Read Only badge inside user menu item in expanded sidebar', async () => {
+    test('shows Solo lectura badge inside user menu item in expanded sidebar', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const followedPubkey = 'a'.repeat(64);
         const { bridge } = createMapBridgeStub(1);
@@ -5665,10 +5681,10 @@ describe('Nostr overlay App', () => {
             form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
         });
 
-        await waitFor(() => (rendered.container.textContent || '').includes('Read Only'));
+        await waitFor(() => (rendered.container.textContent || '').includes('Solo lectura'));
         const userMenuButton = rendered.container.querySelector('button[aria-label="Abrir menu de usuario"]') as HTMLButtonElement;
         expect(userMenuButton).toBeDefined();
-        expect(userMenuButton.textContent || '').toContain('Read Only');
+        expect(userMenuButton.textContent || '').toContain('Solo lectura');
 
         const topStatusBadge = rendered.container.querySelector('.nostr-panel-toolbar-status [data-slot="badge"]');
         expect(topStatusBadge).toBeNull();
@@ -6781,7 +6797,7 @@ describe('Nostr overlay App', () => {
 
         const settingsButton = rendered.container.querySelector('button[aria-label="Abrir ajustes"]') as HTMLButtonElement;
         expect(settingsButton).toBeDefined();
-        expect(settingsButton.getAttribute('title')).toBe('Settings');
+        expect(settingsButton.getAttribute('title')).toBe('Ajustes');
 
         const mountedOnOpen = (bridge.mountSettingsPanel as any).mock.calls.some((call: [unknown]) => call[0] instanceof HTMLElement);
         expect(mountedOnOpen).toBe(false);
@@ -6827,6 +6843,61 @@ describe('Nostr overlay App', () => {
 
         await waitFor(() => (rendered.container.textContent || '').includes('Etiquetas de calles'));
         expect(rendered.container.querySelector('button[aria-label="Abrir ajustes de interfaz"][data-active="true"]')).not.toBeNull();
+    });
+
+    test('switches overlay copy live when changing language from interface settings', async () => {
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(<App mapBridge={bridge} services={createBasicOverlayServices()} />);
+        mounted.push(rendered);
+
+        await loginWithNip07(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        const settingsToggleButton = rendered.container.querySelector('button[aria-label="Abrir ajustes"]') as HTMLButtonElement;
+        expect(settingsToggleButton).toBeDefined();
+
+        await act(async () => {
+            settingsToggleButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Interfaz'));
+
+        const uiButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').trim() === 'Interfaz'
+        ) as HTMLButtonElement;
+        expect(uiButton).toBeDefined();
+
+        await act(async () => {
+            uiButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Idioma'));
+
+        const languageTrigger = rendered.container.querySelector('[data-testid="settings-ui-language-row"] [data-slot="select-trigger"]') as HTMLButtonElement;
+        expect(languageTrigger).toBeDefined();
+
+        await act(async () => {
+            languageTrigger.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+            languageTrigger.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+        });
+
+        await waitFor(() => Array.from(document.body.querySelectorAll('[data-slot="select-item"]')).some((item) =>
+            (item.textContent || '').trim() === 'English'
+        ));
+
+        const englishOption = Array.from(document.body.querySelectorAll('[data-slot="select-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'English'
+        ) as HTMLElement;
+        expect(englishOption).toBeDefined();
+
+        await act(async () => {
+            englishOption.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+            englishOption.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Language'));
+        expect(rendered.container.textContent || '').toContain('Occupied labels zoom');
+        expect(rendered.container.querySelector('button[aria-label="Open settings"]')).not.toBeNull();
     });
 
     test('applies traffic settings on mount and after UI slider updates', async () => {

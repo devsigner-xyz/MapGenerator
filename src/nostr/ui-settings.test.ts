@@ -22,6 +22,34 @@ describe('ui-settings', () => {
         expect(state.streetLabelsZoomLevel).toBe(2);
         expect(state.trafficParticlesCount).toBe(12);
         expect(state.trafficParticlesSpeed).toBe(1);
+        expect((state as unknown as Record<string, unknown>).language).toBe('es');
+    });
+
+    test('defaults to spanish when no language has been chosen yet', () => {
+        Object.defineProperty(window.navigator, 'language', {
+            value: 'en-US',
+            configurable: true,
+        });
+
+        const state = getDefaultUiSettings();
+
+        expect((state as unknown as Record<string, unknown>).language).toBe('es');
+    });
+
+    test('persists selected language when saving ui settings', () => {
+        saveUiSettings(
+            {
+                ...getDefaultUiSettings(),
+                language: 'es',
+            } as Parameters<typeof saveUiSettings>[0],
+            window.localStorage
+        );
+
+        const stored = JSON.parse(window.localStorage.getItem(UI_SETTINGS_STORAGE_KEY) || '{}') as Record<string, unknown>;
+        const loaded = loadUiSettings(window.localStorage) as unknown as Record<string, unknown>;
+
+        expect(stored.language).toBe('es');
+        expect(loaded.language).toBe('es');
     });
 
     test('falls back to defaults when payload is malformed', () => {
@@ -32,6 +60,7 @@ describe('ui-settings', () => {
     test('normalizes zoom threshold when saving', () => {
         const saved = saveUiSettings(
             {
+                ...getDefaultUiSettings(),
                 agoraFeedLayout: 'masonry',
                 occupiedLabelsZoomLevel: 99,
                 streetLabelsEnabled: true,
@@ -60,6 +89,7 @@ describe('ui-settings', () => {
     test('normalizes traffic particle settings when saving out-of-range values', () => {
         const saved = saveUiSettings(
             {
+                ...getDefaultUiSettings(),
                 agoraFeedLayout: 'list',
                 occupiedLabelsZoomLevel: 8,
                 streetLabelsEnabled: true,

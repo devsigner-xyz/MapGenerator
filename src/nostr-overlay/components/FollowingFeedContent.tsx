@@ -21,6 +21,7 @@ import { OverlayPageHeader } from './OverlayPageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
+import { useI18n } from '@/i18n/useI18n';
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 
@@ -209,6 +210,7 @@ export function FollowingFeedContent({
     eventReferencesById,
     onCopyNoteId,
 }: FollowingFeedContentProps) {
+    const { t } = useI18n();
     const [replyDraft, setReplyDraft] = useState<MentionDraft>(createMentionDraft(''));
     const [replyTargetEventId, setReplyTargetEventId] = useState<string | null>(null);
     const [replyTargetPubkey, setReplyTargetPubkey] = useState<string | undefined>(undefined);
@@ -249,8 +251,8 @@ export function FollowingFeedContent({
 
     const replyDisabled = !canWrite || isPublishingReply || !replyTargetEventId;
     const resolvedSubtitle = activeThread
-        ? 'Respuestas y actividad de la conversación seleccionada.'
-        : (headerSubtitle || 'Timeline en tiempo real de personas que sigues');
+        ? t('feed.threadDescription')
+        : (headerSubtitle || t('feed.subtitle.following'));
     const showThreadBlockingEmpty = Boolean(activeThread && activeThread.isLoading && !activeThread.root && activeThread.replies.length === 0);
     const showThreadLoadingFooter = Boolean(activeThread && (activeThread.isLoadingMore || (activeThread.isLoading && (Boolean(activeThread.root) || activeThread.replies.length > 0))));
     const threadReplyTree = useMemo(
@@ -340,7 +342,7 @@ export function FollowingFeedContent({
             <div className="nostr-following-feed-header">
                 <OverlayPageHeader
                     className="nostr-following-feed-page-header"
-                    title={activeThread ? 'Hilo' : 'Agora'}
+                    title={activeThread ? t('feed.threadTitle') : 'Agora'}
                     description={resolvedSubtitle}
                 />
 
@@ -355,7 +357,7 @@ export function FollowingFeedContent({
                                 className="nostr-following-feed-back"
                                 onClick={onCloseThread}
                             >
-                                Volver al Agora
+                                {t('feed.backToAgora')}
                             </Button>
                         ) : null}
                     </div>
@@ -379,22 +381,22 @@ export function FollowingFeedContent({
                                         <EmptyMedia variant="icon">
                                             <Spinner />
                                         </EmptyMedia>
-                                        <EmptyTitle>Cargando feed</EmptyTitle>
-                                        <EmptyDescription>Buscando publicaciones de personas que sigues.</EmptyDescription>
+                                        <EmptyTitle>{t('feed.loadingTitle')}</EmptyTitle>
+                                        <EmptyDescription>{t('feed.loadingDescription')}</EmptyDescription>
                                     </EmptyHeader>
                                 </Empty>
                             ) : !activeHashtag && !hasFollows ? (
                                 <Empty className="nostr-following-feed-empty">
                                     <EmptyHeader>
-                                        <EmptyTitle>No sigues a nadie todavia</EmptyTitle>
-                                        <EmptyDescription>Empieza a seguir perfiles para ver su actividad en Agora.</EmptyDescription>
+                                        <EmptyTitle>{t('feed.emptyNoFollowsTitle')}</EmptyTitle>
+                                        <EmptyDescription>{t('feed.emptyNoFollowsDescription')}</EmptyDescription>
                                     </EmptyHeader>
                                 </Empty>
                             ) : (
                                 <Empty className="nostr-following-feed-empty">
                                     <EmptyHeader>
-                                        <EmptyTitle>Sin publicaciones</EmptyTitle>
-                                        <EmptyDescription>Todavia no hay notas o reposts para mostrar.</EmptyDescription>
+                                        <EmptyTitle>{t('feed.emptyNoPostsTitle')}</EmptyTitle>
+                                        <EmptyDescription>{t('feed.emptyNoPostsDescription')}</EmptyDescription>
                                     </EmptyHeader>
                                 </Empty>
                             )
@@ -499,7 +501,7 @@ export function FollowingFeedContent({
                             </div>
                         )}
 
-                        <ListLoadingFooter loading={isLoadingFeed && items.length > 0} label="Cargando publicaciones..." />
+                        <ListLoadingFooter loading={isLoadingFeed && items.length > 0} label={t('feed.loadingMorePosts')} />
 
                     </div>
                 </>
@@ -520,8 +522,8 @@ export function FollowingFeedContent({
                                         <EmptyMedia variant="icon">
                                             <Spinner />
                                         </EmptyMedia>
-                                        <EmptyTitle>Cargando hilo</EmptyTitle>
-                                        <EmptyDescription>Recuperando la conversacion.</EmptyDescription>
+                                        <EmptyTitle>{t('feed.loadingThreadTitle')}</EmptyTitle>
+                                        <EmptyDescription>{t('feed.loadingThreadDescription')}</EmptyDescription>
                                     </EmptyHeader>
                                 </Empty>
                             </div>
@@ -583,9 +585,9 @@ export function FollowingFeedContent({
                                     <CardContent className="px-4 py-4">
                                         <MentionTextarea
                                             value={replyDraft}
-                                            aria-label="Redactar respuesta"
+                                            aria-label={t('feed.replyComposer')}
                                             className="nostr-following-feed-textarea"
-                                            placeholder="Escribe tu respuesta"
+                                            placeholder={t('feed.replyPlaceholder')}
                                             rows={3}
                                             onSearch={onSearchUsers}
                                             ownerPubkey={ownerPubkey}
@@ -601,7 +603,7 @@ export function FollowingFeedContent({
                                                 type="button"
                                                 variant="outline"
                                                 size="icon"
-                                                aria-label="Adjuntar imagen (proximamente)"
+                                                aria-label={t('feed.attachImageSoon')}
                                                 disabled
                                             >
                                                 <ImageIcon aria-hidden="true" />
@@ -628,7 +630,7 @@ export function FollowingFeedContent({
                                                     }
                                                 }}
                                             >
-                                                {isPublishingReply ? 'Enviando...' : 'Responder'}
+                                                {isPublishingReply ? t('feed.sendingReply') : t('feed.reply')}
                                             </Button>
                                         </div>
                                     </CardContent>
@@ -639,13 +641,13 @@ export function FollowingFeedContent({
                                 {activeThread.replies.length === 0 && !activeThread.isLoading ? (
                                     <Empty className="nostr-following-feed-empty">
                                         <EmptyHeader>
-                                            <EmptyTitle>Sin respuestas</EmptyTitle>
-                                            <EmptyDescription>Aun no hay replies para este hilo.</EmptyDescription>
+                                            <EmptyTitle>{t('feed.emptyRepliesTitle')}</EmptyTitle>
+                                            <EmptyDescription>{t('feed.emptyRepliesDescription')}</EmptyDescription>
                                         </EmptyHeader>
                                     </Empty>
                                 ) : null}
 
-                                <ListLoadingFooter loading={showThreadLoadingFooter} label="Cargando hilo..." />
+                                <ListLoadingFooter loading={showThreadLoadingFooter} label={t('feed.loadingThreadFooter')} />
                             </>
                         )}
 

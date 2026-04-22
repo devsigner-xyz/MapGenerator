@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
 import { nip19 } from 'nostr-tools';
+import { UI_SETTINGS_STORAGE_KEY } from '../../nostr/ui-settings';
 import { createNostrOverlayQueryClient } from '../query/query-client';
 import { FollowingFeedSurface } from './FollowingFeedSurface';
 
@@ -35,6 +36,7 @@ beforeAll(() => {
 });
 
 afterEach(async () => {
+    window.localStorage.clear();
     for (const entry of mounted) {
         await act(async () => {
             entry.root.unmount();
@@ -164,6 +166,24 @@ describe('FollowingFeedSurface', () => {
         expect(onApplyPendingNewItems).toHaveBeenCalledTimes(1);
     });
 
+    test('renders empty feed copy in english when ui language is en', async () => {
+        window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ language: 'en' }));
+
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    hasFollows: false,
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const text = rendered.container.textContent || '';
+        expect(text).toContain('You are not following anyone yet');
+        expect(text).toContain('Start following profiles to see their Agora activity.');
+        expect(text).not.toContain('No sigues a nadie todavia');
+    });
+
     test('renders manual refresh button and triggers refresh handler', async () => {
         const onRefreshFeed = vi.fn(async () => {});
         const rendered = await renderElement(
@@ -244,6 +264,46 @@ describe('FollowingFeedSurface', () => {
         expect(text).not.toContain('Ver 3 publicaciones nuevas');
         expect(text).not.toContain('Actualizar');
         expect(rendered.container.querySelector('[data-slot="toggle-group"]')).toBeNull();
+    });
+
+    test('renders thread header copy in english when ui language is en', async () => {
+        window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ language: 'en' }));
+
+        const rendered = await renderElement(
+            <FollowingFeedSurface
+                {...buildProps({
+                    activeThread: {
+                        rootEventId: 'root-1',
+                        root: {
+                            id: 'root-1',
+                            pubkey: 'b'.repeat(64),
+                            createdAt: 500,
+                            eventKind: 1,
+                            content: 'root',
+                            rawEvent: {
+                                id: 'root-1',
+                                pubkey: 'b'.repeat(64),
+                                kind: 1,
+                                created_at: 500,
+                                tags: [],
+                                content: 'root',
+                            },
+                        },
+                        replies: [],
+                        isLoading: false,
+                        isLoadingMore: false,
+                        error: null,
+                        hasMore: false,
+                    },
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const text = rendered.container.textContent || '';
+        expect(text).toContain('Thread');
+        expect(text).toContain('Replies and activity for the selected conversation.');
+        expect(text).not.toContain('Respuestas y actividad de la conversación seleccionada.');
     });
 
     test('feed scroll requests next query page without rendering manual load more button', async () => {

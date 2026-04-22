@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NostrProfile } from '../../nostr/types';
 import type { EasterEggId } from '../../ts/ui/easter_eggs';
 import type { EasterEggBuildingSlot, MapBridge, MapBuildingSlot, SpecialBuildingSlot } from '../map-bridge';
+import { useI18n } from '@/i18n/useI18n';
 import { buildDiscoveredEasterEggEntries, buildPresenceLayerEntries, buildSpecialBuildingEntries, isPointWithinViewport } from '../domain/presence-layer-model';
 import { getEasterEggEntry } from '../easter-eggs/catalog';
 import { getSpecialBuildingEntry } from '../special-buildings/catalog';
@@ -118,6 +119,7 @@ export function MapPresenceLayer({
     alwaysVisiblePubkeys = EMPTY_ALWAYS_VISIBLE_PUBKEYS,
     specialMarkersEnabled = true,
 }: MapPresenceLayerProps) {
+    const { t } = useI18n();
     const VIEWPORT_MARGIN_PX = 42;
     const [buildings, setBuildings] = useState<MapBuildingSlot[]>([]);
     const [easterEggBuildings, setEasterEggBuildings] = useState<EasterEggBuildingSlot[]>([]);
@@ -411,7 +413,7 @@ export function MapPresenceLayer({
                             easterEggRefs.current[entry.key] = node;
                         }}
                         className="nostr-map-easter-egg-marker"
-                        title={`Easter egg descubierto: ${easterEggTitle}`}
+                        title={t('mapPresence.discoveredEasterEgg', { title: easterEggTitle })}
                         style={{
                             left: `${initialPosition.x + viewState.insetLeft}px`,
                             top: `${initialPosition.y}px`,
@@ -433,7 +435,7 @@ export function MapPresenceLayer({
                             specialBuildingRefs.current[entry.key] = node;
                         }}
                         className="nostr-map-special-building-marker"
-                        title={`Edificio especial: ${specialBuilding.title}`}
+                        title={t('mapPresence.specialBuilding', { title: specialBuilding.title })}
                         style={{
                             left: `${initialPosition.x + viewState.insetLeft}px`,
                             top: `${initialPosition.y}px`,

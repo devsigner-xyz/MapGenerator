@@ -13,6 +13,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
+import { useI18n } from '@/i18n/useI18n';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { EllipsisVerticalIcon } from 'lucide-react';
@@ -143,10 +144,11 @@ export function SettingsRelaysPage({
     relayAvatarFallback,
     relayConnectionBadge,
 }: SettingsRelaysPageProps) {
+    const { t } = useI18n();
     const summaryBadges = [
-        `Relays configurados: ${configuredRows.length}`,
-        `Conectados: ${connectedConfiguredRelays}`,
-        `Sin conexión: ${disconnectedConfiguredRelays}`,
+        t('settings.relays.summary.configured', { count: String(configuredRows.length) }),
+        t('settings.relays.summary.connected', { count: String(connectedConfiguredRelays) }),
+        t('settings.relays.summary.disconnected', { count: String(disconnectedConfiguredRelays) }),
     ];
     const relayInputErrorId = 'relay-input-error';
     const searchRelayInputErrorId = 'search-relay-input-error';
@@ -156,16 +158,16 @@ export function SettingsRelaysPage({
     return (
         <>
             <OverlayPageHeader
-                title="Relays"
-                description="Relays configurados, sugeridos y estado de conexion Nostr."
+                title={t('settings.relays.title')}
+                description={t('settings.relays.description')}
             />
             <div className="grid min-h-0 gap-2.5 overflow-x-hidden overflow-y-auto px-1" data-testid="settings-page-body">
                 <div className="nostr-relays-content">
                     <div className="nostr-relays-main">
                         <Card size="sm" className="nostr-relay-table-card gap-0 py-0">
                             <CardHeader className="border-b px-3 py-3">
-                                <CardTitle>Relays configurados</CardTitle>
-                                <CardDescription>Estado actual y categorias activas de tus relays.</CardDescription>
+                                <CardTitle>{t('settings.relays.configured.title')}</CardTitle>
+                                <CardDescription>{t('settings.relays.configured.description')}</CardDescription>
                                 <div className="nostr-relay-connection-summary" role="status" aria-live="polite">
                                     {summaryBadges.map((label) => (
                                         <Badge key={label} variant="outline">
@@ -179,11 +181,11 @@ export function SettingsRelaysPage({
                                     <Table className="nostr-relay-table">
                                         <TableHeader>
                                             <TableRow>
-                                                <TableHead>Relay</TableHead>
-                                                <TableHead>Read</TableHead>
-                                                <TableHead>Write</TableHead>
-                                                <TableHead>Estado</TableHead>
-                                                <TableHead className="nostr-relay-actions-head">Acciones</TableHead>
+                                                <TableHead>{t('settings.relays.table.relay')}</TableHead>
+                                                <TableHead>{t('settings.relays.table.read')}</TableHead>
+                                                <TableHead>{t('settings.relays.table.write')}</TableHead>
+                                                <TableHead>{t('settings.relays.table.status')}</TableHead>
+                                                <TableHead className="nostr-relay-actions-head">{t('settings.relays.table.actions')}</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -212,14 +214,14 @@ export function SettingsRelaysPage({
                                                         </TableCell>
                                                         <TableCell>
                                                             <Switch
-                                                                aria-label={`Lectura para ${relayUrl}`}
+                                                                aria-label={t('settings.relays.readFor', { relayUrl })}
                                                                 checked={readEnabled}
                                                                 onCheckedChange={(checked) => onSetConfiguredRelayNip65Access(relayUrl, { read: checked, write: writeEnabled })}
                                                             />
                                                         </TableCell>
                                                         <TableCell>
                                                             <Switch
-                                                                aria-label={`Escritura para ${relayUrl}`}
+                                                                aria-label={t('settings.relays.writeFor', { relayUrl })}
                                                                 checked={writeEnabled}
                                                                 onCheckedChange={(checked) => onSetConfiguredRelayNip65Access(relayUrl, { read: readEnabled, write: checked })}
                                                             />
@@ -234,22 +236,22 @@ export function SettingsRelaysPage({
                                                                         type="button"
                                                                         variant="outline"
                                                                         size="icon-sm"
-                                                                        aria-label={`Abrir acciones para ${relayUrl} (${relayTypeSummary})`}
+                                                                        aria-label={t('settings.relays.openActions', { relayUrl, relayTypeSummary })}
                                                                         onClick={onOpenRelayActionsMenu}
                                                                     >
                                                                         <EllipsisVerticalIcon data-icon="inline-start" />
                                                                     </Button>
                                                                 </DropdownMenuTrigger>
-                                                                <DropdownMenuContent align="end">
-                                                                    <DropdownMenuGroup>
-                                                                        <DropdownMenuItem onSelect={() => onOpenRelayDetails(relayUrl, 'configured', detailRelayType)}>
-                                                                            Detalles
-                                                                        </DropdownMenuItem>
-                                                                        <DropdownMenuItem variant="destructive" onSelect={() => onRemoveRelay(relayUrl)}>
-                                                                            Eliminar
-                                                                        </DropdownMenuItem>
-                                                                    </DropdownMenuGroup>
-                                                                </DropdownMenuContent>
+                                                                    <DropdownMenuContent align="end">
+                                                                        <DropdownMenuGroup>
+                                                                            <DropdownMenuItem onSelect={() => onOpenRelayDetails(relayUrl, 'configured', detailRelayType)}>
+                                                                                {t('settings.relays.details')}
+                                                                            </DropdownMenuItem>
+                                                                            <DropdownMenuItem variant="destructive" onSelect={() => onRemoveRelay(relayUrl)}>
+                                                                                {t('settings.relays.remove')}
+                                                                            </DropdownMenuItem>
+                                                                        </DropdownMenuGroup>
+                                                                    </DropdownMenuContent>
                                                             </DropdownMenu>
                                                         </TableCell>
                                                     </TableRow>
@@ -265,16 +267,16 @@ export function SettingsRelaysPage({
                             <Card size="sm" className="nostr-relays-panel gap-0 py-0">
                                 <CardHeader className="border-b px-3 py-3">
                                     <div className="flex items-center justify-between gap-2">
-                                        <CardTitle className="nostr-relays-sidebar-title">Añadir relay</CardTitle>
+                                        <CardTitle className="nostr-relays-sidebar-title">{t('settings.relays.addRelay')}</CardTitle>
                                         <Button type="button" variant="ghost" size="sm" onClick={onResetRelaysToDefault}>
-                                            Restablecer por defecto
+                                            {t('settings.relays.resetDefault')}
                                         </Button>
                                     </div>
                                 </CardHeader>
                                 <CardContent className="px-3 py-3">
                                     <InputGroup>
                                         <InputGroupInput
-                                            aria-label="URLs de relay"
+                                            aria-label={t('settings.relays.urls')}
                                             type="url"
                                             inputMode="url"
                                             name="relayUrls"
@@ -291,14 +293,14 @@ export function SettingsRelaysPage({
                                                 variant="secondary"
                                                 onClick={onAddRelays}
                                             >
-                                                Añadir
+                                                {t('settings.relays.add')}
                                             </InputGroupButton>
                                         </InputGroupAddon>
                                     </InputGroup>
 
                                     {hasInvalidRelayInputs ? (
                                         <p id={relayInputErrorId} role="alert" className="nostr-settings-error">
-                                            Entradas invalidas: {invalidRelayInputs.join(', ')}
+                                            {t('settings.relays.invalidInputs', { inputs: invalidRelayInputs.join(', ') })}
                                         </p>
                                     ) : null}
                                 </CardContent>
@@ -308,22 +310,22 @@ export function SettingsRelaysPage({
                                 <Card size="sm" className="nostr-relay-suggested nostr-relays-panel gap-0 py-0">
                                     <CardHeader className="border-b px-3 py-3">
                                         <div className="nostr-relay-suggested-header">
-                                            <CardTitle>Relays sugeridos</CardTitle>
+                                            <CardTitle>{t('settings.relays.suggested.title')}</CardTitle>
                                             <Button type="button" variant="outline" className="nostr-relay-add-suggested" onClick={onAddAllSuggestedRelays}>
-                                                Agregar todos
+                                                {t('settings.relays.addAll')}
                                             </Button>
                                         </div>
-                                        <CardDescription>Relays sugeridos por protocolo (NIP-65).</CardDescription>
+                                        <CardDescription>{t('settings.relays.suggested.description')}</CardDescription>
                                     </CardHeader>
                                     <CardContent className="px-0 py-0">
                                         <div className="nostr-relay-table-scroll">
                                             <Table className="nostr-relay-table">
                                                 <TableHeader>
                                                     <TableRow>
-                                                        <TableHead>Relay</TableHead>
-                                                        <TableHead>Tipo</TableHead>
-                                                        <TableHead>Estado</TableHead>
-                                                        <TableHead className="nostr-relay-actions-head">Acciones</TableHead>
+                                                        <TableHead>{t('settings.relays.table.relay')}</TableHead>
+                                                        <TableHead>{t('settings.relays.table.type')}</TableHead>
+                                                        <TableHead>{t('settings.relays.table.status')}</TableHead>
+                                                        <TableHead className="nostr-relay-actions-head">{t('settings.relays.table.actions')}</TableHead>
                                                     </TableRow>
                                                 </TableHeader>
                                                 <TableBody>
@@ -367,7 +369,7 @@ export function SettingsRelaysPage({
                                                                                 type="button"
                                                                                 variant="outline"
                                                                                 size="icon-sm"
-                                                                                aria-label={`Abrir acciones sugeridas para ${relayUrl} (${relayTypeSummary})`}
+                                                                                aria-label={t('settings.relays.openSuggestedActions', { relayUrl, relayTypeSummary })}
                                                                                 onClick={onOpenRelayActionsMenu}
                                                                             >
                                                                                 <EllipsisVerticalIcon data-icon="inline-start" />
@@ -376,10 +378,10 @@ export function SettingsRelaysPage({
                                                                         <DropdownMenuContent align="end">
                                                                             <DropdownMenuGroup>
                                                                                 <DropdownMenuItem onSelect={() => onOpenRelayDetails(relayUrl, 'suggested', detailRelayType)}>
-                                                                                    Detalles
+                                                                                    {t('settings.relays.details')}
                                                                                 </DropdownMenuItem>
                                                                                 <DropdownMenuItem onSelect={() => onAddSuggestedRelay(relayUrl, relayTypes)}>
-                                                                                    Añadir
+                                                                                    {t('settings.relays.add')}
                                                                                 </DropdownMenuItem>
                                                                             </DropdownMenuGroup>
                                                                         </DropdownMenuContent>
@@ -419,19 +421,17 @@ export function SettingsRelaysPage({
                             <Card size="sm" className="nostr-relay-search nostr-relays-panel gap-0 py-0">
                                 <CardHeader className="border-b px-3 py-3">
                                     <div className="flex items-center justify-between gap-2">
-                                        <CardTitle>Relays de búsqueda</CardTitle>
+                                        <CardTitle>{t('settings.relays.search.title')}</CardTitle>
                                         <Button type="button" variant="ghost" size="sm" onClick={onResetSearchRelaysToDefault}>
-                                            Restablecer por defecto
+                                            {t('settings.relays.resetDefault')}
                                         </Button>
                                     </div>
-                                    <CardDescription>
-                                        Se usan para búsqueda global de usuarios, autocomplete de @ y consultas NIP-50.
-                                    </CardDescription>
+                                    <CardDescription>{t('settings.relays.search.description')}</CardDescription>
                                 </CardHeader>
                                 <CardContent className="flex flex-col gap-3 px-3 py-3">
                                     <InputGroup>
                                         <InputGroupInput
-                                            aria-label="URLs de relay de búsqueda"
+                                            aria-label={t('settings.relays.search.urls')}
                                             type="url"
                                             inputMode="url"
                                             name="searchRelayUrls"
@@ -445,30 +445,30 @@ export function SettingsRelaysPage({
                                         />
                                         <InputGroupAddon align="inline-end">
                                             <InputGroupButton variant="secondary" onClick={onAddSearchRelays}>
-                                                Añadir
+                                                {t('settings.relays.add')}
                                             </InputGroupButton>
                                         </InputGroupAddon>
                                     </InputGroup>
 
                                     {hasInvalidSearchRelayInputs ? (
                                         <p id={searchRelayInputErrorId} role="alert" className="nostr-settings-error">
-                                            Entradas invalidas: {invalidSearchRelayInputs.join(', ')}
+                                            {t('settings.relays.invalidInputs', { inputs: invalidSearchRelayInputs.join(', ') })}
                                         </p>
                                     ) : null}
 
                                     <div className="flex flex-col gap-3">
                                         <div>
                                             <div className="nostr-relay-suggested-header mb-2">
-                                                <h3 className="text-sm font-semibold">Configurados</h3>
+                                                <h3 className="text-sm font-semibold">{t('settings.relays.section.configured')}</h3>
                                             </div>
                                             <div className="nostr-relay-table-scroll">
                                                 <Table className="nostr-relay-table">
                                                     <TableHeader>
                                                         <TableRow>
-                                                            <TableHead>Relay</TableHead>
-                                                            <TableHead>Tipo</TableHead>
-                                                            <TableHead>Estado</TableHead>
-                                                            <TableHead className="nostr-relay-actions-head">Acciones</TableHead>
+                                                            <TableHead>{t('settings.relays.table.relay')}</TableHead>
+                                                            <TableHead>{t('settings.relays.table.type')}</TableHead>
+                                                            <TableHead>{t('settings.relays.table.status')}</TableHead>
+                                                            <TableHead className="nostr-relay-actions-head">{t('settings.relays.table.actions')}</TableHead>
                                                         </TableRow>
                                                     </TableHeader>
                                                     <TableBody>
@@ -510,22 +510,22 @@ export function SettingsRelaysPage({
                                                                                     type="button"
                                                                                     variant="outline"
                                                                                     size="icon-sm"
-                                                                                    aria-label={`Abrir acciones para ${relayUrl} (${relayTypeSummary})`}
+                                                                                    aria-label={t('settings.relays.openActions', { relayUrl, relayTypeSummary })}
                                                                                     onClick={onOpenRelayActionsMenu}
                                                                                 >
                                                                                     <EllipsisVerticalIcon data-icon="inline-start" />
                                                                                 </Button>
                                                                             </DropdownMenuTrigger>
-                                                                            <DropdownMenuContent align="end">
-                                                                                <DropdownMenuGroup>
-                                                                                    <DropdownMenuItem onSelect={() => onOpenRelayDetails(relayUrl, 'configured', detailRelayType)}>
-                                                                                        Detalles
-                                                                                    </DropdownMenuItem>
-                                                                                    <DropdownMenuItem variant="destructive" onSelect={() => onRemoveSearchRelay(relayUrl)}>
-                                                                                        Eliminar
-                                                                                    </DropdownMenuItem>
-                                                                                </DropdownMenuGroup>
-                                                                            </DropdownMenuContent>
+                                                                                <DropdownMenuContent align="end">
+                                                                                    <DropdownMenuGroup>
+                                                                                        <DropdownMenuItem onSelect={() => onOpenRelayDetails(relayUrl, 'configured', detailRelayType)}>
+                                                                                            {t('settings.relays.details')}
+                                                                                        </DropdownMenuItem>
+                                                                                        <DropdownMenuItem variant="destructive" onSelect={() => onRemoveSearchRelay(relayUrl)}>
+                                                                                            {t('settings.relays.remove')}
+                                                                                        </DropdownMenuItem>
+                                                                                    </DropdownMenuGroup>
+                                                                                </DropdownMenuContent>
                                                                         </DropdownMenu>
                                                                     </TableCell>
                                                                 </TableRow>
@@ -539,19 +539,19 @@ export function SettingsRelaysPage({
                                         {searchSuggestedRows.length > 0 ? (
                                             <div>
                                                 <div className="nostr-relay-suggested-header mb-2">
-                                                    <h3 className="text-sm font-semibold">Sugeridos</h3>
+                                                    <h3 className="text-sm font-semibold">{t('settings.relays.section.suggested')}</h3>
                                                     <Button type="button" variant="outline" className="nostr-relay-add-suggested" onClick={onAddAllSuggestedSearchRelays}>
-                                                        Agregar todos
+                                                        {t('settings.relays.addAll')}
                                                     </Button>
                                                 </div>
                                                 <div className="nostr-relay-table-scroll">
                                                     <Table className="nostr-relay-table">
                                                         <TableHeader>
                                                             <TableRow>
-                                                                <TableHead>Relay</TableHead>
-                                                                <TableHead>Tipo</TableHead>
-                                                                <TableHead>Estado</TableHead>
-                                                                <TableHead className="nostr-relay-actions-head">Acciones</TableHead>
+                                                                <TableHead>{t('settings.relays.table.relay')}</TableHead>
+                                                                <TableHead>{t('settings.relays.table.type')}</TableHead>
+                                                                <TableHead>{t('settings.relays.table.status')}</TableHead>
+                                                                <TableHead className="nostr-relay-actions-head">{t('settings.relays.table.actions')}</TableHead>
                                                             </TableRow>
                                                         </TableHeader>
                                                         <TableBody>
@@ -593,22 +593,22 @@ export function SettingsRelaysPage({
                                                                                         type="button"
                                                                                         variant="outline"
                                                                                         size="icon-sm"
-                                                                                        aria-label={`Abrir acciones sugeridas para ${relayUrl} (${relayTypeSummary})`}
+                                                                                        aria-label={t('settings.relays.openSuggestedActions', { relayUrl, relayTypeSummary })}
                                                                                         onClick={onOpenRelayActionsMenu}
                                                                                     >
                                                                                         <EllipsisVerticalIcon data-icon="inline-start" />
                                                                                     </Button>
                                                                                 </DropdownMenuTrigger>
-                                                                                <DropdownMenuContent align="end">
-                                                                                    <DropdownMenuGroup>
-                                                                                        <DropdownMenuItem onSelect={() => onOpenRelayDetails(relayUrl, 'suggested', detailRelayType)}>
-                                                                                            Detalles
-                                                                                        </DropdownMenuItem>
-                                                                                        <DropdownMenuItem onSelect={() => onAddSuggestedSearchRelay(relayUrl, relayTypes)}>
-                                                                                            Añadir
-                                                                                        </DropdownMenuItem>
-                                                                                    </DropdownMenuGroup>
-                                                                                </DropdownMenuContent>
+                                                                                    <DropdownMenuContent align="end">
+                                                                                        <DropdownMenuGroup>
+                                                                                            <DropdownMenuItem onSelect={() => onOpenRelayDetails(relayUrl, 'suggested', detailRelayType)}>
+                                                                                                {t('settings.relays.details')}
+                                                                                            </DropdownMenuItem>
+                                                                                            <DropdownMenuItem onSelect={() => onAddSuggestedSearchRelay(relayUrl, relayTypes)}>
+                                                                                                {t('settings.relays.add')}
+                                                                                            </DropdownMenuItem>
+                                                                                        </DropdownMenuGroup>
+                                                                                    </DropdownMenuContent>
                                                                             </DropdownMenu>
                                                                         </TableCell>
                                                                     </TableRow>

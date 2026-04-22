@@ -1,6 +1,7 @@
 import type { ZapSettingsState } from '../../../nostr/zap-settings';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { useI18n } from '@/i18n/useI18n';
 import { OverlayPageHeader } from '../OverlayPageHeader';
 
 interface SettingsZapsPageProps {
@@ -24,15 +25,17 @@ export function SettingsZapsPage({
     onRemoveZapAmount,
     onAddZapAmount,
 }: SettingsZapsPageProps) {
+    const { t } = useI18n();
+
     return (
         <>
             <OverlayPageHeader
-                title="Zaps"
-                description="Define cantidades rapidas para enviar zaps."
+                title={t('settings.zaps.title')}
+                description={t('settings.zaps.description')}
             />
             <div className="grid min-h-0 gap-2.5 overflow-x-hidden overflow-y-auto pr-px" data-testid="settings-page-body">
                 <div className="nostr-shortcuts-content">
-                    <p>Cantidad de zaps</p>
+                    <p>{t('settings.zaps.amounts')}</p>
 
                     <div className="flex items-center gap-2" data-testid="settings-zap-default-row">
                         <Input
@@ -40,7 +43,7 @@ export function SettingsZapsPage({
                             min={1}
                             step={1}
                             className="min-w-0 flex-1"
-                            aria-label="Cantidad por defecto de zap"
+                            aria-label={t('settings.zaps.defaultAmount')}
                             value={defaultZapAmountInput}
                             onChange={(event) => onDefaultZapAmountInputChange(event.target.value)}
                         />
@@ -56,7 +59,7 @@ export function SettingsZapsPage({
                                         min={1}
                                         step={1}
                                         className="min-w-0 flex-1"
-                                        aria-label={`Cantidad zap ${index + 1}`}
+                                        aria-label={t('settings.zaps.amountInput', { index: index + 1 })}
                                         value={String(amount)}
                                         onChange={(event) => {
                                             const nextValue = Number(event.target.value);
@@ -72,7 +75,7 @@ export function SettingsZapsPage({
                                         variant="outline"
                                         onClick={() => onRemoveZapAmount(index)}
                                     >
-                                        Quitar
+                                        {t('settings.zaps.remove')}
                                     </Button>
                                 </div>
                             </div>
@@ -85,7 +88,7 @@ export function SettingsZapsPage({
                             min={1}
                             step={1}
                             className="min-w-0 flex-1"
-                            aria-label="Nueva cantidad de zap"
+                            aria-label={t('settings.zaps.newAmount')}
                             placeholder="512"
                             value={newZapAmountInput}
                             onChange={(event) => onNewZapAmountInputChange(event.target.value)}
@@ -95,7 +98,7 @@ export function SettingsZapsPage({
                             className="whitespace-nowrap"
                             onClick={onAddZapAmount}
                         >
-                            Agregar cantidad
+                            {t('settings.zaps.addAmount')}
                         </Button>
                     </div>
                 </div>

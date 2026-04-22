@@ -27,6 +27,8 @@ import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item';
+import type { I18nContextValue } from '@/i18n/I18nProvider';
+import { useI18n } from '@/i18n/useI18n';
 import { PersonContextMenuItems } from './PersonContextMenuItems';
 import { toast } from 'sonner';
 import type { SocialEngagementMetrics } from '../../nostr/social-feed-service';
@@ -117,7 +119,13 @@ function truncateIdentifier(identifier: string): string {
     return `${identifier.slice(0, 14)}...${identifier.slice(-6)}`;
 }
 
-function buildFollowActionState(targetPubkey: string, displayName: string, ownerFollowSet: Set<string>, pendingFollowByPubkey: Record<string, boolean>) {
+function buildFollowActionState(
+    targetPubkey: string,
+    displayName: string,
+    ownerFollowSet: Set<string>,
+    pendingFollowByPubkey: Record<string, boolean>,
+    t: I18nContextValue['t'],
+) {
     const isFollowPending = Object.prototype.hasOwnProperty.call(pendingFollowByPubkey, targetPubkey);
     const isFollowed = isFollowPending ? true : ownerFollowSet.has(targetPubkey);
     const isDisabled = isFollowPending;
@@ -125,12 +133,12 @@ function buildFollowActionState(targetPubkey: string, displayName: string, owner
     return {
         isFollowed,
         isDisabled,
-        label: isFollowed ? 'Siguiendo' : 'Seguir',
+        label: isFollowed ? t('profile.following') : t('profile.follow'),
         ariaLabel: isFollowPending
-            ? `Actualizando seguimiento de ${displayName}`
+            ? t('profile.followStatusUpdating', { displayName })
             : isFollowed
-                ? `Dejar de seguir a ${displayName}`
-                : `Seguir a ${displayName}`,
+                ? t('profile.unfollow', { displayName })
+                : t('profile.followPerson', { displayName }),
     };
 }
 
@@ -213,6 +221,7 @@ export function OccupantProfileDialog({
     eventReferencesById,
     onClose,
 }: OccupantProfileDialogProps) {
+    const { t } = useI18n();
     const followsTimerRef = useRef<number | null>(null);
     const followersTimerRef = useRef<number | null>(null);
     const [visibleFollowsCount, setVisibleFollowsCount] = useState(() => Math.min(NETWORK_PAGE_SIZE, follows.length));
@@ -232,7 +241,7 @@ export function OccupantProfileDialog({
     const canAddRelaySuggestions = typeof onAddRelaySuggestion === 'function';
     const canAddAllRelaySuggestions = typeof onAddAllRelaySuggestions === 'function' && relaySuggestionRows.length > 1;
     const canFollowActiveProfile = typeof onFollowProfile === 'function' && ownerPubkey !== pubkey;
-    const activeProfileFollowState = buildFollowActionState(pubkey, displayName, ownerFollowSet, pendingFollowByPubkey);
+    const activeProfileFollowState = buildFollowActionState(pubkey, displayName, ownerFollowSet, pendingFollowByPubkey, t);
 
     const npubValue = useMemo(() => {
         try {
@@ -252,7 +261,7 @@ export function OccupantProfileDialog({
 
         try {
             await navigator.clipboard.writeText(npubValue);
-            toast.success('npub copiada', { duration: 1600 });
+            toast.success(t('profile.toast.npubCopied'), { duration: 1600 });
         } catch {
             return;
         }
@@ -265,7 +274,7 @@ export function OccupantProfileDialog({
 
         try {
             await navigator.clipboard.writeText(noteId);
-            toast.success('ID de nota copiado', { duration: 1600 });
+            toast.success(t('profile.toast.noteIdCopied'), { duration: 1600 });
         } catch {
             return;
         }
@@ -406,8 +415,8 @@ export function OccupantProfileDialog({
 
     const infoRows: Array<{ label: string; value: ReactNode }> = [
         {
-            label: 'Descripcion',
-            value: profile?.about || 'No declarada',
+            label: t('profile.info.description'),
+            value: profile?.about || t('profile.info.notDeclared.female'),
         },
         {
             label: 'NIP-05',
@@ -418,32 +427,32 @@ export function OccupantProfileDialog({
                         {...(verification ? { verification } : {})}
                     />
                 )
-                : 'No declarado',
+                : t('profile.info.notDeclared'),
         },
         {
-            label: 'Sitio web',
+            label: t('profile.info.website'),
             value: profile?.website
                 ? (
                     <a href={profile.website} target="_blank" rel="noreferrer noopener" className="nostr-profile-info-link">
                         {profile.website}
                     </a>
                 )
-                : 'No declarado',
+                : t('profile.info.notDeclared'),
         },
         {
             label: 'LUD16',
-            value: profile?.lud16 || 'No declarado',
+            value: profile?.lud16 || t('profile.info.notDeclared'),
         },
         {
             label: 'LUD06',
-            value: profile?.lud06 || 'No declarado',
+            value: profile?.lud06 || t('profile.info.notDeclared'),
         },
         {
-            label: 'Bot',
-            value: profile?.bot ? 'Si' : 'No',
+            label: t('profile.info.bot'),
+            value: profile?.bot ? t('profile.info.yes') : t('profile.info.no'),
         },
         {
-            label: 'Identidades externas',
+            label: t('profile.info.externalIdentities'),
             value: profile?.externalIdentities?.length
                 ? (
                     <ul className="nostr-profile-identities">
@@ -452,7 +461,7 @@ export function OccupantProfileDialog({
                         ))}
                     </ul>
                 )
-                : 'No declaradas',
+                : t('profile.info.externalIdentitiesNone'),
         },
     ];
 
@@ -468,7 +477,7 @@ export function OccupantProfileDialog({
         const canCopy = typeof onCopyNpub === 'function';
         const canSendMessage = typeof onSendMessage === 'function' && ownerPubkey !== personPubkey;
         const canViewDetails = typeof onSelectProfile === 'function';
-        const followState = buildFollowActionState(personPubkey, personDisplay, ownerFollowSet, pendingFollowByPubkey);
+        const followState = buildFollowActionState(personPubkey, personDisplay, ownerFollowSet, pendingFollowByPubkey, t);
 
         const contextMenuActionProps = {
             ...(canCopy ? { onCopyNpub: () => onCopyNpub?.(pubkeyToNpub(personPubkey)) } : {}),
@@ -530,7 +539,7 @@ export function OccupantProfileDialog({
                                 variant="outline"
                                 size="icon-sm"
                                 className="shrink-0"
-                                aria-label={`Abrir acciones para ${personDisplay}`}
+                                aria-label={t('profile.actions.openFor', { displayName: personDisplay })}
                                 onClick={openPersonActionsMenu}
                             >
                                 <EllipsisVerticalIcon data-icon="inline-start" />
@@ -569,17 +578,17 @@ export function OccupantProfileDialog({
                     maxWidth: 'calc(100vw - 32px)',
                 }}
                 showCloseButton={false}
-                aria-label="Perfil del ocupante"
+                aria-label={t('profile.dialog.aria')}
             >
-                <DialogTitle className="sr-only">Perfil del ocupante</DialogTitle>
-                <DialogDescription className="sr-only">Datos de red social y publicaciones del ocupante.</DialogDescription>
-                <Button type="button" variant="ghost" className="nostr-dialog-close" onClick={onClose} aria-label="Cerrar perfil">
+                <DialogTitle className="sr-only">{t('profile.dialog.title')}</DialogTitle>
+                <DialogDescription className="sr-only">{t('profile.dialog.description')}</DialogDescription>
+                <Button type="button" variant="ghost" className="nostr-dialog-close" onClick={onClose} aria-label={t('profile.dialog.close')}>
                     ×
                 </Button>
 
                 <div className="nostr-profile-dialog-body">
                     <div className={`nostr-profile-dialog-banner-shell${profile?.banner ? '' : ' is-placeholder'}`}>
-                        {profile?.banner ? <img className="nostr-profile-dialog-banner" src={profile.banner} alt="Banner del perfil" /> : null}
+                        {profile?.banner ? <img className="nostr-profile-dialog-banner" src={profile.banner} alt={t('profile.dialog.bannerAlt')} /> : null}
                     </div>
 
                     <div className="nostr-dialog-header flex items-start gap-4">
@@ -587,11 +596,11 @@ export function OccupantProfileDialog({
                             <button
                                 type="button"
                                 className="nostr-dialog-avatar-trigger overflow-hidden rounded-full"
-                                aria-label="Ver avatar en grande"
+                                aria-label={t('profile.dialog.openAvatar')}
                                 onClick={() => setIsAvatarLightboxOpen(true)}
                             >
                                 <Avatar className="size-12 border border-border/70 shadow-xs">
-                                    <AvatarImage src={profile.picture} alt="Avatar del ocupante" />
+                                    <AvatarImage src={profile.picture} alt={t('profile.dialog.avatarAlt')} />
                                     <AvatarFallback className="bg-muted text-muted-foreground">
                                         {resolveInitials(pubkey, profile)}
                                     </AvatarFallback>
@@ -610,7 +619,7 @@ export function OccupantProfileDialog({
                                 <p className="nostr-dialog-name nostr-identity-row inline-flex max-w-full items-center gap-2 text-base font-semibold text-foreground">
                                     <span className="truncate">{resolveName(pubkey, profile)}</span>
                                     {isNip05Verified ? (
-                                        <Badge className="nostr-verified-badge" variant="secondary" title="NIP-05 verificado" aria-label="NIP-05 verificado">
+                                        <Badge className="nostr-verified-badge" variant="secondary" title={t('profile.dialog.nip05Verified')} aria-label={t('profile.dialog.nip05Verified')}>
                                             <CircleCheckIcon aria-hidden="true" className="size-3" />
                                         </Badge>
                                     ) : null}
@@ -622,8 +631,8 @@ export function OccupantProfileDialog({
                                         variant="ghost"
                                         size="icon-xs"
                                         className="nostr-dialog-copy-npub shrink-0"
-                                        aria-label="Copiar npub"
-                                        title="Copiar npub"
+                                        aria-label={t('profile.dialog.copyNpub')}
+                                        title={t('profile.dialog.copyNpub')}
                                         onClick={() => {
                                             void copyNpubToClipboard();
                                         }}
@@ -653,13 +662,13 @@ export function OccupantProfileDialog({
                         value={activeTab}
                         onValueChange={(value) => setActiveTab(value as OccupantProfileTab)}
                         className="nostr-profile-dialog-tabs"
-                        aria-label="Secciones del perfil"
+                        aria-label={t('profile.dialog.tabs')}
                     >
-                        <TabsList variant="line" className="grid h-auto w-full grid-cols-4" aria-label="Secciones del perfil">
-                            <TabsTrigger value="info">Información</TabsTrigger>
-                            <TabsTrigger value="feed">Feed</TabsTrigger>
-                            <TabsTrigger value="followers">{`Seguidores (${followers.length})`}</TabsTrigger>
-                            <TabsTrigger value="following">{`Siguiendo (${follows.length})`}</TabsTrigger>
+                        <TabsList variant="line" className="grid h-auto w-full grid-cols-4" aria-label={t('profile.dialog.tabs')}>
+                            <TabsTrigger value="info">{t('profile.dialog.tabInfo')}</TabsTrigger>
+                            <TabsTrigger value="feed">{t('profile.dialog.tabFeed')}</TabsTrigger>
+                            <TabsTrigger value="followers">{t('profile.dialog.tabFollowers', { count: String(followers.length) })}</TabsTrigger>
+                            <TabsTrigger value="following">{t('profile.dialog.tabFollowing', { count: String(follows.length) })}</TabsTrigger>
                         </TabsList>
 
                         <TabsContent value="info" className="nostr-profile-tab-panel">
@@ -676,22 +685,22 @@ export function OccupantProfileDialog({
 
                                     <section>
                                         <div className="mb-2 flex items-center justify-between gap-2">
-                                            <h5 className="text-sm font-semibold">Relays declarados</h5>
+                                            <h5 className="text-sm font-semibold">{t('profile.relays.declared')}</h5>
                                             {canAddAllRelaySuggestions ? (
                                                 <Button
                                                     type="button"
                                                     size="xs"
                                                     variant="outline"
-                                                    aria-label="Añadir todos los relays declarados"
+                                                    aria-label={t('profile.relays.addAllAria')}
                                                     onClick={addAllRelaySuggestions}
                                                 >
-                                                    Añadir todos
+                                                    {t('profile.relays.addAll')}
                                                 </Button>
                                             ) : null}
                                         </div>
 
                                         {relaySuggestionRows.length === 0 ? (
-                                            <p className="text-sm text-muted-foreground">Sin relays declarados por este perfil.</p>
+                                            <p className="text-sm text-muted-foreground">{t('profile.relays.none')}</p>
                                         ) : (
                                             <ItemGroup className="nostr-profile-network-list">
                                                 {relaySuggestionRows.map((relayRow) => (
@@ -718,10 +727,10 @@ export function OccupantProfileDialog({
                                                                     size="xs"
                                                                     variant="outline"
                                                                     className="shrink-0"
-                                                                    aria-label={`Añadir relay ${relayRow.relayUrl}`}
+                                                                    aria-label={t('profile.relays.addOne', { relayUrl: relayRow.relayUrl })}
                                                                     onClick={() => addRelaySuggestion(relayRow.relayUrl, relayRow.relayTypes)}
                                                                 >
-                                                                    Añadir
+                                                                    {t('settings.relays.add')}
                                                                 </Button>
                                                             ) : null}
                                                         </Item>
@@ -778,7 +787,7 @@ export function OccupantProfileDialog({
                                                 if (!note) {
                                                     return (
                                                         <article key={post.id}>
-                                                            <p>No se pudo renderizar la nota.</p>
+                                                            <p>{t('profile.feed.renderError')}</p>
                                                         </article>
                                                     );
                                                 }
@@ -807,18 +816,18 @@ export function OccupantProfileDialog({
                                                     <EmptyMedia variant="icon">
                                                         <Spinner />
                                                     </EmptyMedia>
-                                                    <EmptyTitle>Cargando publicaciones</EmptyTitle>
-                                                    <EmptyDescription>{`Recuperando notas de ${displayName}.`}</EmptyDescription>
+                                                    <EmptyTitle>{t('profile.feed.loadingTitle')}</EmptyTitle>
+                                                    <EmptyDescription>{t('profile.feed.loadingDescription', { displayName })}</EmptyDescription>
                                                 </EmptyHeader>
                                             </Empty>
                                         </div>
                                     ) : null}
 
-                                    {postsLoading && posts.length > 0 ? <ListLoadingFooter loading label="Cargando publicaciones..." /> : null}
+                                    {postsLoading && posts.length > 0 ? <ListLoadingFooter loading label={t('profile.feed.loadingMore')} /> : null}
 
                                     {hasMorePosts && !postsLoading ? (
                                         <Button type="button" className="justify-self-start" data-testid="profile-load-more-posts" onClick={() => void onLoadMorePosts()}>
-                                            Cargar mas
+                                            {t('profile.feed.loadMore')}
                                         </Button>
                                     ) : null}
                                 </section>
@@ -838,8 +847,8 @@ export function OccupantProfileDialog({
                                                 <EmptyMedia variant="icon">
                                                     <Spinner />
                                                 </EmptyMedia>
-                                                <EmptyTitle>Cargando seguidores</EmptyTitle>
-                                                <EmptyDescription>{`Recuperando seguidores de ${displayName}.`}</EmptyDescription>
+                                                <EmptyTitle>{t('profile.followers.loadingTitle')}</EmptyTitle>
+                                                <EmptyDescription>{t('profile.followers.loadingDescription', { displayName })}</EmptyDescription>
                                             </EmptyHeader>
                                         </Empty>
                                     ) : (
@@ -849,7 +858,7 @@ export function OccupantProfileDialog({
                                                 <div className="nostr-profile-network-empty-state">
                                                     <Empty className="nostr-profile-network-empty">
                                                         <EmptyHeader>
-                                                            <EmptyTitle>Sin seguidores visibles.</EmptyTitle>
+                                                            <EmptyTitle>{t('profile.followers.empty')}</EmptyTitle>
                                                         </EmptyHeader>
                                                     </Empty>
                                                 </div>
@@ -883,8 +892,8 @@ export function OccupantProfileDialog({
                                                 <EmptyMedia variant="icon">
                                                     <Spinner />
                                                 </EmptyMedia>
-                                                <EmptyTitle>Cargando seguidos</EmptyTitle>
-                                                <EmptyDescription>{`Recuperando personas a las que sigue ${displayName}.`}</EmptyDescription>
+                                                <EmptyTitle>{t('profile.following.loadingTitle')}</EmptyTitle>
+                                                <EmptyDescription>{t('profile.following.loadingDescription', { displayName })}</EmptyDescription>
                                             </EmptyHeader>
                                         </Empty>
                                     ) : (
@@ -894,7 +903,7 @@ export function OccupantProfileDialog({
                                                 <div className="nostr-profile-network-empty-state">
                                                     <Empty className="nostr-profile-network-empty">
                                                         <EmptyHeader>
-                                                            <EmptyTitle>Sin seguidos visibles.</EmptyTitle>
+                                                            <EmptyTitle>{t('profile.following.empty')}</EmptyTitle>
                                                         </EmptyHeader>
                                                     </Empty>
                                                 </div>
@@ -921,7 +930,7 @@ export function OccupantProfileDialog({
                     open={isAvatarLightboxOpen && Boolean(profile?.picture)}
                     close={() => setIsAvatarLightboxOpen(false)}
                     index={0}
-                    slides={profile?.picture ? [{ src: profile.picture, alt: `Avatar de ${displayName}` }] : []}
+                    slides={profile?.picture ? [{ src: profile.picture, alt: t('profile.dialog.avatarLightboxAlt', { displayName }) }] : []}
                     portal={{
                         root: typeof document === 'undefined' ? null : document.body,
                     }}

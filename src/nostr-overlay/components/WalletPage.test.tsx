@@ -1,6 +1,7 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
+import { UI_SETTINGS_STORAGE_KEY } from '../../nostr/ui-settings';
 import { WalletPage } from './WalletPage';
 
 interface RenderResult {
@@ -27,6 +28,7 @@ beforeAll(() => {
 });
 
 afterEach(async () => {
+    window.localStorage.clear();
     for (const entry of mounted) {
         await act(async () => {
             entry.root.unmount();
@@ -130,5 +132,59 @@ describe('WalletPage', () => {
 
         expect(rendered.container.textContent || '').toContain('Reconecta WebLN');
         expect(rendered.container.textContent || '').not.toContain('Sin wallet conectada');
+    });
+
+    test('renders english wallet copy when ui language is en', async () => {
+        window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ language: 'en' }));
+
+        const rendered = await renderElement(
+            <WalletPage
+                walletState={{ activeConnection: null }}
+                walletActivity={{ items: [] }}
+                nwcUriInput=""
+                onNwcUriInputChange={vi.fn()}
+                onConnectNwc={vi.fn()}
+                onConnectWebLn={vi.fn()}
+                onDisconnect={vi.fn()}
+                onRefresh={vi.fn()}
+            />
+        );
+        mounted.push(rendered);
+
+        const text = rendered.container.textContent || '';
+        expect(text).toContain('Manage the active wallet used for payments and zaps.');
+        expect(text).toContain('No wallet connected');
+        expect(text).toContain('Connect with NWC');
+        expect(text).toContain('Connect with WebLN');
+    });
+
+    test('renders english refresh action when connected and ui language is en', async () => {
+        window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ language: 'en' }));
+
+        const rendered = await renderElement(
+            <WalletPage
+                walletState={{
+                    activeConnection: {
+                        method: 'webln',
+                        capabilities: {
+                            payInvoice: true,
+                            makeInvoice: false,
+                            notifications: false,
+                        },
+                        restoreState: 'connected',
+                    },
+                }}
+                walletActivity={{ items: [] }}
+                nwcUriInput=""
+                onNwcUriInputChange={vi.fn()}
+                onConnectNwc={vi.fn()}
+                onConnectWebLn={vi.fn()}
+                onDisconnect={vi.fn()}
+                onRefresh={vi.fn()}
+            />
+        );
+        mounted.push(rendered);
+
+        expect(rendered.container.textContent || '').toContain('Refresh');
     });
 });

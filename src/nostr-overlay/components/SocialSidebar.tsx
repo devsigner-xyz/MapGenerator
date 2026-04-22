@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { encodeHexToNpub } from '../../nostr/npub';
 import type { Nip05ValidationResult } from '../../nostr/nip05';
 import type { NostrProfile } from '../../nostr/types';
+import { useI18n } from '@/i18n/useI18n';
 import { PeopleListTab } from './PeopleListTab';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -44,6 +45,7 @@ export function SocialSidebar({
     onCopyOwnerNpub,
     verificationByPubkey = {},
 }: SocialSidebarProps) {
+    const { t } = useI18n();
     const [activeTab, setActiveTab] = useState<SocialTab>('following');
     const [followingSearch, setFollowingSearch] = useState('');
     const [followersSearch, setFollowersSearch] = useState('');
@@ -85,23 +87,23 @@ export function SocialSidebar({
         return followerPeople.filter((pubkey) => matchesSearch(pubkey, followerProfiles[pubkey], query));
     }, [followerPeople, followerProfiles, followersSearch]);
     return (
-        <div className="nostr-social-sidebar" aria-label="Panel social">
+        <div className="nostr-social-sidebar" aria-label={t('social.panel')}>
             <Tabs
                 value={activeTab}
                 onValueChange={(value) => setActiveTab(value as SocialTab)}
                 className="nostr-social-tabs"
-                aria-label="Pestanas sociales"
+                aria-label={t('social.tabs')}
             >
-                <TabsList variant="line" className="grid h-auto w-full grid-cols-2" aria-label="Pestanas sociales">
-                    <TabsTrigger value="following">{`Sigues (${followingPeople.length})`}</TabsTrigger>
-                    <TabsTrigger value="followers">{`Seguidores (${followerPeople.length})`}</TabsTrigger>
+                <TabsList variant="line" className="grid h-auto w-full grid-cols-2" aria-label={t('social.tabs')}>
+                    <TabsTrigger value="following">{t('social.following', { count: followingPeople.length })}</TabsTrigger>
+                    <TabsTrigger value="followers">{t('social.followers', { count: followerPeople.length })}</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="following" className="nostr-tab-panel">
                     <PeopleListTab
                         people={filteredFollowingPeople}
                         profiles={profiles}
-                        emptyText={followingSearch ? 'No hay resultados para esta busqueda.' : 'No hay cuentas seguidas todavía.'}
+                        emptyText={followingSearch ? t('social.emptyFollowingSearch') : t('social.emptyFollowing')}
                         loading={false}
                         {...(selectedFollowingPubkey !== undefined ? { selectedPubkey: selectedFollowingPubkey } : {})}
                         {...(onSelectFollowing ? { onSelectPerson: onSelectFollowing } : {})}
@@ -114,7 +116,7 @@ export function SocialSidebar({
                         {...(onConfigureZapAmounts ? { onConfigureZapAmounts } : {})}
                         {...(followingPeople.length > 0 ? { searchQuery: followingSearch } : {})}
                         {...(followingPeople.length > 0 ? { onSearchQueryChange: setFollowingSearch } : {})}
-                        {...(followingPeople.length > 0 ? { searchAriaLabel: 'Buscar en seguidos' } : {})}
+                        {...(followingPeople.length > 0 ? { searchAriaLabel: t('social.searchFollowing') } : {})}
                         followedPubkeys={followingPeople}
                         {...(onFollowPerson ? { onFollowPerson } : {})}
                         verificationByPubkey={verificationByPubkey}
@@ -125,7 +127,7 @@ export function SocialSidebar({
                     <PeopleListTab
                         people={filteredFollowerPeople}
                         profiles={followerProfiles}
-                        emptyText={followersSearch ? 'No hay resultados para esta busqueda.' : 'No se encontraron seguidores aún.'}
+                        emptyText={followersSearch ? t('social.emptyFollowersSearch') : t('social.emptyFollowers')}
                         loading={followersLoading}
                         {...(selectedFollowingPubkey !== undefined ? { selectedPubkey: selectedFollowingPubkey } : {})}
                         {...(onSelectFollowing ? { onSelectPerson: onSelectFollowing } : {})}
@@ -140,7 +142,7 @@ export function SocialSidebar({
                         {...(onFollowPerson ? { onFollowPerson } : {})}
                         {...(followerPeople.length > 0 ? { searchQuery: followersSearch } : {})}
                         {...(followerPeople.length > 0 ? { onSearchQueryChange: setFollowersSearch } : {})}
-                        {...(followerPeople.length > 0 ? { searchAriaLabel: 'Buscar en seguidores' } : {})}
+                        {...(followerPeople.length > 0 ? { searchAriaLabel: t('social.searchFollowers') } : {})}
                         verificationByPubkey={verificationByPubkey}
                     />
                 </TabsContent>

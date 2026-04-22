@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { loadRelaySettings, RELAY_TYPES, type RelaySettingsByType, type RelayType } from '../../../../nostr/relay-settings';
+import { loadRelaySettings, type RelaySettingsByType, type RelayType } from '../../../../nostr/relay-settings';
 import { mergeRelaySets } from '../../../../nostr/relay-policy';
 import { useRelayConnectionSummary, type RelayConnectionProbe } from '../../../hooks/useRelayConnectionSummary';
 import { useRelayMetadataByUrlQuery } from '../../../query/relay-metadata.query';

@@ -9,6 +9,7 @@ import {
 import { type SearchUsersResult, useUserSearchQuery } from '../query/user-search.query';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Command, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
+import { useI18n } from '@/i18n/useI18n';
 import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
@@ -75,6 +76,7 @@ function getMentionTokenKey(activeMentionQuery: ActiveMentionQuery | null): stri
 }
 
 export function MentionTextarea({ value, onChangeDraft, onSearch, ownerPubkey, searchRelaySetKey, className, onChange, onClick, onKeyDown, onKeyUp, onSelect, ...props }: MentionTextareaProps) {
+    const { t } = useI18n();
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
     const pendingSelectionRef = useRef<number | null>(null);
     const [caretIndex, setCaretIndex] = useState(value.text.length);
@@ -242,21 +244,21 @@ export function MentionTextarea({ value, onChangeDraft, onSearch, ownerPubkey, s
                             {searchQuery.isLoading ? (
                                 <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
                                     <Spinner />
-                                    <span>Buscando usuarios</span>
+                                    <span>{t('mentionTextarea.loadingUsers')}</span>
                                 </div>
                             ) : searchQuery.error ? (
                                 <div className="px-3 py-2 text-sm text-muted-foreground">{searchQuery.error}</div>
                             ) : rows.length === 0 ? (
-                                <div className="px-3 py-2 text-sm text-muted-foreground">Sin resultados</div>
+                                <div className="px-3 py-2 text-sm text-muted-foreground">{t('mentionTextarea.noResults')}</div>
                             ) : (
                                 <>
                                     {searchQuery.isFetching ? (
                                         <div className="flex items-center gap-2 border-b px-3 py-2 text-xs text-muted-foreground">
                                             <Spinner />
-                                            <span>Buscando...</span>
+                                            <span>{t('mentionTextarea.searching')}</span>
                                         </div>
                                     ) : null}
-                                    <CommandGroup heading="Sugerencias">
+                                    <CommandGroup heading={t('mentionTextarea.suggestions')}>
                                         {rows.map(({ pubkey, profile }, index) => {
                                             const display = profileDisplayName(pubkey, profile);
                                             const isActive = index === activeIndex;
@@ -273,7 +275,7 @@ export function MentionTextarea({ value, onChangeDraft, onSearch, ownerPubkey, s
                                                     <button
                                                         type="button"
                                                         className="flex w-full items-center gap-3 px-2 py-1.5 text-left"
-                                                        aria-label={`Mencionar a ${display}`}
+                                                        aria-label={t('mentionTextarea.mentionPerson', { displayName: display })}
                                                         onMouseDown={(event) => {
                                                             event.preventDefault();
                                                         }}

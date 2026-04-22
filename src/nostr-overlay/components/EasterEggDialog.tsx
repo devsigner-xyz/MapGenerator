@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { useI18n } from '@/i18n/useI18n';
 import type { EasterEggEntry } from '../easter-eggs/catalog';
 
 interface EasterEggDialogProps {
@@ -9,6 +10,8 @@ interface EasterEggDialogProps {
 }
 
 export function EasterEggDialog({ entry, buildingIndex, onClose }: EasterEggDialogProps) {
+    const { t } = useI18n();
+
     return (
         <Dialog open onOpenChange={(open) => {
             if (!open) {
@@ -18,11 +21,11 @@ export function EasterEggDialog({ entry, buildingIndex, onClose }: EasterEggDial
             <DialogContent
                 className="nostr-dialog nostr-easter-egg-dialog"
                 showCloseButton={false}
-                aria-label={`Easter egg ${entry.title}`}
+                aria-label={t('easterEgg.aria', { title: entry.title })}
             >
                 <DialogTitle className="sr-only">{entry.title}</DialogTitle>
                 <DialogDescription className="sr-only">
-                    Documento oculto abierto desde edificio vacio {buildingIndex + 1}.
+                    {t('easterEgg.description', { building: String(buildingIndex + 1) })}
                 </DialogDescription>
 
                 <Button
@@ -30,14 +33,14 @@ export function EasterEggDialog({ entry, buildingIndex, onClose }: EasterEggDial
                     variant="ghost"
                     className="nostr-dialog-close"
                     onClick={onClose}
-                    aria-label="Cerrar easter egg"
+                    aria-label={t('easterEgg.close')}
                 >
                     ×
                 </Button>
 
                 <div className="nostr-easter-egg-body">
                     <header className="nostr-easter-egg-header">
-                        <p className="nostr-easter-egg-chip">Edificio #{buildingIndex + 1}</p>
+                        <p className="nostr-easter-egg-chip">{t('easterEgg.building', { index: String(buildingIndex + 1) })}</p>
                         <h3>{entry.title}</h3>
                     </header>
 
@@ -45,13 +48,13 @@ export function EasterEggDialog({ entry, buildingIndex, onClose }: EasterEggDial
                         <>
                             <div className="nostr-easter-egg-actions">
                                 <a href={entry.pdfPath} download={entry.downloadFileName} className="nostr-easter-egg-action">
-                                    Descargar PDF
+                                    {t('easterEgg.downloadPdf')}
                                 </a>
                                 <a href={entry.pdfPath} target="_blank" rel="noopener noreferrer" className="nostr-easter-egg-action">
-                                    Abrir / Ampliar
+                                    {t('easterEgg.openExpand')}
                                 </a>
                                 <a href={entry.sourceUrl} target="_blank" rel="noopener noreferrer" className="nostr-easter-egg-action">
-                                    Fuente
+                                    {t('easterEgg.source')}
                                 </a>
                             </div>
                             <iframe
@@ -64,7 +67,7 @@ export function EasterEggDialog({ entry, buildingIndex, onClose }: EasterEggDial
                         <>
                             <div className="nostr-easter-egg-actions">
                                 <a href={entry.sourceUrl} target="_blank" rel="noopener noreferrer" className="nostr-easter-egg-action">
-                                    Fuente
+                                    {t('easterEgg.source')}
                                 </a>
                             </div>
                             <pre className="nostr-easter-egg-text">{entry.text}</pre>

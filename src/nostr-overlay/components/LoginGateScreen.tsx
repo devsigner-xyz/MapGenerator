@@ -5,6 +5,7 @@ import { CreateAccountMethodSelector, type CreateAccountMethod } from './CreateA
 import { CreateAccountDialog, type CreateLocalAccountInput } from './CreateAccountDialog';
 import { LoginMethodSelector } from './LoginMethodSelector';
 import { AuthFlowFooter } from './AuthFlowFooter';
+import { useI18n } from '@/i18n/useI18n';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
@@ -30,6 +31,7 @@ export function LoginGateScreen({
     restoringSession = false,
     onStartSession,
 }: LoginGateScreenProps) {
+    const { t } = useI18n();
     const [panel, setPanel] = useState<'login' | 'create-account-selector' | 'create-account-flow'>('login');
     const [selectedCreateAccountMethod, setSelectedCreateAccountMethod] = useState<CreateAccountMethod | undefined>(undefined);
     const [unlockPassphrase, setUnlockPassphrase] = useState('');
@@ -50,15 +52,15 @@ export function LoginGateScreen({
     const showUnlockLocalAccount = Boolean(authSession && authSession.method === 'local' && authSession.locked);
     const lockedLocalPubkey = authSession?.method === 'local' && authSession.locked ? authSession.pubkey : undefined;
     const [savedLocalPassphrase, setSavedLocalPassphrase] = useState('');
-    const restorationSubtitle = mapLoaderText && mapLoaderText.trim().length > 0 ? mapLoaderText : 'Preparando acceso...';
+    const restorationSubtitle = mapLoaderText && mapLoaderText.trim().length > 0 ? mapLoaderText : t('auth.login.preparingAccess');
 
     return (
-        <div className="nostr-login-screen nostr-login-screen-dialog" data-testid="login-gate-screen" role="main" aria-label="Pantalla de login">
+        <div className="nostr-login-screen nostr-login-screen-dialog" data-testid="login-gate-screen" role="main" aria-label={t('auth.login.screen')}>
             <div className="nostr-login-screen-center">
                 <Card variant="elevated" className="nostr-login-screen-card gap-0 py-0">
                     <CardContent className="flex flex-col gap-6 p-5 sm:p-6">
                         <div className="nostr-login-cover-wrap">
-                            <img src={loginCover} alt="Nostr City cover" className="nostr-login-cover" />
+                            <img src={loginCover} alt={t('auth.login.coverAlt')} className="nostr-login-cover" />
                         </div>
 
                         {restoringSession ? (
@@ -67,7 +69,7 @@ export function LoginGateScreen({
                                     <EmptyMedia variant="icon">
                                         <Spinner />
                                     </EmptyMedia>
-                                    <EmptyTitle>Recuperando sesión</EmptyTitle>
+                                    <EmptyTitle>{t('auth.login.restoringSession')}</EmptyTitle>
                                     <EmptyDescription>{restorationSubtitle}</EmptyDescription>
                                 </EmptyHeader>
                             </Empty>
@@ -88,7 +90,7 @@ export function LoginGateScreen({
                                 }}
                             >
                                 <div className="flex flex-col gap-2">
-                                    <Label htmlFor="unlock-passphrase">Passphrase de la cuenta local</Label>
+                                    <Label htmlFor="unlock-passphrase">{t('auth.login.localPassphrase')}</Label>
                                     <Input
                                         id="unlock-passphrase"
                                         name="unlock-passphrase"
@@ -99,7 +101,7 @@ export function LoginGateScreen({
                                     />
                                 </div>
                                 <Button type="submit" disabled={isBusy || unlockPassphrase.trim().length === 0}>
-                                    Desbloquear cuenta
+                                    {t('auth.login.unlockAccount')}
                                 </Button>
                             </form>
                         ) : panel === 'create-account-selector' ? (
@@ -107,7 +109,7 @@ export function LoginGateScreen({
                                 <CreateAccountMethodSelector disabled={disabled} onSelectMethod={handleCreateAccountMethod} />
                                 <AuthFlowFooter align="start">
                                     <Button type="button" variant="ghost" disabled={disabled} onClick={() => setPanel('login')}>
-                                        Volver al login
+                                        {t('auth.login.backToLogin')}
                                     </Button>
                                 </AuthFlowFooter>
                             </>
@@ -139,7 +141,7 @@ export function LoginGateScreen({
                                     <div className="nostr-login-gate-actions grid gap-3" data-testid="login-gate-actions">
                                         <LoginMethodSelector {...loginMethodSelectorProps} />
                                         <Button type="button" variant="outline" disabled={disabled} onClick={() => setPanel('create-account-selector')}>
-                                            Crear cuenta
+                                            {t('auth.login.createAccount')}
                                         </Button>
                                     </div>
                                 )}
@@ -152,7 +154,7 @@ export function LoginGateScreen({
                                             void onStartSession('local', { pubkey: savedLocalAccount.pubkey });
                                         }}
                                     >
-                                        Continuar con cuenta local guardada
+                                        {t('auth.login.continueSavedLocal')}
                                     </Button>
                                 ) : null}
                                 {savedLocalAccount?.mode === 'passphrase' ? (
@@ -165,10 +167,10 @@ export function LoginGateScreen({
                                                 passphrase: savedLocalPassphrase.trim(),
                                             });
                                         }}
-                                    >
-                                        <div className="flex flex-col gap-2">
-                                            <Label htmlFor="saved-local-passphrase">Desbloquear cuenta local guardada</Label>
-                                            <Input
+                                        >
+                                            <div className="flex flex-col gap-2">
+                                                <Label htmlFor="saved-local-passphrase">{t('auth.login.unlockSavedLocal')}</Label>
+                                                <Input
                                                 id="saved-local-passphrase"
                                                 name="saved-local-passphrase"
                                                 type="password"
@@ -178,13 +180,13 @@ export function LoginGateScreen({
                                             />
                                         </div>
                                         <Button type="submit" variant="outline" disabled={disabled || savedLocalPassphrase.trim().length === 0}>
-                                            Desbloquear cuenta guardada
+                                            {t('auth.login.unlockSavedLocal')}
                                         </Button>
                                     </form>
                                 ) : null}
                                 {savedLocalAccount ? (
                                     <Button type="button" variant="outline" disabled={disabled} onClick={() => setPanel('create-account-selector')}>
-                                        Crear cuenta
+                                        {t('auth.login.createAccount')}
                                     </Button>
                                 ) : null}
                             </>

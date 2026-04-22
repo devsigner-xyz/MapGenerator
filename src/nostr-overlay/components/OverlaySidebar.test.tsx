@@ -2,6 +2,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
 import { MemoryRouter } from 'react-router';
+import { UI_SETTINGS_STORAGE_KEY } from '../../nostr/ui-settings';
 import { OverlaySidebar } from './OverlaySidebar';
 import type { AuthSessionState } from '../../nostr/auth/session';
 
@@ -84,6 +85,7 @@ beforeAll(() => {
 });
 
 afterEach(async () => {
+    window.localStorage.clear();
     for (const entry of mounted) {
         await act(async () => {
             entry.root.unmount();
@@ -127,7 +129,7 @@ describe('OverlaySidebar', () => {
         mounted.push(rendered);
 
         const readonlyBadge = Array.from(rendered.container.querySelectorAll('[data-slot="badge"]')).find((badge) =>
-            (badge.textContent || '').includes('Read Only')
+            (badge.textContent || '').includes('Solo lectura')
         );
 
         expect(readonlyBadge).not.toBeNull();
@@ -144,5 +146,18 @@ describe('OverlaySidebar', () => {
 
         expect(walletIndex).toBeGreaterThanOrEqual(0);
         expect(settingsIndex).toBeGreaterThan(walletIndex);
+    });
+
+    test('renders english top-level labels when ui language is en', async () => {
+        window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ language: 'en' }));
+
+        const rendered = await renderSidebar('/agora');
+        mounted.push(rendered);
+
+        const text = rendered.container.textContent || '';
+        expect(text).toContain('Agora');
+        expect(text).toContain('Chats');
+        expect(text).toContain('Relays');
+        expect(text).toContain('Social platform');
     });
 });

@@ -2,6 +2,7 @@ import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
 import { QueryClientProvider } from '@tanstack/react-query';
+import { UI_SETTINGS_STORAGE_KEY } from '../../nostr/ui-settings';
 import type { NostrProfile } from '../../nostr/types';
 import { createNostrOverlayQueryClient } from '../query/query-client';
 import { UserSearchPage } from './UserSearchPage';
@@ -92,6 +93,7 @@ beforeAll(() => {
 });
 
 afterEach(async () => {
+    window.localStorage.clear();
     for (const entry of mounted) {
         await act(async () => {
             entry.root.unmount();
@@ -312,6 +314,37 @@ describe('UserSearchPage', () => {
 
             await waitForAssertion(() => {
                 expect(rendered.container.textContent || '').toContain('Sin resultados');
+            });
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    test('renders english global search copy when ui language is en', async () => {
+        vi.useFakeTimers();
+        window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ language: 'en' }));
+
+        const onSearch = vi.fn(async () => ({ pubkeys: [], profiles: {} }));
+
+        try {
+            const rendered = await renderElement(
+                <UserSearchPage
+                    onClose={() => {}}
+                    onSearch={onSearch}
+                    onSelectUser={() => {}}
+                />
+            );
+            mounted.push(rendered);
+
+            expect(rendered.container.textContent || '').toContain('Search users globally');
+            const input = rendered.container.querySelector('input[aria-label="Search users globally"]') as HTMLInputElement;
+            expect(input?.getAttribute('placeholder')).toBe('Search by name, npub, or pubkey');
+
+            await typeSearchValue(input, 'alice');
+            await flushDebounce();
+
+            await waitForAssertion(() => {
+                expect(rendered.container.textContent || '').toContain('No results');
             });
         } finally {
             vi.useRealTimers();

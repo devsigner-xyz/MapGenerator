@@ -1,5 +1,6 @@
 import { resolvePublicAppUrl } from '@/site/app-url';
 import { resolvePublicDocsUrl } from '@/site/docs-url';
+import { useI18n } from '@/i18n/useI18n';
 
 function scrollToSection(sectionId: string): void {
   document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -8,141 +9,127 @@ function scrollToSection(sectionId: string): void {
 export default function LandingPage() {
   const appUrl = resolvePublicAppUrl();
   const docsUrl = resolvePublicDocsUrl();
+  const { t } = useI18n();
 
   return (
     <div className="landing-shell">
       <header className="topbar">
         <p className="brand">Nostr City</p>
 
-        <nav className="topbar-links" aria-label="Enlaces principales">
-          <a href={docsUrl}>Documentacion</a>
+        <nav className="topbar-links" aria-label={t('landing.nav.mainLinks')}>
+          <a href={docsUrl}>{t('landing.nav.documentation')}</a>
           <a href="https://github.com/ProbableTrain/MapGenerator" target="_blank" rel="noreferrer">
-            GitHub
+            {t('landing.nav.github')}
           </a>
           <button type="button" onClick={() => scrollToSection('features')}>
-            Features
+            {t('landing.nav.features')}
           </button>
-          <a className="app-link" href={appUrl}>Entrar a la aplicacion</a>
+          <a className="app-link" href={appUrl}>{t('landing.nav.openApp')}</a>
         </nav>
       </header>
 
       <main>
         <section className="hero" id="hero">
-          <p className="kicker">Proyecto personal + open source</p>
-          <h1>Nostr City, una nueva forma de visualizar Nostr</h1>
-          <p>
-            No es un producto comercial: es un experimento abierto para mirar la red como geografia social.
-            Conecta identidad, relaciones y actividad en una ciudad generativa que puedes explorar en tiempo real.
-          </p>
+          <p className="kicker">{t('landing.hero.kicker')}</p>
+          <h1>{t('landing.hero.title')}</h1>
+          <p>{t('landing.hero.body')}</p>
 
           <div className="hero-actions">
-            <a className="app-link" href={appUrl}>Entrar a la aplicacion</a>
+            <a className="app-link" href={appUrl}>{t('landing.hero.openApp')}</a>
             <button type="button" onClick={() => scrollToSection('como-funciona')}>
-              Ver como funciona
+              {t('landing.hero.howItWorks')}
             </button>
           </div>
 
           <div className="hero-grid">
             <article>
-              <h3>Visualizacion espacial</h3>
-              <p>La red deja de ser una lista y pasa a ser territorio navegable.</p>
+              <h3>{t('landing.hero.card.spatial.title')}</h3>
+              <p>{t('landing.hero.card.spatial.body')}</p>
             </article>
             <article>
-              <h3>Contexto social</h3>
-              <p>Perfiles, conexiones y actividad se entienden de un vistazo.</p>
+              <h3>{t('landing.hero.card.social.title')}</h3>
+              <p>{t('landing.hero.card.social.body')}</p>
             </article>
             <article>
-              <h3>Laboratorio abierto</h3>
-              <p>Proyecto en evolucion continua, sin animo de lucro y con codigo publico.</p>
+              <h3>{t('landing.hero.card.lab.title')}</h3>
+              <p>{t('landing.hero.card.lab.body')}</p>
             </article>
           </div>
         </section>
 
         <section className="content" id="que-es">
-          <h2>Que es Nostr City</h2>
-          <p>
-            Nostr City traduce senales del protocolo a una experiencia cartografica. En lugar de leer solo timelines,
-            exploras un mapa donde la presencia, la cercania social y el movimiento generan otra lectura de Nostr.
-          </p>
+          <h2>{t('landing.whatIs.title')}</h2>
+          <p>{t('landing.whatIs.body')}</p>
         </section>
 
         <section className="content" id="como-funciona">
-          <h2>Como funciona</h2>
+          <h2>{t('landing.how.title')}</h2>
           <div className="steps">
             <article className="card">
-              <h3>1. Conecta tu identidad</h3>
-              <p>Inicias con npub o metodos de sesion compatibles y defines tu punto de partida.</p>
+              <h3>{t('landing.how.step1.title')}</h3>
+              <p>{t('landing.how.step1.body')}</p>
             </article>
             <article className="card">
-              <h3>2. Se construye la ciudad</h3>
-              <p>El generador proyecta estructuras urbanas y distribuye presencia social sobre el mapa.</p>
+              <h3>{t('landing.how.step2.title')}</h3>
+              <p>{t('landing.how.step2.body')}</p>
             </article>
             <article className="card">
-              <h3>3. Exploras otra geometria</h3>
-              <p>Recorres perfiles, feed social, estadisticas y capas visuales desde una vista diferente.</p>
+              <h3>{t('landing.how.step3.title')}</h3>
+              <p>{t('landing.how.step3.body')}</p>
             </article>
           </div>
         </section>
 
         <section className="content" id="features">
-          <h2>Features clave</h2>
+          <h2>{t('landing.features.title')}</h2>
           <div className="features">
             <article className="card">
-              <h3>Ciudad generativa y estilos</h3>
-              <p>Mapas procedurales, zoom, camara, capas de lectura y ajustes visuales.</p>
+              <h3>{t('landing.features.generativeCity.title')}</h3>
+              <p>{t('landing.features.generativeCity.body')}</p>
             </article>
             <article className="card">
-              <h3>Overlay social Nostr</h3>
-              <p>Perfiles, seguidos, seguidores, feed y navegacion contextual sobre edificios.</p>
+              <h3>{t('landing.features.overlay.title')}</h3>
+              <p>{t('landing.features.overlay.body')}</p>
             </article>
             <article className="card">
-              <h3>Control de relays</h3>
-              <p>Gestion de relays, metadata y parametros para adaptar la experiencia.</p>
+              <h3>{t('landing.features.relays.title')}</h3>
+              <p>{t('landing.features.relays.body')}</p>
             </article>
             <article className="card">
-              <h3>Exportacion y experimentacion</h3>
-              <p>Descargas de salida grafica o 3D para seguir iterando fuera de la app.</p>
+              <h3>{t('landing.features.export.title')}</h3>
+              <p>{t('landing.features.export.body')}</p>
             </article>
           </div>
         </section>
 
         <section className="content nostr-native" id="nostr-native">
-          <h2>Para quienes ya usan Nostr</h2>
-          <p>
-            Esta interfaz no compite con tus clientes timeline-first. Propone otra capa: leer Nostr como una topologia
-            social, no solo como stream temporal. Si ya entiendes relays, identidad y follows, aqui ves la red desde otra
-            geometria.
-          </p>
+          <h2>{t('landing.nostrNative.title')}</h2>
+          <p>{t('landing.nostrNative.body')}</p>
 
           <div className="features">
             <article className="card">
-              <h3>No reemplaza tu stack actual</h3>
-              <p>Funciona como vista complementaria para descubrir patrones que un timeline no muestra facil.</p>
+              <h3>{t('landing.nostrNative.stack.title')}</h3>
+              <p>{t('landing.nostrNative.stack.body')}</p>
             </article>
             <article className="card">
-              <h3>Enfoque protocol-first</h3>
-              <p>La narrativa prioriza interoperabilidad y lectura del ecosistema, no lock-in de producto.</p>
+              <h3>{t('landing.nostrNative.protocol.title')}</h3>
+              <p>{t('landing.nostrNative.protocol.body')}</p>
             </article>
           </div>
         </section>
 
         <section className="content" id="filosofia">
-          <h2>Filosofia del proyecto</h2>
-          <p>
-            Nostr City es un proyecto personal, sin animo de lucro. Es una exploracion abierta para probar interfaces nuevas
-            sobre Nostr y compartir hallazgos con la comunidad.
-          </p>
+          <h2>{t('landing.philosophy.title')}</h2>
+          <p>{t('landing.philosophy.body')}</p>
 
-          <p className="manifest">
-            Si buscas una forma diferente de observar Nostr, este mapa esta hecho para explorar, no para vender.
-          </p>
+          <p className="manifest">{t('landing.philosophy.manifesto')}</p>
 
           <div className="footer-cta">
-            <a className="app-link" href={appUrl}>Entrar a la aplicacion</a>
+            <a className="app-link" href={appUrl}>{t('landing.footer.openApp')}</a>
             <a href="https://github.com/ProbableTrain/MapGenerator" target="_blank" rel="noreferrer">
-              Ver repositorio
+              {t('landing.footer.viewRepo')}
             </a>
-            <a href={docsUrl}>Leer documentacion</a>
+            <a href={docsUrl}>{t('landing.footer.readDocs')}</a>
           </div>
         </section>
       </main>

@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router';
 import type { RelaySettingsByType, RelaySettingsState } from '../../nostr/relay-settings';
 import type { RelayConnectionProbe } from '../hooks/useRelayConnectionSummary';
 import { buildRelayDetailPath } from '../settings/relay-detail-routing';
+import { useI18n } from '@/i18n/useI18n';
 import { SettingsRelaysPage } from './settings-pages/SettingsRelaysPage';
 import { useRelaysSettingsController } from './settings-routes/controllers/useRelaysSettingsController';
 
@@ -22,6 +23,7 @@ export function RelaysRoute({
     relayConnectionRefreshIntervalMs,
     onRelaySettingsChange,
 }: RelaysRouteProps) {
+    const { t } = useI18n();
     const navigate = useNavigate();
     const relays = useRelaysSettingsController({
         ...(ownerPubkey ? { ownerPubkey } : {}),
@@ -33,11 +35,11 @@ export function RelaysRoute({
     });
 
     return (
-        <section className="nostr-routed-surface" aria-label="Relays">
+        <section className="nostr-routed-surface" aria-label={t('relaysRoute.aria')}>
             <div className="nostr-routed-surface-content">
                 <div className="nostr-settings-page nostr-routed-surface-panel nostr-page-layout nostr-settings-page-relays">
-                    <h2 className="sr-only">Relays</h2>
-                    <p className="sr-only">Configuracion y estado de conexion de relays.</p>
+                    <h2 className="sr-only">{t('relaysRoute.title')}</h2>
+                    <p className="sr-only">{t('relaysRoute.description')}</p>
 
                     <SettingsRelaysPage
                         configuredRows={relays.configuredRows}

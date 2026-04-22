@@ -7,6 +7,7 @@ import { withoutNoteActions } from './note-card-model';
 import { NoteCard } from './NoteCard';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/dialog';
+import { useI18n } from '@/i18n/useI18n';
 import type { NostrProfile } from '../../nostr/types';
 
 interface SocialComposeDialogProps {
@@ -34,6 +35,7 @@ export function SocialComposeDialog({
     onOpenChange,
     onSubmit,
 }: SocialComposeDialogProps) {
+    const { t } = useI18n();
     const [draft, setDraft] = useState<MentionDraft>(createMentionDraft(''));
 
     useEffect(() => {
@@ -45,17 +47,17 @@ export function SocialComposeDialog({
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-2xl">
-                <DialogTitle>{mode === 'quote' ? 'Cita' : 'Publicar'}</DialogTitle>
+                <DialogTitle>{mode === 'quote' ? t('socialCompose.quoteTitle') : t('socialCompose.postTitle')}</DialogTitle>
                 <DialogDescription>
                     {mode === 'quote'
-                        ? 'Escribe tu comentario sobre la nota seleccionada.'
-                        : 'Escribe una nueva publicacion para Agora.'}
+                        ? t('socialCompose.quoteDescription')
+                        : t('socialCompose.postDescription')}
                 </DialogDescription>
 
                 <div className="grid gap-4">
                     <MentionTextarea
-                        aria-label="Redactar publicacion"
-                        placeholder={mode === 'quote' ? 'Anade tu comentario' : 'Que estas pensando?'}
+                        aria-label={t('socialCompose.textareaAria')}
+                        placeholder={mode === 'quote' ? t('socialCompose.quotePlaceholder') : t('socialCompose.postPlaceholder')}
                         value={draft}
                         onSearch={onSearchUsers}
                         ownerPubkey={ownerPubkey}
@@ -73,7 +75,7 @@ export function SocialComposeDialog({
 
                 <DialogFooter className="sm:justify-end">
                     <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
-                        Cancelar
+                        {t('socialCompose.cancel')}
                     </Button>
                     <Button
                         type="button"
@@ -82,7 +84,7 @@ export function SocialComposeDialog({
                             void onSubmit(draft);
                         }}
                     >
-                        {isSubmitting ? 'Publicando...' : 'Publicar'}
+                        {isSubmitting ? t('socialCompose.publishing') : t('socialCompose.postTitle')}
                     </Button>
                 </DialogFooter>
             </DialogContent>

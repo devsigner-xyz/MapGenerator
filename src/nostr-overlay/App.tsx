@@ -97,6 +97,7 @@ import {
     ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import { Toaster, toast } from 'sonner';
+import { translate } from '@/i18n/translate';
 
 interface AppProps {
     mapBridge: MapBridge | null;
@@ -186,17 +187,17 @@ interface SocialComposeState {
     quoteTarget?: NoteCardModel;
 }
 
-function mapLoaderStageLabel(stage: MapLoaderStage | null): string | null {
+function mapLoaderStageLabel(stage: MapLoaderStage | null, language: UiSettingsState['language']): string | null {
     if (stage === 'connecting_relay') {
-        return 'Conectando a relay...';
+        return translate(language, 'app.loader.connectingRelay');
     }
 
     if (stage === 'fetching_data') {
-        return 'Obteniendo datos...';
+        return translate(language, 'app.loader.fetchingData');
     }
 
     if (stage === 'building_map') {
-        return 'Construyendo mapa...';
+        return translate(language, 'app.loader.buildingMap');
     }
 
     return null;
@@ -315,7 +316,7 @@ export function App({ mapBridge, services }: AppProps) {
         )
     );
     const loginDisabled = overlay.status !== 'idle' && overlay.status !== 'success' && overlay.status !== 'error';
-    const mapLoaderText = mapLoaderStageLabel(overlay.mapLoaderStage);
+    const mapLoaderText = mapLoaderStageLabel(overlay.mapLoaderStage, uiSettings.language);
     const sessionRestorationResolved = overlay.sessionRestorationResolved;
     const isAppReady = Boolean(overlay.authSession) && overlay.status === 'success' && !overlay.authSession?.locked;
     const showLoginGate = !sessionRestorationResolved || !isAppReady;
@@ -1257,7 +1258,7 @@ export function App({ mapBridge, services }: AppProps) {
                 )
                 : currentSettings.streetLabelsZoomLevel,
         }));
-        toast.success(enabled ? 'Etiquetas de calles activadas' : 'Etiquetas de calles desactivadas', { duration: 1800 });
+        toast.success(translate(uiSettings.language, enabled ? 'app.toast.streetLabelsEnabled' : 'app.toast.streetLabelsDisabled'), { duration: 1800 });
     };
 
     const setSpecialMarkersQuickToggle = (enabled: boolean): void => {
@@ -1265,7 +1266,7 @@ export function App({ mapBridge, services }: AppProps) {
             ...currentSettings,
             specialMarkersEnabled: enabled,
         }));
-        toast.success(enabled ? 'Iconos especiales activados' : 'Iconos especiales desactivados', { duration: 1800 });
+        toast.success(translate(uiSettings.language, enabled ? 'app.toast.specialIconsEnabled' : 'app.toast.specialIconsDisabled'), { duration: 1800 });
     };
 
     const setCarsQuickToggle = (enabled: boolean): void => {
@@ -1289,7 +1290,7 @@ export function App({ mapBridge, services }: AppProps) {
                 trafficParticlesCount: 0,
             });
         });
-        toast.success(enabled ? 'Coches activados' : 'Coches desactivados', { duration: 1800 });
+        toast.success(translate(uiSettings.language, enabled ? 'app.toast.carsEnabled' : 'app.toast.carsDisabled'), { duration: 1800 });
     };
 
     const setAgoraFeedLayout = (layout: UiSettingsState['agoraFeedLayout']): void => {
@@ -1349,7 +1350,7 @@ export function App({ mapBridge, services }: AppProps) {
         }
 
         if (!overlay.writeGateway) {
-            toast.error('No se puede enviar este zap.', { duration: 2200 });
+            toast.error(translate(uiSettings.language, 'app.toast.zapUnavailable'), { duration: 2200 });
             return 'definitive_failure';
         }
 
@@ -1361,7 +1362,7 @@ export function App({ mapBridge, services }: AppProps) {
             ...relaySettingsSnapshot.byType.nip65Write,
         ])];
         if (writeRelays.length === 0) {
-            toast.error('No se puede enviar este zap.', { duration: 2200 });
+            toast.error(translate(uiSettings.language, 'app.toast.zapUnavailable'), { duration: 2200 });
             return 'definitive_failure';
         }
         const activityId = `zap-${input.eventId ?? input.targetPubkey}-${Date.now()}`;

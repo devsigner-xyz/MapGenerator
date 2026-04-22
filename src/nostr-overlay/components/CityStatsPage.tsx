@@ -10,6 +10,7 @@ import {
     YAxis,
 } from 'recharts';
 import { OverlayPageHeader } from './OverlayPageHeader';
+import { useI18n } from '@/i18n/useI18n';
 import { buildCityStats } from '../domain/city-stats';
 
 interface CityStatsPageProps {
@@ -52,6 +53,7 @@ export function CityStatsPage({
     parkCount,
     unhousedResidentsCount,
 }: CityStatsPageProps) {
+    const { t } = useI18n();
     const stats = buildCityStats({
         buildingsCount,
         occupiedBuildingsCount,
@@ -63,45 +65,45 @@ export function CityStatsPage({
     });
 
     const housingData = [
-        { name: 'Ocupadas', value: stats.housing.occupied, color: '#3b768f' },
-        { name: 'Disponibles', value: stats.housing.available, color: '#b9d6e3' },
+        { name: t('cityStats.housing.occupied'), value: stats.housing.occupied, color: '#3b768f' },
+        { name: t('cityStats.housing.available'), value: stats.housing.available, color: '#b9d6e3' },
     ];
 
     const populationData = [
-        { label: 'Con vivienda', value: stats.population.assigned },
-        { label: 'Sin vivienda', value: stats.population.unhoused },
+        { label: t('cityStats.population.housed'), value: stats.population.assigned },
+        { label: t('cityStats.population.unhoused'), value: stats.population.unhoused },
     ];
 
     const demographicData = [
-        { label: 'Sigues', value: stats.network.follows },
-        { label: 'Seguidores', value: stats.network.followers },
+        { label: t('cityStats.network.following'), value: stats.network.follows },
+        { label: t('cityStats.network.followers'), value: stats.network.followers },
     ];
 
     return (
-        <section className="nostr-routed-surface" aria-label="Estadisticas de la ciudad">
+        <section className="nostr-routed-surface" aria-label={t('cityStats.aria')}>
             <div className="nostr-routed-surface-content">
                 <div className="nostr-city-stats-page nostr-routed-surface-panel nostr-page-layout sm:max-w-none">
                     <div className="nostr-city-stats-body">
                         <OverlayPageHeader
                             className="nostr-city-stats-header"
-                            title="Estadisticas de la ciudad"
-                            description="Panorama de vivienda y poblacion asignada en el mapa actual."
+                            title={t('cityStats.title')}
+                            description={t('cityStats.description')}
                         />
 
-                        <section className="nostr-city-kpi-grid" aria-label="KPIs de la ciudad">
-                            <article className="nostr-city-kpi-card"><p>Viviendas totales</p><strong>{stats.housing.total}</strong></article>
-                            <article className="nostr-city-kpi-card"><p>Edificios ocupados</p><strong>{stats.housing.occupied}</strong></article>
-                            <article className="nostr-city-kpi-card"><p>Viviendas disponibles</p><strong>{stats.housing.available}</strong></article>
-                            <article className="nostr-city-kpi-card"><p>Tasa de ocupacion</p><strong>{formatPercent(stats.housing.occupancyRate)}</strong></article>
-                            <article className="nostr-city-kpi-card"><p>Poblacion asignada</p><strong>{stats.population.assigned}</strong></article>
-                            <article className="nostr-city-kpi-card"><p>Demanda sin vivienda</p><strong>{stats.population.unhoused}</strong></article>
-                            <article className="nostr-city-kpi-card"><p>Seguidores detectados</p><strong>{stats.network.followers}</strong></article>
-                            <article className="nostr-city-kpi-card"><p>Numero de parques</p><strong>{stats.terrain.parks}</strong></article>
+                        <section className="nostr-city-kpi-grid" aria-label={t('cityStats.kpis')}>
+                            <article className="nostr-city-kpi-card"><p>{t('cityStats.kpi.totalHomes')}</p><strong>{stats.housing.total}</strong></article>
+                            <article className="nostr-city-kpi-card"><p>{t('cityStats.kpi.occupiedBuildings')}</p><strong>{stats.housing.occupied}</strong></article>
+                            <article className="nostr-city-kpi-card"><p>{t('cityStats.kpi.availableHomes')}</p><strong>{stats.housing.available}</strong></article>
+                            <article className="nostr-city-kpi-card"><p>{t('cityStats.kpi.occupancyRate')}</p><strong>{formatPercent(stats.housing.occupancyRate)}</strong></article>
+                            <article className="nostr-city-kpi-card"><p>{t('cityStats.kpi.assignedPopulation')}</p><strong>{stats.population.assigned}</strong></article>
+                            <article className="nostr-city-kpi-card"><p>{t('cityStats.kpi.unhousedDemand')}</p><strong>{stats.population.unhoused}</strong></article>
+                            <article className="nostr-city-kpi-card"><p>{t('cityStats.kpi.detectedFollowers')}</p><strong>{stats.network.followers}</strong></article>
+                            <article className="nostr-city-kpi-card"><p>{t('cityStats.kpi.parks')}</p><strong>{stats.terrain.parks}</strong></article>
                         </section>
 
                         <section className="nostr-city-chart-section">
-                            <h4>Vivienda ocupada vs disponible</h4>
-                            <div className="nostr-city-chart" role="img" aria-label="Grafico circular de viviendas ocupadas y disponibles">
+                            <h4>{t('cityStats.section.housing')}</h4>
+                            <div className="nostr-city-chart" role="img" aria-label={t('cityStats.section.housingAria')}>
                                 <ResponsiveContainer width="100%" height={200}>
                                     <PieChart>
                                         <Pie data={housingData} dataKey="value" nameKey="name" innerRadius={44} outerRadius={72} paddingAngle={2}>
@@ -116,8 +118,8 @@ export function CityStatsPage({
                         </section>
 
                         <section className="nostr-city-chart-section">
-                            <h4>Demografia de ocupacion</h4>
-                            <div className="nostr-city-chart" role="img" aria-label="Grafico de barras de poblacion con y sin vivienda">
+                            <h4>{t('cityStats.section.population')}</h4>
+                            <div className="nostr-city-chart" role="img" aria-label={t('cityStats.section.populationAria')}>
                                 <ResponsiveContainer width="100%" height={210}>
                                     <BarChart data={populationData} margin={{ top: 8, right: 8, bottom: 6, left: 0 }}>
                                         <XAxis dataKey="label" />
@@ -130,8 +132,8 @@ export function CityStatsPage({
                         </section>
 
                         <section className="nostr-city-chart-section">
-                            <h4>Red demografica</h4>
-                            <div className="nostr-city-chart" role="img" aria-label="Grafico de barras de seguidos y seguidores">
+                            <h4>{t('cityStats.section.network')}</h4>
+                            <div className="nostr-city-chart" role="img" aria-label={t('cityStats.section.networkAria')}>
                                 <ResponsiveContainer width="100%" height={210}>
                                     <BarChart data={demographicData} margin={{ top: 8, right: 8, bottom: 6, left: 0 }}>
                                         <XAxis dataKey="label" />
@@ -141,7 +143,7 @@ export function CityStatsPage({
                                     </BarChart>
                                 </ResponsiveContainer>
                             </div>
-                            <p className="nostr-city-coverage">Cobertura residencial actual: {formatPercent(stats.population.coverageRate)}</p>
+                            <p className="nostr-city-coverage">{t('cityStats.coverage', { value: formatPercent(stats.population.coverageRate) })}</p>
                         </section>
                     </div>
                 </div>

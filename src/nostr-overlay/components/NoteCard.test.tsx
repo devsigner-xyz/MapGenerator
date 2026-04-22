@@ -2,6 +2,7 @@ import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
 import { nip19 } from 'nostr-tools';
+import { UI_SETTINGS_STORAGE_KEY } from '../../nostr/ui-settings';
 import { shortId, withoutNoteActions, type NoteCardModel } from './note-card-model';
 import { NoteCard } from './NoteCard';
 
@@ -29,6 +30,7 @@ beforeAll(() => {
 });
 
 afterEach(async () => {
+    window.localStorage.clear();
     for (const entry of mounted) {
         await act(async () => {
             entry.root.unmount();
@@ -241,6 +243,38 @@ describe('NoteCard', () => {
         });
 
         expect(onConfigureZapAmounts).toHaveBeenCalledTimes(1);
+    });
+
+    test('renders note action menus in english when ui language is en', async () => {
+        window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ language: 'en' }));
+
+        const onZap = vi.fn(async () => {});
+        const onConfigureZapAmounts = vi.fn();
+        const onViewDetail = vi.fn();
+        const { container } = await renderNoteCard({
+            ...defaultNoteFixture,
+            actions: {
+                ...defaultNoteFixture.actions!,
+                onZap,
+                onConfigureZapAmounts,
+                onViewDetail,
+            },
+        });
+
+        const menuButton = container.querySelector('button[aria-label="Open actions for note note-1"]') as HTMLButtonElement;
+        expect(menuButton).not.toBeNull();
+
+        await act(async () => {
+            menuButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+            menuButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).some((item) =>
+            (item.textContent || '').trim() === 'Copy'
+        )).toBe(true);
+        expect(Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).some((item) =>
+            (item.textContent || '').trim() === 'View detail'
+        )).toBe(true);
     });
 
     test('opens repost submenu with repost and cita actions', async () => {

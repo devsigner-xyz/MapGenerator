@@ -2,6 +2,7 @@ import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
 import { nip19 } from 'nostr-tools';
+import { UI_SETTINGS_STORAGE_KEY } from '../../nostr/ui-settings';
 import { OccupantProfileDialog } from './OccupantProfileDialog';
 
 const { toastSuccessMock } = vi.hoisted(() => ({
@@ -112,6 +113,7 @@ beforeAll(() => {
 });
 
 afterEach(async () => {
+    window.localStorage.clear();
     for (const entry of mounted) {
         await act(async () => {
             entry.root.unmount();
@@ -170,6 +172,22 @@ describe('OccupantProfileDialog', () => {
         expect(clipboardWriteText).toHaveBeenCalledTimes(1);
         expect((clipboardWriteText.mock.calls[0]?.[0] as string | undefined)?.startsWith('npub1')).toBe(true);
         expect(toastSuccessMock).toHaveBeenCalledWith('npub copiada', { duration: 1600 });
+    });
+
+    test('renders primary profile tabs in english when ui language is en', async () => {
+        window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ language: 'en' }));
+
+        const rendered = await renderElement(<OccupantProfileDialog {...buildProps()} />);
+        mounted.push(rendered);
+
+        const tabLabels = Array.from(document.body.querySelectorAll('[data-slot="tabs-trigger"]'))
+            .map((node) => (node.textContent || '').trim());
+
+        expect(tabLabels).toContain('Info');
+        expect(tabLabels).toContain('Feed');
+        expect(tabLabels).toContain('Followers (1)');
+        expect(tabLabels).toContain('Following (2)');
+        expect(document.body.querySelector('button[aria-label="Copy npub"]')).not.toBeNull();
     });
 
     test('renders enriched about tab without avatar url row and opens avatar lightbox on click', async () => {
@@ -232,6 +250,33 @@ describe('OccupantProfileDialog', () => {
         expect(lightboxRoot).toBeDefined();
     });
 
+    test('localizes avatar lightbox alt text in english when ui language is en', async () => {
+        window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ language: 'en' }));
+
+        const rendered = await renderElement(
+            <OccupantProfileDialog
+                {...buildProps({
+                    profile: {
+                        pubkey: 'a'.repeat(64),
+                        displayName: 'Alice',
+                        picture: 'https://example.com/avatar.png',
+                    },
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        const avatarTrigger = document.body.querySelector('.nostr-dialog-avatar-trigger') as HTMLButtonElement;
+        expect(avatarTrigger).toBeDefined();
+
+        await act(async () => {
+            avatarTrigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitForCondition(() => document.body.innerHTML.includes('Avatar of Alice'));
+        expect(document.body.innerHTML).toContain('Avatar of Alice');
+    });
+
     test('uses shadcn empty loading state with spinner in feed tab', async () => {
         const rendered = await renderElement(
             <OccupantProfileDialog
@@ -258,6 +303,37 @@ describe('OccupantProfileDialog', () => {
         const centeredLoading = document.body.querySelector('.nostr-profile-posts-empty-state') as HTMLElement | null;
         expect(centeredLoading).not.toBeNull();
         expect(centeredLoading?.contains(feedEmpty)).toBe(true);
+    });
+
+    test('renders feed and network loading states in english when ui language is en', async () => {
+        window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ language: 'en' }));
+
+        const rendered = await renderElement(
+            <OccupantProfileDialog
+                {...buildProps({
+                    postsLoading: true,
+                    networkLoading: true,
+                    followers: [],
+                    follows: [],
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        await selectTab('Feed');
+        await waitForCondition(() => (document.body.textContent || '').includes('Loading posts'));
+        expect(document.body.textContent || '').toContain('Loading posts');
+        expect(document.body.textContent || '').toContain('Recovering posts from Alice.');
+
+        await selectTab('Followers');
+        await waitForCondition(() => (document.body.textContent || '').includes('Loading followers'));
+        expect(document.body.textContent || '').toContain('Loading followers');
+        expect(document.body.textContent || '').toContain('Recovering followers of Alice.');
+
+        await selectTab('Following');
+        await waitForCondition(() => (document.body.textContent || '').includes('Loading following'));
+        expect(document.body.textContent || '').toContain('Loading following');
+        expect(document.body.textContent || '').toContain('Recovering people followed by Alice.');
     });
 
     test('uses centered shadcn empty state without spinner when feed has no posts', async () => {

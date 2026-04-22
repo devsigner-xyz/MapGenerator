@@ -1,6 +1,7 @@
 import type { SocialNotificationItem } from '../../nostr/social-notifications-service';
 import { OverlayPageHeader } from './OverlayPageHeader';
 import { OverlayUnreadIndicator } from './OverlayUnreadIndicator';
+import { useI18n } from '@/i18n/useI18n';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Item, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item';
 
@@ -9,39 +10,40 @@ interface NotificationsPageProps {
     notifications: SocialNotificationItem[];
 }
 
-function notificationLabel(item: SocialNotificationItem): string {
+function notificationLabel(item: SocialNotificationItem, t: ReturnType<typeof useI18n>['t']): string {
     if (item.kind === 1) {
-        return 'Mencion';
+        return t('notifications.kind.mention');
     }
 
     if (item.kind === 6) {
-        return 'Repost';
+        return t('notifications.kind.repost');
     }
 
     if (item.kind === 7) {
-        return 'Reaccion';
+        return t('notifications.kind.reaction');
     }
 
-    return 'Zap';
+    return t('notifications.kind.zap');
 }
 
-function shortPubkey(value: string): string {
+function shortPubkey(value: string, t: ReturnType<typeof useI18n>['t']): string {
     if (!value || value.length < 16) {
-        return value || 'desconocido';
+        return value || t('notifications.actor.unknown');
     }
 
     return `${value.slice(0, 8)}...${value.slice(-6)}`;
 }
 
 export function NotificationsPage({ hasUnread, notifications }: NotificationsPageProps) {
+    const { t } = useI18n();
     return (
-        <section className="nostr-routed-surface" aria-label="Notificaciones">
+        <section className="nostr-routed-surface" aria-label={t('notifications.title')}>
             <div className="nostr-routed-surface-content">
                 <div className="nostr-notifications-page nostr-routed-surface-panel nostr-page-layout">
                     <OverlayPageHeader
-                        title="Notificaciones"
-                        description="Actividad reciente de personas y contenido que sigues."
-                        indicator={hasUnread ? <OverlayUnreadIndicator className="nostr-notifications-unread-dot" srLabel="Hay notificaciones sin leer" /> : null}
+                        title={t('notifications.title')}
+                        description={t('notifications.description')}
+                        indicator={hasUnread ? <OverlayUnreadIndicator className="nostr-notifications-unread-dot" srLabel={t('notifications.unread')} /> : null}
                     />
 
                     <section className="grid min-h-0 gap-2.5">
@@ -49,8 +51,8 @@ export function NotificationsPage({ hasUnread, notifications }: NotificationsPag
                             <div className="nostr-notifications-empty-state">
                                 <Empty className="nostr-notifications-empty">
                                     <EmptyHeader>
-                                        <EmptyTitle>Sin notificaciones</EmptyTitle>
-                                        <EmptyDescription>No tienes notificaciones pendientes.</EmptyDescription>
+                                        <EmptyTitle>{t('notifications.empty.title')}</EmptyTitle>
+                                        <EmptyDescription>{t('notifications.empty.description')}</EmptyDescription>
                                     </EmptyHeader>
                                 </Empty>
                             </div>
@@ -60,8 +62,8 @@ export function NotificationsPage({ hasUnread, notifications }: NotificationsPag
                                     <li key={item.id}>
                                         <Item variant="outline" size="sm">
                                             <ItemContent>
-                                                <ItemTitle>{notificationLabel(item)}</ItemTitle>
-                                                <ItemDescription>{shortPubkey(item.actorPubkey)}</ItemDescription>
+                                                <ItemTitle>{notificationLabel(item, t)}</ItemTitle>
+                                                <ItemDescription>{shortPubkey(item.actorPubkey, t)}</ItemDescription>
                                             </ItemContent>
                                         </Item>
                                     </li>

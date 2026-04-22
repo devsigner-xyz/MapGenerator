@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useI18n } from '@/i18n/useI18n';
 import { Label } from '@/components/ui/label';
 
 interface NpubFormProps {
@@ -10,6 +11,7 @@ interface NpubFormProps {
 }
 
 export function NpubForm({ disabled = false, onSubmit }: NpubFormProps) {
+    const { t } = useI18n();
     const [npub, setNpub] = useState('');
 
     const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -25,7 +27,7 @@ export function NpubForm({ disabled = false, onSubmit }: NpubFormProps) {
     return (
         <form className="grid gap-2" data-testid="npub-form" onSubmit={handleSubmit}>
             <Label htmlFor="nostr-npub-input">
-                Public Key
+                {t('npubForm.label')}
             </Label>
 
             <div className="flex min-w-0 items-center gap-2">
@@ -40,7 +42,7 @@ export function NpubForm({ disabled = false, onSubmit }: NpubFormProps) {
                 />
 
                 <Button className="shrink-0 whitespace-nowrap" data-testid="npub-submit" type="submit" disabled={disabled || npub.trim().length === 0}>
-                    Acceder
+                    {t('npubForm.submit')}
                 </Button>
             </div>
         </form>

@@ -1,6 +1,7 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
+import { UI_SETTINGS_STORAGE_KEY } from '../../nostr/ui-settings';
 import { ChatsPage, type ChatConversationSummary, type ChatDetailMessage } from './ChatsPage';
 
 interface RenderResult {
@@ -27,6 +28,7 @@ beforeAll(() => {
 });
 
 afterEach(async () => {
+    window.localStorage.clear();
     for (const entry of mounted) {
         await act(async () => {
             entry.root.unmount();
@@ -270,5 +272,48 @@ describe('ChatsPage', () => {
         expect(rendered.container.textContent || '').toContain('Enviando...');
         expect(rendered.container.textContent || '').toContain('Enviado');
         expect(rendered.container.textContent || '').toContain('Error de entrega');
+    });
+
+    test('renders english chat copy when ui language is en', async () => {
+        window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ language: 'en' }));
+
+        const rendered = await renderElement(
+            <ChatsPage
+                hasUnreadGlobal
+                conversations={[buildConversation({ lastMessagePreview: '' })]}
+                messages={[]}
+                activeConversationId="peer-1"
+                onOpenConversation={() => {}}
+                onSendMessage={async () => {}}
+            />
+        );
+        mounted.push(rendered);
+
+        const text = rendered.container.textContent || '';
+        expect(text).toContain('Chats');
+        expect(text).toContain('There are unread chats');
+        expect(text).toContain('No messages');
+        expect(text).toContain('Send');
+        const textarea = rendered.container.querySelector('textarea') as HTMLTextAreaElement | null;
+        expect(textarea?.getAttribute('placeholder')).toBe('Write a message...');
+    });
+
+    test('renders english outgoing delivery state when ui language is en', async () => {
+        window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ language: 'en' }));
+
+        const rendered = await renderElement(
+            <ChatsPage
+                hasUnreadGlobal={false}
+                conversations={[buildConversation()]}
+                messages={[buildMessage({ direction: 'outgoing', deliveryState: 'failed', plaintext: 'hello' })]}
+                activeConversationId="peer-1"
+                onOpenConversation={() => {}}
+                onSendMessage={async () => {}}
+            />
+        );
+        mounted.push(rendered);
+
+        expect(rendered.container.textContent || '').toContain('Failed to deliver');
+        expect(rendered.container.textContent || '').toContain('Me');
     });
 });

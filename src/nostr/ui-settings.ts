@@ -1,5 +1,9 @@
+import type { AppLocale } from '../i18n/types';
+
 export const UI_SETTINGS_STORAGE_KEY = 'nostr.overlay.ui.v1';
+export const UI_SETTINGS_LANGUAGE_CHANGE_EVENT = 'nostr.overlay.ui-language-change';
 export type AgoraFeedLayout = 'list' | 'masonry';
+export type UiLanguage = AppLocale;
 
 const DEFAULT_AGORA_FEED_LAYOUT: AgoraFeedLayout = 'list';
 const DEFAULT_OCCUPIED_LABELS_ZOOM_LEVEL = 8;
@@ -12,6 +16,7 @@ const DEFAULT_TRAFFIC_PARTICLES_SPEED = 1;
 
 interface UiSettingsPayload {
     agoraFeedLayout?: AgoraFeedLayout;
+    language?: UiLanguage;
     occupiedLabelsZoomLevel?: number;
     streetLabelsEnabled?: boolean;
     specialMarkersEnabled?: boolean;
@@ -28,6 +33,7 @@ interface StorageLike {
 
 export interface UiSettingsState {
     agoraFeedLayout: AgoraFeedLayout;
+    language: UiLanguage;
     occupiedLabelsZoomLevel: number;
     streetLabelsEnabled: boolean;
     specialMarkersEnabled: boolean;
@@ -39,6 +45,10 @@ export interface UiSettingsState {
 
 function normalizeAgoraFeedLayout(value: unknown): AgoraFeedLayout {
     return value === 'masonry' ? 'masonry' : DEFAULT_AGORA_FEED_LAYOUT;
+}
+
+function detectDefaultLanguage(): UiLanguage {
+    return 'es';
 }
 
 function getDefaultStorage(): StorageLike | null {
@@ -59,6 +69,10 @@ function normalizeOccupiedLabelsZoomLevel(value: number | undefined): number {
     }
 
     return Math.max(1, Math.min(20, Math.round(value)));
+}
+
+function normalizeLanguage(value: unknown): UiLanguage {
+    return value === 'es' || value === 'en' ? value : detectDefaultLanguage();
 }
 
 function normalizeStreetLabelsZoomLevel(value: number | undefined): number {
@@ -109,6 +123,7 @@ function isUiSettingsPayload(value: unknown): value is UiSettingsPayload {
 export function getDefaultUiSettings(): UiSettingsState {
     return {
         agoraFeedLayout: DEFAULT_AGORA_FEED_LAYOUT,
+        language: detectDefaultLanguage(),
         occupiedLabelsZoomLevel: DEFAULT_OCCUPIED_LABELS_ZOOM_LEVEL,
         streetLabelsEnabled: DEFAULT_STREET_LABELS_ENABLED,
         specialMarkersEnabled: DEFAULT_SPECIAL_MARKERS_ENABLED,
@@ -137,6 +152,7 @@ export function loadUiSettings(storage: StorageLike | null = getDefaultStorage()
 
         return {
             agoraFeedLayout: normalizeAgoraFeedLayout(parsed.agoraFeedLayout),
+            language: normalizeLanguage(parsed.language),
             occupiedLabelsZoomLevel: normalizeOccupiedLabelsZoomLevel(parsed.occupiedLabelsZoomLevel),
             streetLabelsEnabled: normalizeStreetLabelsEnabled(parsed.streetLabelsEnabled),
             specialMarkersEnabled: normalizeSpecialMarkersEnabled(parsed.specialMarkersEnabled),
@@ -156,6 +172,7 @@ export function saveUiSettings(
 ): UiSettingsState {
     const nextState: UiSettingsState = {
         agoraFeedLayout: normalizeAgoraFeedLayout(state.agoraFeedLayout),
+        language: normalizeLanguage(state.language),
         occupiedLabelsZoomLevel: normalizeOccupiedLabelsZoomLevel(state.occupiedLabelsZoomLevel),
         streetLabelsEnabled: normalizeStreetLabelsEnabled(state.streetLabelsEnabled),
         specialMarkersEnabled: normalizeSpecialMarkersEnabled(state.specialMarkersEnabled),
@@ -166,8 +183,10 @@ export function saveUiSettings(
     };
 
     if (storage) {
+        const previousLanguage = loadUiSettings(storage).language;
         const payload: UiSettingsPayload = {
             agoraFeedLayout: nextState.agoraFeedLayout,
+            language: nextState.language,
             occupiedLabelsZoomLevel: nextState.occupiedLabelsZoomLevel,
             streetLabelsEnabled: nextState.streetLabelsEnabled,
             specialMarkersEnabled: nextState.specialMarkersEnabled,
@@ -177,6 +196,12 @@ export function saveUiSettings(
             trafficParticlesSpeed: nextState.trafficParticlesSpeed,
         };
         storage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify(payload));
+
+        if (typeof window !== 'undefined' && previousLanguage !== nextState.language) {
+            window.dispatchEvent(new CustomEvent(UI_SETTINGS_LANGUAGE_CHANGE_EVENT, {
+                detail: nextState.language,
+            }));
+        }
     }
 
     return nextState;

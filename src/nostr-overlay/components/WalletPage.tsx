@@ -1,5 +1,6 @@
 import type { WalletActivityState, WalletSettingsState } from '../../nostr/wallet-types';
 import { OverlayPageHeader } from './OverlayPageHeader';
+import { useI18n } from '@/i18n/useI18n';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,30 +32,31 @@ export function WalletPage({
     onDisconnect,
     onRefresh,
 }: WalletPageProps) {
+    const { t } = useI18n();
     const connection = walletState.activeConnection;
     const hasRememberedConnection = connection !== null;
     const isConnected = connection !== null && connection.restoreState === 'connected';
     const statusLabel = connection?.method === 'nwc'
-        ? (connection.restoreState === 'connected' ? 'Conectada por NWC' : 'Reconecta NWC')
+        ? (connection.restoreState === 'connected' ? t('wallet.status.connectedNwc') : t('wallet.status.reconnectNwc'))
         : connection?.method === 'webln'
-            ? (connection.restoreState === 'connected' ? 'Conectada por WebLN' : 'Reconecta WebLN')
-            : 'Sin wallet conectada';
+            ? (connection.restoreState === 'connected' ? t('wallet.status.connectedWebln') : t('wallet.status.reconnectWebln'))
+            : t('wallet.status.disconnected');
     const reconnectAction = connection?.method === 'webln' ? onConnectWebLn : undefined;
 
     return (
-        <section className="nostr-routed-surface" aria-label="Wallet" data-testid="wallet-page">
+        <section className="nostr-routed-surface" aria-label={t('wallet.title')} data-testid="wallet-page">
             <div className="nostr-routed-surface-content">
                 <div className="nostr-routed-surface-panel nostr-page-layout gap-3">
                     <OverlayPageHeader
-                        title="Wallet"
-                        description="Gestiona la wallet activa usada para pagos y zaps."
+                        title={t('wallet.title')}
+                        description={t('wallet.description')}
                         indicator={<Badge variant={isConnected ? 'secondary' : 'outline'}>{statusLabel}</Badge>}
                     />
 
                     <div className="grid gap-3">
                         <Card>
                             <CardHeader>
-                                <CardTitle>Wallet activa</CardTitle>
+                                <CardTitle>{t('wallet.active.title')}</CardTitle>
                                 <CardDescription>{statusLabel}</CardDescription>
                             </CardHeader>
                             <CardContent className="grid gap-3">
@@ -66,20 +68,20 @@ export function WalletPage({
                                 <div className="flex flex-wrap gap-2">
                                     {isConnected ? (
                                         <>
-                                            <Button type="button" variant="outline" onClick={onRefresh}>Refrescar</Button>
-                                            <Button type="button" variant="outline" onClick={onDisconnect}>Desconectar</Button>
-                                            <Button type="button" onClick={connection?.method === 'nwc' ? onConnectWebLn : onConnectNwc}>Cambiar</Button>
+                                            <Button type="button" variant="outline" onClick={onRefresh}>{t('wallet.refresh')}</Button>
+                                            <Button type="button" variant="outline" onClick={onDisconnect}>{t('wallet.disconnect')}</Button>
+                                            <Button type="button" onClick={connection?.method === 'nwc' ? onConnectWebLn : onConnectNwc}>{t('wallet.change')}</Button>
                                         </>
                                     ) : hasRememberedConnection ? (
                                         <>
-                                            {reconnectAction ? <Button type="button" onClick={reconnectAction}>Reconectar</Button> : null}
-                                            <Button type="button" variant="outline" onClick={onDisconnect}>Desconectar</Button>
+                                            {reconnectAction ? <Button type="button" onClick={reconnectAction}>{t('wallet.reconnect')}</Button> : null}
+                                            <Button type="button" variant="outline" onClick={onDisconnect}>{t('wallet.disconnect')}</Button>
                                         </>
                                     ) : (
                                         <Empty>
                                             <EmptyHeader>
-                                                <EmptyTitle>Sin wallet conectada</EmptyTitle>
-                                                <EmptyDescription>Conecta una wallet para habilitar pagos y zaps.</EmptyDescription>
+                                                <EmptyTitle>{t('wallet.empty.title')}</EmptyTitle>
+                                                <EmptyDescription>{t('wallet.empty.description')}</EmptyDescription>
                                             </EmptyHeader>
                                         </Empty>
                                     )}
@@ -89,32 +91,32 @@ export function WalletPage({
 
                         <Card>
                             <CardHeader>
-                                <CardTitle>Conectar wallet</CardTitle>
-                                <CardDescription>Elige el metodo que quieras usar en este dispositivo.</CardDescription>
+                                <CardTitle>{t('wallet.connect.title')}</CardTitle>
+                                <CardDescription>{t('wallet.connect.description')}</CardDescription>
                             </CardHeader>
                             <CardContent className="flex flex-wrap gap-2">
                                 <Input
                                     type="text"
-                                    aria-label="URI NWC"
+                                    aria-label={t('wallet.connect.nwcUri')}
                                     placeholder="nostr+walletconnect://..."
                                     value={nwcUriInput}
                                     onChange={(event) => onNwcUriInputChange(event.target.value)}
                                 />
                                 <p className="w-full text-sm text-muted-foreground">
-                                    Guardar esta conexion en este dispositivo almacena datos sensibles de wallet.
+                                    {t('wallet.connect.warning')}
                                 </p>
-                                <Button type="button" onClick={onConnectNwc}>Conectar con NWC</Button>
-                                <Button type="button" variant="outline" onClick={onConnectWebLn}>Conectar con WebLN</Button>
+                                <Button type="button" onClick={onConnectNwc}>{t('wallet.connect.nwc')}</Button>
+                                <Button type="button" variant="outline" onClick={onConnectWebLn}>{t('wallet.connect.webln')}</Button>
                             </CardContent>
                         </Card>
 
                         <Card>
                             <CardHeader>
-                                <CardTitle>Actividad reciente</CardTitle>
+                                <CardTitle>{t('wallet.activity.title')}</CardTitle>
                             </CardHeader>
                             <CardContent>
                                 {walletActivity.items.length === 0 ? (
-                                    <span className="text-sm text-muted-foreground">Sin actividad reciente</span>
+                                    <span className="text-sm text-muted-foreground">{t('wallet.activity.empty')}</span>
                                 ) : (
                                     <ul className="grid gap-2">
                                         {walletActivity.items.map((item) => (

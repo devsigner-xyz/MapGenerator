@@ -2,6 +2,7 @@ import { act, useState, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
+import { UI_SETTINGS_STORAGE_KEY } from '../../nostr/ui-settings';
 import type { NostrProfile } from '../../nostr/types';
 import { createNostrOverlayQueryClient } from '../query/query-client';
 import type { SearchUsersResult } from '../query/user-search.query';
@@ -140,6 +141,7 @@ beforeAll(() => {
 });
 
 afterEach(async () => {
+    window.localStorage.clear();
     for (const entry of mounted) {
         await act(async () => {
             entry.root.unmount();
@@ -368,6 +370,34 @@ describe('MentionTextarea', () => {
             expect(rendered.container.querySelector('[data-testid="mentions-count"]')?.textContent).toBe('0');
             expect(rendered.container.querySelector('[data-testid="serialized-content"]')?.textContent).toBe('@Alicia ');
             expect(onDraftChange).toHaveBeenCalled();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    test('renders english suggestion chrome when ui language is en', async () => {
+        vi.useFakeTimers();
+        window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ language: 'en' }));
+        const deferred = createDeferred<SearchUsersResult>();
+        const onSearch = vi.fn(async () => deferred.promise);
+
+        try {
+            const rendered = await renderElement(<MentionTextareaHarness onSearch={onSearch} />);
+            mounted.push(rendered);
+
+            const textarea = rendered.container.querySelector('textarea[aria-label="Composer con menciones"]') as HTMLTextAreaElement;
+            await setTextareaValue(textarea, '@na');
+            await flushDebounce();
+
+            await waitForAssertion(() => {
+                expect(document.body.textContent || '').toContain('Searching users');
+            });
+
+            deferred.resolve(createSearchResult([{ pubkey: 'a'.repeat(64), displayName: 'Alice' }]));
+            await waitForAssertion(() => {
+                expect(document.body.textContent || '').toContain('Suggestions');
+            });
+            expect(document.body.querySelector('button[aria-label="Mention Alice"]')).not.toBeNull();
         } finally {
             vi.useRealTimers();
         }

@@ -1,6 +1,7 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
+import { UI_SETTINGS_STORAGE_KEY } from '../../nostr/ui-settings';
 import type { NostrProfile } from '../../nostr/types';
 import { MapPresenceLayer } from './MapPresenceLayer';
 import type { MapBridge } from '../map-bridge';
@@ -64,6 +65,7 @@ beforeAll(() => {
 });
 
 afterEach(async () => {
+    window.localStorage.clear();
     for (const entry of mounted) {
         await act(async () => {
             entry.root.unmount();
@@ -104,6 +106,35 @@ describe('MapPresenceLayer', () => {
         const ownerAvatar = rendered.container.querySelector('.nostr-map-owner-avatar-fallback') as HTMLElement;
         expect(ownerAvatar).toBeDefined();
         expect(ownerAvatar.textContent || '').toContain('OW');
+    });
+
+    test('renders special building title in english when ui language is en', async () => {
+        window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ language: 'en' }));
+
+        const bridge = createMapBridgeStub(3);
+        (bridge.listSpecialBuildings as any).mockReturnValue([
+            {
+                index: 0,
+                specialBuildingId: 'agora',
+            },
+        ]);
+        const rendered = await renderElement(
+            <MapPresenceLayer
+                mapBridge={bridge}
+                occupancyByBuildingIndex={{}}
+                discoveredEasterEggIds={[]}
+                profiles={profiles}
+                ownerPubkey={ownerPubkey}
+                ownerProfile={{ pubkey: ownerPubkey, displayName: 'Owner' }}
+                ownerBuildingIndex={0}
+                occupiedLabelsZoomLevel={10}
+            />
+        );
+        mounted.push(rendered);
+
+        const marker = rendered.container.querySelector('.nostr-map-special-building-marker') as HTMLDivElement;
+        expect(marker).toBeDefined();
+        expect(marker.getAttribute('title')).toBe('Special building: Agora');
     });
 
     test('hides occupied labels below configured zoom level', async () => {

@@ -1,5 +1,6 @@
 import type { AgoraFeedLayout } from '../../nostr/ui-settings';
 import { FollowingFeedContent, type FollowingFeedViewProps } from './FollowingFeedContent';
+import { useI18n } from '@/i18n/useI18n';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -12,13 +13,14 @@ interface FollowingFeedSurfaceProps extends FollowingFeedViewProps {
 }
 
 export function FollowingFeedSurface({ agoraFeedLayout = 'list', onAgoraFeedLayoutChange, activeHashtag, onClearHashtag, ...feedProps }: FollowingFeedSurfaceProps) {
+    const { t } = useI18n();
     const headerSubtitle = activeHashtag
-        ? `Filtrando por #${activeHashtag}`
-        : 'Timeline en tiempo real de personas que sigues';
+        ? t('feed.subtitle.hashtag', { hashtag: activeHashtag })
+        : t('feed.subtitle.following');
     const showFeedHeaderActions = !feedProps.activeThread;
     const pendingItemsLabel = feedProps.pendingNewCount === 1
-        ? 'Ver 1 publicacion nueva'
-        : `Ver ${feedProps.pendingNewCount} publicaciones nuevas`;
+        ? t('feed.newPosts.one')
+        : t('feed.newPosts.many', { count: feedProps.pendingNewCount });
 
     const headerActions = showFeedHeaderActions
         ? (
@@ -26,7 +28,6 @@ export function FollowingFeedSurface({ agoraFeedLayout = 'list', onAgoraFeedLayo
                 {onAgoraFeedLayoutChange ? (
                     <ToggleGroup
                         type="single"
-                        required
                         variant="outline"
                         size="sm"
                         value={agoraFeedLayout}
@@ -36,10 +37,10 @@ export function FollowingFeedSurface({ agoraFeedLayout = 'list', onAgoraFeedLayo
                             }
                         }}
                     >
-                        <ToggleGroupItem value="list" aria-label="Ver Agora en lista">
-                            Lista
+                        <ToggleGroupItem value="list" aria-label={t('feed.viewList')}>
+                            {t('settings.ui.agoraLayoutList')}
                         </ToggleGroupItem>
-                        <ToggleGroupItem value="masonry" aria-label="Ver Agora en masonry">
+                        <ToggleGroupItem value="masonry" aria-label={t('feed.viewMasonry')}>
                             Masonry
                         </ToggleGroupItem>
                     </ToggleGroup>
@@ -55,13 +56,13 @@ export function FollowingFeedSurface({ agoraFeedLayout = 'list', onAgoraFeedLayo
                     {feedProps.isRefreshingFeed ? (
                         <>
                             <Spinner className="size-4" />
-                            Actualizando
+                            {t('feed.refreshing')}
                         </>
-                    ) : 'Actualizar'}
+                    ) : t('feed.refresh')}
                 </Button>
                 {activeHashtag && onClearHashtag ? (
                     <Button type="button" variant="outline" size="sm" onClick={onClearHashtag}>
-                        Quitar filtro
+                        {t('feed.clearFilter')}
                     </Button>
                 ) : null}
             </>

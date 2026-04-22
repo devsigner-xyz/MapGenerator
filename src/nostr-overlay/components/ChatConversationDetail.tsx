@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChatConversationSummary, ChatDetailMessage } from './ChatsPage';
+import { useI18n } from '@/i18n/useI18n';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Textarea } from '@/components/ui/textarea';
@@ -13,20 +14,20 @@ interface ChatConversationDetailProps {
     disabledReason?: string;
 }
 
-function deliveryStatusLabel(state: 'pending' | 'sent' | 'failed'): string {
+function deliveryStatusLabel(state: 'pending' | 'sent' | 'failed', t: ReturnType<typeof useI18n>['t']): string {
     if (state === 'pending') {
-        return 'Enviando...';
+        return t('chats.detail.delivery.pending');
     }
 
     if (state === 'failed') {
-        return 'Error de entrega';
+        return t('chats.detail.delivery.failed');
     }
 
-    return 'Enviado';
+    return t('chats.detail.delivery.sent');
 }
 
-function formatMessageTimestamp(createdAt: number): string {
-    return new Intl.DateTimeFormat('es-ES', {
+function formatMessageTimestamp(createdAt: number, locale: 'es' | 'en'): string {
+    return new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'es-ES', {
         dateStyle: 'short',
         timeStyle: 'short',
     }).format(new Date(createdAt * 1000));
@@ -40,6 +41,7 @@ export function ChatConversationDetail({
     canSend = true,
     disabledReason,
 }: ChatConversationDetailProps) {
+    const { t, locale } = useI18n();
     const [draft, setDraft] = useState('');
     const composerRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -56,8 +58,8 @@ export function ChatConversationDetail({
             <div className="nostr-chat-empty-state">
                 <Empty className="nostr-chat-empty">
                     <EmptyHeader>
-                        <EmptyTitle>Sin conversacion activa</EmptyTitle>
-                        <EmptyDescription>Selecciona una conversación para empezar.</EmptyDescription>
+                        <EmptyTitle>{t('chats.detail.emptyTitle')}</EmptyTitle>
+                        <EmptyDescription>{t('chats.detail.emptyDescription')}</EmptyDescription>
                     </EmptyHeader>
                 </Empty>
             </div>
@@ -75,8 +77,8 @@ export function ChatConversationDetail({
                     <li>
                         <Empty className="nostr-chat-empty">
                             <EmptyHeader>
-                                <EmptyTitle>Sin mensajes</EmptyTitle>
-                                <EmptyDescription>Esta conversación aún no tiene mensajes.</EmptyDescription>
+                                <EmptyTitle>{t('chats.detail.messagesEmptyTitle')}</EmptyTitle>
+                                <EmptyDescription>{t('chats.detail.messagesEmptyDescription')}</EmptyDescription>
                             </EmptyHeader>
                         </Empty>
                     </li>
@@ -85,16 +87,16 @@ export function ChatConversationDetail({
                     <li key={message.id} className={`nostr-chat-message ${message.direction === 'outgoing' ? 'is-outgoing' : 'is-incoming'}`}>
                         <div className="nostr-chat-message-header">
                             <strong className="nostr-chat-message-author">
-                                {message.direction === 'outgoing' ? 'Yo' : conversation.title}
+                                {message.direction === 'outgoing' ? t('chats.detail.author.me') : conversation.title}
                             </strong>
-                            <span className="nostr-chat-message-timestamp">{formatMessageTimestamp(message.createdAt)}</span>
+                            <span className="nostr-chat-message-timestamp">{formatMessageTimestamp(message.createdAt, locale)}</span>
                         </div>
                         <p className="nostr-chat-message-body">
-                            {message.isUndecryptable ? 'No se pudo desencriptar este mensaje' : message.plaintext}
+                            {message.isUndecryptable ? t('chats.detail.body.undecryptable') : message.plaintext}
                         </p>
                         {message.direction === 'outgoing' ? (
                             <p className={`nostr-chat-message-status is-${message.deliveryState}`}>
-                                {deliveryStatusLabel(message.deliveryState)}
+                                {deliveryStatusLabel(message.deliveryState, t)}
                             </p>
                         ) : null}
                     </li>
@@ -123,14 +125,14 @@ export function ChatConversationDetail({
                     className="nostr-chat-composer-input"
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
-                    placeholder="Escribe un mensaje..."
+                    placeholder={t('chats.detail.placeholder')}
                     readOnly={!canSend}
                 />
                 <Button type="submit" className="nostr-chat-send" disabled={!canSend || draft.trim().length === 0}>
-                    Enviar
+                    {t('chats.detail.send')}
                 </Button>
             </form>
-            {!canSend ? <p className="nostr-chat-disabled-note">{disabledReason || 'El envío de mensajes está deshabilitado para esta sesión.'}</p> : null}
+            {!canSend ? <p className="nostr-chat-disabled-note">{disabledReason || t('chats.detail.disabled')}</p> : null}
         </div>
     );
 }

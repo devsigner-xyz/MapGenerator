@@ -4,6 +4,7 @@ import type { Nip05ValidationResult } from '../../nostr/nip05';
 import type { NostrProfile } from '../../nostr/types';
 import { OverlayPageHeader } from './OverlayPageHeader';
 import { OverlayUnreadIndicator } from './OverlayUnreadIndicator';
+import { useI18n } from '@/i18n/useI18n';
 import { Card, CardContent } from '@/components/ui/card';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
@@ -53,13 +54,14 @@ export function ChatsPage({
     canSend = true,
     disabledReason,
 }: ChatsPageProps) {
+    const { t } = useI18n();
     const showBootstrappingState = isLoadingConversations && conversations.length === 0;
     const activeConversation = activeConversationId
         ? conversations.find((conversation) => conversation.id === activeConversationId)
         : undefined;
 
     return (
-        <section className="nostr-routed-surface" aria-label="Chats">
+        <section className="nostr-routed-surface" aria-label={t('chats.title')}>
             <div className="nostr-routed-surface-content">
                 {showBootstrappingState ? (
                     <div className="nostr-chats-page nostr-routed-surface-panel nostr-page-layout nostr-chats-loading-page" data-chat-source="query">
@@ -68,16 +70,16 @@ export function ChatsPage({
                                 <EmptyMedia variant="icon">
                                     <Spinner />
                                 </EmptyMedia>
-                                <EmptyTitle>Cargando conversaciones</EmptyTitle>
-                                <EmptyDescription>Estamos obteniendo tus chats.</EmptyDescription>
+                                <EmptyTitle>{t('chats.loadingTitle')}</EmptyTitle>
+                                <EmptyDescription>{t('chats.loadingDescription')}</EmptyDescription>
                             </EmptyHeader>
                         </Empty>
                     </div>
                 ) : (
                     <div className="nostr-chats-page nostr-routed-surface-panel nostr-page-layout h-full" data-chat-source="query">
                         <OverlayPageHeader
-                            title="Chats"
-                            indicator={hasUnreadGlobal ? <OverlayUnreadIndicator className="nostr-chat-unread-dot" srLabel="Hay chats sin leer" /> : null}
+                            title={t('chats.title')}
+                            indicator={hasUnreadGlobal ? <OverlayUnreadIndicator className="nostr-chat-unread-dot" srLabel={t('chats.unread')} /> : null}
                         />
 
                         <div className="nostr-chat-layout">

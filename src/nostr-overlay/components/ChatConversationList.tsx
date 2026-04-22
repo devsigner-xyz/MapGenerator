@@ -1,5 +1,6 @@
 import type { ChatConversationSummary } from './ChatsPage';
 import { Nip05Identifier } from './Nip05Identifier';
+import { useI18n } from '@/i18n/useI18n';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/components/ui/item';
@@ -27,11 +28,12 @@ function conversationInitials(title: string, peerPubkey: string): string {
 }
 
 export function ChatConversationList({ conversations, loading, activeConversationId, onOpenConversation }: ChatConversationListProps) {
+    const { t } = useI18n();
     if (loading && conversations.length === 0) {
         return (
             <div className="nostr-chat-loading" role="status" aria-live="polite">
                 <Spinner />
-                <span>Cargando conversaciones...</span>
+                <span>{t('chats.list.loading')}</span>
             </div>
         );
     }
@@ -40,8 +42,8 @@ export function ChatConversationList({ conversations, loading, activeConversatio
         return (
             <Empty className="nostr-chat-empty">
                 <EmptyHeader>
-                    <EmptyTitle>Sin conversaciones</EmptyTitle>
-                    <EmptyDescription>No hay conversaciones todavía.</EmptyDescription>
+                    <EmptyTitle>{t('chats.list.emptyTitle')}</EmptyTitle>
+                    <EmptyDescription>{t('chats.list.emptyDescription')}</EmptyDescription>
                 </EmptyHeader>
             </Empty>
         );
@@ -87,7 +89,7 @@ export function ChatConversationList({ conversations, loading, activeConversatio
                                         {conversation.hasUnread ? <span className="nostr-chat-conversation-unread" aria-hidden="true" /> : null}
                                     </ItemTitle>
                                     <ItemDescription className="nostr-chat-conversation-preview truncate">
-                                        {conversation.lastMessagePreview || 'Sin mensajes'}
+                                        {conversation.lastMessagePreview || t('chats.list.noMessages')}
                                     </ItemDescription>
                                 </ItemContent>
                             </button>

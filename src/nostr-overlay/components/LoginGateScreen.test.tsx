@@ -1,6 +1,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
+import { UI_SETTINGS_STORAGE_KEY } from '../../nostr/ui-settings';
 import { LoginGateScreen } from './LoginGateScreen';
 import type { AuthSessionState } from '../../nostr/auth/session';
 
@@ -47,6 +48,7 @@ beforeAll(() => {
 });
 
 afterEach(async () => {
+    window.localStorage.clear();
     for (const entry of mounted) {
         await act(async () => {
             entry.root.unmount();
@@ -85,6 +87,24 @@ describe('LoginGateScreen', () => {
 
         const content = rendered.container.textContent || '';
         expect(content).toContain('Crear cuenta');
+    });
+
+    test('renders english cover alt text when ui language is en', async () => {
+        window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ language: 'en' }));
+
+        const rendered = await renderScreen();
+        mounted.push(rendered);
+
+        const cover = rendered.container.querySelector('img.nostr-login-cover') as HTMLImageElement | null;
+        expect(cover?.getAttribute('alt')).toBe('Nostr City cover');
+    });
+
+    test('renders spanish cover alt text by default', async () => {
+        const rendered = await renderScreen();
+        mounted.push(rendered);
+
+        const cover = rendered.container.querySelector('img.nostr-login-cover') as HTMLImageElement | null;
+        expect(cover?.getAttribute('alt')).toBe('Portada de Nostr City');
     });
 
     test('groups login selector and create account entry point in the main login container', async () => {

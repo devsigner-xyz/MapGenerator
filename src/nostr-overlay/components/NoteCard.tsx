@@ -12,6 +12,8 @@ import { ButtonGroup } from '@/components/ui/button-group';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { ContextMenu, ContextMenuContent, ContextMenuGroup, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/components/ui/item';
+import type { I18nContextValue } from '@/i18n/I18nProvider';
+import { useI18n } from '@/i18n/useI18n';
 
 export interface NoteCardProps {
     note: NoteCardModel;
@@ -28,11 +30,11 @@ export interface NoteCardProps {
     eventReferencesById?: Record<string, NostrEvent>;
 }
 
-function formatCreatedAt(createdAt: number): { iso: string; label: string } {
+function formatCreatedAt(createdAt: number, t: I18nContextValue['t']): { iso: string; label: string } {
     if (!Number.isFinite(createdAt) || createdAt <= 0) {
         return {
             iso: new Date(0).toISOString(),
-            label: 'Fecha desconocida',
+            label: t('note.unknownDate'),
         };
     }
 
@@ -61,10 +63,10 @@ function profileInitials(pubkey: string, profile: NostrProfile | undefined): str
     return `${words[0]?.[0] || ''}${words[1]?.[0] || ''}`.toUpperCase();
 }
 
-function truncateTo140(content: string): string {
+function truncateTo140(content: string, t: I18nContextValue['t']): string {
     const normalized = content.trim();
     if (!normalized) {
-        return '(sin contenido)';
+        return t('note.noContent');
     }
 
     if (normalized.length <= 140) {
@@ -104,10 +106,11 @@ function buildVisibleNestedEntries(note: NoteCardModel): VisibleNestedEntries {
 interface NoteHeaderItemProps {
     note: NoteCardModel;
     profile: NostrProfile | undefined;
+    t: I18nContextValue['t'];
 }
 
-function NoteHeaderItem({ note, profile }: NoteHeaderItemProps) {
-    const publishedAt = formatCreatedAt(note.createdAt);
+function NoteHeaderItem({ note, profile, t }: NoteHeaderItemProps) {
+    const publishedAt = formatCreatedAt(note.createdAt, t);
     const authorName = profileDisplayName(note.pubkey, profile);
 
     return (
@@ -132,15 +135,17 @@ function NoteHeaderItem({ note, profile }: NoteHeaderItemProps) {
 
 interface NoteActionGroupProps {
     actions: NoteActionState;
+    t: I18nContextValue['t'];
 }
 
 interface NoteActionsMenuProps {
     noteId: string;
     onCopyNoteId?: (noteId: string) => void;
     onViewDetail?: () => void;
+    t: I18nContextValue['t'];
 }
 
-function NoteActionsMenu({ noteId, onCopyNoteId, onViewDetail }: NoteActionsMenuProps) {
+function NoteActionsMenu({ noteId, onCopyNoteId, onViewDetail, t }: NoteActionsMenuProps) {
     if (!onCopyNoteId && !onViewDetail) {
         return null;
     }
@@ -164,7 +169,7 @@ function NoteActionsMenu({ noteId, onCopyNoteId, onViewDetail }: NoteActionsMenu
                     type="button"
                     variant="outline"
                     size="icon-sm"
-                    aria-label={`Abrir acciones para la nota ${noteId}`}
+                    aria-label={t('note.menu.openActions', { noteId })}
                     onClick={openMenu}
                 >
                     <EllipsisVerticalIcon aria-hidden="true" />
@@ -173,13 +178,13 @@ function NoteActionsMenu({ noteId, onCopyNoteId, onViewDetail }: NoteActionsMenu
             <ContextMenuContent className="w-40">
                 <ContextMenuGroup>
                     {onViewDetail ? (
-                        <ContextMenuItem aria-label={`Ver detalle de la nota ${noteId}`} onSelect={() => onViewDetail()}>
-                            Ver detalle
+                        <ContextMenuItem aria-label={t('note.menu.viewDetailAria', { noteId })} onSelect={() => onViewDetail()}>
+                            {t('note.menu.viewDetail')}
                         </ContextMenuItem>
                     ) : null}
                     {onCopyNoteId ? (
-                        <ContextMenuItem aria-label={`Copiar identificador de nota ${noteId}`} onSelect={() => onCopyNoteId(noteId)}>
-                        Copiar
+                        <ContextMenuItem aria-label={t('note.menu.copyIdAria', { noteId })} onSelect={() => onCopyNoteId(noteId)}>
+                        {t('note.menu.copyId')}
                         </ContextMenuItem>
                     ) : null}
                 </ContextMenuGroup>
@@ -188,7 +193,7 @@ function NoteActionsMenu({ noteId, onCopyNoteId, onViewDetail }: NoteActionsMenu
     );
 }
 
-function NoteActionGroup({ actions }: NoteActionGroupProps) {
+function NoteActionGroup({ actions, t }: NoteActionGroupProps) {
     const openRepostMenu = (event: ReactMouseEvent<HTMLButtonElement>): void => {
         event.preventDefault();
         event.stopPropagation();
@@ -217,7 +222,7 @@ function NoteActionGroup({ actions }: NoteActionGroupProps) {
 
     return (
         <ButtonGroup>
-            <Button type="button" variant="ghost" size="sm" aria-label={`Responder (${actions.replies})`} onClick={actions.onReply}>
+            <Button type="button" variant="ghost" size="sm" aria-label={t('note.actions.reply', { count: String(actions.replies) })} onClick={actions.onReply}>
                 <MessageCircleIcon data-icon="inline-start" aria-hidden="true" />
                 <span>{actions.replies}</span>
             </Button>
@@ -227,7 +232,7 @@ function NoteActionGroup({ actions }: NoteActionGroupProps) {
                 variant={actions.isReactionActive ? 'default' : 'ghost'}
                 size="sm"
                 disabled={actions.isReactionPending || !actions.canWrite}
-                aria-label={`Reaccionar (${actions.reactions})`}
+                aria-label={t('note.actions.react', { count: String(actions.reactions) })}
                 onClick={() => {
                     void actions.onToggleReaction();
                 }}
@@ -243,7 +248,7 @@ function NoteActionGroup({ actions }: NoteActionGroupProps) {
                         variant={actions.isRepostActive ? 'default' : 'ghost'}
                         size="sm"
                         disabled={actions.isRepostPending || !actions.canWrite}
-                        aria-label={`Repostear (${actions.reposts})`}
+                        aria-label={t('note.actions.repost', { count: String(actions.reposts) })}
                         onClick={openRepostMenu}
                     >
                         <Repeat2Icon data-icon="inline-start" aria-hidden="true" />
@@ -255,10 +260,10 @@ function NoteActionGroup({ actions }: NoteActionGroupProps) {
                         <ContextMenuItem onSelect={() => {
                             void actions.onRepost();
                         }}>
-                            Repost
+                            {t('note.actions.repostAction')}
                         </ContextMenuItem>
                         <ContextMenuItem onSelect={actions.onQuote}>
-                            Cita
+                            {t('note.actions.quoteAction')}
                         </ContextMenuItem>
                     </ContextMenuGroup>
                 </ContextMenuContent>
@@ -271,7 +276,7 @@ function NoteActionGroup({ actions }: NoteActionGroupProps) {
                             type="button"
                             variant="ghost"
                             size="sm"
-                            aria-label={`Sats recibidos: ${actions.zapSats}`}
+                            aria-label={t('note.actions.zaps', { count: String(actions.zapSats) })}
                             onClick={openZapMenu}
                         >
                             <ZapIcon data-icon="inline-start" aria-hidden="true" />
@@ -289,14 +294,14 @@ function NoteActionGroup({ actions }: NoteActionGroupProps) {
                             ))}
                             <ContextMenuSeparator />
                             <ContextMenuItem {...(actions.onConfigureZapAmounts ? { onSelect: actions.onConfigureZapAmounts } : {})}>
-                                Configurar cantidades
+                                {t('note.actions.configureZapAmounts')}
                             </ContextMenuItem>
                         </ContextMenuGroup>
                     </ContextMenuContent>
                 </ContextMenu>
             ) : (
                 <Button asChild variant="ghost" size="sm">
-                    <span aria-label={`Sats recibidos: ${actions.zapSats}`}>
+                    <span aria-label={t('note.actions.zaps', { count: String(actions.zapSats) })}>
                         <ZapIcon data-icon="inline-start" aria-hidden="true" />
                         <span>{actions.zapSats}</span>
                     </span>
@@ -317,6 +322,7 @@ export function NoteCard({
     onResolveEventReferences,
     eventReferencesById,
 }: NoteCardProps) {
+    const { t } = useI18n();
     const isDeepNested = note.nestingLevel >= 2;
     const profile = profilesByPubkey[note.pubkey];
     const { visibleEntries, hiddenReferencesCount } = buildVisibleNestedEntries(note);
@@ -344,7 +350,7 @@ export function NoteCard({
         if (!event) {
             return (
                 <article aria-live="polite">
-                    <p>Cargando nota referenciada...</p>
+                    <p>{t('note.reference.loading')}</p>
                 </article>
             );
         }
@@ -353,16 +359,16 @@ export function NoteCard({
         if (!nestedNote) {
             return (
                 <article aria-live="polite">
-                    <p>No se pudo renderizar la nota referenciada.</p>
+                    <p>{t('note.reference.renderError')}</p>
                     {onSelectEventReference ? (
                         <Button
                             type="button"
                             variant="outline"
                             size="sm"
-                            aria-label={`Abrir nota referenciada ${eventId}`}
+                            aria-label={t('note.reference.openAria', { eventId })}
                             onClick={() => onSelectEventReference(eventId)}
                         >
-                            Abrir nota
+                            {t('note.reference.open')}
                         </Button>
                     ) : null}
                 </article>
@@ -381,10 +387,10 @@ export function NoteCard({
                         type="button"
                         variant="outline"
                         size="sm"
-                        aria-label={`Abrir nota referenciada ${eventId}`}
+                        aria-label={t('note.reference.openAria', { eventId })}
                         onClick={() => onSelectEventReference(eventId)}
                     >
-                        Abrir nota
+                        {t('note.reference.open')}
                     </Button>
                 ) : null}
             </div>
@@ -423,24 +429,25 @@ export function NoteCard({
                     <NoteHeaderItem
                         note={note}
                         profile={profile}
+                        t={t}
                     />
                 </CardHeader>
 
                 <CardContent>
                     {isDeepNested ? (
                         <div aria-live="polite" className="flex flex-col gap-2">
-                            <p>Nota referenciada</p>
-                            <p>{truncateTo140(note.content)}</p>
+                            <p>{t('note.reference.label')}</p>
+                            <p>{truncateTo140(note.content, t)}</p>
                             <p>{shortId(note.id)}</p>
                             {onSelectEventReference ? (
                                 <Button
                                     type="button"
                                     variant="outline"
                                     size="sm"
-                                    aria-label={`Abrir nota referenciada ${note.id}`}
+                                    aria-label={t('note.reference.openAria', { eventId: note.id })}
                                     onClick={() => onSelectEventReference(note.id)}
                                 >
-                                    Abrir nota
+                                    {t('note.reference.open')}
                                 </Button>
                             ) : null}
                         </div>
@@ -460,16 +467,16 @@ export function NoteCard({
                     )}
 
                     {!isDeepNested ? visibleEntries.map((entry) => renderNestedModel(entry.note, entry.key)) : null}
-                    {!isDeepNested && hiddenReferencesCount > 0 ? <p>+{hiddenReferencesCount} referencias adicionales</p> : null}
+                    {!isDeepNested && hiddenReferencesCount > 0 ? <p>{t('note.reference.more', { count: String(hiddenReferencesCount) })}</p> : null}
                 </CardContent>
 
                 {note.actions || (note.showCopyId && onCopyNoteId) ? (
                     <CardFooter className="items-center justify-between gap-2">
                         <div className="flex min-w-0 items-center gap-2">
-                    {noteActionState ? <NoteActionGroup actions={noteActionState} /> : null}
+                    {noteActionState ? <NoteActionGroup actions={noteActionState} t={t} /> : null}
                         </div>
                         {(note.showCopyId || note.actions?.onViewDetail)
-                            ? <NoteActionsMenu noteId={note.id} {...(onCopyNoteId ? { onCopyNoteId } : {})} {...(note.actions?.onViewDetail ? { onViewDetail: note.actions.onViewDetail } : {})} />
+                            ? <NoteActionsMenu noteId={note.id} t={t} {...(onCopyNoteId ? { onCopyNoteId } : {})} {...(note.actions?.onViewDetail ? { onViewDetail: note.actions.onViewDetail } : {})} />
                             : null}
                     </CardFooter>
                 ) : null}

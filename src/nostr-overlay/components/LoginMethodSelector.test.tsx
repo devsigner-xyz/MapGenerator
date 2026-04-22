@@ -90,7 +90,7 @@ describe('LoginMethodSelector', () => {
         expect(content).not.toContain('Accede o explora');
         expect(content).toContain('npub (solo lectura)');
         expect(content).toContain('Metodo de acceso');
-        expect(content).toContain('Public key');
+        expect(content).toContain('Clave publica');
         expect(content).toContain('Acceder');
         expect(rendered.container.querySelector('[data-testid="login-method-selector"]')).not.toBeNull();
         expect(rendered.container.querySelector('[data-testid="login-method-form-npub"]')).not.toBeNull();
@@ -193,7 +193,7 @@ describe('LoginMethodSelector', () => {
     });
 
     test('shows specific progress copy on nip07 submit when loading text is provided', async () => {
-        const rendered = await renderSelector({ disabled: true, initialMethod: 'nip07', loadingText: 'Conectando a relay...' });
+        const rendered = await renderSelector({ disabled: true, initialMethod: 'nip07', loadingText: 'Conectando a relays...' });
         mounted.push(rendered);
 
         const submitButton = rendered.container.querySelector('[data-testid="login-method-submit-nip07"]') as HTMLButtonElement | null;
@@ -202,12 +202,12 @@ describe('LoginMethodSelector', () => {
     });
 
     test('shows specific progress copy on nip46 submit when loading text is provided', async () => {
-        const rendered = await renderSelector({ disabled: true, initialMethod: 'nip46', loadingText: 'Conectando a relay...' });
+        const rendered = await renderSelector({ disabled: true, initialMethod: 'nip46', loadingText: 'Conectando a relays...' });
         mounted.push(rendered);
 
         const submitButton = rendered.container.querySelector('[data-testid="login-method-submit-nip46"]') as HTMLButtonElement;
         expect(submitButton).toBeDefined();
-        expect(submitButton.textContent || '').toContain('Conectando a relay...');
+        expect(submitButton.textContent || '').toContain('Conectando a relays...');
         expect(submitButton.textContent || '').not.toContain('Conectar bunker');
     });
 

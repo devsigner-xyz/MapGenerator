@@ -8,6 +8,7 @@ import { profileHasZapEndpoint } from '../../nostr/zaps';
 import { ListLoadingFooter } from './ListLoadingFooter';
 import { Nip05Identifier } from './Nip05Identifier';
 import { PersonContextMenuItems } from './PersonContextMenuItems';
+import { useI18n } from '@/i18n/useI18n';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import {
@@ -117,6 +118,7 @@ export function PeopleListTab({
     followedPubkeys = [],
     onFollowPerson,
 }: PeopleListTabProps) {
+    const { t } = useI18n();
     const hasSearch = typeof onSearchQueryChange === 'function';
     const hasSearchQuery = (searchQuery || '').trim().length > 0;
     const shouldVirtualize = people.length >= VIRTUALIZATION_THRESHOLD;
@@ -255,12 +257,12 @@ export function PeopleListTab({
         const isFollowPending = Object.prototype.hasOwnProperty.call(pendingFollowByPubkey, pubkey);
         const isFollowed = isFollowPending ? true : followedSet.has(pubkey);
         const followDisabled = isFollowPending;
-        const followLabel = isFollowed ? 'Siguiendo' : 'Seguir';
+        const followLabel = isFollowed ? t('peopleList.following') : t('peopleList.follow');
         const followAriaLabel = isFollowPending
-            ? `Actualizando seguimiento de ${display}`
+            ? t('peopleList.followUpdating', { displayName: display })
             : isFollowed
-                ? `Dejar de seguir a ${display}`
-                : `Seguir a ${display}`;
+                ? t('peopleList.unfollow', { displayName: display })
+                : t('peopleList.followPerson', { displayName: display });
         const nip05IdentifierProps = {
             ...(profile ? { profile } : {}),
             ...(verification ? { verification } : {}),
@@ -344,7 +346,7 @@ export function PeopleListTab({
                                 type="button"
                                 variant="outline"
                                 size="icon-sm"
-                                aria-label={`Abrir acciones para ${display}`}
+                                aria-label={t('peopleList.openActions', { displayName: display })}
                                 data-testid={`person-actions-${pubkey}`}
                                 onClick={openActionsMenu}
                             >
@@ -372,7 +374,7 @@ export function PeopleListTab({
                                         ))}
                                         <ContextMenuSeparator />
                                         <ContextMenuItem {...(onConfigureZapAmounts ? { onSelect: onConfigureZapAmounts } : {})}>
-                                            Configurar cantidades
+                                            {t('peopleList.configureZapAmounts')}
                                         </ContextMenuItem>
                                     </ContextMenuSubContent>
                                 </ContextMenuSub>
@@ -389,8 +391,8 @@ export function PeopleListTab({
             <div className="nostr-people-scroll-area nostr-people-scroll-empty">
                 <Empty className="nostr-people-empty">
                     <EmptyHeader>
-                        <EmptyTitle>{loading && loadingText ? loadingText : 'Sin resultados'}</EmptyTitle>
-                        <EmptyDescription>{loading && loadingText ? 'Estamos cargando mas personas.' : emptyText}</EmptyDescription>
+                        <EmptyTitle>{loading && loadingText ? loadingText : t('peopleList.emptyResults')}</EmptyTitle>
+                        <EmptyDescription>{loading && loadingText ? t('peopleList.loadingMorePeople') : emptyText}</EmptyDescription>
                     </EmptyHeader>
                 </Empty>
             </div>
@@ -458,14 +460,14 @@ export function PeopleListTab({
                     <InputGroupInput
                         type="text"
                         value={searchQuery || ''}
-                        placeholder="Buscar por nombre o npub"
-                        aria-label={searchAriaLabel || 'Buscar'}
+                        placeholder={t('peopleList.searchPlaceholder')}
+                        aria-label={searchAriaLabel || t('peopleList.searchAria')}
                         onChange={(event) => onSearchQueryChange?.(event.target.value)}
                     />
                     <InputGroupAddon align="inline-end">
                         <InputGroupButton
                             size="icon-xs"
-                            aria-label="Limpiar busqueda"
+                            aria-label={t('peopleList.clearSearch')}
                             disabled={!hasSearchQuery}
                             onClick={() => onSearchQueryChange?.('')}
                         >

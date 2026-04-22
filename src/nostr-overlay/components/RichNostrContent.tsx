@@ -3,6 +3,7 @@ import { nip19 } from 'nostr-tools';
 import Lightbox from 'yet-another-react-lightbox';
 import 'yet-another-react-lightbox/styles.css';
 import type { NostrEvent, NostrProfile } from '../../nostr/types';
+import { useI18n } from '@/i18n/useI18n';
 import { Spinner } from '@/components/ui/spinner';
 
 type RichToken =
@@ -80,23 +81,23 @@ function decodeNostrEntity(value: string): DecodedNostrEntity {
     }
 }
 
-function shortPubkey(pubkey: string): string {
+function shortPubkey(pubkey: string, t: ReturnType<typeof useI18n>['t']): string {
     if (!pubkey || pubkey.length < 14) {
-        return pubkey || 'desconocido';
+        return pubkey || t('richContent.unknown');
     }
 
     return `${pubkey.slice(0, 8)}...${pubkey.slice(-6)}`;
 }
 
-function resolveMentionLabel(pubkey: string, profilesByPubkey: Record<string, NostrProfile> | undefined): string {
+function resolveMentionLabel(pubkey: string, profilesByPubkey: Record<string, NostrProfile> | undefined, t: ReturnType<typeof useI18n>['t']): string {
     const profile = profilesByPubkey?.[pubkey];
     const displayName = profile?.displayName?.trim() || profile?.name?.trim();
-    return displayName || shortPubkey(pubkey);
+    return displayName || shortPubkey(pubkey, t);
 }
 
-function formatCreatedAt(createdAt: number): string {
+function formatCreatedAt(createdAt: number, t: ReturnType<typeof useI18n>['t']): string {
     if (!Number.isFinite(createdAt) || createdAt <= 0) {
-        return 'Fecha desconocida';
+        return t('richContent.unknownDate');
     }
 
     return new Date(createdAt * 1000).toLocaleString();
@@ -284,6 +285,7 @@ function extractMediaAttachments(content: string, tags: string[][]): RichMediaAt
 function renderInlineTokens(
     tokens: RichToken[],
     input: {
+        t: ReturnType<typeof useI18n>['t'];
         onSelectHashtag: ((hashtag: string) => void) | undefined;
         onSelectProfile: ((pubkey: string) => void) | undefined;
         profilesByPubkey: Record<string, NostrProfile> | undefined;
@@ -303,7 +305,7 @@ function renderInlineTokens(
         }
 
         if (token.kind === 'mention') {
-            const label = resolveMentionLabel(token.pubkey, input.profilesByPubkey);
+            const label = resolveMentionLabel(token.pubkey, input.profilesByPubkey, input.t);
 
             if (!input.onSelectProfile) {
                 return <span key={`mention-${index}`} className="nostr-rich-mention">@{label}</span>;
@@ -314,7 +316,7 @@ function renderInlineTokens(
                     key={`mention-${index}`}
                     type="button"
                     className="nostr-rich-mention"
-                    aria-label={`Abrir perfil de ${label}`}
+                    aria-label={input.t('richContent.openProfile', { label })}
                     onClick={() => input.onSelectProfile?.(token.pubkey)}
                 >
                     @{label}
@@ -332,7 +334,7 @@ function renderInlineTokens(
                 key={`hashtag-${index}`}
                 type="button"
                 className="nostr-rich-hashtag"
-                aria-label={`Filtrar por hashtag ${normalized}`}
+                aria-label={input.t('richContent.filterHashtag', { hashtag: normalized })}
                 onClick={() => input.onSelectHashtag?.(normalized)}
             >
                 #{normalized}
@@ -365,13 +367,13 @@ function buildVisibleEventReferenceEntries(
     };
 }
 
-function renderLoadingReference(eventId: string): ReactNode {
+function renderLoadingReference(eventId: string, t: ReturnType<typeof useI18n>['t']): ReactNode {
     return (
         <article key={`event-reference-${eventId}`} className="nostr-rich-event-reference" aria-live="polite">
             <p className="nostr-rich-event-reference-content">
                 <span className="nostr-rich-event-reference-loading">
                     <Spinner className="size-3" />
-                    <span>Cargando nota referenciada...</span>
+                    <span>{t('richContent.loadingReference')}</span>
                 </span>
             </p>
             <div className="nostr-rich-event-reference-meta">
@@ -381,10 +383,10 @@ function renderLoadingReference(eventId: string): ReactNode {
     );
 }
 
-function renderExhaustedReference(eventId: string, onSelectEventReference: ((eventId: string) => void) | undefined): ReactNode {
+function renderExhaustedReference(eventId: string, t: ReturnType<typeof useI18n>['t'], onSelectEventReference: ((eventId: string) => void) | undefined): ReactNode {
     return (
         <article key={`event-reference-${eventId}`} className="nostr-rich-event-reference" aria-live="polite">
-            <p className="nostr-rich-event-reference-content">No se pudo cargar la nota referenciada.</p>
+            <p className="nostr-rich-event-reference-content">{t('richContent.referenceLoadError')}</p>
             <div className="nostr-rich-event-reference-meta">
                 <span className="nostr-rich-event-reference-id">{eventId.slice(0, 8)}...{eventId.slice(-6)}</span>
             </div>
@@ -392,10 +394,10 @@ function renderExhaustedReference(eventId: string, onSelectEventReference: ((eve
                 <button
                     type="button"
                     className="nostr-rich-event-reference-open"
-                    aria-label={`Abrir nota referenciada ${eventId}`}
+                    aria-label={t('richContent.openReference', { eventId })}
                     onClick={() => onSelectEventReference(eventId)}
                 >
-                    Abrir nota
+                    {t('richContent.openNote')}
                 </button>
             ) : null}
         </article>
@@ -409,6 +411,7 @@ function renderResolvedReference(
         profilesByPubkey: Record<string, NostrProfile> | undefined;
         onSelectEventReference: ((eventId: string) => void) | undefined;
         renderEventReferenceCard: ((input: { eventId: string; event?: NostrEvent }) => ReactNode) | undefined;
+        t: ReturnType<typeof useI18n>['t'];
     }
 ): ReactNode {
     const customNode = input.renderEventReferenceCard?.({ eventId, event });
@@ -416,9 +419,9 @@ function renderResolvedReference(
         return <div key={`event-reference-${eventId}`}>{customNode}</div>;
     }
 
-    const authorLabel = resolveMentionLabel(event.pubkey, input.profilesByPubkey);
+    const authorLabel = resolveMentionLabel(event.pubkey, input.profilesByPubkey, input.t);
     const body = summarizeEventContent(event.content);
-    const dateLabel = formatCreatedAt(event.created_at);
+    const dateLabel = formatCreatedAt(event.created_at, input.t);
 
     const content = (
         <>
@@ -446,7 +449,7 @@ function renderResolvedReference(
             key={`event-reference-${eventId}`}
             type="button"
             className="nostr-rich-event-reference nostr-rich-event-reference-button"
-            aria-label={`Abrir nota referenciada ${eventId}`}
+            aria-label={input.t('richContent.openReference', { eventId })}
             onClick={() => input.onSelectEventReference?.(eventId)}
         >
             {content}
@@ -462,6 +465,7 @@ function renderEventReferenceCards(
         onSelectEventReference: ((eventId: string) => void) | undefined;
         renderEventReferenceCard: ((input: { eventId: string; event?: NostrEvent }) => ReactNode) | undefined;
         resolveAttemptsByEventId: Map<string, number>;
+        t: ReturnType<typeof useI18n>['t'];
     }
 ): ReactNode[] {
     return eventIds.map((eventId) => {
@@ -472,7 +476,7 @@ function renderEventReferenceCards(
 
         const attempts = input.resolveAttemptsByEventId.get(eventId) ?? 0;
         if (attempts >= EVENT_REFERENCE_RESOLVE_MAX_ATTEMPTS) {
-            return renderExhaustedReference(eventId, input.onSelectEventReference);
+            return renderExhaustedReference(eventId, input.t, input.onSelectEventReference);
         }
 
         const customNode = input.renderEventReferenceCard?.({ eventId });
@@ -480,7 +484,7 @@ function renderEventReferenceCards(
             return <div key={`event-reference-${eventId}`}>{customNode}</div>;
         }
 
-        return renderLoadingReference(eventId);
+        return renderLoadingReference(eventId, input.t);
     });
 }
 
@@ -501,6 +505,7 @@ export function RichNostrContent({
     textClassName,
     emptyFallback,
 }: RichNostrContentProps) {
+    const { t } = useI18n();
     const normalizedContent = content.trim();
     const tokenizedContent = useMemo(() => tokenizeContent(content), [content]);
     const mediaAttachments = useMemo(() => extractMediaAttachments(content, tags ?? []), [content, tags]);
@@ -537,10 +542,10 @@ export function RichNostrContent({
                 continue;
             }
 
-            const label = resolveMentionLabel(token.pubkey, profilesByPubkey);
+            const label = resolveMentionLabel(token.pubkey, profilesByPubkey, t);
             const profile = profilesByPubkey?.[token.pubkey];
             const hasResolvedName = Boolean(profile?.displayName?.trim() || profile?.name?.trim());
-            if (hasResolvedName && label !== shortPubkey(token.pubkey)) {
+            if (hasResolvedName && label !== shortPubkey(token.pubkey, t)) {
                 requestedMentionPubkeysRef.current.add(token.pubkey);
                 continue;
             }
@@ -654,11 +659,12 @@ export function RichNostrContent({
 
     const inlineNodes = useMemo(
         () => renderInlineTokens(tokenizedContent, {
+            t,
             onSelectHashtag,
             onSelectProfile,
             profilesByPubkey,
         }),
-        [tokenizedContent, onSelectHashtag, onSelectProfile, profilesByPubkey]
+        [tokenizedContent, t, onSelectHashtag, onSelectProfile, profilesByPubkey]
     );
     const { visibleEventIds, hiddenCount: hiddenEventReferencesCount } = useMemo(
         () => buildVisibleEventReferenceEntries(tokenizedContent, 2),
@@ -671,8 +677,9 @@ export function RichNostrContent({
             onSelectEventReference,
             renderEventReferenceCard,
             resolveAttemptsByEventId: eventReferenceResolveAttemptsRef.current,
+            t,
         }),
-        [eventReferenceResolveTick, eventReferencesById, onSelectEventReference, profilesByPubkey, renderEventReferenceCard, visibleEventIds]
+        [eventReferenceResolveTick, eventReferencesById, onSelectEventReference, profilesByPubkey, renderEventReferenceCard, t, visibleEventIds]
     );
 
     const openLightbox = (imageUrl: string) => {

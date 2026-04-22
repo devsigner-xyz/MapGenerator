@@ -1,6 +1,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
+import { UI_SETTINGS_STORAGE_KEY } from '../../nostr/ui-settings';
 import { NpubForm } from './NpubForm';
 
 interface RenderResult {
@@ -32,6 +33,7 @@ beforeAll(() => {
 });
 
 afterEach(async () => {
+    window.localStorage.clear();
     for (const entry of mounted) {
         await act(async () => {
             entry.root.unmount();
@@ -73,5 +75,15 @@ describe('NpubForm', () => {
         });
 
         expect(handlers?.onSubmit).toHaveBeenCalledWith('npub1testvalue');
+    });
+
+    test('renders english form copy when ui language is en', async () => {
+        window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ language: 'en' }));
+
+        const rendered = await renderForm();
+        mounted.push(rendered);
+
+        expect(rendered.container.textContent || '').toContain('Public key');
+        expect(rendered.container.textContent || '').toContain('Sign in');
     });
 });

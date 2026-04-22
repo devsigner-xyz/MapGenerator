@@ -11,6 +11,7 @@ import {
     CommandList,
 } from '@/components/ui/command';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
+import { useI18n } from '@/i18n/useI18n';
 import { Spinner } from '@/components/ui/spinner';
 import { OverlayPageHeader } from './OverlayPageHeader';
 import { type SearchUsersResult, useUserSearchQuery } from '../query/user-search.query';
@@ -51,6 +52,7 @@ export function UserSearchPage({
     onFollowUser,
     onMessageUser,
 }: UserSearchPageProps) {
+    const { t } = useI18n();
     const [query, setQuery] = useState('');
     const [debouncedQuery, setDebouncedQuery] = useState('');
     const [pendingFollowByPubkey, setPendingFollowByPubkey] = useState<Record<string, boolean>>({});
@@ -107,8 +109,8 @@ export function UserSearchPage({
     const resultsContent = !query.trim() ? (
         <Empty className="nostr-global-search-empty">
             <EmptyHeader>
-                <EmptyTitle>Buscar usuarios globalmente</EmptyTitle>
-                <EmptyDescription>Escribe para buscar por nombre, npub o pubkey.</EmptyDescription>
+                <EmptyTitle>{t('userSearch.emptyInitialTitle')}</EmptyTitle>
+                <EmptyDescription>{t('userSearch.emptyInitialDescription')}</EmptyDescription>
             </EmptyHeader>
         </Empty>
     ) : searchQuery.isLoading ? (
@@ -117,22 +119,22 @@ export function UserSearchPage({
                 <EmptyMedia variant="icon">
                     <Spinner />
                 </EmptyMedia>
-                <EmptyTitle>Buscando usuarios</EmptyTitle>
-                <EmptyDescription>Estamos consultando perfiles en los relays.</EmptyDescription>
+                <EmptyTitle>{t('userSearch.loadingTitle')}</EmptyTitle>
+                <EmptyDescription>{t('userSearch.loadingDescription')}</EmptyDescription>
             </EmptyHeader>
         </Empty>
     ) : searchQuery.error ? (
         <Empty className="nostr-global-search-empty">
             <EmptyHeader>
-                <EmptyTitle>Error de busqueda</EmptyTitle>
+                <EmptyTitle>{t('userSearch.errorTitle')}</EmptyTitle>
                 <EmptyDescription>{searchQuery.error}</EmptyDescription>
             </EmptyHeader>
         </Empty>
     ) : rows.length === 0 ? (
         <Empty className="nostr-global-search-empty">
             <EmptyHeader>
-                <EmptyTitle>Sin resultados</EmptyTitle>
-                <EmptyDescription>No se encontraron usuarios.</EmptyDescription>
+                <EmptyTitle>{t('userSearch.emptyResultsTitle')}</EmptyTitle>
+                <EmptyDescription>{t('userSearch.emptyResultsDescription')}</EmptyDescription>
             </EmptyHeader>
         </Empty>
     ) : (
@@ -141,12 +143,12 @@ export function UserSearchPage({
             const canFollow = typeof onFollowUser === 'function' && ownerPubkey !== pubkey;
             const isFollowPending = Object.prototype.hasOwnProperty.call(pendingFollowByPubkey, pubkey);
             const isFollowed = isFollowPending ? true : followedSet.has(pubkey);
-            const followLabel = isFollowed ? 'Following' : 'Follow';
+            const followLabel = isFollowed ? t('userSearch.following') : t('userSearch.follow');
             const followAriaLabel = isFollowPending
-                ? `Updating follow state for ${display}`
+                ? t('userSearch.followUpdating', { displayName: display })
                 : isFollowed
-                    ? `Unfollow ${display}`
-                    : `Follow ${display}`;
+                    ? t('userSearch.unfollow', { displayName: display })
+                    : t('userSearch.followUser', { displayName: display });
             return (
                 <CommandItem
                     key={pubkey}
@@ -208,7 +210,7 @@ export function UserSearchPage({
                                             onClose();
                                         }}
                                     >
-                                        Mensaje
+                                        {t('userSearch.message')}
                                     </Button>
                                 ) : null}
                             </ItemActions>
@@ -220,20 +222,20 @@ export function UserSearchPage({
     );
 
     return (
-        <section className="nostr-routed-surface" aria-label="Buscar usuarios globalmente">
+        <section className="nostr-routed-surface" aria-label={t('userSearch.title')}>
             <div className="nostr-routed-surface-content">
                 <div className="nostr-global-search-page nostr-routed-surface-panel nostr-page-layout">
                     <OverlayPageHeader
-                        title="Buscar usuarios globalmente"
-                        description="Filtra perfiles Nostr por nombre, npub o pubkey."
+                        title={t('userSearch.title')}
+                        description={t('userSearch.description')}
                     />
 
                     <section className="grid gap-2.5">
                         <Command shouldFilter={false} className="nostr-global-search-command">
                             <CommandInput
                                 value={query}
-                                aria-label="Buscar usuarios globalmente"
-                                placeholder="Buscar por nombre, npub o pubkey"
+                                aria-label={t('userSearch.inputAria')}
+                                placeholder={t('userSearch.inputPlaceholder')}
                                 onValueChange={setQuery}
                             />
                             <CommandList className="nostr-global-search-results">

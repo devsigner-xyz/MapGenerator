@@ -13,6 +13,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { useI18n } from '@/i18n/useI18n';
 import { toast } from 'sonner';
 
 interface LoginMethodSelectorProps {
@@ -24,18 +25,13 @@ interface LoginMethodSelectorProps {
 
 type SelectorMethod = 'npub' | 'nip07' | 'nip46';
 
-const selectorMethodLabels: Record<SelectorMethod, string> = {
-    npub: 'npub (solo lectura)',
-    nip07: 'Extension (NIP-07)',
-    nip46: 'Bunker (NIP-46)',
-};
-
 export function LoginMethodSelector({
     disabled = false,
     loadingText,
     onStartSession,
     initialMethod = 'npub',
 }: LoginMethodSelectorProps) {
+    const { t } = useI18n();
     const [method, setMethod] = useState<SelectorMethod>(initialMethod);
     const [npub, setNpub] = useState('');
     const [bunkerUri, setBunkerUri] = useState('');
@@ -46,7 +42,7 @@ export function LoginMethodSelector({
         try {
             await action();
         } catch (error) {
-            const message = error instanceof Error ? error.message : 'No se pudo completar la accion';
+            const message = error instanceof Error ? error.message : t('auth.selector.genericError');
             toast.error(message, { duration: 2200 });
         } finally {
             setIsSubmitting(false);
@@ -66,7 +62,13 @@ export function LoginMethodSelector({
     };
 
     const isBusy = disabled || isSubmitting;
-    const busyLabel = loadingText && loadingText.trim().length > 0 ? loadingText : 'Cargando...';
+    const busyLabel = loadingText && loadingText.trim().length > 0 ? loadingText : t('auth.selector.loading');
+
+    const selectorMethodLabels: Record<SelectorMethod, string> = {
+        npub: t('auth.selector.npub'),
+        nip07: t('auth.selector.nip07'),
+        nip46: t('auth.selector.nip46'),
+    };
 
     const handleNip46Submit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -81,13 +83,11 @@ export function LoginMethodSelector({
     };
 
     return (
-        <section className="grid gap-3" data-testid="login-method-selector" aria-label="Selector de login de Nostr">
+        <section className="grid gap-3" data-testid="login-method-selector" aria-label={t('auth.selector.aria')}>
             <div className="grid gap-2">
-                <Label htmlFor="nostr-login-method-trigger">
-                    Metodo de acceso
-                </Label>
+                <Label htmlFor="nostr-login-method-trigger">{t('auth.selector.accessMethod')}</Label>
                 <Select value={method} onValueChange={(value) => setMethod(value as SelectorMethod)} disabled={isBusy}>
-                    <SelectTrigger id="nostr-login-method-trigger" className="w-full" data-testid="login-method-trigger" aria-label="Metodo de login">
+                    <SelectTrigger id="nostr-login-method-trigger" className="w-full" data-testid="login-method-trigger" aria-label={t('auth.selector.loginMethodAria')}>
                         <SelectValue>{selectorMethodLabels[method]}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
@@ -102,9 +102,7 @@ export function LoginMethodSelector({
 
             {method === 'npub' ? (
                 <form className="grid gap-2" data-testid="login-method-form-npub" onSubmit={handleNpubSubmit}>
-                    <Label htmlFor="nostr-npub-input">
-                        Public key
-                    </Label>
+                    <Label htmlFor="nostr-npub-input">{t('auth.selector.npubLabel')}</Label>
 
                     <Input
                         id="nostr-npub-input"
@@ -121,14 +119,14 @@ export function LoginMethodSelector({
                                 <Spinner data-icon="inline-start" />
                                 {busyLabel}
                             </>
-                        ) : 'Acceder'}
+                        ) : t('auth.selector.submit')}
                     </Button>
                 </form>
             ) : null}
 
             {method === 'nip07' ? (
                 <div className="grid gap-2">
-                    <p className="text-sm text-muted-foreground">Usa tu extension Nostr para firmar sin exponer tu clave privada.</p>
+                    <p className="text-sm text-muted-foreground">{t('auth.selector.extensionDescription')}</p>
                     <Button
                         type="button"
                         className="mt-2 w-full"
@@ -145,16 +143,14 @@ export function LoginMethodSelector({
                                 <Spinner data-icon="inline-start" />
                                 {busyLabel}
                             </>
-                        ) : 'Continuar con extension'}
+                        ) : t('auth.selector.continueExtension')}
                     </Button>
                 </div>
             ) : null}
 
             {method === 'nip46' ? (
                 <form className="grid gap-2" data-testid="login-method-form-nip46" onSubmit={handleNip46Submit}>
-                    <Label htmlFor="nostr-bunker-uri-input">
-                        URI de bunker
-                    </Label>
+                    <Label htmlFor="nostr-bunker-uri-input">{t('auth.selector.bunkerUri')}</Label>
 
                     <Input
                         id="nostr-bunker-uri-input"
@@ -171,7 +167,7 @@ export function LoginMethodSelector({
                                 <Spinner data-icon="inline-start" />
                                 {busyLabel}
                             </>
-                        ) : 'Conectar bunker'}
+                        ) : t('auth.selector.connectBunker')}
                     </Button>
                 </form>
             ) : null}

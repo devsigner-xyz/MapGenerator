@@ -13,6 +13,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
+import { useI18n } from '@/i18n/useI18n';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { EllipsisVerticalIcon } from 'lucide-react';
 import type { RelayDetails, RelayInformationDocument, RelayRow, RelaySource } from './types';
@@ -58,6 +59,7 @@ export function SettingsDmRelaysSection({
     relayAvatarFallback,
     relayConnectionBadge,
 }: SettingsDmRelaysSectionProps) {
+    const { t } = useI18n();
     const relayInputErrorId = 'dm-relay-input-error';
     const hasInvalidRelayInputs = invalidRelayInputs.length > 0;
 
@@ -65,23 +67,17 @@ export function SettingsDmRelaysSection({
         <Card size="sm" className="nostr-relays-panel gap-0 py-0">
             <CardHeader className="border-b px-3 py-3">
                 <div className="flex items-center justify-between gap-2">
-                    <CardTitle>Relays de mensajes</CardTitle>
+                    <CardTitle>{t('settings.relays.messages.title')}</CardTitle>
                     <Button type="button" variant="ghost" size="sm" onClick={onResetRelaysToDefault}>
-                        Restablecer por defecto
+                        {t('settings.relays.resetDefault')}
                     </Button>
                 </div>
-                <CardDescription>
-                    Se usan para recibir mensajes privados.
-                    <br />
-                    Esta lista corresponde al kind:10050.
-                    <br />
-                    Si tu perfil publica relays de DM, pueden aparecer como sugeridos.
-                </CardDescription>
+                <CardDescription>{t('settings.relays.messages.description')}</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-3 px-3 py-3">
                 <InputGroup>
                     <InputGroupInput
-                        aria-label="URLs de relay de mensajes"
+                        aria-label={t('settings.relays.messages.urls')}
                         type="url"
                         inputMode="url"
                         name="dmRelayUrls"
@@ -95,30 +91,30 @@ export function SettingsDmRelaysSection({
                     />
                     <InputGroupAddon align="inline-end">
                         <InputGroupButton variant="secondary" onClick={onAddRelays}>
-                            Añadir
+                            {t('settings.relays.add')}
                         </InputGroupButton>
                     </InputGroupAddon>
                 </InputGroup>
 
                 {hasInvalidRelayInputs ? (
                     <p id={relayInputErrorId} role="alert" className="nostr-settings-error">
-                        Entradas invalidas: {invalidRelayInputs.join(', ')}
+                        {t('settings.relays.invalidInputs', { inputs: invalidRelayInputs.join(', ') })}
                     </p>
                 ) : null}
 
                 <div className="flex flex-col gap-3">
                     <div>
                         <div className="nostr-relay-suggested-header mb-2">
-                            <h3 className="text-sm font-semibold">Configurados</h3>
+                            <h3 className="text-sm font-semibold">{t('settings.relays.section.configured')}</h3>
                         </div>
                         <div className="nostr-relay-table-scroll">
                             <Table className="nostr-relay-table">
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead>Relay</TableHead>
-                                        <TableHead>Tipo</TableHead>
-                                        <TableHead>Estado</TableHead>
-                                        <TableHead className="nostr-relay-actions-head">Acciones</TableHead>
+                                        <TableHead>{t('settings.relays.table.relay')}</TableHead>
+                                        <TableHead>{t('settings.relays.table.type')}</TableHead>
+                                        <TableHead>{t('settings.relays.table.status')}</TableHead>
+                                        <TableHead className="nostr-relay-actions-head">{t('settings.relays.table.actions')}</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -156,22 +152,22 @@ export function SettingsDmRelaysSection({
                                                                 type="button"
                                                                 variant="outline"
                                                                 size="icon-sm"
-                                                                aria-label={`Abrir acciones para ${relayUrl} (${relayTypes.map((relayType) => relayTypeLabels[relayType]).join(', ')})`}
+                                                                aria-label={t('settings.relays.openActions', { relayUrl, relayTypeSummary: relayTypes.map((relayType) => relayTypeLabels[relayType]).join(', ') })}
                                                                 onClick={onOpenRelayActionsMenu}
                                                             >
                                                                 <EllipsisVerticalIcon data-icon="inline-start" />
                                                             </Button>
                                                         </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end">
-                                                            <DropdownMenuGroup>
-                                                                <DropdownMenuItem onSelect={() => onOpenRelayDetails(relayUrl, 'configured', primaryRelayType)}>
-                                                                    Detalles
-                                                                </DropdownMenuItem>
-                                                                <DropdownMenuItem variant="destructive" onSelect={() => onRemoveRelay(relayUrl)}>
-                                                                    Eliminar
-                                                                </DropdownMenuItem>
-                                                            </DropdownMenuGroup>
-                                                        </DropdownMenuContent>
+                                                            <DropdownMenuContent align="end">
+                                                                <DropdownMenuGroup>
+                                                                    <DropdownMenuItem onSelect={() => onOpenRelayDetails(relayUrl, 'configured', primaryRelayType)}>
+                                                                        {t('settings.relays.details')}
+                                                                    </DropdownMenuItem>
+                                                                    <DropdownMenuItem variant="destructive" onSelect={() => onRemoveRelay(relayUrl)}>
+                                                                        {t('settings.relays.remove')}
+                                                                    </DropdownMenuItem>
+                                                                </DropdownMenuGroup>
+                                                            </DropdownMenuContent>
                                                     </DropdownMenu>
                                                 </TableCell>
                                             </TableRow>
@@ -185,19 +181,19 @@ export function SettingsDmRelaysSection({
                     {suggestedRows.length > 0 ? (
                         <div>
                             <div className="nostr-relay-suggested-header mb-2">
-                                <h3 className="text-sm font-semibold">Sugeridos</h3>
+                                <h3 className="text-sm font-semibold">{t('settings.relays.section.suggested')}</h3>
                                 <Button type="button" variant="outline" className="nostr-relay-add-suggested" onClick={onAddAllSuggestedRelays}>
-                                    Agregar todos
+                                    {t('settings.relays.addAll')}
                                 </Button>
                             </div>
                             <div className="nostr-relay-table-scroll">
                                 <Table className="nostr-relay-table">
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead>Relay</TableHead>
-                                            <TableHead>Tipo</TableHead>
-                                            <TableHead>Estado</TableHead>
-                                            <TableHead className="nostr-relay-actions-head">Acciones</TableHead>
+                                            <TableHead>{t('settings.relays.table.relay')}</TableHead>
+                                            <TableHead>{t('settings.relays.table.type')}</TableHead>
+                                            <TableHead>{t('settings.relays.table.status')}</TableHead>
+                                            <TableHead className="nostr-relay-actions-head">{t('settings.relays.table.actions')}</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -235,22 +231,22 @@ export function SettingsDmRelaysSection({
                                                                     type="button"
                                                                     variant="outline"
                                                                     size="icon-sm"
-                                                                    aria-label={`Abrir acciones sugeridas para ${relayUrl} (${relayTypes.map((relayType) => relayTypeLabels[relayType]).join(', ')})`}
+                                                                    aria-label={t('settings.relays.openSuggestedActions', { relayUrl, relayTypeSummary: relayTypes.map((relayType) => relayTypeLabels[relayType]).join(', ') })}
                                                                     onClick={onOpenRelayActionsMenu}
                                                                 >
                                                                     <EllipsisVerticalIcon data-icon="inline-start" />
                                                                 </Button>
                                                             </DropdownMenuTrigger>
-                                                            <DropdownMenuContent align="end">
-                                                                <DropdownMenuGroup>
-                                                                    <DropdownMenuItem onSelect={() => onOpenRelayDetails(relayUrl, 'suggested', primaryRelayType)}>
-                                                                        Detalles
-                                                                    </DropdownMenuItem>
-                                                                    <DropdownMenuItem onSelect={() => onAddSuggestedRelay(relayUrl, relayTypes)}>
-                                                                        Añadir
-                                                                    </DropdownMenuItem>
-                                                                </DropdownMenuGroup>
-                                                            </DropdownMenuContent>
+                                                                <DropdownMenuContent align="end">
+                                                                    <DropdownMenuGroup>
+                                                                        <DropdownMenuItem onSelect={() => onOpenRelayDetails(relayUrl, 'suggested', primaryRelayType)}>
+                                                                            {t('settings.relays.details')}
+                                                                        </DropdownMenuItem>
+                                                                        <DropdownMenuItem onSelect={() => onAddSuggestedRelay(relayUrl, relayTypes)}>
+                                                                            {t('settings.relays.add')}
+                                                                        </DropdownMenuItem>
+                                                                    </DropdownMenuGroup>
+                                                                </DropdownMenuContent>
                                                         </DropdownMenu>
                                                     </TableCell>
                                                 </TableRow>
