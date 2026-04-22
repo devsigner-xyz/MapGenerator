@@ -112,4 +112,22 @@ describe('runMapGeneration', () => {
 
         expect(result.actualBuildings).toBe(583);
     });
+
+    test('never chooses an overshoot above 10000 buildings as the best result when a smaller attempt exists', async () => {
+        const counts = [25000, 1800];
+        const setRecommended = vi.fn();
+        const generateEverything = vi.fn(async () => undefined);
+        const getBuildingCentroidsWorld = vi.fn(() => Array.from({ length: counts.shift() ?? 0 }, (_, index) => new Vector(index, index)));
+
+        const result = await runMapGeneration({
+            viewCenter: new Vector(500, 400),
+            screenDimensions: new Vector(1200, 800),
+            targetBuildings: 2000,
+            tensorField: { setRecommended } as never,
+            mainGui: { generateEverything, getBuildingCentroidsWorld } as never,
+            maxAttempts: 2,
+        });
+
+        expect(result.actualBuildings).toBe(1800);
+    });
 });

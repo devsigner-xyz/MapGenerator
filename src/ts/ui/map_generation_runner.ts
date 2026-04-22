@@ -16,7 +16,13 @@ interface MapGenerationMainGuiLike {
     getBuildingCentroidsWorld(): Vector[];
 }
 
+const MAX_ATTEMPT_BUILDINGS = 10000;
+
 function scoreAttempt(actualBuildings: number, targetBuildings: number): number {
+    if (actualBuildings > MAX_ATTEMPT_BUILDINGS) {
+        return 1_000_000 + (actualBuildings - MAX_ATTEMPT_BUILDINGS);
+    }
+
     const distance = Math.abs(targetBuildings - actualBuildings);
     return actualBuildings >= targetBuildings ? distance : distance * 10;
 }

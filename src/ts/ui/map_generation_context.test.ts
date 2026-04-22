@@ -19,26 +19,59 @@ describe('map_generation_context', () => {
         expect(bounds.origin).toEqual(new Vector(-100, 0));
     });
 
-    test('resolveInitialGenerationBounds keeps the baseline when targetBuildings is 64', () => {
+    test('resolveInitialGenerationBounds uses a smaller initial world for very small explicit targets', () => {
+        const largerBounds = resolveInitialGenerationBounds({
+            viewCenter: new Vector(500, 400),
+            screenDimensions: new Vector(1200, 800),
+            targetBuildings: 600,
+        });
         const bounds = resolveInitialGenerationBounds({
             viewCenter: new Vector(500, 400),
             screenDimensions: new Vector(1200, 800),
             targetBuildings: 64,
         });
 
-        expect(bounds.worldDimensions).toEqual(new Vector(1200, 800));
-        expect(bounds.origin).toEqual(new Vector(-100, 0));
+        expect(bounds.worldDimensions.x).toBeLessThan(largerBounds.worldDimensions.x);
+        expect(bounds.worldDimensions.y).toBeLessThan(largerBounds.worldDimensions.y);
     });
 
-    test('resolveInitialGenerationBounds scales above the baseline for large targetBuildings', () => {
+    test('resolveInitialGenerationBounds scales above the 600-building sizing for larger targets', () => {
+        const smallerBounds = resolveInitialGenerationBounds({
+            viewCenter: new Vector(500, 400),
+            screenDimensions: new Vector(1200, 800),
+            targetBuildings: 600,
+        });
         const bounds = resolveInitialGenerationBounds({
             viewCenter: new Vector(500, 400),
             screenDimensions: new Vector(1200, 800),
             targetBuildings: 2000,
         });
 
-        expect(bounds.worldDimensions.x).toBeGreaterThan(1200);
-        expect(bounds.worldDimensions.y).toBeGreaterThan(800);
+        expect(bounds.worldDimensions.x).toBeGreaterThan(smallerBounds.worldDimensions.x);
+        expect(bounds.worldDimensions.y).toBeGreaterThan(smallerBounds.worldDimensions.y);
+    });
+
+    test('resolveInitialGenerationBounds starts below the baseline for a 600-building target', () => {
+        const bounds = resolveInitialGenerationBounds({
+            viewCenter: new Vector(500, 400),
+            screenDimensions: new Vector(1200, 800),
+            targetBuildings: 600,
+        });
+
+        expect(bounds.worldDimensions.x).toBeLessThan(1200);
+        expect(bounds.worldDimensions.y).toBeLessThan(800);
+    });
+
+    test('normalizeTargetBuildings caps very large targets at 10000', () => {
+        expect(resolveInitialGenerationBounds({
+            viewCenter: new Vector(500, 400),
+            screenDimensions: new Vector(1200, 800),
+            targetBuildings: 10000,
+        }).worldDimensions).toEqual(resolveInitialGenerationBounds({
+            viewCenter: new Vector(500, 400),
+            screenDimensions: new Vector(1200, 800),
+            targetBuildings: 50000,
+        }).worldDimensions);
     });
 
     test('inflateGenerationBounds expands dimensions without changing the center', () => {
@@ -54,6 +87,7 @@ describe('map_generation_context', () => {
     test('buildAcceptanceBand returns the exact target lower bound and 20 percent upper bound', () => {
         expect(buildAcceptanceBand(100)).toEqual({ min: 100, max: 120 });
         expect(buildAcceptanceBand(10)).toEqual({ min: 10, max: 16 });
+        expect(buildAcceptanceBand(10000)).toEqual({ min: 10000, max: 10000 });
     });
 
     test('retuneGenerationBounds guards against zero actual buildings', () => {

@@ -35,4 +35,10 @@ describe('buildFollowDrivenTargetBuildings', () => {
             follows: Array.from({ length: 5000 }, (_, index) => `${index}`.padStart(64, 'f').slice(-64)),
         })).toBeGreaterThan(5000);
     });
+
+    test('caps extremely large follow counts at 10000 buildings', () => {
+        expect(buildFollowDrivenTargetBuildings({
+            follows: Array.from({ length: 20000 }, (_, index) => `${index}`.padStart(64, 'f').slice(-64)),
+        })).toBe(10000);
+    });
 });

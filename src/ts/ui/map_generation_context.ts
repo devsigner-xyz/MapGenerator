@@ -17,8 +17,10 @@ export interface GenerationCalibrationResult {
     accepted: boolean;
 }
 
-const BASE_TARGET_BUILDINGS = 64;
+const BASE_TARGET_BUILDINGS = 600;
 const MIN_TARGET_BUILDINGS = 24;
+const MAX_TARGET_BUILDINGS = 10000;
+const TARGETED_BASE_WORLD_SCALE = 0.33;
 
 export function normalizeTargetBuildings(targetBuildings?: number): number | undefined {
     if (!Number.isFinite(targetBuildings)) {
@@ -30,7 +32,7 @@ export function normalizeTargetBuildings(targetBuildings?: number): number | und
         return undefined;
     }
 
-    return Math.max(MIN_TARGET_BUILDINGS, normalized);
+    return Math.min(MAX_TARGET_BUILDINGS, Math.max(MIN_TARGET_BUILDINGS, normalized));
 }
 
 function centerOf(bounds: GenerationBounds): Vector {
@@ -43,7 +45,9 @@ export function resolveInitialGenerationBounds(input: {
     targetBuildings?: number;
 }): GenerationBounds {
     const normalizedTarget = normalizeTargetBuildings(input.targetBuildings);
-    const baseWorldDimensions = input.screenDimensions.clone();
+    const baseWorldDimensions = normalizedTarget === undefined
+        ? input.screenDimensions.clone()
+        : input.screenDimensions.clone().multiplyScalar(TARGETED_BASE_WORLD_SCALE);
     const worldDimensions = normalizedTarget === undefined
         ? baseWorldDimensions
         : baseWorldDimensions.multiplyScalar(Math.sqrt(normalizedTarget / BASE_TARGET_BUILDINGS));
@@ -66,7 +70,7 @@ export function inflateGenerationBounds(bounds: GenerationBounds): GenerationBou
 export function buildAcceptanceBand(targetBuildings: number): GenerationAcceptanceBand {
     return {
         min: targetBuildings,
-        max: targetBuildings + Math.max(6, Math.ceil(targetBuildings * 0.2)),
+        max: Math.min(MAX_TARGET_BUILDINGS, targetBuildings + Math.max(6, Math.ceil(targetBuildings * 0.2))),
     };
 }
 
