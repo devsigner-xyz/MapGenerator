@@ -22,6 +22,7 @@ import { mountNostrOverlay } from './nostr-overlay/bootstrap';
 import { createLatestRequestRunner } from './ts/ui/map_generation_request_guard';
 import { createMiddlePanState, stopMiddlePanState, type MiddlePanState, updateMiddlePanState } from './ts/ui/middle_pan_drag';
 import { runMapGeneration } from './ts/ui/map_generation_runner';
+import { calculateGeneratedMapCoverView } from './ts/ui/map_view_fit';
 import { createViewChangeScheduler } from './ts/ui/view_change_scheduler';
 import type { EasterEggId } from './ts/ui/easter_eggs';
 import type { SpecialBuildingId } from './ts/ui/special_buildings';
@@ -185,6 +186,7 @@ class Main {
                 tensorField: this.tensorField,
                 mainGui: this.mainGui,
             });
+            this.fitGeneratedMapToViewport();
             this.notifyMapGenerated();
         });
         window.addEventListener('beforeunload', () => {
@@ -206,6 +208,20 @@ class Main {
 
     async generateMap(options?: MapGenerationOptions): Promise<void> {
         await this.runLatestGeneration(options);
+    }
+
+    private fitGeneratedMapToViewport(): void {
+        const view = calculateGeneratedMapCoverView({
+            screenDimensions: this.domainController.screenDimensions,
+            footprints: this.getBuildingFootprintsWorld(),
+            centroids: this.getBuildingCentroidsWorld(),
+        });
+        if (!view) {
+            return;
+        }
+
+        this.domainController.zoom = view.zoom;
+        this.domainController.centerOnWorldPoint(view.center);
     }
 
     async ensureGenerated(): Promise<void> {
