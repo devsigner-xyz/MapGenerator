@@ -63,10 +63,10 @@ function profileInitials(pubkey: string, profile: NostrProfile | undefined): str
     return `${words[0]?.[0] || ''}${words[1]?.[0] || ''}`.toUpperCase();
 }
 
-function truncateTo140(content: string, t: I18nContextValue['t']): string {
+function truncateTo140(content: string, _t: I18nContextValue['t']): string {
     const normalized = content.trim();
     if (!normalized) {
-        return t('note.noContent');
+        return '';
     }
 
     if (normalized.length <= 140) {
@@ -437,7 +437,7 @@ export function NoteCard({
                     {isDeepNested ? (
                         <div aria-live="polite" className="flex flex-col gap-2">
                             <p>{t('note.reference.label')}</p>
-                            <p>{truncateTo140(note.content, t)}</p>
+                            {note.content.trim() ? <p>{truncateTo140(note.content, t)}</p> : null}
                             <p>{shortId(note.id)}</p>
                             {onSelectEventReference ? (
                                 <Button

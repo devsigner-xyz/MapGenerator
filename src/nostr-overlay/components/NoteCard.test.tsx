@@ -494,6 +494,19 @@ describe('NoteCard', () => {
         expect(rendered.container.querySelector(`button[aria-label="Abrir nota referenciada ${note.id}"]`)).toBeNull();
     });
 
+    test('depth >= 2 compact fallback does not show no-content placeholder for empty referenced notes', async () => {
+        const note: NoteCardModel = {
+            ...deepNestedFixture,
+            id: 'empty-deep-reference',
+            content: '   ',
+        };
+
+        const { container } = await renderNoteCard(note);
+
+        expect(container.textContent || '').toContain('Nota referenciada');
+        expect(container.textContent || '').not.toContain('(sin contenido)');
+    });
+
     test('does not render empty fallback when note only has video media', async () => {
         const { container } = await renderNoteCard({
             ...defaultNoteFixture,

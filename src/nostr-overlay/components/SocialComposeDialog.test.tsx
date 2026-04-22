@@ -61,9 +61,9 @@ describe('SocialComposeDialog', () => {
 
         const text = rendered.container.textContent || '';
         expect(text).toContain('Publish');
-        expect(text).toContain('Write a new post for Agora.');
+        expect(text).toContain('Write a new note for Agora.');
         expect(text).toContain('Cancel');
-        const textarea = rendered.container.querySelector('textarea[aria-label="Compose post"]') as HTMLTextAreaElement | null;
+        const textarea = rendered.container.querySelector('textarea[aria-label="Compose note"]') as HTMLTextAreaElement | null;
         expect(textarea?.getAttribute('placeholder')).toBe('What are you thinking?');
     });
 });

@@ -289,7 +289,7 @@ describe('OccupantProfileDialog', () => {
 
         await selectTab('Feed');
 
-        await waitForCondition(() => (document.body.textContent || '').includes('Cargando publicaciones'));
+        await waitForCondition(() => (document.body.textContent || '').includes('Cargando notas'));
         expect(document.body.textContent || '').not.toContain('Notas');
 
         const feedEmpty = document.body.querySelector('.nostr-profile-posts-empty[data-slot="empty"]') as HTMLElement | null;
@@ -298,7 +298,7 @@ describe('OccupantProfileDialog', () => {
             throw new Error('Expected feed empty state to be present');
         }
         expect(feedEmpty.querySelector('[aria-label="Loading"]')).not.toBeNull();
-        expect(feedEmpty.textContent || '').toContain('Cargando publicaciones');
+        expect(feedEmpty.textContent || '').toContain('Cargando notas');
 
         const centeredLoading = document.body.querySelector('.nostr-profile-posts-empty-state') as HTMLElement | null;
         expect(centeredLoading).not.toBeNull();
@@ -321,9 +321,9 @@ describe('OccupantProfileDialog', () => {
         mounted.push(rendered);
 
         await selectTab('Feed');
-        await waitForCondition(() => (document.body.textContent || '').includes('Loading posts'));
-        expect(document.body.textContent || '').toContain('Loading posts');
-        expect(document.body.textContent || '').toContain('Recovering posts from Alice.');
+        await waitForCondition(() => (document.body.textContent || '').includes('Loading notes'));
+        expect(document.body.textContent || '').toContain('Loading notes');
+        expect(document.body.textContent || '').toContain('Recovering notes from Alice.');
 
         await selectTab('Followers');
         await waitForCondition(() => (document.body.textContent || '').includes('Loading followers'));

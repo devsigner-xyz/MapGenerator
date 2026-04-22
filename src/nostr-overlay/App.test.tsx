@@ -1427,11 +1427,10 @@ describe('Nostr overlay App', () => {
             });
 
             await waitFor(() => (socialFeed.service.loadFollowingFeed as ReturnType<typeof vi.fn>).mock.calls.length >= 2);
-            await waitFor(() => (rendered.container.textContent || '').includes('Ver 1 publicacion nueva'));
-            expect(rendered.container.textContent || '').not.toContain('nota nueva');
+            await waitFor(() => (rendered.container.textContent || '').includes('Ver 1 nota nueva'));
 
             const applyButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
-                (button.textContent || '').includes('Ver 1 publicacion nueva')
+                (button.textContent || '').includes('Ver 1 nota nueva')
             ) as HTMLButtonElement;
             expect(applyButton).toBeDefined();
 
@@ -1440,7 +1439,7 @@ describe('Nostr overlay App', () => {
             });
 
             await waitFor(() => (rendered.container.textContent || '').includes('nota nueva'));
-            expect(rendered.container.textContent || '').not.toContain('Ver 1 publicacion nueva');
+            expect(rendered.container.textContent || '').not.toContain('Ver 1 nota nueva');
         } finally {
             setIntervalSpy.mockRestore();
             clearIntervalSpy.mockRestore();
@@ -1534,10 +1533,10 @@ describe('Nostr overlay App', () => {
                 }
             });
 
-            await waitFor(() => (rendered.container.textContent || '').includes('Ver 10 publicaciones nuevas'));
+            await waitFor(() => (rendered.container.textContent || '').includes('Ver 10 notas nuevas'));
 
             const applyButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
-                (button.textContent || '').includes('Ver 10 publicaciones nuevas')
+                (button.textContent || '').includes('Ver 10 notas nuevas')
             ) as HTMLButtonElement;
             expect(applyButton).toBeDefined();
 
@@ -1879,7 +1878,7 @@ describe('Nostr overlay App', () => {
                 }
             });
 
-            await waitFor(() => (rendered.container.textContent || '').includes('Ver 1 publicacion nueva'));
+        await waitFor(() => (rendered.container.textContent || '').includes('Ver 1 nota nueva'));
             expect(rendered.container.textContent || '').not.toContain('No se pudo actualizar el Agora. Intenta de nuevo.');
         } finally {
             setIntervalSpy.mockRestore();
@@ -3606,7 +3605,7 @@ describe('Nostr overlay App', () => {
         });
 
         await waitFor(() => (document.body.textContent || '').includes('Publicar'));
-        expect(document.body.querySelector('textarea[aria-label="Redactar publicacion"]')).not.toBeNull();
+        expect(document.body.querySelector('textarea[aria-label="Redactar nota"]')).not.toBeNull();
     });
 
     test('publishes from the global compose dialog and shows success toast', async () => {
@@ -3656,7 +3655,7 @@ describe('Nostr overlay App', () => {
             publishButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
-        const textarea = document.body.querySelector('textarea[aria-label="Redactar publicacion"]') as HTMLTextAreaElement;
+        const textarea = document.body.querySelector('textarea[aria-label="Redactar nota"]') as HTMLTextAreaElement;
         await fillTextarea(textarea, 'hola @al');
         await waitForMentionSuggestions();
         await chooseMentionSuggestion('Alice');
@@ -3770,7 +3769,7 @@ describe('Nostr overlay App', () => {
 
         await waitFor(() => Boolean(document.body.querySelector('[data-slot="dialog-content"]')));
         await waitFor(() => (document.body.textContent || '').includes('nota original'));
-        const textarea = document.body.querySelector('textarea[aria-label="Redactar publicacion"]') as HTMLTextAreaElement;
+        const textarea = document.body.querySelector('textarea[aria-label="Redactar nota"]') as HTMLTextAreaElement;
         await fillTextarea(textarea, 'mi comentario @al');
         await waitForMentionSuggestions();
         await chooseMentionSuggestion('Alice');

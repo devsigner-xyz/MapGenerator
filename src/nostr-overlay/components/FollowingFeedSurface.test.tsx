@@ -152,7 +152,7 @@ describe('FollowingFeedSurface', () => {
         mounted.push(rendered);
 
         const ctaButton = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
-            (button.textContent || '').includes('Ver 2 publicaciones nuevas')
+            (button.textContent || '').includes('Ver 2 notas nuevas')
         ) as HTMLButtonElement;
         expect(ctaButton).toBeDefined();
         const headerActions = rendered.container.querySelector('.nostr-following-feed-header-actions') as HTMLDivElement;
@@ -261,7 +261,7 @@ describe('FollowingFeedSurface', () => {
         mounted.push(rendered);
 
         const text = rendered.container.textContent || '';
-        expect(text).not.toContain('Ver 3 publicaciones nuevas');
+        expect(text).not.toContain('Ver 3 notas nuevas');
         expect(text).not.toContain('Actualizar');
         expect(rendered.container.querySelector('[data-slot="toggle-group"]')).toBeNull();
     });
@@ -409,7 +409,7 @@ describe('FollowingFeedSurface', () => {
         const rendered = await renderElement(<FollowingFeedSurface {...buildProps()} />);
         mounted.push(rendered);
 
-        expect(rendered.container.textContent || '').toContain('Sin publicaciones');
+        expect(rendered.container.textContent || '').toContain('Sin notas');
         expect(rendered.container.textContent || '').not.toContain('Volver al mapa');
         expect(rendered.container.textContent || '').toContain('Timeline en tiempo real de personas que sigues');
 
@@ -505,7 +505,7 @@ describe('FollowingFeedSurface', () => {
         const itemsWrapper = feedList.querySelector('.nostr-following-feed-items') as HTMLDivElement;
         expect(itemsWrapper).toBeDefined();
 
-        const loadingFooter = Array.from(feedList.children).find((child) => (child.textContent || '').includes('Cargando publicaciones...')) as HTMLDivElement | undefined;
+        const loadingFooter = Array.from(feedList.children).find((child) => (child.textContent || '').includes('Cargando notas...')) as HTMLDivElement | undefined;
         expect(loadingFooter).toBeDefined();
         expect(itemsWrapper.contains(loadingFooter || null)).toBe(false);
     });
