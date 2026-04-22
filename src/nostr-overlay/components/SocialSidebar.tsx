@@ -3,14 +3,11 @@ import { encodeHexToNpub } from '../../nostr/npub';
 import type { Nip05ValidationResult } from '../../nostr/nip05';
 import type { NostrProfile } from '../../nostr/types';
 import { PeopleListTab } from './PeopleListTab';
-import { ProfileTab } from './ProfileTab';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-type SocialTab = 'profile' | 'following' | 'followers';
+type SocialTab = 'following' | 'followers';
 
 interface SocialSidebarProps {
-    ownerPubkey?: string;
-    ownerProfile?: NostrProfile;
     follows?: string[];
     profiles?: Record<string, NostrProfile>;
     followers?: string[];
@@ -30,8 +27,6 @@ interface SocialSidebarProps {
 }
 
 export function SocialSidebar({
-    ownerPubkey,
-    ownerProfile,
     follows = [],
     profiles = {},
     followers = [],
@@ -49,7 +44,7 @@ export function SocialSidebar({
     onCopyOwnerNpub,
     verificationByPubkey = {},
 }: SocialSidebarProps) {
-    const [activeTab, setActiveTab] = useState<SocialTab>('profile');
+    const [activeTab, setActiveTab] = useState<SocialTab>('following');
     const [followingSearch, setFollowingSearch] = useState('');
     const [followersSearch, setFollowersSearch] = useState('');
 
@@ -89,8 +84,6 @@ export function SocialSidebar({
 
         return followerPeople.filter((pubkey) => matchesSearch(pubkey, followerProfiles[pubkey], query));
     }, [followerPeople, followerProfiles, followersSearch]);
-    const ownerVerification = ownerPubkey ? verificationByPubkey[ownerPubkey] : undefined;
-
     return (
         <div className="nostr-social-sidebar" aria-label="Panel social">
             <Tabs
@@ -99,19 +92,10 @@ export function SocialSidebar({
                 className="nostr-social-tabs"
                 aria-label="Pestanas sociales"
             >
-                <TabsList variant="line" className="grid h-auto w-full grid-cols-3" aria-label="Pestanas sociales">
-                    <TabsTrigger value="profile">Sobre mi</TabsTrigger>
+                <TabsList variant="line" className="grid h-auto w-full grid-cols-2" aria-label="Pestanas sociales">
                     <TabsTrigger value="following">{`Sigues (${followingPeople.length})`}</TabsTrigger>
                     <TabsTrigger value="followers">{`Seguidores (${followerPeople.length})`}</TabsTrigger>
                 </TabsList>
-
-                <TabsContent value="profile" className="nostr-tab-panel">
-                    <ProfileTab
-                        {...(ownerPubkey ? { ownerPubkey } : {})}
-                        {...(ownerProfile ? { ownerProfile } : {})}
-                        {...(ownerVerification ? { ownerVerification } : {})}
-                    />
-                </TabsContent>
 
                 <TabsContent value="following" className="nostr-tab-panel">
                     <PeopleListTab

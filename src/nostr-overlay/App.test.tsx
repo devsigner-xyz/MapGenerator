@@ -6976,7 +6976,6 @@ describe('Nostr overlay App', () => {
         expect(compactLabels).toContain('Abrir estadisticas de la ciudad');
         expect(compactLabels).toContain('Abrir descubre');
         expect(compactLabels).toContain('Abrir ajustes');
-        expect(rendered.container.textContent || '').not.toContain('Sobre mi');
         expect(rendered.container.textContent || '').not.toContain('Sigues (');
         expect(rendered.container.textContent || '').not.toContain('Seguidores (');
         expect((bridge.setViewportInsetLeft as any).mock.calls[(bridge.setViewportInsetLeft as any).mock.calls.length - 1][0]).toBe(56);
@@ -7038,14 +7037,22 @@ describe('Nostr overlay App', () => {
         await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
-        const infoTab = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
-            (button.textContent || '').trim() === 'Sobre mi'
+        const followingTab = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').trim() === 'Sigues (0)'
+        ) as HTMLButtonElement;
+        const followersTab = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').trim() === 'Seguidores (0)'
         ) as HTMLButtonElement;
         const cityStatsButton = rendered.container.querySelector('button[aria-label="Abrir estadisticas de la ciudad"]') as HTMLButtonElement | null;
 
-        expect(infoTab).toBeDefined();
+        expect(followingTab).toBeDefined();
+        expect(followersTab).toBeDefined();
         expect(cityStatsButton).not.toBeNull();
-        expect(infoTab.compareDocumentPosition(cityStatsButton as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+        expect(rendered.container.textContent || '').toContain('No hay cuentas seguidas todavía.');
+        expect(rendered.container.textContent || '').not.toContain('No se encontraron seguidores aún.');
+        expect(followingTab.compareDocumentPosition(followersTab) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+        expect(followingTab.compareDocumentPosition(cityStatsButton as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+        expect(followersTab.compareDocumentPosition(cityStatsButton as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     });
 
     test('shows descubre menu item with counter and opens dialog', async () => {
@@ -7125,10 +7132,14 @@ describe('Nostr overlay App', () => {
         await loginWithNip07(rendered.container);
         await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
 
-        const infoTabBeforeCollapse = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
-            (button.textContent || '').trim() === 'Sobre mi'
+        const followingTabBeforeCollapse = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').trim() === 'Sigues (0)'
         );
-        expect(infoTabBeforeCollapse).toBeDefined();
+        const followersTabBeforeCollapse = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').trim() === 'Seguidores (0)'
+        );
+        expect(followingTabBeforeCollapse).toBeDefined();
+        expect(followersTabBeforeCollapse).toBeDefined();
 
         const hidePanelButton = rendered.container.querySelector('button[aria-label="Ocultar panel"]') as HTMLButtonElement;
         expect(hidePanelButton).toBeDefined();
@@ -7137,10 +7148,14 @@ describe('Nostr overlay App', () => {
             hidePanelButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
-        const infoTabCollapsed = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
-            (button.textContent || '').trim() === 'Sobre mi'
+        const followingTabCollapsed = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').trim() === 'Sigues (0)'
         );
-        expect(infoTabCollapsed).toBeUndefined();
+        const followersTabCollapsed = Array.from(rendered.container.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').trim() === 'Seguidores (0)'
+        );
+        expect(followingTabCollapsed).toBeUndefined();
+        expect(followersTabCollapsed).toBeUndefined();
     });
 
     test('filters following tab by name or npub and can clear search', async () => {
@@ -7333,7 +7348,7 @@ describe('Nostr overlay App', () => {
         }
     });
 
-    test('shows verified nip05 identifiers in profile and following list', async () => {
+    test('shows verified nip05 identifiers in following list without rendering owner profile tab', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const followedPubkey = 'a'.repeat(64);
         const { bridge, triggerOccupiedBuildingClick } = createMapBridgeStub(6);
@@ -7414,17 +7429,8 @@ describe('Nostr overlay App', () => {
             });
 
             await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
-            await waitFor(() => (rendered.container.textContent || '').includes('owner@owner.test'));
-            await waitFor(() => Boolean(rendered.container.querySelector('[aria-label="NIP-05 verificado por DNS: owner@owner.test"]')));
-
-            const followingTab = Array.from(rendered.container.querySelectorAll('button')).find(button =>
-                (button.textContent || '').includes('Sigues (1)')
-            ) as HTMLButtonElement;
-
-            await act(async () => {
-                followingTab.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
-                followingTab.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-            });
+            expect(rendered.container.textContent || '').not.toContain('owner@owner.test');
+            expect(rendered.container.querySelector('[aria-label="NIP-05 verificado por DNS: owner@owner.test"]')).toBeNull();
 
             await waitFor(() => Boolean(rendered.container.querySelector('[aria-label="NIP-05 verificado por DNS: alice@alice.test"]')));
             expect(rendered.container.textContent || '').not.toContain('alice@alice.test');
@@ -8937,7 +8943,7 @@ describe('Nostr overlay App', () => {
             form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
         });
 
-        await waitFor(() => (rendered.container.textContent || '').includes('Sobre mi'));
+        await waitFor(() => (rendered.container.textContent || '').includes('Sigues ('));
 
         await openSettingsContextMenu(rendered.container);
 
@@ -8953,7 +8959,8 @@ describe('Nostr overlay App', () => {
         await waitFor(() => (rendered.container.textContent || '').includes('Metodo de acceso'));
 
         const content = rendered.container.textContent || '';
-        expect(content).not.toContain('Sobre mi');
+        expect(content).not.toContain('Sigues (');
+        expect(content).not.toContain('Seguidores (');
         expect(rendered.container.querySelector('[data-testid="login-gate-screen"]')).not.toBeNull();
     });
 });

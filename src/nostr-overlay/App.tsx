@@ -1631,8 +1631,6 @@ export function App({ mapBridge, services }: AppProps) {
                     onOpenMissions={() => navigate('/descubre')}
                 >
                     <SocialSidebar
-                        {...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {})}
-                        {...(overlay.ownerProfile ? { ownerProfile: overlay.ownerProfile } : {})}
                         follows={overlay.follows}
                         profiles={overlay.profiles}
                         followers={overlay.followers}
