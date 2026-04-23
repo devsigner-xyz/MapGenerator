@@ -403,6 +403,12 @@ async function selectSettingsContextAction(container: HTMLDivElement, label: str
     });
 }
 
+function getUiSettingsDialog(): HTMLElement | null {
+    return Array.from(document.body.querySelectorAll('[data-slot="dialog-content"]')).find((node) =>
+        (node.textContent || '').includes('Etiquetas de calles') || (node.textContent || '').includes('Street labels')
+    ) as HTMLElement | null;
+}
+
 async function selectUserMenuAction(container: HTMLDivElement, label: string): Promise<void> {
     const userMenuButton = container.querySelector('button[aria-label="Abrir menu de usuario"]') as HTMLButtonElement;
     expect(userMenuButton).toBeDefined();
@@ -476,6 +482,20 @@ beforeEach(() => {
     window.localStorage.clear();
     __resetFollowsCacheForTests();
     (window as unknown as { nostr?: unknown }).nostr = createNip07ExtensionMock();
+    Object.defineProperty(window, 'matchMedia', {
+        writable: true,
+        configurable: true,
+        value: vi.fn().mockImplementation((query: string) => ({
+            matches: false,
+            media: query,
+            onchange: null,
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+            addListener: vi.fn(),
+            removeListener: vi.fn(),
+            dispatchEvent: vi.fn(),
+        })),
+    });
     vi.stubGlobal('fetch', vi.fn(async (input: string | URL) => {
         const url = String(input);
         if (url.includes('/v1/publish/forward')) {
@@ -6840,8 +6860,33 @@ describe('Nostr overlay App', () => {
             uiButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
-        await waitFor(() => (rendered.container.textContent || '').includes('Etiquetas de calles'));
+        await waitFor(() => getUiSettingsDialog() !== null);
         expect(rendered.container.querySelector('button[aria-label="Abrir ajustes de interfaz"][data-active="true"]')).not.toBeNull();
+    });
+
+    test('applies dark theme class after changing theme from interface dialog', async () => {
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(<App mapBridge={bridge} services={createBasicOverlayServices()} />);
+        mounted.push(rendered);
+
+        await loginWithNip07(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        await selectSettingsContextAction(rendered.container, 'Interfaz');
+        await waitFor(() => getUiSettingsDialog() !== null);
+
+        const darkButton = Array.from(document.body.querySelectorAll('[data-testid="settings-ui-theme-row"] [data-slot="toggle-group-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Oscuro'
+        ) as HTMLButtonElement | undefined;
+        expect(darkButton).toBeDefined();
+
+        await act(async () => {
+            darkButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => document.documentElement.classList.contains('dark'));
+        const storedUiSettings = JSON.parse(window.localStorage.getItem(UI_SETTINGS_STORAGE_KEY) || '{}') as { theme?: string };
+        expect(storedUiSettings.theme).toBe('dark');
     });
 
     test('switches overlay copy live when changing language from interface settings', async () => {
@@ -6870,9 +6915,9 @@ describe('Nostr overlay App', () => {
             uiButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
-        await waitFor(() => (rendered.container.textContent || '').includes('Idioma'));
+        await waitFor(() => getUiSettingsDialog() !== null);
 
-        const languageTrigger = rendered.container.querySelector('[data-testid="settings-ui-language-row"] [data-slot="select-trigger"]') as HTMLButtonElement;
+        const languageTrigger = document.body.querySelector('[data-testid="settings-ui-language-row"] [data-slot="select-trigger"]') as HTMLButtonElement;
         expect(languageTrigger).toBeDefined();
 
         await act(async () => {
@@ -6894,8 +6939,8 @@ describe('Nostr overlay App', () => {
             englishOption.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
         });
 
-        await waitFor(() => (rendered.container.textContent || '').includes('Language'));
-        expect(rendered.container.textContent || '').toContain('Occupied labels zoom');
+        await waitFor(() => (document.body.textContent || '').includes('Language'));
+        expect(document.body.textContent || '').toContain('Occupied labels zoom');
         expect(rendered.container.querySelector('button[aria-label="Open settings"]')).not.toBeNull();
     });
 
@@ -6926,8 +6971,10 @@ describe('Nostr overlay App', () => {
 
         await selectSettingsContextAction(rendered.container, 'Interfaz');
 
-        const trafficCountThumb = rendered.container.querySelector('[aria-label="Coches en ciudad"] [data-slot="slider-thumb"]') as HTMLElement;
-        const trafficSpeedThumb = rendered.container.querySelector('[aria-label="Velocidad de coches"] [data-slot="slider-thumb"]') as HTMLElement;
+        await waitFor(() => getUiSettingsDialog() !== null);
+
+        const trafficCountThumb = document.body.querySelector('[aria-label="Coches en ciudad"] [data-slot="slider-thumb"]') as HTMLElement;
+        const trafficSpeedThumb = document.body.querySelector('[aria-label="Velocidad de coches"] [data-slot="slider-thumb"]') as HTMLElement;
         expect(trafficCountThumb).toBeDefined();
         expect(trafficSpeedThumb).toBeDefined();
 
@@ -6994,15 +7041,15 @@ describe('Nostr overlay App', () => {
         expect(storedUiSettings.agoraFeedLayout).toBe('masonry');
 
         await selectSettingsContextAction(rendered.container, 'Interfaz');
-        await waitFor(() => (rendered.container.textContent || '').includes('Etiquetas de calles'));
+        await waitFor(() => getUiSettingsDialog() !== null);
 
-        const settingsMasonryButton = Array.from(rendered.container.querySelectorAll('[data-slot="toggle-group-item"]')).find((item) =>
+        const settingsMasonryButton = Array.from(document.body.querySelectorAll('[data-slot="toggle-group-item"]')).find((item) =>
             (item.textContent || '').trim() === 'Masonry'
         ) as HTMLButtonElement | undefined;
         expect(settingsMasonryButton).toBeDefined();
         expect(settingsMasonryButton?.getAttribute('data-state')).toBe('on');
 
-        const settingsListButton = Array.from(rendered.container.querySelectorAll('[data-slot="toggle-group-item"]')).find((item) =>
+        const settingsListButton = Array.from(document.body.querySelectorAll('[data-slot="toggle-group-item"]')).find((item) =>
             (item.textContent || '').trim() === 'Lista'
         ) as HTMLButtonElement | undefined;
         expect(settingsListButton).toBeDefined();

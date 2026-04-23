@@ -4,6 +4,7 @@ import { OverlayUnreadIndicator } from './OverlayUnreadIndicator';
 import { useI18n } from '@/i18n/useI18n';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Item, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item';
+import { OverlaySurface } from './OverlaySurface';
 
 interface NotificationsPageProps {
     hasUnread: boolean;
@@ -37,8 +38,8 @@ function shortPubkey(value: string, t: ReturnType<typeof useI18n>['t']): string 
 export function NotificationsPage({ hasUnread, notifications }: NotificationsPageProps) {
     const { t } = useI18n();
     return (
-        <section className="nostr-routed-surface" aria-label={t('notifications.title')}>
-            <div className="nostr-routed-surface-content">
+        <OverlaySurface ariaLabel={t('notifications.title')}>
+            <div>
                 <div className="nostr-notifications-page nostr-routed-surface-panel nostr-page-layout">
                     <OverlayPageHeader
                         title={t('notifications.title')}
@@ -73,6 +74,6 @@ export function NotificationsPage({ hasUnread, notifications }: NotificationsPag
                     </section>
                 </div>
             </div>
-        </section>
+        </OverlaySurface>
     );
 }

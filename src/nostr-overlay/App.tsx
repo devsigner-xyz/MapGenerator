@@ -6,6 +6,7 @@ import {
     getDefaultUiSettings,
     loadUiSettings,
     saveUiSettings,
+    type UiTheme,
     type UiSettingsState,
 } from '../nostr/ui-settings';
 import { loadZapSettings, type ZapSettingsState } from '../nostr/zap-settings';
@@ -55,8 +56,8 @@ import { LoginGateScreen } from './components/LoginGateScreen';
 import { SettingsAboutRoute } from './components/settings-routes/SettingsAboutRoute';
 import { SettingsAdvancedRoute } from './components/settings-routes/SettingsAdvancedRoute';
 import { SettingsShortcutsRoute } from './components/settings-routes/SettingsShortcutsRoute';
-import { SettingsUiRoute } from './components/settings-routes/SettingsUiRoute';
 import { SettingsZapsRoute } from './components/settings-routes/SettingsZapsRoute';
+import { UiSettingsDialog } from './components/UiSettingsDialog';
 import { PersonContextMenuItems } from './components/PersonContextMenuItems';
 import { useNostrOverlay, type MapLoaderStage, type NostrOverlayServices } from './hooks/useNostrOverlay';
 import { useNip05Verification } from './hooks/useNip05Verification';
@@ -82,6 +83,7 @@ import {
 import type { NostrEvent } from '../nostr/types';
 import { buildSettingsPath, settingsViewFromPathname, type SettingsRouteView } from './settings/settings-routing';
 import { useRelayConnectionSummary } from './hooks/useRelayConnectionSummary';
+import { useOverlayTheme } from './hooks/useOverlayTheme';
 import type { NoteCardModel } from './components/note-card-model';
 import type { SocialEngagementByEventId } from '../nostr/social-feed-service';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -229,6 +231,7 @@ export function App({ mapBridge, services }: AppProps) {
     const [zapSettings, setZapSettings] = useState<ZapSettingsState>(() => loadZapSettings());
     const [walletSettings, setWalletSettings] = useState<WalletSettingsState>(() => loadWalletSettings());
     const [walletActivity, setWalletActivity] = useState<WalletActivityState>(() => loadWalletActivity());
+    const [isUiSettingsDialogOpen, setIsUiSettingsDialogOpen] = useState(false);
     const [walletNwcUriInput, setWalletNwcUriInput] = useState('');
     const [pendingZapIntent, setPendingZapIntent] = useState<PendingZapIntent | null>(null);
     const [optimisticZapByEventId, setOptimisticZapByEventId] = useState<Record<string, OptimisticZapEntry>>({});
@@ -753,6 +756,7 @@ export function App({ mapBridge, services }: AppProps) {
         () => settingsViewFromPathname(location.pathname),
         [location.pathname]
     );
+    const resolvedOverlayTheme = useOverlayTheme(uiSettings.theme as UiTheme);
     const isMapRoute = location.pathname === '/';
     const isAgoraRoute = location.pathname === '/agora';
     const isChatsRoute = location.pathname === '/chats';
@@ -898,7 +902,7 @@ export function App({ mapBridge, services }: AppProps) {
         }
 
         if (!activeSettingsView) {
-            navigate('/settings/ui', { replace: true });
+            navigate(buildSettingsPath('zaps'), { replace: true });
         }
     }, [location.pathname, activeSettingsView, navigate]);
 
@@ -1300,8 +1304,30 @@ export function App({ mapBridge, services }: AppProps) {
         }));
     };
 
-    const openSettingsPage = (view: SettingsRouteView = 'ui'): void => {
+    const persistUiSettings = (nextState: UiSettingsState): void => {
+        setUiSettings(saveUiSettings(nextState));
+    };
+
+    const openUiSettingsDialog = (): void => {
+        setIsUiSettingsDialogOpen(true);
+    };
+
+    const closeUiSettingsDialog = (): void => {
+        setIsUiSettingsDialogOpen(false);
+    };
+
+    const openSettingsPage = (view: SettingsRouteView = 'zaps'): void => {
         navigate(buildSettingsPath(view));
+    };
+
+    const openSettingsDestination = (view: SettingsRouteView | 'ui'): void => {
+        if (view === 'ui') {
+            openUiSettingsDialog();
+            return;
+        }
+
+        closeUiSettingsDialog();
+        openSettingsPage(view);
     };
 
     const openDmFromContextMenu = async (pubkey: string): Promise<void> => {
@@ -1616,7 +1642,8 @@ export function App({ mapBridge, services }: AppProps) {
                     onOpenGlobalSearch={openGlobalUserSearch}
                     onOpenWallet={() => navigate('/wallet')}
                     onOpenPublish={openPublishComposer}
-                    onOpenSettings={openSettingsPage}
+                    onOpenSettings={openSettingsDestination}
+                    isUiSettingsOpen={isUiSettingsDialogOpen}
                     onLogout={handleLogout}
                     onCopyOwnerNpub={copyOwnerIdentifier}
                     onLocateOwner={locateOwnerOnMap}
@@ -1741,7 +1768,21 @@ export function App({ mapBridge, services }: AppProps) {
                 </div>
             ) : null}
 
-            <Toaster richColors position="bottom-center" closeButton={false} />
+            <Toaster richColors position="bottom-center" closeButton={false} theme={resolvedOverlayTheme} />
+
+            <UiSettingsDialog
+                open={isUiSettingsDialogOpen}
+                uiSettings={uiSettings}
+                onPersistUiSettings={persistUiSettings}
+                onOpenChange={(open) => {
+                    if (open) {
+                        openUiSettingsDialog();
+                        return;
+                    }
+
+                    closeUiSettingsDialog();
+                }}
+            />
 
             <Routes>
                 {showLoginGate ? (
@@ -1939,7 +1980,7 @@ export function App({ mapBridge, services }: AppProps) {
                             mapBridge={mapBridge}
                             suggestedRelays={overlay.suggestedRelays}
                             suggestedRelaysByType={overlay.suggestedRelaysByType}
-                            onUiSettingsChange={setUiSettings}
+                            onUiSettingsChange={persistUiSettings}
                             {...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {})}
                             zapSettings={zapSettings}
                             onZapSettingsChange={setZapSettings}
@@ -1947,17 +1988,16 @@ export function App({ mapBridge, services }: AppProps) {
                         />
                     )}
                     >
-                        <Route index element={<Navigate to="ui" replace />} />
-                        <Route path="ui" element={<SettingsUiRoute />} />
+                        <Route index element={<Navigate to="zaps" replace />} />
                         <Route path="shortcuts" element={<SettingsShortcutsRoute />} />
                         <Route path="zaps" element={<SettingsZapsRoute />} />
                         <Route path="about" element={<SettingsAboutRoute />} />
                         <Route path="advanced" element={<SettingsAdvancedRoute />} />
-                        <Route path="*" element={<Navigate to="ui" replace />} />
+                        <Route path="*" element={<Navigate to="zaps" replace />} />
                     </Route>
                     <Route path="/settings/relays" element={<Navigate to="/relays" replace />} />
                     <Route path="/settings/relays/detail" element={<Navigate to={`/relays/detail${location.search}`} replace />} />
-                    <Route path="/settings/:view" element={<Navigate to="/settings/ui" replace />} />
+                    <Route path="/settings/:view" element={<Navigate to="/settings/zaps" replace />} />
                     <Route path="/login" element={<Navigate to="/" replace />} />
                     <Route path="/" element={null} />
                     <Route path="*" element={<Navigate to="/" replace />} />

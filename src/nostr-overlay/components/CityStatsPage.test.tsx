@@ -62,5 +62,7 @@ describe('CityStatsPage', () => {
         expect(text).toContain('Occupied buildings');
         expect(text).toContain('Detected followers');
         expect(text).toContain('Current residential coverage');
+        expect(rendered.container.querySelectorAll('[data-testid="city-stats-kpi-card"]')).toHaveLength(8);
+        expect(rendered.container.querySelectorAll('[data-testid="city-stats-chart-card"]')).toHaveLength(3);
     });
 });

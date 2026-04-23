@@ -414,9 +414,10 @@ describe('FollowingFeedSurface', () => {
         expect(rendered.container.textContent || '').toContain('Timeline en tiempo real de personas que sigues');
 
         const surfaceContent = rendered.container.querySelector('.nostr-following-feed-surface-content') as HTMLElement;
-        const routedSurfaceContent = rendered.container.querySelector('.nostr-routed-surface-content') as HTMLElement;
+        const routedSurfaceContent = rendered.container.querySelector('[data-testid="overlay-surface-content"]') as HTMLElement;
         const composeCard = rendered.container.querySelector('.nostr-following-feed-compose[data-slot="card"]');
         expect(surfaceContent).toBeDefined();
+        expect(routedSurfaceContent).toBeDefined();
         expect(routedSurfaceContent.className).toContain('nostr-following-feed-routed-surface-content');
         expect(surfaceContent.className).toContain('nostr-following-feed-page-edge-to-edge');
         expect(surfaceContent.classList.contains('nostr-following-feed-dialog')).toBe(false);

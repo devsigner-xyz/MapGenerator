@@ -17,7 +17,6 @@ describe('settings-routing', () => {
     });
 
     test('extracts first settings segment from pathname', () => {
-        expect(settingsViewFromPathname('/settings/ui')).toBe('ui');
         expect(settingsViewFromPathname('/settings/zaps/anything')).toBe('zaps');
     });
 
@@ -29,7 +28,7 @@ describe('settings-routing', () => {
     });
 
     test('builds canonical settings paths', () => {
-        expect(buildSettingsPath('ui')).toBe('/settings/ui');
+        expect(buildSettingsPath('zaps')).toBe('/settings/zaps');
         expect(buildSettingsPath('advanced')).toBe('/settings/advanced');
     });
 });

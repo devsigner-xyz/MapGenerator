@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { DialogFooter } from '@/components/ui/dialog';
 import { SettingsRelayDetailPage } from './settings-pages/SettingsRelayDetailPage';
 import { useRelayDetailController } from './settings-routes/controllers/useRelayDetailController';
+import { OverlaySurface } from './OverlaySurface';
 
 interface RelayDetailRouteProps {
     ownerPubkey?: string;
@@ -47,12 +48,9 @@ export function RelayDetailRoute({
     }
 
     return (
-        <section className="nostr-routed-surface" aria-label={t('relayRoute.aria')}>
-            <div className="nostr-routed-surface-content">
-                <div className="nostr-settings-page nostr-routed-surface-panel nostr-page-layout nostr-settings-page-relays">
-                    <h2 className="sr-only">{t('relayRoute.title')}</h2>
-                    <p className="sr-only">{t('relayRoute.description')}</p>
-
+        <OverlaySurface ariaLabel={t('relayRoute.aria')}>
+                <div>
+                    <div className="nostr-settings-page nostr-routed-surface-panel nostr-page-layout nostr-settings-page-relays">
                     <SettingsRelayDetailPage
                         selectedRelay={relayDetail.selectedRelay}
                         activeRelayTypes={relayDetail.activeRelayTypes}
@@ -79,6 +77,6 @@ export function RelayDetailRoute({
                     </DialogFooter>
                 </div>
             </div>
-        </section>
+        </OverlaySurface>
     );
 }

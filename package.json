@@ -90,6 +90,7 @@
     "yet-another-react-lightbox": "^3.31.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.2",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.56.1",
     "@tailwindcss/vite": "^4.2.2",

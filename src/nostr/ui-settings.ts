@@ -4,8 +4,10 @@ export const UI_SETTINGS_STORAGE_KEY = 'nostr.overlay.ui.v1';
 export const UI_SETTINGS_LANGUAGE_CHANGE_EVENT = 'nostr.overlay.ui-language-change';
 export type AgoraFeedLayout = 'list' | 'masonry';
 export type UiLanguage = AppLocale;
+export type UiTheme = 'light' | 'dark' | 'system';
 
 const DEFAULT_AGORA_FEED_LAYOUT: AgoraFeedLayout = 'list';
+const DEFAULT_THEME: UiTheme = 'system';
 const DEFAULT_OCCUPIED_LABELS_ZOOM_LEVEL = 8;
 const DEFAULT_STREET_LABELS_ENABLED = true;
 const DEFAULT_SPECIAL_MARKERS_ENABLED = true;
@@ -17,6 +19,7 @@ const DEFAULT_TRAFFIC_PARTICLES_SPEED = 1;
 interface UiSettingsPayload {
     agoraFeedLayout?: AgoraFeedLayout;
     language?: UiLanguage;
+    theme?: UiTheme;
     occupiedLabelsZoomLevel?: number;
     streetLabelsEnabled?: boolean;
     specialMarkersEnabled?: boolean;
@@ -34,6 +37,7 @@ interface StorageLike {
 export interface UiSettingsState {
     agoraFeedLayout: AgoraFeedLayout;
     language: UiLanguage;
+    theme: UiTheme;
     occupiedLabelsZoomLevel: number;
     streetLabelsEnabled: boolean;
     specialMarkersEnabled: boolean;
@@ -73,6 +77,10 @@ function normalizeOccupiedLabelsZoomLevel(value: number | undefined): number {
 
 function normalizeLanguage(value: unknown): UiLanguage {
     return value === 'es' || value === 'en' ? value : detectDefaultLanguage();
+}
+
+function normalizeTheme(value: unknown): UiTheme {
+    return value === 'light' || value === 'dark' || value === 'system' ? value : DEFAULT_THEME;
 }
 
 function normalizeStreetLabelsZoomLevel(value: number | undefined): number {
@@ -124,6 +132,7 @@ export function getDefaultUiSettings(): UiSettingsState {
     return {
         agoraFeedLayout: DEFAULT_AGORA_FEED_LAYOUT,
         language: detectDefaultLanguage(),
+        theme: DEFAULT_THEME,
         occupiedLabelsZoomLevel: DEFAULT_OCCUPIED_LABELS_ZOOM_LEVEL,
         streetLabelsEnabled: DEFAULT_STREET_LABELS_ENABLED,
         specialMarkersEnabled: DEFAULT_SPECIAL_MARKERS_ENABLED,
@@ -153,6 +162,7 @@ export function loadUiSettings(storage: StorageLike | null = getDefaultStorage()
         return {
             agoraFeedLayout: normalizeAgoraFeedLayout(parsed.agoraFeedLayout),
             language: normalizeLanguage(parsed.language),
+            theme: normalizeTheme(parsed.theme),
             occupiedLabelsZoomLevel: normalizeOccupiedLabelsZoomLevel(parsed.occupiedLabelsZoomLevel),
             streetLabelsEnabled: normalizeStreetLabelsEnabled(parsed.streetLabelsEnabled),
             specialMarkersEnabled: normalizeSpecialMarkersEnabled(parsed.specialMarkersEnabled),
@@ -173,6 +183,7 @@ export function saveUiSettings(
     const nextState: UiSettingsState = {
         agoraFeedLayout: normalizeAgoraFeedLayout(state.agoraFeedLayout),
         language: normalizeLanguage(state.language),
+        theme: normalizeTheme(state.theme),
         occupiedLabelsZoomLevel: normalizeOccupiedLabelsZoomLevel(state.occupiedLabelsZoomLevel),
         streetLabelsEnabled: normalizeStreetLabelsEnabled(state.streetLabelsEnabled),
         specialMarkersEnabled: normalizeSpecialMarkersEnabled(state.specialMarkersEnabled),
@@ -187,6 +198,7 @@ export function saveUiSettings(
         const payload: UiSettingsPayload = {
             agoraFeedLayout: nextState.agoraFeedLayout,
             language: nextState.language,
+            theme: nextState.theme,
             occupiedLabelsZoomLevel: nextState.occupiedLabelsZoomLevel,
             streetLabelsEnabled: nextState.streetLabelsEnabled,
             specialMarkersEnabled: nextState.specialMarkersEnabled,

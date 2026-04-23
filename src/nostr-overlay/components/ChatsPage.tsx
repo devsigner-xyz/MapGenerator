@@ -8,6 +8,7 @@ import { useI18n } from '@/i18n/useI18n';
 import { Card, CardContent } from '@/components/ui/card';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
+import { OverlaySurface } from './OverlaySurface';
 
 export interface ChatConversationSummary {
     id: string;
@@ -61,8 +62,8 @@ export function ChatsPage({
         : undefined;
 
     return (
-        <section className="nostr-routed-surface" aria-label={t('chats.title')}>
-            <div className="nostr-routed-surface-content">
+        <OverlaySurface ariaLabel={t('chats.title')}>
+            <div>
                 {showBootstrappingState ? (
                     <div className="nostr-chats-page nostr-routed-surface-panel nostr-page-layout nostr-chats-loading-page" data-chat-source="query">
                         <Empty className="nostr-chats-loading-empty">
@@ -110,6 +111,6 @@ export function ChatsPage({
                     </div>
                 )}
             </div>
-        </section>
+        </OverlaySurface>
     );
 }

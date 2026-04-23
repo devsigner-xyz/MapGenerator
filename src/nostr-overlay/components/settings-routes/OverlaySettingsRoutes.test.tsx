@@ -4,7 +4,6 @@ import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vi
 import { QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Navigate, Route, Routes } from 'react-router';
 import { RELAY_SETTINGS_STORAGE_KEY } from '../../../nostr/relay-settings';
-import { UI_SETTINGS_STORAGE_KEY } from '../../../nostr/ui-settings';
 import { createNostrOverlayQueryClient } from '../../query/query-client';
 import type { MapBridge } from '../../map-bridge';
 import { RelayDetailRoute } from '../RelayDetailRoute';
@@ -13,7 +12,6 @@ import { SettingsPage, type SettingsPageProps } from '../SettingsPage';
 import { SettingsAboutRoute } from './SettingsAboutRoute';
 import { SettingsAdvancedRoute } from './SettingsAdvancedRoute';
 import { SettingsShortcutsRoute } from './SettingsShortcutsRoute';
-import { SettingsUiRoute } from './SettingsUiRoute';
 import { SettingsZapsRoute } from './SettingsZapsRoute';
 
 interface RenderResult {
@@ -66,13 +64,12 @@ function buildSettingsRoutes(props: SettingsPageProps): ReactElement {
     return (
         <Routes>
             <Route path="/settings" element={<SettingsPage {...props} />}>
-                <Route index element={<Navigate to="ui" replace />} />
-                <Route path="ui" element={<SettingsUiRoute />} />
+                <Route index element={<Navigate to="zaps" replace />} />
                 <Route path="shortcuts" element={<SettingsShortcutsRoute />} />
                 <Route path="zaps" element={<SettingsZapsRoute />} />
                 <Route path="about" element={<SettingsAboutRoute />} />
                 <Route path="advanced" element={<SettingsAdvancedRoute />} />
-                <Route path="*" element={<Navigate to="ui" replace />} />
+                <Route path="*" element={<Navigate to="zaps" replace />} />
             </Route>
             <Route path="/relays" element={<RelaysRoute
                 {...relaysRouteProps}
@@ -113,20 +110,6 @@ async function renderSettingsRoute(pathname: string, overrides: Partial<Settings
     return { container, root, queryClient, bridge };
 }
 
-function getSliderThumb(container: HTMLDivElement, ariaLabel: string): HTMLElement {
-    const slider = container.querySelector(`[aria-label="${ariaLabel}"]`);
-    if (!slider) {
-        throw new Error(`Slider not found for label: ${ariaLabel}`);
-    }
-
-    const thumb = slider.querySelector('[role="slider"]') as HTMLElement | null;
-    if (!thumb) {
-        throw new Error(`Slider thumb not found for label: ${ariaLabel}`);
-    }
-
-    return thumb;
-}
-
 let mounted: RenderResult[] = [];
 
 beforeAll(() => {
@@ -154,19 +137,11 @@ afterEach(() => {
 });
 
 describe('Overlay settings routes', () => {
-    test('renders UI route and persists occupied labels zoom', async () => {
-        const rendered = await renderSettingsRoute('/settings/ui');
+    test('redirects settings index route to zaps', async () => {
+        const rendered = await renderSettingsRoute('/settings');
         mounted.push(rendered);
 
-        await act(async () => {
-            getSliderThumb(rendered.container, 'Zoom de etiquetas ocupadas').dispatchEvent(
-                new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })
-            );
-        });
-
-        const raw = window.localStorage.getItem(UI_SETTINGS_STORAGE_KEY);
-        expect(raw).not.toBeNull();
-        expect(raw || '').toContain('occupiedLabelsZoomLevel');
+        expect(rendered.container.textContent || '').toContain('Define cantidades rapidas para enviar zaps.');
     });
 
     test('mounts and unmounts advanced settings host on route lifecycle', async () => {

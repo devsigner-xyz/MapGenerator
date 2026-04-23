@@ -54,6 +54,7 @@ import {
 
 export const OVERLAY_SIDEBAR_EXPANDED_WIDTH = 380;
 export const OVERLAY_SIDEBAR_COLLAPSED_WIDTH = 56;
+type SettingsMenuView = SettingsRouteView | 'ui';
 
 interface OverlaySidebarProps {
     open: boolean;
@@ -77,7 +78,8 @@ interface OverlaySidebarProps {
     onOpenGlobalSearch: () => void;
     onOpenWallet: () => void;
     onOpenPublish: () => void;
-    onOpenSettings: (view: SettingsRouteView) => void;
+    onOpenSettings: (view: SettingsMenuView) => void;
+    isUiSettingsOpen: boolean;
     onLogout?: () => void | Promise<void>;
     onCopyOwnerNpub?: (value: string) => void | Promise<void>;
     onLocateOwner?: () => void;
@@ -116,6 +118,7 @@ function SidebarActionsMenu({
     onOpenWallet,
     onOpenPublish,
     onOpenSettings,
+    isUiSettingsOpen,
     missionsDiscoveredCount,
     missionsTotal,
     relaysConnectedCount,
@@ -137,7 +140,7 @@ function SidebarActionsMenu({
         disconnected: disconnectedRelaysCount,
     });
 
-    const isSettingsActive = activeSettingsView !== null;
+    const isSettingsActive = activeSettingsView !== null || isUiSettingsOpen;
     const [settingsExpanded, setSettingsExpanded] = useState(isSettingsActive);
 
     useEffect(() => {
@@ -325,7 +328,7 @@ function SidebarActionsMenu({
                             title={t('sidebar.settings')}
                             onClick={() => {
                                 if (collapsed) {
-                                    onOpenSettings(activeSettingsView ?? 'ui');
+                                    onOpenSettings('ui');
                                     return;
                                 }
 
@@ -342,9 +345,9 @@ function SidebarActionsMenu({
                 </SidebarMenuItem>
 
                 {!collapsed && settingsExpanded ? (
-                    <SidebarMenuSub>
-                        <SidebarMenuSubItem>
-                            <SidebarMenuSubButton asChild isActive={activeSettingsView === 'ui'}>
+                        <SidebarMenuSub>
+                            <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isUiSettingsOpen}>
                                 <button type="button" aria-label={t('sidebar.settingsUi')} onClick={() => onOpenSettings('ui')}>
                                     <span>{t('sidebar.ui')}</span>
                                 </button>
@@ -551,6 +554,7 @@ export function OverlaySidebar({
     onOpenWallet,
     onOpenPublish,
     onOpenSettings,
+    isUiSettingsOpen,
     onLogout,
     onCopyOwnerNpub,
     onLocateOwner,
@@ -594,8 +598,9 @@ export function OverlaySidebar({
                         onOpenGlobalSearch={onOpenGlobalSearch}
                         onOpenWallet={onOpenWallet}
                         onOpenPublish={onOpenPublish}
-                        onOpenSettings={onOpenSettings}
-                        missionsDiscoveredCount={missionsDiscoveredCount}
+                    onOpenSettings={onOpenSettings}
+                    isUiSettingsOpen={isUiSettingsOpen}
+                    missionsDiscoveredCount={missionsDiscoveredCount}
                         missionsTotal={missionsTotal}
                         relaysConnectedCount={relaysConnectedCount}
                         relaysTotal={relaysTotal}

@@ -25,6 +25,7 @@ import {
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item';
+import { cn } from '@/lib/utils';
 
 const VIRTUALIZATION_THRESHOLD = 120;
 const VIRTUAL_ROW_HEIGHT_PX = 68;
@@ -280,12 +281,16 @@ export function PeopleListTab({
                 variant="outline"
                 size="sm"
                 data-active={active ? 'true' : 'false'}
-                className={selectable ? 'cursor-pointer gap-2' : undefined}
+                className={cn(
+                    'gap-2 border-border/80 bg-card/90 text-card-foreground shadow-none transition-colors',
+                    'hover:bg-muted/70 data-[active=true]:bg-muted',
+                    selectable && 'cursor-pointer',
+                )}
             >
                 {selectable ? (
                     <button
                         type="button"
-                        className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 text-left outline-none"
+                        className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                         aria-pressed={active}
                         onClick={() => onSelectPerson?.(pubkey)}
                     >

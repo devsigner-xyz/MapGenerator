@@ -5,6 +5,7 @@ import { buildRelayDetailPath } from '../settings/relay-detail-routing';
 import { useI18n } from '@/i18n/useI18n';
 import { SettingsRelaysPage } from './settings-pages/SettingsRelaysPage';
 import { useRelaysSettingsController } from './settings-routes/controllers/useRelaysSettingsController';
+import { OverlaySurface } from './OverlaySurface';
 
 interface RelaysRouteProps {
     ownerPubkey?: string;
@@ -35,12 +36,9 @@ export function RelaysRoute({
     });
 
     return (
-        <section className="nostr-routed-surface" aria-label={t('relaysRoute.aria')}>
-            <div className="nostr-routed-surface-content">
-                <div className="nostr-settings-page nostr-routed-surface-panel nostr-page-layout nostr-settings-page-relays">
-                    <h2 className="sr-only">{t('relaysRoute.title')}</h2>
-                    <p className="sr-only">{t('relaysRoute.description')}</p>
-
+        <OverlaySurface ariaLabel={t('relaysRoute.aria')}>
+                <div>
+                    <div className="nostr-settings-page nostr-routed-surface-panel nostr-page-layout nostr-settings-page-relays">
                     <SettingsRelaysPage
                         configuredRows={relays.configuredRows}
                         suggestedRows={relays.suggestedRows}
@@ -89,6 +87,6 @@ export function RelaysRoute({
                     />
                 </div>
             </div>
-        </section>
+        </OverlaySurface>
     );
 }

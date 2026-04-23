@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
+import { OverlaySurface } from './OverlaySurface';
 
 interface WalletPageProps {
     walletState: WalletSettingsState;
@@ -44,8 +45,8 @@ export function WalletPage({
     const reconnectAction = connection?.method === 'webln' ? onConnectWebLn : undefined;
 
     return (
-        <section className="nostr-routed-surface" aria-label={t('wallet.title')} data-testid="wallet-page">
-            <div className="nostr-routed-surface-content">
+        <OverlaySurface ariaLabel={t('wallet.title')}>
+            <div data-testid="wallet-page">
                 <div className="nostr-routed-surface-panel nostr-page-layout gap-3">
                     <OverlayPageHeader
                         title={t('wallet.title')}
@@ -132,6 +133,6 @@ export function WalletPage({
                     </div>
                 </div>
             </div>
-        </section>
+        </OverlaySurface>
     );
 }

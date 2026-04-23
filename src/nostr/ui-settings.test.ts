@@ -15,6 +15,7 @@ describe('ui-settings', () => {
         const state = loadUiSettings(window.localStorage);
         expect(state).toEqual(getDefaultUiSettings());
         expect(state.agoraFeedLayout).toBe('list');
+        expect(state.theme).toBe('system');
         expect(state.occupiedLabelsZoomLevel).toBe(8);
         expect(state.streetLabelsEnabled).toBe(true);
         expect(state.specialMarkersEnabled).toBe(true);
@@ -50,6 +51,22 @@ describe('ui-settings', () => {
 
         expect(stored.language).toBe('es');
         expect(loaded.language).toBe('es');
+    });
+
+    test('persists selected theme when saving ui settings', () => {
+        saveUiSettings(
+            {
+                ...getDefaultUiSettings(),
+                theme: 'dark',
+            },
+            window.localStorage
+        );
+
+        const stored = JSON.parse(window.localStorage.getItem(UI_SETTINGS_STORAGE_KEY) || '{}') as Record<string, unknown>;
+        const loaded = loadUiSettings(window.localStorage);
+
+        expect(stored.theme).toBe('dark');
+        expect(loaded.theme).toBe('dark');
     });
 
     test('falls back to defaults when payload is malformed', () => {
@@ -162,5 +179,14 @@ describe('ui-settings', () => {
         const loaded = loadUiSettings(window.localStorage);
         expect(loaded.agoraFeedLayout).toBe('list');
         expect(loaded.specialMarkersEnabled).toBe(true);
+    });
+
+    test('falls back to system theme when payload is malformed', () => {
+        window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({
+            theme: 'sepia',
+        }));
+
+        const loaded = loadUiSettings(window.localStorage);
+        expect(loaded.theme).toBe('system');
     });
 });

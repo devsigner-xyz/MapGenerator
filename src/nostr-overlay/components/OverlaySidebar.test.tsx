@@ -55,6 +55,7 @@ async function renderSidebar(pathname = '/'): Promise<RenderResult> {
                     onOpenWallet={vi.fn()}
                     onOpenPublish={vi.fn()}
                     onOpenSettings={vi.fn()}
+                    isUiSettingsOpen={false}
                     onLogout={vi.fn()}
                     onCopyOwnerNpub={vi.fn()}
                     onLocateOwner={vi.fn()}

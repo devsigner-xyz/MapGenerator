@@ -552,23 +552,6 @@
     gap: 0.5rem;
 }
 
-.nostr-people-list [data-slot="item"],
-.nostr-people-virtual-row [data-slot="item"] {
-    border-color: rgba(215, 222, 228, 0.95);
-    background: rgba(251, 253, 255, 0.95);
-    color: #233a45;
-}
-
-.nostr-people-list [data-slot="item"]:hover,
-.nostr-people-virtual-row [data-slot="item"]:hover {
-    background: rgba(241, 246, 250, 0.98);
-}
-
-.nostr-people-list [data-slot="item"][data-active="true"],
-.nostr-people-virtual-row [data-slot="item"][data-active="true"] {
-    background: rgba(233, 240, 245, 0.98);
-}
-
 .nostr-people-scroll-area {
     min-height: 0;
     height: 100%;
@@ -1007,7 +990,7 @@
     margin: 0;
     font-size: 0.82rem;
     font-weight: 600;
-    color: #314b59;
+    color: var(--foreground);
 }
 
 .nostr-relay-connection-summary {
@@ -1060,19 +1043,19 @@
 .nostr-relay-summary-primary {
     margin: 0;
     font-size: 0.8rem;
-    color: #223944;
+    color: var(--foreground);
     word-break: break-all;
 }
 
 .nostr-relay-summary-sub {
     margin: 0.15rem 0 0;
     font-size: 0.72rem;
-    color: #566c78;
+    color: var(--muted-foreground);
 }
 
 .nostr-relay-meta-cell {
     font-size: 0.77rem;
-    color: #3b5563;
+    color: var(--muted-foreground);
     white-space: normal;
     word-break: break-word;
 }
@@ -1080,7 +1063,7 @@
 .nostr-relay-meta-loading {
     margin: 0.36rem 0 0;
     font-size: 0.72rem;
-    color: #5a6f7b;
+    color: var(--muted-foreground);
     display: inline-flex;
     align-items: center;
     gap: 0.28rem;
@@ -1108,7 +1091,7 @@
 
 .nostr-relay-detail-key {
     width: 190px;
-    color: #3f5663;
+    color: var(--muted-foreground);
 }
 
 .nostr-relay-detail-value {
@@ -1142,7 +1125,7 @@
 .nostr-relay-detail-description {
     margin: 0;
     font-size: 0.82rem;
-    color: #334f5d;
+    color: var(--muted-foreground);
     line-height: 1.35;
 }
 
@@ -1172,26 +1155,22 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
-    border: 1px solid rgba(206, 214, 222, 0.95);
+    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 0.42rem 0.5rem;
-    background: rgba(253, 254, 255, 0.96);
+    background: color-mix(in oklab, var(--card) 96%, transparent);
+    color: var(--card-foreground);
 }
 
 .nostr-relay-url {
     font-size: 0.8rem;
-    color: #223944;
+    color: var(--foreground);
     word-break: break-all;
 }
 
 .nostr-relay-remove {
-    border: 1px solid rgba(185, 197, 206, 0.95);
-    background: rgba(248, 251, 253, 0.98);
-    color: #304e5d;
-    border-radius: 7px;
     height: 28px;
     padding: 0 0.55rem;
-    cursor: pointer;
 }
 
 .nostr-relay-editor {
@@ -1205,7 +1184,7 @@
 
 .nostr-settings-error {
     margin: 0;
-    color: #b1473c;
+    color: var(--destructive);
     font-size: 0.82rem;
 }
 
@@ -1217,13 +1196,8 @@
 }
 
 .nostr-relay-add-suggested {
-    border: 1px solid rgba(145, 164, 176, 0.75);
-    border-radius: 8px;
-    background: rgba(249, 251, 253, 0.95);
-    color: #28424f;
     font-size: 0.76rem;
     padding: 0.3rem 0.5rem;
-    cursor: pointer;
 }
 
 .nostr-about-section {
@@ -1234,7 +1208,7 @@
 .nostr-about-section h4 {
     margin: 0;
     font-size: 0.9rem;
-    color: #2b4654;
+    color: var(--foreground);
 }
 
 .nostr-about-section ul {
@@ -1242,7 +1216,7 @@
     padding-left: 1rem;
     display: grid;
     gap: 0.24rem;
-    color: #324f5d;
+    color: var(--muted-foreground);
     font-size: 0.84rem;
 }
 
@@ -1254,11 +1228,11 @@
 .nostr-zap-item {
     display: grid;
     gap: 0.32rem;
-    border: 1px solid rgba(206, 214, 222, 0.95);
+    border: 1px solid var(--border);
     border-radius: 8px;
-    background: rgba(253, 254, 255, 0.96);
+    background: color-mix(in oklab, var(--card) 96%, transparent);
     padding: 0.45rem 0.5rem;
-    color: #27414e;
+    color: var(--card-foreground);
     font-size: 0.84rem;
 }
 
@@ -2573,6 +2547,7 @@
 @theme inline {
     --font-heading: var(--font-sans);
     --font-sans: 'Geist Variable', sans-serif;
+    --color-overlay-surface: var(--overlay-surface);
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -2638,6 +2613,7 @@
     --chart-4: oklch(0.371 0 0);
     --chart-5: oklch(0.269 0 0);
     --radius: 0.625rem;
+    --overlay-surface: color-mix(in oklab, var(--background) 86%, transparent);
     --sidebar: oklch(0.985 0 0);
     --sidebar-foreground: oklch(0.145 0 0);
     --sidebar-primary: oklch(0.205 0 0);
@@ -2672,6 +2648,7 @@
     --chart-3: oklch(0.439 0 0);
     --chart-4: oklch(0.371 0 0);
     --chart-5: oklch(0.269 0 0);
+    --overlay-surface: color-mix(in oklab, var(--background) 88%, transparent);
     --sidebar: oklch(0.205 0 0);
     --sidebar-foreground: oklch(0.985 0 0);
     --sidebar-primary: oklch(0.488 0.243 264.376);

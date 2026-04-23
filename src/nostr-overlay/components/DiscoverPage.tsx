@@ -1,7 +1,10 @@
 import type { EasterEggId } from '../../ts/ui/easter_eggs';
 import { EASTER_EGG_MISSIONS } from '../easter-eggs/missions';
 import { useI18n } from '@/i18n/useI18n';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 import { OverlayPageHeader } from './OverlayPageHeader';
+import { OverlaySurface } from './OverlaySurface';
 
 interface DiscoverPageProps {
     discoveredIds: EasterEggId[];
@@ -16,8 +19,8 @@ export function DiscoverPage({ discoveredIds }: DiscoverPageProps) {
     );
 
     return (
-        <section className="nostr-routed-surface" aria-label={t('discover.aria')}>
-            <div className="nostr-routed-surface-content">
+        <OverlaySurface ariaLabel={t('discover.aria')}>
+            <div>
                 <div className="nostr-easter-egg-missions-page nostr-routed-surface-panel nostr-page-layout">
                     <OverlayPageHeader
                         title={t('discover.title')}
@@ -28,11 +31,15 @@ export function DiscoverPage({ discoveredIds }: DiscoverPageProps) {
                             {EASTER_EGG_MISSIONS.map((mission) => {
                                 const discovered = discoveredSet.has(mission.id);
                                 return (
-                                    <li key={mission.id} className="nostr-easter-egg-missions-item">
-                                        <span className="nostr-easter-egg-missions-label">{mission.label}</span>
-                                        <span className={`nostr-easter-egg-missions-status${discovered ? ' is-discovered' : ''}`}>
-                                            {discovered ? t('discover.status.found') : t('discover.status.pending')}
-                                        </span>
+                                    <li key={mission.id}>
+                                        <Card size="sm" data-testid="discover-mission-card" className="gap-0 py-0">
+                                            <CardContent className="flex items-center justify-between gap-3 px-4 py-3">
+                                                <span className="text-sm text-card-foreground">{mission.label}</span>
+                                                <Badge variant={discovered ? 'secondary' : 'outline'}>
+                                                    {discovered ? t('discover.status.found') : t('discover.status.pending')}
+                                                </Badge>
+                                            </CardContent>
+                                        </Card>
                                     </li>
                                 );
                             })}
@@ -40,6 +47,6 @@ export function DiscoverPage({ discoveredIds }: DiscoverPageProps) {
                     </section>
                 </div>
             </div>
-        </section>
+        </OverlaySurface>
     );
 }

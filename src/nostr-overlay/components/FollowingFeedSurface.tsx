@@ -4,6 +4,7 @@ import { useI18n } from '@/i18n/useI18n';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { OverlaySurface } from './OverlaySurface';
 
 interface FollowingFeedSurfaceProps extends FollowingFeedViewProps {
     agoraFeedLayout?: AgoraFeedLayout;
@@ -70,8 +71,8 @@ export function FollowingFeedSurface({ agoraFeedLayout = 'list', onAgoraFeedLayo
         : undefined;
 
     return (
-        <section className="nostr-routed-surface nostr-following-feed-surface" aria-label="Agora">
-            <div className="nostr-routed-surface-content nostr-following-feed-routed-surface-content">
+        <OverlaySurface ariaLabel="Agora" className="nostr-following-feed-surface" contentClassName="nostr-following-feed-routed-surface-content gap-0 p-0">
+            <div>
                 <FollowingFeedContent
                     {...feedProps}
                     agoraFeedLayout={agoraFeedLayout}
@@ -81,6 +82,6 @@ export function FollowingFeedSurface({ agoraFeedLayout = 'list', onAgoraFeedLayo
                     {...(headerActions ? { headerActions } : {})}
                 />
             </div>
-        </section>
+        </OverlaySurface>
     );
 }

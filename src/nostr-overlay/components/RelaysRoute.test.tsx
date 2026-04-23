@@ -107,6 +107,6 @@ describe('RelaysRoute', () => {
         const text = rendered.container.textContent || '';
         expect(text).toContain('Relays');
         expect(text).toContain('Configured relays');
-        expect(text).toContain('Relay configuration and connection status.');
+        expect(text).toContain('Configured relays, suggested relays, and Nostr connection status.');
     });
 });

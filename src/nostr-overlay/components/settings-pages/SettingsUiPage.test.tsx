@@ -43,10 +43,49 @@ describe('SettingsUiPage', () => {
         mounted.push(rendered);
 
         expect(rendered.container.querySelector('[data-testid="settings-page-body"]')).not.toBeNull();
+        expect(rendered.container.querySelector('[data-testid="settings-ui-theme-row"]')).not.toBeNull();
         expect(rendered.container.querySelector('[data-testid="settings-ui-occupied-zoom-row"]')).not.toBeNull();
         expect(rendered.container.querySelector('[data-testid="settings-ui-street-labels-row"]')).not.toBeNull();
         expect(rendered.container.querySelector('[data-testid="settings-ui-traffic-speed-row"]')).not.toBeNull();
         expect(rendered.container.textContent || '').toContain('Interfaz');
+    });
+
+    test('renders theme controls and persists selected theme', async () => {
+        const onPersistUiSettings = vi.fn();
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+        const root = createRoot(container);
+
+        await act(async () => {
+            root.render(
+                <SettingsUiPage
+                    uiSettings={{
+                        ...getDefaultUiSettings(),
+                        theme: 'system',
+                    }}
+                    onPersistUiSettings={onPersistUiSettings}
+                />
+            );
+        });
+
+        mounted.push({ container, root });
+
+        expect(container.textContent || '').toContain('Tema');
+        expect(container.textContent || '').toContain('Sistema');
+
+        const darkButton = Array.from(container.querySelectorAll('[data-testid="settings-ui-theme-row"] [data-slot="toggle-group-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Oscuro'
+        ) as HTMLButtonElement | undefined;
+        expect(darkButton).toBeDefined();
+
+        await act(async () => {
+            darkButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onPersistUiSettings).toHaveBeenCalledWith({
+            ...getDefaultUiSettings(),
+            theme: 'dark',
+        });
     });
 
     test('renders agora layout control and persists selected layout', async () => {

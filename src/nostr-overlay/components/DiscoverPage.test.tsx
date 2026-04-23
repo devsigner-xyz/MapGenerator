@@ -49,5 +49,6 @@ describe('DiscoverPage', () => {
         expect(text).toContain('Discover');
         expect(text).toContain('You have discovered 0 of');
         expect(text).toContain('Pending');
+        expect(rendered.container.querySelectorAll('[data-testid="discover-mission-card"]')).toHaveLength(3);
     });
 });

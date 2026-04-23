@@ -14,6 +14,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/
 import { useI18n } from '@/i18n/useI18n';
 import { Spinner } from '@/components/ui/spinner';
 import { OverlayPageHeader } from './OverlayPageHeader';
+import { OverlaySurface } from './OverlaySurface';
 import { type SearchUsersResult, useUserSearchQuery } from '../query/user-search.query';
 
 interface UserSearchPageProps {
@@ -222,8 +223,8 @@ export function UserSearchPage({
     );
 
     return (
-        <section className="nostr-routed-surface" aria-label={t('userSearch.title')}>
-            <div className="nostr-routed-surface-content">
+        <OverlaySurface ariaLabel={t('userSearch.title')}>
+            <div>
                 <div className="nostr-global-search-page nostr-routed-surface-panel nostr-page-layout">
                     <OverlayPageHeader
                         title={t('userSearch.title')}
@@ -245,6 +246,6 @@ export function UserSearchPage({
                     </section>
                 </div>
             </div>
-        </section>
+        </OverlaySurface>
     );
 }

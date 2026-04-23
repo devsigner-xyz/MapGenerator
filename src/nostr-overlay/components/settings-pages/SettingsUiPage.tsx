@@ -62,6 +62,40 @@ export function SettingsUiPage({ uiSettings, onPersistUiSettings }: SettingsUiPa
 
                     <Separator className="nostr-divider" />
 
+                    <div className="grid gap-2" data-testid="settings-ui-theme-row">
+                        <div className="flex items-center justify-between gap-2">
+                            <Label>{t('settings.ui.theme.label')}</Label>
+                        </div>
+                        <ToggleGroup
+                            type="single"
+                            variant="outline"
+                            size="sm"
+                            value={uiSettings.theme}
+                            onValueChange={(value) => {
+                                if (value !== 'system' && value !== 'light' && value !== 'dark') {
+                                    return;
+                                }
+
+                                onPersistUiSettings({
+                                    ...uiSettings,
+                                    theme: value,
+                                });
+                            }}
+                        >
+                            <ToggleGroupItem value="system" aria-label={t('settings.ui.theme.systemAria')}>
+                                {t('settings.ui.theme.system')}
+                            </ToggleGroupItem>
+                            <ToggleGroupItem value="light" aria-label={t('settings.ui.theme.lightAria')}>
+                                {t('settings.ui.theme.light')}
+                            </ToggleGroupItem>
+                            <ToggleGroupItem value="dark" aria-label={t('settings.ui.theme.darkAria')}>
+                                {t('settings.ui.theme.dark')}
+                            </ToggleGroupItem>
+                        </ToggleGroup>
+                    </div>
+
+                    <Separator className="nostr-divider" />
+
                     <p>{t('settings.ui.occupiedIntro')}</p>
                     <div className="flex items-center justify-between gap-2" data-testid="settings-ui-occupied-zoom-row">
                         <Label htmlFor="nostr-occupied-zoom-level">{t('settings.ui.occupiedZoom')}</Label>

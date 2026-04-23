@@ -82,7 +82,7 @@ describe('RelayDetailRoute', () => {
 
         const text = rendered.container.textContent || '';
         expect(text).toContain('Relay detail');
-        expect(text).toContain('Information and state of a relay.');
+        expect(text).toContain('Metadata and technical capabilities of the selected relay.');
         expect(text).toContain('Back');
     });
 });
