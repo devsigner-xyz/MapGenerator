@@ -32,11 +32,16 @@ describe('graph service', () => {
     const service = createGraphService({
       pool,
       bootstrapRelays: ['wss://relay.damus.io'],
+      authorRelayDirectory: {
+        getAuthorReadRelays: vi.fn(async () => []),
+        getAuthorWriteRelays: vi.fn(async () => []),
+      },
     });
 
     const result = await service.getFollows({
       ownerPubkey: OWNER_PUBKEY,
       pubkey: TARGET_PUBKEY,
+      scopedReadRelays: ['wss://relay.follows'],
     });
 
     expect(result).toEqual({
@@ -45,6 +50,52 @@ describe('graph service', () => {
       relayHints: ['wss://relay.one'],
     });
     expect(querySync).toHaveBeenCalledTimes(1);
+    expect(querySync).toHaveBeenCalledWith(['wss://relay.follows'], expect.objectContaining({
+      authors: [TARGET_PUBKEY],
+      kinds: [3],
+    }));
+  });
+
+  it('falls back to bootstrap relays when scoped follows read returns no events', async () => {
+    const querySync = vi.fn(async (relays: string[]) => {
+      if (relays[0] === 'wss://relay.follows') {
+        return [];
+      }
+
+      return [
+        {
+          id: '9'.repeat(64),
+          pubkey: TARGET_PUBKEY,
+          created_at: 120,
+          tags: [['p', FOLLOW_ONE, 'wss://relay.one']],
+          content: '',
+        },
+      ];
+    });
+    const pool = { querySync } as unknown as SimplePool;
+
+    const service = createGraphService({
+      pool,
+      bootstrapRelays: ['wss://bootstrap.one'],
+      authorRelayDirectory: {
+        getAuthorReadRelays: vi.fn(async () => []),
+        getAuthorWriteRelays: vi.fn(async () => []),
+      },
+    });
+
+    const result = await service.getFollows({
+      ownerPubkey: OWNER_PUBKEY,
+      pubkey: TARGET_PUBKEY,
+      scopedReadRelays: ['wss://relay.follows'],
+    });
+
+    expect(result).toEqual({
+      pubkey: TARGET_PUBKEY,
+      follows: [FOLLOW_ONE],
+      relayHints: ['wss://relay.one'],
+    });
+    expect(querySync).toHaveBeenNthCalledWith(1, ['wss://relay.follows'], expect.any(Object));
+    expect(querySync).toHaveBeenNthCalledWith(2, ['wss://bootstrap.one'], expect.any(Object));
   });
 
   it('returns followers from tag scan and candidate author scan', async () => {
@@ -74,19 +125,30 @@ describe('graph service', () => {
 
     const service = createGraphService({
       pool,
-      bootstrapRelays: ['wss://relay.damus.io'],
+      bootstrapRelays: ['wss://bootstrap.one'],
+      authorRelayDirectory: {
+        getAuthorReadRelays: vi.fn(async () => []),
+        getAuthorWriteRelays: vi.fn(async () => ['wss://candidate.scope']),
+      },
     });
 
     const result = await service.getFollowers({
       ownerPubkey: OWNER_PUBKEY,
       pubkey: TARGET_PUBKEY,
       candidateAuthors: `${followerOne},${followerTwo}`,
+      scopedReadRelays: ['wss://owner.scope'],
     });
 
     expect(result.pubkey).toBe(TARGET_PUBKEY);
     expect(result.followers).toEqual([followerOne, followerTwo]);
     expect(result.complete).toBe(true);
     expect(querySync).toHaveBeenCalledTimes(2);
+    expect(querySync).toHaveBeenNthCalledWith(1, ['wss://owner.scope'], expect.objectContaining({
+      '#p': [TARGET_PUBKEY],
+    }));
+    expect(querySync).toHaveBeenNthCalledWith(2, ['wss://candidate.scope'], expect.objectContaining({
+      authors: [followerOne, followerTwo],
+    }));
   });
 
   it('returns partial followers instead of throwing when relay queries fail', async () => {
@@ -110,12 +172,17 @@ describe('graph service', () => {
     const service = createGraphService({
       pool,
       bootstrapRelays: ['wss://relay.damus.io'],
+      authorRelayDirectory: {
+        getAuthorReadRelays: vi.fn(async () => []),
+        getAuthorWriteRelays: vi.fn(async () => ['wss://candidate.scope']),
+      },
     });
 
     const result = await service.getFollowers({
       ownerPubkey: OWNER_PUBKEY,
       pubkey: TARGET_PUBKEY,
       candidateAuthors: `${followerOne}`,
+      scopedReadRelays: ['wss://owner.scope'],
     });
 
     expect(result.pubkey).toBe(TARGET_PUBKEY);
@@ -155,5 +222,48 @@ describe('graph service', () => {
       followers: [],
       complete: false,
     });
+  });
+
+  it('uses canonical relay-set cache keys for equivalent follower scopes', async () => {
+    const followsGateway: RelayGateway<GraphFollowsQuery, GraphFollowsResponseDto> = {
+      query: vi.fn(async () => ({
+        pubkey: TARGET_PUBKEY,
+        follows: [],
+        relayHints: [],
+      })),
+      clearCache: vi.fn(),
+    };
+    const followersGateway: RelayGateway<GraphFollowersQuery, GraphFollowersResponseDto> = {
+      query: vi.fn(async () => ({
+        pubkey: TARGET_PUBKEY,
+        followers: [],
+        complete: true,
+      })),
+      clearCache: vi.fn(),
+    };
+    const service = createGraphService({
+      followsGateway,
+      followersGateway,
+    });
+
+    await service.getFollowers({
+      ownerPubkey: OWNER_PUBKEY,
+      pubkey: TARGET_PUBKEY,
+      candidateAuthors: FOLLOW_ONE,
+      scopedReadRelays: ['wss://relay.two', 'wss://relay.one', 'wss://relay.one'],
+    });
+    await service.getFollowers({
+      ownerPubkey: OWNER_PUBKEY,
+      pubkey: TARGET_PUBKEY,
+      candidateAuthors: FOLLOW_ONE,
+      scopedReadRelays: ['wss://relay.one', 'wss://relay.two'],
+    });
+
+    expect(followersGateway.query).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      key: `graph:followers:${TARGET_PUBKEY}:${FOLLOW_ONE}:wss://relay.one|wss://relay.two`,
+    }));
+    expect(followersGateway.query).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      key: `graph:followers:${TARGET_PUBKEY}:${FOLLOW_ONE}:wss://relay.one|wss://relay.two`,
+    }));
   });
 });

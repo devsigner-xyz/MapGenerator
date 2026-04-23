@@ -53,12 +53,60 @@ describe('content service', () => {
       pubkey: TARGET_PUBKEY,
       limit: 2,
       until: 999,
+      scopedReadRelays: ['wss://owner.scope'],
     });
 
     expect(result.posts.map((post) => post.id)).toEqual(['1'.repeat(64), '2'.repeat(64)]);
     expect(result.posts[0]?.content).toBe('hello world');
     expect(result.hasMore).toBe(true);
     expect(result.nextUntil).toBe(19);
+    expect(querySync).toHaveBeenCalledWith(['wss://owner.scope'], expect.objectContaining({
+      authors: [TARGET_PUBKEY],
+      kinds: [1],
+    }));
+  });
+
+  it('falls back to bootstrap relays when scoped posts read returns no events', async () => {
+    const querySync = vi.fn(async (relays: string[], filter: Record<string, unknown>) => {
+      if (Array.isArray(filter.kinds) && filter.kinds[0] === 1) {
+        if (relays[0] === 'wss://owner.scope') {
+          return [];
+        }
+
+        return [
+          {
+            id: '4'.repeat(64),
+            pubkey: TARGET_PUBKEY,
+            created_at: 30,
+            tags: [],
+            content: 'fallback post',
+          },
+        ];
+      }
+
+      return [];
+    });
+    const pool = { querySync } as unknown as SimplePool;
+
+    const service = createContentService({
+      pool,
+      bootstrapRelays: ['wss://bootstrap.one'],
+      authorRelayDirectory: {
+        getAuthorReadRelays: vi.fn(async () => []),
+        getAuthorWriteRelays: vi.fn(async () => []),
+      },
+    });
+
+    const result = await service.getPosts({
+      ownerPubkey: OWNER_PUBKEY,
+      pubkey: TARGET_PUBKEY,
+      limit: 2,
+      scopedReadRelays: ['wss://owner.scope'],
+    });
+
+    expect(result.posts.map((post) => post.id)).toEqual(['4'.repeat(64)]);
+    expect(querySync).toHaveBeenNthCalledWith(1, ['wss://owner.scope'], expect.any(Object));
+    expect(querySync).toHaveBeenNthCalledWith(2, ['wss://bootstrap.one'], expect.any(Object));
   });
 
   it('returns profile stats from follows + followers discovery', async () => {
@@ -139,5 +187,46 @@ describe('content service', () => {
       followsCount: 0,
       followersCount: 0,
     });
+  });
+
+  it('uses canonical relay-set cache keys for equivalent post and stats scopes', async () => {
+    const postsGateway: RelayGateway<ContentPostsQuery, ContentPostsResponseDto> = {
+      query: vi.fn(async () => ({
+        posts: [],
+        nextUntil: null,
+        hasMore: false,
+      })),
+      clearCache: vi.fn(),
+    };
+    const profileStatsGateway: RelayGateway<ProfileStatsQuery, ProfileStatsResponseDto> = {
+      query: vi.fn(async () => ({
+        followsCount: 1,
+        followersCount: 2,
+      })),
+      clearCache: vi.fn(),
+    };
+    const service = createContentService({
+      postsGateway,
+      profileStatsGateway,
+    });
+
+    await service.getPosts({
+      ownerPubkey: OWNER_PUBKEY,
+      pubkey: TARGET_PUBKEY,
+      limit: 20,
+      scopedReadRelays: ['wss://relay.two', 'wss://relay.one', 'wss://relay.one'],
+    });
+    await service.getProfileStats({
+      ownerPubkey: OWNER_PUBKEY,
+      pubkey: TARGET_PUBKEY,
+      scopedReadRelays: ['wss://relay.one', 'wss://relay.two'],
+    });
+
+    expect(postsGateway.query).toHaveBeenCalledWith(expect.objectContaining({
+      key: `content:posts:${TARGET_PUBKEY}:20::wss://relay.one|wss://relay.two`,
+    }));
+    expect(profileStatsGateway.query).toHaveBeenCalledWith(expect.objectContaining({
+      key: `content:profile-stats:${TARGET_PUBKEY}::wss://relay.one|wss://relay.two`,
+    }));
   });
 });

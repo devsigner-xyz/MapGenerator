@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 
+import { normalizeScopedReadRelaysInput } from '../../relay/request-scoped-relays';
 import {
   graphFollowersBodySchema,
   graphFollowersQuerySchema,
@@ -38,7 +39,10 @@ export const graphRoutes: FastifyPluginAsync<GraphRoutesOptions> = async (app, o
       },
     },
     async (request) => {
-      return service.getFollows(request.query);
+      return service.getFollows({
+        ...request.query,
+        scopedReadRelays: normalizeScopedReadRelaysInput(request.query.scopedReadRelays),
+      });
     },
   );
 
@@ -61,7 +65,10 @@ export const graphRoutes: FastifyPluginAsync<GraphRoutesOptions> = async (app, o
       },
     },
     async (request) => {
-      return service.getFollowers(request.query);
+      return service.getFollowers({
+        ...request.query,
+        scopedReadRelays: normalizeScopedReadRelaysInput(request.query.scopedReadRelays),
+      });
     },
   );
 
@@ -88,6 +95,7 @@ export const graphRoutes: FastifyPluginAsync<GraphRoutesOptions> = async (app, o
         ownerPubkey: request.body.ownerPubkey,
         pubkey: request.body.pubkey,
         candidateAuthors: request.body.candidateAuthors?.join(','),
+        scopedReadRelays: normalizeScopedReadRelaysInput(request.body.scopedReadRelays),
       });
     },
   );

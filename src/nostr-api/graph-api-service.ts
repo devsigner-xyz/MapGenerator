@@ -32,10 +32,10 @@ interface ProfileStatsResponseDto {
 }
 
 export interface GraphApiService {
-    loadFollows(input: { ownerPubkey: string; pubkey: string }): Promise<FollowGraphResult>;
-    loadFollowers(input: { ownerPubkey: string; pubkey: string; candidateAuthors?: string[] }): Promise<{ followers: string[]; complete: boolean }>;
-    loadPosts(input: { ownerPubkey: string; pubkey: string; limit?: number; until?: number }): Promise<FetchLatestPostsByPubkeyResult>;
-    loadProfileStats(input: { ownerPubkey: string; pubkey: string; candidateAuthors?: string[] }): Promise<ProfileStats>;
+    loadFollows(input: { ownerPubkey: string; pubkey: string; scopedReadRelays?: string[] }): Promise<FollowGraphResult>;
+    loadFollowers(input: { ownerPubkey: string; pubkey: string; candidateAuthors?: string[]; scopedReadRelays?: string[] }): Promise<{ followers: string[]; complete: boolean }>;
+    loadPosts(input: { ownerPubkey: string; pubkey: string; limit?: number; until?: number; scopedReadRelays?: string[] }): Promise<FetchLatestPostsByPubkeyResult>;
+    loadProfileStats(input: { ownerPubkey: string; pubkey: string; candidateAuthors?: string[]; scopedReadRelays?: string[] }): Promise<ProfileStats>;
 }
 
 export interface CreateGraphApiServiceOptions {
@@ -50,6 +50,20 @@ function toCandidateAuthorsList(authors?: string[]): string[] | undefined {
     return [...new Set(authors.map((value) => value.trim().toLowerCase()).filter((value) => value.length > 0))]
 }
 
+function toScopedReadRelaysList(relays?: string[]): string[] | undefined {
+    if (!relays || relays.length === 0) {
+        return undefined;
+    }
+
+    const normalized = [...new Set(
+        relays
+            .map((value) => value.trim())
+            .filter((value) => value.length > 0)
+    )].slice(0, 12);
+
+    return normalized.length > 0 ? normalized : undefined;
+}
+
 export function createGraphApiService(options: CreateGraphApiServiceOptions = {}): GraphApiService {
     const client = options.client ?? createHttpClient();
 
@@ -59,6 +73,7 @@ export function createGraphApiService(options: CreateGraphApiServiceOptions = {}
                 query: {
                     ownerPubkey: input.ownerPubkey,
                     pubkey: input.pubkey,
+                    scopedReadRelays: toScopedReadRelaysList(input.scopedReadRelays),
                 },
             });
 
@@ -75,6 +90,7 @@ export function createGraphApiService(options: CreateGraphApiServiceOptions = {}
                     ownerPubkey: input.ownerPubkey,
                     pubkey: input.pubkey,
                     candidateAuthors: toCandidateAuthorsList(input.candidateAuthors),
+                    scopedReadRelays: toScopedReadRelaysList(input.scopedReadRelays),
                 },
             });
 
@@ -91,6 +107,7 @@ export function createGraphApiService(options: CreateGraphApiServiceOptions = {}
                     pubkey: input.pubkey,
                     limit: input.limit ?? 20,
                     until: input.until,
+                    scopedReadRelays: toScopedReadRelaysList(input.scopedReadRelays),
                 },
             });
 
@@ -112,6 +129,7 @@ export function createGraphApiService(options: CreateGraphApiServiceOptions = {}
                     ownerPubkey: input.ownerPubkey,
                     pubkey: input.pubkey,
                     candidateAuthors: toCandidateAuthorsList(input.candidateAuthors),
+                    scopedReadRelays: toScopedReadRelaysList(input.scopedReadRelays),
                 },
             });
         },

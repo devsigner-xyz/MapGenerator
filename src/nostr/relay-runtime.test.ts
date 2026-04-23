@@ -87,4 +87,29 @@ describe('resolveConservativeSocialRelaySets', () => {
         ]);
         expect(resolved.fallback).toEqual(['wss://bootstrap.one', 'wss://bootstrap.two']);
     });
+
+    test('canonicalizes equivalent relay sets from hints and suggestions', () => {
+        const resolved = resolveConservativeSocialRelaySets({
+            ownerPubkey: '8'.repeat(64),
+            additionalReadRelays: ['wss://relay.hint', 'wss://relay.extra', 'wss://relay.hint'],
+            loadSettings: () => ({
+                relays: [],
+                byType: {
+                    nip65Both: ['wss://relay.suggested'],
+                    nip65Read: ['wss://relay.extra'],
+                    nip65Write: [],
+                    dmInbox: [],
+                    search: [],
+                },
+            }),
+            bootstrapRelays: ['wss://bootstrap.one'],
+        });
+
+        expect(resolved.primary).toEqual([
+            'wss://relay.extra',
+            'wss://relay.hint',
+            'wss://relay.suggested',
+        ]);
+        expect(resolved.fallback).toEqual(['wss://bootstrap.one']);
+    });
 });

@@ -1,18 +1,23 @@
+import { SCOPED_READ_RELAY_PATTERN } from '../../relay/request-scoped-relays';
+
 export interface GraphFollowsQuery {
   ownerPubkey: string;
   pubkey: string;
+  scopedReadRelays?: string | string[];
 }
 
 export interface GraphFollowersQuery {
   ownerPubkey: string;
   pubkey: string;
   candidateAuthors?: string;
+  scopedReadRelays?: string | string[];
 }
 
 export interface GraphFollowersBody {
   ownerPubkey: string;
   pubkey: string;
   candidateAuthors?: string[];
+  scopedReadRelays?: string[];
 }
 
 export interface GraphFollowsResponseDto {
@@ -42,6 +47,24 @@ export const graphFollowsQuerySchema = {
       type: 'string',
       pattern: LOWER_HEX_64_PATTERN,
     },
+    scopedReadRelays: {
+      anyOf: [
+        {
+          type: 'string',
+          pattern: SCOPED_READ_RELAY_PATTERN,
+          maxLength: 2048,
+        },
+        {
+          type: 'array',
+          maxItems: 12,
+          items: {
+            type: 'string',
+            pattern: SCOPED_READ_RELAY_PATTERN,
+            maxLength: 2048,
+          },
+        },
+      ],
+    },
   },
 } as const;
 
@@ -61,6 +84,24 @@ export const graphFollowersQuerySchema = {
     candidateAuthors: {
       type: 'string',
       maxLength: 50_000,
+    },
+    scopedReadRelays: {
+      anyOf: [
+        {
+          type: 'string',
+          pattern: SCOPED_READ_RELAY_PATTERN,
+          maxLength: 2048,
+        },
+        {
+          type: 'array',
+          maxItems: 12,
+          items: {
+            type: 'string',
+            pattern: SCOPED_READ_RELAY_PATTERN,
+            maxLength: 2048,
+          },
+        },
+      ],
     },
   },
 } as const;
@@ -84,6 +125,15 @@ export const graphFollowersBodySchema = {
       items: {
         type: 'string',
         pattern: LOWER_HEX_64_PATTERN,
+      },
+    },
+    scopedReadRelays: {
+      type: 'array',
+      maxItems: 12,
+      items: {
+        type: 'string',
+        pattern: SCOPED_READ_RELAY_PATTERN,
+        maxLength: 2048,
       },
     },
   },

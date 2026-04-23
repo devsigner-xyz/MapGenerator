@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { finalizeEvent, getPublicKey } from 'nostr-tools';
 
 import { buildApp } from '../../app';
@@ -39,17 +39,20 @@ const buildNostrAuthHeader = ({
 };
 
 describe('graph routes', () => {
+  const getFollows = vi.fn(async () => ({
+    pubkey: TARGET_PUBKEY,
+    follows: ['b'.repeat(64)],
+    relayHints: ['wss://relay.one'],
+  }));
+  const getFollowers = vi.fn(async () => ({
+    pubkey: TARGET_PUBKEY,
+    followers: ['c'.repeat(64)],
+    complete: true,
+  }));
+
   const graphService: GraphService = {
-    getFollows: async () => ({
-      pubkey: TARGET_PUBKEY,
-      follows: ['b'.repeat(64)],
-      relayHints: ['wss://relay.one'],
-    }),
-    getFollowers: async () => ({
-      pubkey: TARGET_PUBKEY,
-      followers: ['c'.repeat(64)],
-      complete: true,
-    }),
+    getFollows,
+    getFollowers,
   };
 
   const app = buildApp({ graphService });
@@ -63,7 +66,7 @@ describe('graph routes', () => {
   });
 
   it('returns follows contract for valid query without auth proof', async () => {
-    const url = `/v1/graph/follows?ownerPubkey=${OWNER_PUBKEY}&pubkey=${TARGET_PUBKEY}`;
+    const url = `/v1/graph/follows?ownerPubkey=${OWNER_PUBKEY}&pubkey=${TARGET_PUBKEY}&scopedReadRelays=${encodeURIComponent('wss://relay.follows')}`;
     const response = await app.inject({
       method: 'GET',
       url,
@@ -75,10 +78,15 @@ describe('graph routes', () => {
       follows: ['b'.repeat(64)],
       relayHints: ['wss://relay.one'],
     });
+    expect(getFollows).toHaveBeenLastCalledWith(expect.objectContaining({
+      ownerPubkey: OWNER_PUBKEY,
+      pubkey: TARGET_PUBKEY,
+      scopedReadRelays: ['wss://relay.follows'],
+    }));
   });
 
   it('returns followers contract for valid query without auth proof', async () => {
-    const url = `/v1/graph/followers?ownerPubkey=${OWNER_PUBKEY}&pubkey=${TARGET_PUBKEY}`;
+    const url = `/v1/graph/followers?ownerPubkey=${OWNER_PUBKEY}&pubkey=${TARGET_PUBKEY}&scopedReadRelays=${encodeURIComponent('wss://relay.one')}&scopedReadRelays=${encodeURIComponent('wss://relay.two')}`;
     const response = await app.inject({
       method: 'GET',
       url,
@@ -90,18 +98,24 @@ describe('graph routes', () => {
       followers: ['c'.repeat(64)],
       complete: true,
     });
+    expect(getFollowers).toHaveBeenLastCalledWith(expect.objectContaining({
+      ownerPubkey: OWNER_PUBKEY,
+      pubkey: TARGET_PUBKEY,
+      scopedReadRelays: ['wss://relay.one', 'wss://relay.two'],
+    }));
   });
 
   it('returns followers contract for valid body via POST', async () => {
     const response = await app.inject({
       method: 'POST',
       url: '/v1/graph/followers',
-      payload: {
-        ownerPubkey: OWNER_PUBKEY,
-        pubkey: TARGET_PUBKEY,
-        candidateAuthors: ['c'.repeat(64), 'd'.repeat(64)],
-      },
-    });
+        payload: {
+          ownerPubkey: OWNER_PUBKEY,
+          pubkey: TARGET_PUBKEY,
+          candidateAuthors: ['c'.repeat(64), 'd'.repeat(64)],
+          scopedReadRelays: ['wss://relay.three', 'wss://relay.four'],
+        },
+      });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({
@@ -109,6 +123,21 @@ describe('graph routes', () => {
       followers: ['c'.repeat(64)],
       complete: true,
     });
+    expect(getFollowers).toHaveBeenLastCalledWith(expect.objectContaining({
+      ownerPubkey: OWNER_PUBKEY,
+      pubkey: TARGET_PUBKEY,
+      candidateAuthors: 'c'.repeat(64) + ',' + 'd'.repeat(64),
+      scopedReadRelays: ['wss://relay.three', 'wss://relay.four'],
+    }));
+  });
+
+  it('rejects invalid scoped read relays in followers query', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: `/v1/graph/followers?ownerPubkey=${OWNER_PUBKEY}&pubkey=${TARGET_PUBKEY}&scopedReadRelays=${encodeURIComponent('https://relay.invalid')}`,
+    });
+
+    expect(response.statusCode).toBe(400);
   });
 
   it('returns 400 when follows query is missing ownerPubkey', async () => {

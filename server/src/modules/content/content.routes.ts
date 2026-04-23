@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 
+import { normalizeScopedReadRelaysInput } from '../../relay/request-scoped-relays';
 import {
   contentPostsQuerySchema,
   contentPostsResponseSchema,
@@ -38,7 +39,10 @@ export const contentRoutes: FastifyPluginAsync<ContentRoutesOptions> = async (ap
       },
     },
     async (request) => {
-      return service.getPosts(request.query);
+      return service.getPosts({
+        ...request.query,
+        scopedReadRelays: normalizeScopedReadRelaysInput(request.query.scopedReadRelays),
+      });
     },
   );
 
@@ -61,7 +65,10 @@ export const contentRoutes: FastifyPluginAsync<ContentRoutesOptions> = async (ap
       },
     },
     async (request) => {
-      return service.getProfileStats(request.query);
+      return service.getProfileStats({
+        ...request.query,
+        scopedReadRelays: normalizeScopedReadRelaysInput(request.query.scopedReadRelays),
+      });
     },
   );
 
@@ -88,6 +95,7 @@ export const contentRoutes: FastifyPluginAsync<ContentRoutesOptions> = async (ap
         ownerPubkey: request.body.ownerPubkey,
         pubkey: request.body.pubkey,
         candidateAuthors: request.body.candidateAuthors?.join(','),
+        scopedReadRelays: normalizeScopedReadRelaysInput(request.body.scopedReadRelays),
       });
     },
   );

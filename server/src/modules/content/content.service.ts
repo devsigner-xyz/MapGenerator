@@ -1,12 +1,17 @@
 import { SimplePool } from 'nostr-tools';
 
+import type { AuthorRelayDirectory } from '../../relay/author-relay-directory';
+import { createAuthorRelayDirectory } from '../../relay/author-relay-directory';
+import { discoverFollowers, parseCandidateAuthors, parseFollowsFromKind3 } from '../../relay/follower-discovery';
 import { shouldUseFallbackRelays } from '../../relay/relay-fallback';
 import { createRelayGateway } from '../../relay/relay-gateway';
 import type {
   RelayGateway,
   RelayGatewayQueryContext,
 } from '../../relay/relay-gateway.types';
-import { resolveRelaySets } from '../../relay/relay-resolver';
+import type { RelayQueryPlanner } from '../../relay/relay-query-planner';
+import { createRelayQueryPlanner } from '../../relay/relay-query-planner';
+import { relaySetKey } from '../../relay/relay-resolver';
 import type {
   ContentPostsQuery,
   ContentPostsResponseDto,
@@ -29,15 +34,9 @@ const DEFAULT_BOOTSTRAP_RELAYS = [
   'wss://relay.nostr.band',
 ];
 
-const HEX_64_REGEX = /^[0-9a-f]{64}$/;
-const FOLLOWERS_TAG_BATCH_LIMIT = 120;
-const FOLLOWERS_TAG_MAX_BATCHES = 3;
-const CANDIDATE_AUTHOR_BATCH_SIZE = 40;
 const DEFAULT_RELAY_QUERY_TIMEOUT_MS = 7_000;
 
 const normalizePubkey = (value: string): string => value.trim().toLowerCase();
-
-const isHexPubkey = (value: string): boolean => HEX_64_REGEX.test(value);
 
 const byCreatedAtDesc = (left: NostrEventLike, right: NostrEventLike): number => {
   if (left.created_at !== right.created_at) {
@@ -49,72 +48,19 @@ const byCreatedAtDesc = (left: NostrEventLike, right: NostrEventLike): number =>
 
 const parsePostContent = (content: string): string => content.replace(/\s+/g, ' ').trim();
 
-const parseFollowsFromKind3 = (event: NostrEventLike | null | undefined): string[] => {
-  if (!event) {
-    return [];
-  }
-
-  const follows = new Set<string>();
-  for (const tag of event.tags) {
-    if (!Array.isArray(tag) || tag[0] !== 'p' || typeof tag[1] !== 'string') {
-      continue;
-    }
-
-    const candidate = normalizePubkey(tag[1]);
-    if (isHexPubkey(candidate)) {
-      follows.add(candidate);
-    }
-  }
-
-  return [...follows];
-};
-
-const parseCandidateAuthors = (value?: string): string[] => {
+function toScopedReadRelays(value?: string | string[]): string[] {
   if (!value) {
     return [];
   }
 
-  return [...new Set(
-    value
-      .split(',')
-      .map((item) => normalizePubkey(item))
-      .filter(isHexPubkey),
-  )];
-};
-
-const chunkArray = <T>(values: T[], size: number): T[][] => {
-  const chunks: T[][] = [];
-  const chunkSize = Math.max(1, size);
-  for (let index = 0; index < values.length; index += chunkSize) {
-    chunks.push(values.slice(index, index + chunkSize));
-  }
-
-  return chunks;
-};
-
-const collectFollowersFromEvents = (
-  events: NostrEventLike[],
-  targetPubkey: string,
-  followers: Set<string>,
-): { minCreatedAt: number } => {
-  let minCreatedAt = Infinity;
-
-  for (const event of events) {
-    minCreatedAt = Math.min(minCreatedAt, event.created_at);
-    const follows = parseFollowsFromKind3(event);
-    if (!follows.includes(targetPubkey)) {
-      continue;
-    }
-
-    followers.add(event.pubkey);
-  }
-
-  return { minCreatedAt };
-};
+  return Array.isArray(value) ? value : [value];
+}
 
 export interface ContentServiceOptions {
   postsGateway?: RelayGateway<ContentPostsQuery, ContentPostsResponseDto>;
   profileStatsGateway?: RelayGateway<ProfileStatsQuery, ProfileStatsResponseDto>;
+  authorRelayDirectory?: AuthorRelayDirectory;
+  relayQueryPlanner?: RelayQueryPlanner;
   fetchPosts?: (
     query: ContentPostsQuery,
     context: RelayGatewayQueryContext,
@@ -140,18 +86,20 @@ class GatewayContentService implements ContentService {
   ) {}
 
   async getPosts(query: ContentPostsQuery): Promise<ContentPostsResponseDto> {
+    const scopedRelaySetKey = relaySetKey(toScopedReadRelays(query.scopedReadRelays));
     return this.postsGateway.query({
-      key: `content:posts:${normalizePubkey(query.pubkey)}:${query.limit}:${query.until ?? ''}`,
+      key: `content:posts:${normalizePubkey(query.pubkey)}:${query.limit}:${query.until ?? ''}:${scopedRelaySetKey}`,
       params: query,
     });
   }
 
   async getProfileStats(query: ProfileStatsQuery): Promise<ProfileStatsResponseDto> {
     const candidateAuthors = parseCandidateAuthors(query.candidateAuthors);
+    const scopedRelaySetKey = relaySetKey(toScopedReadRelays(query.scopedReadRelays));
 
     try {
       return await this.profileStatsGateway.query({
-        key: `content:profile-stats:${normalizePubkey(query.pubkey)}:${candidateAuthors.join(',')}`,
+        key: `content:profile-stats:${normalizePubkey(query.pubkey)}:${candidateAuthors.join(',')}:${scopedRelaySetKey}`,
         params: query,
       });
     } catch {
@@ -166,6 +114,7 @@ class GatewayContentService implements ContentService {
 const createPoolFetchers = (options: {
   pool: SimplePool;
   bootstrapRelays: string[];
+  relayQueryPlanner: RelayQueryPlanner;
 }): {
   fetchPosts: (
     query: ContentPostsQuery,
@@ -177,20 +126,21 @@ const createPoolFetchers = (options: {
   ) => Promise<ProfileStatsResponseDto>;
 } => {
   const queryWithFallback = async <T>(
+    relaySets: { primary: string[]; fallback: string[] },
     queryFn: (relays: string[]) => Promise<T>,
+    shouldFallbackResult?: (result: T) => boolean,
   ): Promise<T> => {
-    const relaySets = resolveRelaySets({
-      scopedRelays: [],
-      userRelays: [],
-      bootstrapRelays: options.bootstrapRelays,
-    });
-
     if (shouldUseFallbackRelays({ primaryRelays: relaySets.primary })) {
       return queryFn(relaySets.fallback);
     }
 
     try {
-      return await queryFn(relaySets.primary);
+      const primaryResult = await queryFn(relaySets.primary);
+      if (relaySets.fallback.length > 0 && shouldFallbackResult?.(primaryResult)) {
+        return queryFn(relaySets.fallback);
+      }
+
+      return primaryResult;
     } catch (error) {
       if (shouldUseFallbackRelays({ primaryRelays: relaySets.primary, error })) {
         return queryFn(relaySets.fallback);
@@ -206,8 +156,12 @@ const createPoolFetchers = (options: {
   ): Promise<ContentPostsResponseDto> => {
     const pubkey = normalizePubkey(query.pubkey);
     const until = typeof query.until === 'number' && query.until > 0 ? query.until : undefined;
+    const relaySets = await options.relayQueryPlanner.planPosts({
+      scopedReadRelays: toScopedReadRelays(query.scopedReadRelays),
+      targetPubkey: pubkey,
+    });
 
-    const events = await queryWithFallback(async (relays) => {
+    const events = await queryWithFallback(relaySets, async (relays) => {
       if (relays.length === 0) {
         return [] as NostrEventLike[];
       }
@@ -218,7 +172,7 @@ const createPoolFetchers = (options: {
         until,
         limit: query.limit + 1,
       }) as Promise<NostrEventLike[]>;
-    });
+    }, (events) => events.length === 0);
 
     const sorted = [...events].sort(byCreatedAtDesc);
     const hasMore = sorted.length > query.limit;
@@ -246,8 +200,17 @@ const createPoolFetchers = (options: {
     const targetPubkey = normalizePubkey(query.pubkey);
     const candidateAuthors = parseCandidateAuthors(query.candidateAuthors)
       .filter((author) => author !== targetPubkey);
+    const targetScope = await options.relayQueryPlanner.planPosts({
+      scopedReadRelays: toScopedReadRelays(query.scopedReadRelays),
+      targetPubkey,
+    });
+    const followerPlan = await options.relayQueryPlanner.planFollowers({
+      scopedReadRelays: toScopedReadRelays(query.scopedReadRelays),
+      targetPubkey,
+      candidateAuthors,
+    });
 
-    const followsResult = await queryWithFallback(async (relays) => {
+    const followsResult = await queryWithFallback(targetScope, async (relays) => {
       if (relays.length === 0) {
         return null;
       }
@@ -259,51 +222,20 @@ const createPoolFetchers = (options: {
       }) as NostrEventLike[];
 
       return [...events].sort(byCreatedAtDesc)[0] ?? null;
-    });
+    }, (event) => event === null);
 
-    const followers = new Set<string>();
-    await queryWithFallback(async (relays) => {
-      if (relays.length === 0) {
-        return;
-      }
-
-      let until: number | undefined;
-      for (let batchIndex = 0; batchIndex < FOLLOWERS_TAG_MAX_BATCHES; batchIndex += 1) {
-        const events = await options.pool.querySync(relays, {
-          kinds: [3],
-          '#p': [targetPubkey],
-          until,
-          limit: FOLLOWERS_TAG_BATCH_LIMIT,
-        }) as NostrEventLike[];
-
-        if (events.length === 0) {
-          break;
-        }
-
-        const { minCreatedAt } = collectFollowersFromEvents(events, targetPubkey, followers);
-        if (events.length < FOLLOWERS_TAG_BATCH_LIMIT) {
-          break;
-        }
-
-        if (Number.isFinite(minCreatedAt)) {
-          until = minCreatedAt - 1;
-        }
-      }
-
-      for (const authors of chunkArray(candidateAuthors, CANDIDATE_AUTHOR_BATCH_SIZE)) {
-        const events = await options.pool.querySync(relays, {
-          kinds: [3],
-          authors,
-          limit: Math.max(FOLLOWERS_TAG_BATCH_LIMIT, authors.length * 3),
-        }) as NostrEventLike[];
-
-        collectFollowersFromEvents(events, targetPubkey, followers);
-      }
+    const discovery = await discoverFollowers({
+      targetPubkey,
+      ownerScope: followerPlan.ownerScope,
+      candidateAuthorScopes: followerPlan.candidateAuthorScopes,
+      queryEvents: async (relays, filter) => {
+        return options.pool.querySync(relays, filter) as Promise<NostrEventLike[]>;
+      },
     });
 
     return {
       followsCount: parseFollowsFromKind3(followsResult).length,
-      followersCount: followers.size,
+      followersCount: discovery.followers.length,
     };
   };
 
@@ -316,9 +248,18 @@ const createPoolFetchers = (options: {
 export const createContentService = (options: ContentServiceOptions = {}): ContentService => {
   const pool = options.pool ?? new SimplePool();
   const bootstrapRelays = options.bootstrapRelays ?? DEFAULT_BOOTSTRAP_RELAYS;
+  const authorRelayDirectory = options.authorRelayDirectory ?? createAuthorRelayDirectory({
+    pool,
+    bootstrapRelays,
+  });
+  const relayQueryPlanner = options.relayQueryPlanner ?? createRelayQueryPlanner({
+    bootstrapRelays,
+    authorRelayDirectory,
+  });
   const fetchers = createPoolFetchers({
     pool,
     bootstrapRelays,
+    relayQueryPlanner,
   });
 
   const postsGateway =

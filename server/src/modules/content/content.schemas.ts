@@ -1,8 +1,11 @@
+import { SCOPED_READ_RELAY_PATTERN } from '../../relay/request-scoped-relays';
+
 export interface ContentPostsQuery {
   ownerPubkey: string;
   pubkey: string;
   limit: number;
   until?: number;
+  scopedReadRelays?: string | string[];
 }
 
 export interface ContentPostDto {
@@ -22,12 +25,14 @@ export interface ProfileStatsQuery {
   ownerPubkey: string;
   pubkey: string;
   candidateAuthors?: string;
+  scopedReadRelays?: string | string[];
 }
 
 export interface ProfileStatsBody {
   ownerPubkey: string;
   pubkey: string;
   candidateAuthors?: string[];
+  scopedReadRelays?: string[];
 }
 
 export interface ProfileStatsResponseDto {
@@ -58,6 +63,24 @@ export const contentPostsQuerySchema = {
     until: {
       type: 'integer',
       minimum: 0,
+    },
+    scopedReadRelays: {
+      anyOf: [
+        {
+          type: 'string',
+          pattern: SCOPED_READ_RELAY_PATTERN,
+          maxLength: 2048,
+        },
+        {
+          type: 'array',
+          maxItems: 12,
+          items: {
+            type: 'string',
+            pattern: SCOPED_READ_RELAY_PATTERN,
+            maxLength: 2048,
+          },
+        },
+      ],
     },
   },
 } as const;
@@ -121,6 +144,24 @@ export const profileStatsQuerySchema = {
       type: 'string',
       maxLength: 50_000,
     },
+    scopedReadRelays: {
+      anyOf: [
+        {
+          type: 'string',
+          pattern: SCOPED_READ_RELAY_PATTERN,
+          maxLength: 2048,
+        },
+        {
+          type: 'array',
+          maxItems: 12,
+          items: {
+            type: 'string',
+            pattern: SCOPED_READ_RELAY_PATTERN,
+            maxLength: 2048,
+          },
+        },
+      ],
+    },
   },
 } as const;
 
@@ -143,6 +184,15 @@ export const profileStatsBodySchema = {
       items: {
         type: 'string',
         pattern: LOWER_HEX_64_PATTERN,
+      },
+    },
+    scopedReadRelays: {
+      type: 'array',
+      maxItems: 12,
+      items: {
+        type: 'string',
+        pattern: SCOPED_READ_RELAY_PATTERN,
+        maxLength: 2048,
       },
     },
   },

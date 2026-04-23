@@ -11,7 +11,7 @@ export interface ResolvedRelaySets {
   fallbackKey: string;
 }
 
-const normalizeRelayUrl = (url: string): string | null => {
+export const normalizeRelayUrl = (url: string): string | null => {
   try {
     const parsed = new URL(url);
     if (parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') {
@@ -28,7 +28,7 @@ const normalizeRelayUrl = (url: string): string | null => {
   }
 };
 
-const mergeRelaySets = (...relaySets: string[][]): string[] => {
+export const mergeRelaySets = (...relaySets: string[][]): string[] => {
   const merged = new Set<string>();
 
   for (const relaySet of relaySets) {
@@ -44,8 +44,12 @@ const mergeRelaySets = (...relaySets: string[][]): string[] => {
 };
 
 export const relaySetKey = (relays: string[]): string => {
-  const normalized = mergeRelaySets(relays);
+  const normalized = canonicalRelaySet(relays);
   return normalized.sort().join('|');
+};
+
+export const canonicalRelaySet = (...relaySets: string[][]): string[] => {
+  return mergeRelaySets(...relaySets).sort((left, right) => left.localeCompare(right));
 };
 
 export const resolveRelaySets = ({

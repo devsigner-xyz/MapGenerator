@@ -4,7 +4,7 @@ import type { HttpClient } from './http-client';
 import { createGraphApiService } from './graph-api-service';
 
 describe('createGraphApiService', () => {
-    test('sends followers and profile stats candidate authors via POST body and maps content responses', async () => {
+    test('sends scoped read relays and candidate authors through followers, posts, and profile stats requests', async () => {
         const getJson = vi
             .fn()
             .mockImplementationOnce(async () => ({
@@ -49,21 +49,25 @@ describe('createGraphApiService', () => {
         const follows = await service.loadFollows({
             ownerPubkey: 'f'.repeat(64),
             pubkey: 'a'.repeat(64),
+            scopedReadRelays: ['wss://relay.follows', ' wss://relay.one '],
         });
         const followers = await service.loadFollowers({
             ownerPubkey: 'f'.repeat(64),
             pubkey: 'a'.repeat(64),
             candidateAuthors: ['c'.repeat(64), 'C'.repeat(64), ''],
+            scopedReadRelays: ['wss://relay.one', ' wss://relay.two ', 'wss://relay.one', ''],
         });
         const posts = await service.loadPosts({
             ownerPubkey: 'f'.repeat(64),
             pubkey: 'a'.repeat(64),
             limit: 20,
+            scopedReadRelays: ['wss://relay.posts', ' wss://relay.posts ', 'wss://relay.alt'],
         });
         const stats = await service.loadProfileStats({
             ownerPubkey: 'f'.repeat(64),
             pubkey: 'a'.repeat(64),
             candidateAuthors: ['c'.repeat(64)],
+            scopedReadRelays: ['wss://relay.one', 'wss://relay.stats'],
         });
 
         expect(follows).toEqual({
@@ -82,14 +86,26 @@ describe('createGraphApiService', () => {
             followersCount: 2,
         });
 
+        expect(getJson).toHaveBeenNthCalledWith(1, '/graph/follows', expect.objectContaining({
+            query: expect.objectContaining({
+                scopedReadRelays: ['wss://relay.follows', 'wss://relay.one'],
+            }),
+        }));
         expect(postJson).toHaveBeenNthCalledWith(1, '/graph/followers', expect.objectContaining({
             body: expect.objectContaining({
                 candidateAuthors: ['c'.repeat(64)],
+                scopedReadRelays: ['wss://relay.one', 'wss://relay.two'],
+            }),
+        }));
+        expect(getJson).toHaveBeenNthCalledWith(2, '/content/posts', expect.objectContaining({
+            query: expect.objectContaining({
+                scopedReadRelays: ['wss://relay.posts', 'wss://relay.alt'],
             }),
         }));
         expect(postJson).toHaveBeenNthCalledWith(2, '/content/profile-stats', expect.objectContaining({
             body: expect.objectContaining({
                 candidateAuthors: ['c'.repeat(64)],
+                scopedReadRelays: ['wss://relay.one', 'wss://relay.stats'],
             }),
         }));
     });

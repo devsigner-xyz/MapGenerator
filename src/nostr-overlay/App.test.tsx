@@ -8,7 +8,7 @@ import { finalizeEvent, generateSecretKey, getPublicKey } from 'nostr-tools/pure
 import { createLocalKeyStorage } from '../nostr/auth/local-key-storage';
 import { LocalKeyAuthProvider } from '../nostr/auth/providers/local-key-provider';
 import { AUTH_SESSION_STORAGE_KEY } from '../nostr/auth/secure-storage';
-import { loadRelaySettings, RELAY_SETTINGS_STORAGE_KEY } from '../nostr/relay-settings';
+import { loadRelaySettings, RELAY_SETTINGS_STORAGE_KEY, saveRelaySettings } from '../nostr/relay-settings';
 import { UI_SETTINGS_STORAGE_KEY } from '../nostr/ui-settings';
 import { EASTER_EGG_PROGRESS_STORAGE_KEY } from '../nostr/easter-egg-progress';
 import { getBootstrapRelays } from '../nostr/relay-policy';
@@ -8078,6 +8078,151 @@ describe('Nostr overlay App', () => {
 
         await selectActiveProfileDialogTab('Feed');
         await waitFor(() => (rendered.container.textContent || '').includes('post disponible'));
+    });
+
+    test('passes scoped read relays to graph API for followers, posts, and profile stats', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+        const loadFollows = vi
+            .fn()
+            .mockResolvedValueOnce({
+                ownerPubkey,
+                follows: [followedPubkey],
+                relayHints: ['wss://relay.hint.example'],
+            })
+            .mockResolvedValueOnce({
+                ownerPubkey: followedPubkey,
+                follows: [],
+                relayHints: [],
+            });
+        const loadFollowers = vi
+            .fn()
+            .mockResolvedValueOnce({ followers: [], complete: true })
+            .mockResolvedValueOnce({ followers: [], complete: true });
+        const loadPosts = vi.fn().mockResolvedValue({ posts: [], hasMore: false, nextUntil: undefined });
+        const loadProfileStats = vi.fn().mockResolvedValue({ followsCount: 0, followersCount: 0 });
+        const { bridge, triggerOccupiedBuildingClick } = createMapBridgeStub();
+
+        saveRelaySettings({
+            relays: ['wss://relay.configured.example', 'wss://relay.readonly.example'],
+            byType: {
+                nip65Both: ['wss://relay.configured.example'],
+                nip65Read: ['wss://relay.readonly.example'],
+                nip65Write: [],
+                dmInbox: [],
+                search: [],
+            },
+        });
+
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async (_pubkey: string, kind: number) => {
+                            if (kind === 10002) {
+                                return {
+                                    id: 'relay-list',
+                                    pubkey: ownerPubkey,
+                                    kind: 10002,
+                                    created_at: 123,
+                                    tags: [['r', 'wss://relay.suggested.example']],
+                                    content: '',
+                                };
+                            }
+
+                            return null;
+                        },
+                        fetchEvents: async () => [],
+                    }),
+                    graphApiService: {
+                        loadFollows,
+                        loadFollowers,
+                        loadPosts,
+                        loadProfileStats,
+                    },
+                    fetchProfilesFn: vi.fn().mockImplementation(async (pubkeys: string[]) => {
+                        const profiles: Record<string, { pubkey: string; displayName: string }> = {};
+                        for (const pubkey of pubkeys) {
+                            if (pubkey === ownerPubkey) {
+                                profiles[pubkey] = { pubkey, displayName: 'Owner' };
+                            }
+                            if (pubkey === followedPubkey) {
+                                profiles[pubkey] = { pubkey, displayName: 'Alice' };
+                            }
+                        }
+                        return profiles;
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+        const form = rendered.container.querySelector('form');
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
+            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+        expect(loadFollows).toHaveBeenCalledWith(expect.objectContaining({
+            scopedReadRelays: expect.arrayContaining([
+                'wss://relay.configured.example',
+                'wss://relay.readonly.example',
+            ]),
+        }));
+        expect(loadFollowers).toHaveBeenCalledWith(expect.objectContaining({
+            scopedReadRelays: expect.arrayContaining([
+                'wss://relay.configured.example',
+                'wss://relay.readonly.example',
+                'wss://relay.hint.example',
+                'wss://relay.suggested.example',
+            ]),
+        }));
+
+        await act(async () => {
+            triggerOccupiedBuildingClick({ buildingIndex: 4, pubkey: followedPubkey });
+        });
+
+        await selectActiveProfileDialogTab('Feed');
+        await waitFor(() => loadPosts.mock.calls.length > 0);
+        await waitFor(() => loadProfileStats.mock.calls.length > 0);
+        await selectActiveProfileDialogTab('Seguidores');
+        await waitFor(() => loadFollowers.mock.calls.length === 2);
+
+        expect(loadPosts).toHaveBeenCalledWith(expect.objectContaining({
+            scopedReadRelays: expect.arrayContaining([
+                'wss://relay.configured.example',
+                'wss://relay.readonly.example',
+                'wss://relay.hint.example',
+                'wss://relay.suggested.example',
+            ]),
+        }));
+        expect(loadProfileStats).toHaveBeenCalledWith(expect.objectContaining({
+            scopedReadRelays: expect.arrayContaining([
+                'wss://relay.configured.example',
+                'wss://relay.readonly.example',
+                'wss://relay.hint.example',
+                'wss://relay.suggested.example',
+            ]),
+        }));
+        expect(loadFollowers).toHaveBeenLastCalledWith(expect.objectContaining({
+            scopedReadRelays: expect.arrayContaining([
+                'wss://relay.configured.example',
+                'wss://relay.readonly.example',
+                'wss://relay.hint.example',
+                'wss://relay.suggested.example',
+            ]),
+        }));
     });
 
     test('shows who the active profile follows and who follows them', async () => {

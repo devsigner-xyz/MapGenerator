@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { finalizeEvent, getPublicKey } from 'nostr-tools';
 
 import { buildApp } from '../../app';
@@ -39,23 +39,26 @@ const buildNostrAuthHeader = ({
 };
 
 describe('content routes', () => {
+  const getPosts = vi.fn(async () => ({
+    posts: [
+      {
+        id: 'b'.repeat(64),
+        pubkey: TARGET_PUBKEY,
+        createdAt: 1_719_000_100,
+        content: 'hello world',
+      },
+    ],
+    nextUntil: null,
+    hasMore: false,
+  }));
+  const getProfileStats = vi.fn(async () => ({
+    followsCount: 12,
+    followersCount: 34,
+  }));
+
   const contentService: ContentService = {
-    getPosts: async () => ({
-      posts: [
-        {
-          id: 'b'.repeat(64),
-          pubkey: TARGET_PUBKEY,
-          createdAt: 1_719_000_100,
-          content: 'hello world',
-        },
-      ],
-      nextUntil: null,
-      hasMore: false,
-    }),
-    getProfileStats: async () => ({
-      followsCount: 12,
-      followersCount: 34,
-    }),
+    getPosts,
+    getProfileStats,
   };
 
   const app = buildApp({ contentService });
@@ -69,7 +72,7 @@ describe('content routes', () => {
   });
 
   it('returns posts contract for valid query without auth proof', async () => {
-    const url = `/v1/content/posts?ownerPubkey=${OWNER_PUBKEY}&pubkey=${TARGET_PUBKEY}&limit=20&until=1719000000`;
+    const url = `/v1/content/posts?ownerPubkey=${OWNER_PUBKEY}&pubkey=${TARGET_PUBKEY}&limit=20&until=1719000000&scopedReadRelays=${encodeURIComponent('wss://relay.posts')}&scopedReadRelays=${encodeURIComponent('wss://relay.extra')}`;
     const response = await app.inject({
       method: 'GET',
       url,
@@ -88,10 +91,15 @@ describe('content routes', () => {
       nextUntil: null,
       hasMore: false,
     });
+    expect(getPosts).toHaveBeenLastCalledWith(expect.objectContaining({
+      ownerPubkey: OWNER_PUBKEY,
+      pubkey: TARGET_PUBKEY,
+      scopedReadRelays: ['wss://relay.posts', 'wss://relay.extra'],
+    }));
   });
 
   it('returns profile stats contract for valid query without auth proof', async () => {
-    const url = `/v1/content/profile-stats?ownerPubkey=${OWNER_PUBKEY}&pubkey=${TARGET_PUBKEY}`;
+    const url = `/v1/content/profile-stats?ownerPubkey=${OWNER_PUBKEY}&pubkey=${TARGET_PUBKEY}&scopedReadRelays=${encodeURIComponent('wss://relay.stats')}`;
     const response = await app.inject({
       method: 'GET',
       url,
@@ -102,24 +110,45 @@ describe('content routes', () => {
       followsCount: 12,
       followersCount: 34,
     });
+    expect(getProfileStats).toHaveBeenLastCalledWith(expect.objectContaining({
+      ownerPubkey: OWNER_PUBKEY,
+      pubkey: TARGET_PUBKEY,
+      scopedReadRelays: ['wss://relay.stats'],
+    }));
   });
 
   it('returns profile stats contract for valid body via POST', async () => {
     const response = await app.inject({
       method: 'POST',
       url: '/v1/content/profile-stats',
-      payload: {
-        ownerPubkey: OWNER_PUBKEY,
-        pubkey: TARGET_PUBKEY,
-        candidateAuthors: ['c'.repeat(64), 'd'.repeat(64)],
-      },
-    });
+        payload: {
+          ownerPubkey: OWNER_PUBKEY,
+          pubkey: TARGET_PUBKEY,
+          candidateAuthors: ['c'.repeat(64), 'd'.repeat(64)],
+          scopedReadRelays: ['wss://relay.one', 'wss://relay.two'],
+        },
+      });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({
       followsCount: 12,
       followersCount: 34,
     });
+    expect(getProfileStats).toHaveBeenLastCalledWith(expect.objectContaining({
+      ownerPubkey: OWNER_PUBKEY,
+      pubkey: TARGET_PUBKEY,
+      candidateAuthors: 'c'.repeat(64) + ',' + 'd'.repeat(64),
+      scopedReadRelays: ['wss://relay.one', 'wss://relay.two'],
+    }));
+  });
+
+  it('rejects invalid scoped read relays in posts query', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: `/v1/content/posts?ownerPubkey=${OWNER_PUBKEY}&pubkey=${TARGET_PUBKEY}&limit=20&scopedReadRelays=${encodeURIComponent('https://relay.invalid')}`,
+    });
+
+    expect(response.statusCode).toBe(400);
   });
 
   it('returns 400 when posts query has invalid limit', async () => {

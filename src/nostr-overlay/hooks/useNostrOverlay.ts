@@ -40,6 +40,7 @@ import { createHttpClient, type HttpClientAuthContext } from '../../nostr-api/ht
 import { createSocialFeedApiService } from '../../nostr-api/social-feed-api-service';
 import { createSocialNotificationsApiService } from '../../nostr-api/social-notifications-api-service';
 import { createUserSearchApiService } from '../../nostr-api/user-search-api-service';
+import { resolveConservativeSocialRelaySets } from '../../nostr/relay-runtime';
 import type { MapBridge } from '../map-bridge';
 import { FEATURED_OCCUPANT_PUBKEYS } from '../domain/featured-occupants';
 import { createFollowerBatcher } from './follower-batcher';
@@ -753,19 +754,22 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         }));
     };
 
-    const resolveOverlayRelays = (relayHints: string[]): string[] => {
-        const configuredRelays = (() => {
-            const loaded = loadRelaySettings(createRelaySettingsInput(scopedRelayOwnerPubkey));
-            const protocolRelays = mergeRelaySets(
-                getRelaySetByType(loaded, 'nip65Write'),
-                getRelaySetByType(loaded, 'nip65Both'),
-                getRelaySetByType(loaded, 'nip65Read')
-            );
-            const candidates = protocolRelays.length > 0 ? protocolRelays : loaded.relays;
-            return candidates.length > 0 ? candidates : getBootstrapRelays();
-        })();
+    const resolveScopedReadRelays = (input: { relayHints: string[]; suggestedRelaysByType: RelaySettingsByType }): string[] => {
+        return resolveConservativeSocialRelaySets({
+            ...(scopedRelayOwnerPubkey !== undefined ? { ownerPubkey: scopedRelayOwnerPubkey } : {}),
+            additionalReadRelays: mergeRelaySets(
+                input.relayHints,
+                input.suggestedRelaysByType.nip65Both,
+                input.suggestedRelaysByType.nip65Read
+            ),
+        }).primary;
+    };
 
-        return mergeRelaySets(configuredRelays, relayHints);
+    const resolveOverlayRelays = (relayHints: string[]): string[] => {
+        return resolveScopedReadRelays({
+            relayHints,
+            suggestedRelaysByType: latestStateRef.current.data.suggestedRelaysByType,
+        });
     };
 
     useEffect(() => {
@@ -995,6 +999,16 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 : await graphApiService.loadFollows({
                     ownerPubkey: input.session.pubkey,
                     pubkey: input.session.pubkey,
+                    scopedReadRelays: resolveScopedReadRelays({
+                        relayHints: [],
+                        suggestedRelaysByType: {
+                            nip65Both: [],
+                            nip65Read: [],
+                            nip65Write: [],
+                            dmInbox: [],
+                            search: [],
+                        },
+                    }),
                 });
 
             const follows = dedupe(graph.follows);
@@ -1180,10 +1194,15 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 });
 
                 try {
+                    const scopedReadRelays = resolveScopedReadRelays({
+                        relayHints: graph.relayHints,
+                        suggestedRelaysByType,
+                    });
                     const followersResult = await graphApiService.loadFollowers({
                         ownerPubkey: graph.ownerPubkey,
                         pubkey: graph.ownerPubkey,
                         candidateAuthors: follows,
+                        scopedReadRelays,
                     });
 
                     if (requestIdRef.current !== requestId) {
@@ -1770,6 +1789,10 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                     pubkey,
                     ...(limit !== undefined ? { limit } : {}),
                     ...(until !== undefined ? { until } : {}),
+                    scopedReadRelays: resolveScopedReadRelays({
+                        relayHints: current.data.relayHints,
+                        suggestedRelaysByType: current.data.suggestedRelaysByType,
+                    }),
                 });
             },
             loadStats: async ({ pubkey }) => {
@@ -1786,6 +1809,10 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                     ownerPubkey,
                     pubkey,
                     candidateAuthors: current.data.follows,
+                    scopedReadRelays: resolveScopedReadRelays({
+                        relayHints: current.data.relayHints,
+                        suggestedRelaysByType: current.data.suggestedRelaysByType,
+                    }),
                 });
             },
             loadNetwork: async ({ pubkey }) => {
@@ -1839,11 +1866,19 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                     graphApiService.loadFollows({
                         ownerPubkey,
                         pubkey,
+                        scopedReadRelays: resolveScopedReadRelays({
+                            relayHints: current.data.relayHints,
+                            suggestedRelaysByType: current.data.suggestedRelaysByType,
+                        }),
                     }),
                     graphApiService.loadFollowers({
                         ownerPubkey,
                         pubkey,
                         candidateAuthors: current.data.follows,
+                        scopedReadRelays: resolveScopedReadRelays({
+                            relayHints: current.data.relayHints,
+                            suggestedRelaysByType: current.data.suggestedRelaysByType,
+                        }),
                     }),
                     relaySuggestionsByTypePromise,
                 ]);
