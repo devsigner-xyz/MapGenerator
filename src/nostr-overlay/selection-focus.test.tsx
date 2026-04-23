@@ -115,6 +115,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+    window.localStorage.clear();
     vi.spyOn(ndkClientModule, 'createNdkDmTransportClient').mockReturnValue({
         publishToRelays: vi.fn(async () => ({
             ackedRelays: [],
@@ -227,5 +228,85 @@ describe('Nostr overlay selection map interaction', () => {
         const lastRegenerationCall = callsAfterRegeneration[callsAfterRegeneration.length - 1][0];
         expect(lastRegenerationCall.byBuildingIndex).toBeDefined();
         expect(Object.keys(lastRegenerationCall.byBuildingIndex).length).toBeGreaterThan(0);
+    });
+
+    test('manual map regeneration does not refocus the last selected building', { timeout: 15_000 }, async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const pubkeyA = 'a'.repeat(64);
+        const pubkeyB = 'b'.repeat(64);
+        const { bridge } = createMapBridgeStub(3);
+
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByNpubFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [pubkeyA, pubkeyB],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockResolvedValue({
+                        [pubkeyA]: { pubkey: pubkeyA, displayName: 'Alice' },
+                        [pubkeyB]: { pubkey: pubkeyB, displayName: 'Bob' },
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+        const form = rendered.container.querySelector('form');
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
+            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        });
+        await flush();
+
+        const followingTab = Array.from(rendered.container.querySelectorAll('button')).find(button =>
+            (button.textContent || '').includes('Sigues (2)')
+        );
+        expect(followingTab).toBeDefined();
+
+        await act(async () => {
+            followingTab?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+            followingTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('Alice'));
+
+        const aliceButton = Array.from(rendered.container.querySelectorAll('button')).find(button =>
+            (button.textContent || '').includes('Alice')
+        );
+        expect(aliceButton).toBeDefined();
+
+        await act(async () => {
+            aliceButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(bridge.focusBuilding).toHaveBeenCalledTimes(1);
+        (bridge.focusBuilding as any).mockClear();
+        (bridge.regenerateMap as any).mockClear();
+
+        const regenerateButton = rendered.container.querySelector('.nostr-map-zoom-controls button[aria-label="Regenerar mapa"]') as HTMLButtonElement | null;
+        expect(regenerateButton).not.toBeNull();
+
+        await act(async () => {
+            regenerateButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (bridge.regenerateMap as any).mock.calls.length === 1);
+        expect(bridge.focusBuilding).not.toHaveBeenCalled();
     });
 });

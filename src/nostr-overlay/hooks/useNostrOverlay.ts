@@ -1371,10 +1371,6 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                     : {}),
             });
 
-            if (occupancy.selectedBuildingIndex !== undefined) {
-                mapBridge.focusBuilding(occupancy.selectedBuildingIndex);
-            }
-
             setState((nextState) => {
                 if (!hasLoadedOverlayData(nextState.status) || nextState.data.ownerPubkey !== current.data.ownerPubkey) {
                     return nextState;
