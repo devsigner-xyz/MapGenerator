@@ -8,8 +8,6 @@ function isNostrDependency(id: string): boolean {
 
 function isThreeStlDependency(id: string): boolean {
     return id.includes('/three/')
-        || id.includes('/three-csg-ts/')
-        || id.includes('/threejs-export-stl/')
         || id.includes('/jsts/');
 }
 

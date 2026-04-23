@@ -8,8 +8,7 @@ describe('resolveManualChunk', () => {
 
     it('groups heavy Three/STL dependencies in three-stl chunk', () => {
         expect(resolveManualChunk('/node_modules/three/build/three.module.js')).toBe('three-stl');
-        expect(resolveManualChunk('/node_modules/threejs-export-stl/index.js')).toBe('three-stl');
-        expect(resolveManualChunk('/node_modules/three-csg-ts/index.js')).toBe('three-stl');
+        expect(resolveManualChunk('/node_modules/three/examples/jsm/exporters/STLExporter.js')).toBe('three-stl');
     });
 
     it('groups overlay app code into overlay chunk', () => {
