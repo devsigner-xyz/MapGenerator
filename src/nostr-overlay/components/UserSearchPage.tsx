@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { Nip05ValidationResult } from '../../nostr/nip05';
 import { encodeHexToNpub } from '../../nostr/npub';
 import type { NostrProfile } from '../../nostr/types';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item';
 import {
@@ -15,6 +15,7 @@ import { useI18n } from '@/i18n/useI18n';
 import { Spinner } from '@/components/ui/spinner';
 import { OverlayPageHeader } from './OverlayPageHeader';
 import { OverlaySurface } from './OverlaySurface';
+import { VerifiedUserAvatar } from './VerifiedUserAvatar';
 import { type SearchUsersResult, useUserSearchQuery } from '../query/user-search.query';
 
 interface UserSearchPageProps {
@@ -24,6 +25,7 @@ interface UserSearchPageProps {
     onSelectUser: (pubkey: string) => void;
     ownerPubkey?: string | undefined;
     followedPubkeys?: string[];
+    verificationByPubkey?: Record<string, Nip05ValidationResult | undefined>;
     onFollowUser?: (pubkey: string) => void | Promise<void>;
     onMessageUser?: (pubkey: string) => void | Promise<void>;
 }
@@ -50,6 +52,7 @@ export function UserSearchPage({
     onSelectUser,
     ownerPubkey,
     followedPubkeys = [],
+    verificationByPubkey = {},
     onFollowUser,
     onMessageUser,
 }: UserSearchPageProps) {
@@ -141,6 +144,7 @@ export function UserSearchPage({
     ) : (
         rows.map(({ pubkey, profile }) => {
             const display = profileDisplayName(pubkey, profile);
+            const verification = verificationByPubkey[pubkey];
             const canFollow = typeof onFollowUser === 'function' && ownerPubkey !== pubkey;
             const isFollowPending = Object.prototype.hasOwnProperty.call(pendingFollowByPubkey, pubkey);
             const isFollowed = isFollowPending ? true : followedSet.has(pubkey);
@@ -166,12 +170,17 @@ export function UserSearchPage({
                         className="w-full justify-between border-transparent bg-transparent group-data-selected/command-item:bg-muted/80"
                     >
                         <div className="flex min-w-0 items-center gap-2">
-                            <Avatar className="size-8">
-                                {profile?.picture ? <AvatarImage src={profile.picture} alt={display} /> : null}
-                                <AvatarFallback>{display.slice(0, 2).toUpperCase()}</AvatarFallback>
-                            </Avatar>
+                            <VerifiedUserAvatar
+                                picture={profile?.picture}
+                                imageAlt={display}
+                                fallback={display.slice(0, 2).toUpperCase()}
+                                nip05={profile?.nip05}
+                                verification={verification}
+                            />
                             <ItemContent>
-                                <ItemTitle className="truncate">{display}</ItemTitle>
+                                <ItemTitle className="nostr-identity-row">
+                                    <span className="truncate">{display}</span>
+                                </ItemTitle>
                                 <ItemDescription className="truncate">{profileShortNpub(pubkey)}</ItemDescription>
                             </ItemContent>
                         </div>

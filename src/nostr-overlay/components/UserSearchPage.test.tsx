@@ -182,6 +182,111 @@ describe('UserSearchPage', () => {
         }
     });
 
+    test('renders verified badge inside large avatar for verified search results', async () => {
+        vi.useFakeTimers();
+        const pubkey = 'e'.repeat(64);
+        const onSearch = vi.fn(async () => ({
+            pubkeys: [pubkey],
+            profiles: {
+                [pubkey]: {
+                    pubkey,
+                    displayName: 'Elena',
+                    nip05: '_@example.com',
+                },
+            },
+        }));
+
+        try {
+            const rendered = await renderElement(
+                <UserSearchPage
+                    onClose={() => {}}
+                    onSearch={onSearch}
+                    onSelectUser={() => {}}
+                    verificationByPubkey={{
+                        [pubkey]: {
+                            status: 'verified',
+                            identifier: '_@example.com',
+                            displayIdentifier: 'example.com',
+                            checkedAt: Date.now(),
+                        },
+                    }}
+                />
+            );
+            mounted.push(rendered);
+
+            const input = rendered.container.querySelector('input[aria-label="Buscar usuarios globalmente"]') as HTMLInputElement;
+
+            await typeSearchValue(input, 'elena');
+            await flushDebounce();
+
+            await waitForAssertion(() => {
+                expect(rendered.container.textContent || '').toContain('Elena');
+            });
+
+            const row = Array.from(rendered.container.querySelectorAll('[data-slot="command-item"]')).find((item) =>
+                (item.textContent || '').includes('Elena')
+            ) as HTMLElement;
+            expect(row).toBeDefined();
+
+            const avatar = row.querySelector('[data-slot="avatar"]') as HTMLElement;
+            expect(avatar).toBeDefined();
+            expect(avatar.getAttribute('data-size')).toBe('lg');
+
+            const verifiedBadge = row.querySelector('[data-slot="avatar-badge"][aria-label="NIP-05 verificado por DNS: example.com"]') as HTMLElement;
+            expect(verifiedBadge).toBeDefined();
+            expect(verifiedBadge.className).toContain('bg-green-600');
+            expect(verifiedBadge.querySelector('.lucide-circle-check')).toBeDefined();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    test('shows warning avatar badge for non-verified search results', async () => {
+        vi.useFakeTimers();
+        const pubkey = 'f'.repeat(64);
+        const onSearch = vi.fn(async () => ({
+            pubkeys: [pubkey],
+            profiles: {
+                [pubkey]: {
+                    pubkey,
+                    displayName: 'Felix',
+                    nip05: '_@example.com',
+                },
+            },
+        }));
+
+        try {
+            const rendered = await renderElement(
+                <UserSearchPage
+                    onClose={() => {}}
+                    onSearch={onSearch}
+                    onSelectUser={() => {}}
+                />
+            );
+            mounted.push(rendered);
+
+            const input = rendered.container.querySelector('input[aria-label="Buscar usuarios globalmente"]') as HTMLInputElement;
+
+            await typeSearchValue(input, 'felix');
+            await flushDebounce();
+
+            await waitForAssertion(() => {
+                expect(rendered.container.textContent || '').toContain('Felix');
+            });
+
+            const row = Array.from(rendered.container.querySelectorAll('[data-slot="command-item"]')).find((item) =>
+                (item.textContent || '').includes('Felix')
+            ) as HTMLElement;
+            expect(row).toBeDefined();
+            expect(row.querySelector('.nostr-nip05-status-icon')).toBeNull();
+            const warningBadge = row.querySelector('[data-slot="avatar-badge"][aria-label="NIP-05 pendiente de verificacion DNS: example.com"]') as HTMLElement;
+            expect(warningBadge).toBeDefined();
+            expect(warningBadge.querySelector('.lucide-triangle-alert')).toBeDefined();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     test('calls onSelectUser when user row action is clicked', async () => {
         vi.useFakeTimers();
         const pubkey = 'b'.repeat(64);

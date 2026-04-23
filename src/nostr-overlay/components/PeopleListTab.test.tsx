@@ -102,7 +102,7 @@ describe('PeopleListTab', () => {
         const avatars = rendered.container.querySelectorAll('[data-slot="avatar"]');
         expect(selectedButton).toBeDefined();
         expect(firstButton).toBeDefined();
-        expect(Array.from(avatars).every((avatar) => avatar.classList.contains('size-9'))).toBe(true);
+        expect(Array.from(avatars).every((avatar) => avatar.getAttribute('data-size') === 'lg')).toBe(true);
         expect(selectedButton?.getAttribute('aria-pressed')).toBe('true');
         const items = rendered.container.querySelectorAll('[data-slot="item"]');
         expect(items).toHaveLength(2);
@@ -303,7 +303,7 @@ describe('PeopleListTab', () => {
         expect(onConfigureZapAmounts).toHaveBeenCalledTimes(1);
     });
 
-    test('shows npub label and nip05 status icon without text in list rows', async () => {
+    test('shows npub label and verified avatar badge without text in list rows', async () => {
         const alice = makePubkey(1);
         const aliceNpub = encodeHexToNpub(alice);
 
@@ -333,9 +333,37 @@ describe('PeopleListTab', () => {
         expect(content).toContain(`${aliceNpub.slice(0, 14)}...${aliceNpub.slice(-6)}`);
         expect(content).not.toContain(`${alice.slice(0, 8)}...${alice.slice(-6)}`);
 
-        const verifiedBadge = rendered.container.querySelector('[aria-label="NIP-05 verificado por DNS: example.com"]') as HTMLElement;
+        const avatar = rendered.container.querySelector('[data-slot="avatar"]') as HTMLElement;
+        expect(avatar.getAttribute('data-size')).toBe('lg');
+
+        const verifiedBadge = rendered.container.querySelector('[data-slot="avatar-badge"][aria-label="NIP-05 verificado por DNS: example.com"]') as HTMLElement;
         expect(verifiedBadge).toBeDefined();
         expect(verifiedBadge.getAttribute('title')).toBe('NIP-05 verificado por DNS: example.com');
+        expect(verifiedBadge.className).toContain('bg-green-600');
+        expect(verifiedBadge.querySelector('.lucide-circle-check')).toBeDefined();
+        expect(rendered.container.querySelector('.nostr-nip05-status-icon')).toBeNull();
+    });
+
+    test('shows warning avatar badge when nip05 is present but verification is still pending in list rows', async () => {
+        const alice = makePubkey(9);
+
+        const rendered = await renderElement(
+            <PeopleListTab
+                people={[alice]}
+                profiles={{
+                    [alice]: { pubkey: alice, displayName: 'Alice', nip05: '_@example.com' },
+                }}
+                emptyText="Sin resultados"
+                loading={false}
+            />
+        );
+        mounted.push(rendered);
+
+        expect(rendered.container.textContent || '').toContain('Alice');
+        expect(rendered.container.querySelector('.nostr-nip05-status-icon')).toBeNull();
+        const warningBadge = rendered.container.querySelector('[data-slot="avatar-badge"][aria-label="NIP-05 pendiente de verificacion DNS: example.com"]') as HTMLElement;
+        expect(warningBadge).toBeDefined();
+        expect(warningBadge.querySelector('.lucide-triangle-alert')).toBeDefined();
     });
 
     test('shows copy action and zap submenu for followers rows', { timeout: 15_000 }, async () => {

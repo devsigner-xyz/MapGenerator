@@ -1968,6 +1968,7 @@ export function App({ mapBridge, services }: AppProps) {
                             }}
                             {...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {})}
                             followedPubkeys={overlay.follows}
+                            verificationByPubkey={verificationByPubkey}
                             {...(overlay.canWrite ? { onFollowUser: followPerson } : {})}
                             {...(canAccessDirectMessages ? { onMessageUser: openDmFromContextMenu } : {})}
                         />
@@ -2041,6 +2042,7 @@ export function App({ mapBridge, services }: AppProps) {
                     {...(activeProfileVerification !== undefined
                         ? { verification: activeProfileVerification }
                         : {})}
+                    verificationByPubkey={verificationByPubkey}
                     onLoadMorePosts={activeProfileData.loadMorePosts}
                     onSelectHashtag={selectProfilePostHashtag}
                     onSelectProfile={openMentionedProfile}

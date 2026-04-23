@@ -181,7 +181,7 @@ describe('ChatsPage', () => {
         const list = rendered.container.querySelector('.nostr-chat-conversation-list') as HTMLElement;
         const item = rendered.container.querySelector('.nostr-chat-conversation-item') as HTMLElement;
         expect(avatarFallback).not.toBeNull();
-        expect(avatar.classList.contains('size-10')).toBe(true);
+        expect(avatar.getAttribute('data-size')).toBe('lg');
         expect(avatarFallback.textContent || '').toContain('AL');
         expect(rendered.container.textContent || '').toContain('Hola');
         expect(rendered.container.querySelector('button[aria-label="Abrir acciones para Alice"]')).toBeNull();
@@ -190,6 +190,73 @@ describe('ChatsPage', () => {
         expect(list.classList.contains('min-w-0')).toBe(true);
         expect(item.classList.contains('w-full')).toBe(true);
         expect(item.classList.contains('min-w-0')).toBe(true);
+    });
+
+    test('renders verified badge inside large avatar for verified conversations', async () => {
+        const rendered = await renderElement(
+            <ChatsPage
+                hasUnreadGlobal={false}
+                conversations={[
+                    buildConversation({
+                        profile: {
+                            pubkey: 'a'.repeat(64),
+                            displayName: 'Alice',
+                            nip05: '_@example.com',
+                        },
+                        verification: {
+                            status: 'verified',
+                            identifier: '_@example.com',
+                            displayIdentifier: 'example.com',
+                            checkedAt: Date.now(),
+                        },
+                    }),
+                ]}
+                messages={[buildMessage()]}
+                activeConversationId={null}
+                onOpenConversation={() => {}}
+                onSendMessage={async () => {}}
+            />
+        );
+        mounted.push(rendered);
+
+        const rowButton = rendered.container.querySelector('button[data-chat-conversation="peer-1"]') as HTMLButtonElement;
+        const avatar = rowButton.querySelector('[data-slot="avatar"]') as HTMLElement;
+        expect(avatar).toBeDefined();
+        expect(avatar.getAttribute('data-size')).toBe('lg');
+
+        const verifiedBadge = rowButton.querySelector('[data-slot="avatar-badge"][aria-label="NIP-05 verificado por DNS: example.com"]') as HTMLElement;
+        expect(verifiedBadge).toBeDefined();
+        expect(verifiedBadge.className).toContain('bg-green-600');
+        expect(verifiedBadge.querySelector('.lucide-circle-check')).toBeDefined();
+        expect(rowButton.querySelector('.nostr-nip05-status-icon')).toBeNull();
+    });
+
+    test('shows warning avatar badge for non-verified nip05 conversations', async () => {
+        const rendered = await renderElement(
+            <ChatsPage
+                hasUnreadGlobal={false}
+                conversations={[
+                    buildConversation({
+                        profile: {
+                            pubkey: 'a'.repeat(64),
+                            displayName: 'Alice',
+                            nip05: '_@example.com',
+                        },
+                    }),
+                ]}
+                messages={[buildMessage()]}
+                activeConversationId={null}
+                onOpenConversation={() => {}}
+                onSendMessage={async () => {}}
+            />
+        );
+        mounted.push(rendered);
+
+        const rowButton = rendered.container.querySelector('button[data-chat-conversation="peer-1"]') as HTMLButtonElement;
+        expect(rowButton.querySelector('.nostr-nip05-status-icon')).toBeNull();
+        const warningBadge = rowButton.querySelector('[data-slot="avatar-badge"][aria-label="NIP-05 pendiente de verificacion DNS: example.com"]') as HTMLElement;
+        expect(warningBadge).toBeDefined();
+        expect(warningBadge.querySelector('.lucide-triangle-alert')).toBeDefined();
     });
 
     test('shows undecryptable placeholder in detail view', async () => {

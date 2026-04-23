@@ -12,7 +12,7 @@ import { Nip05Identifier } from './Nip05Identifier';
 import { fromPostPreview } from './note-card-adapters';
 import type { NoteCardModel } from './note-card-model';
 import { withoutNoteActions } from './note-card-model';
-import { CircleCheckIcon, CopyIcon, EllipsisVerticalIcon } from 'lucide-react';
+import { CopyIcon, EllipsisVerticalIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -25,11 +25,11 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item';
 import type { I18nContextValue } from '@/i18n/I18nProvider';
 import { useI18n } from '@/i18n/useI18n';
 import { PersonContextMenuItems } from './PersonContextMenuItems';
+import { VerifiedUserAvatar } from './VerifiedUserAvatar';
 import { toast } from 'sonner';
 import type { SocialEngagementMetrics } from '../../nostr/social-feed-service';
 
@@ -53,6 +53,7 @@ interface OccupantProfileDialogProps {
     networkLoading: boolean;
     networkError?: string;
     verification?: Nip05ValidationResult;
+    verificationByPubkey?: Record<string, Nip05ValidationResult | undefined>;
     onLoadMorePosts: () => Promise<void>;
     onSelectHashtag?: (hashtag: string) => void;
     onSelectProfile?: (pubkey: string) => void;
@@ -193,6 +194,7 @@ export function OccupantProfileDialog({
     networkLoading,
     networkError,
     verification,
+    verificationByPubkey = {},
     onLoadMorePosts,
     onSelectHashtag,
     onSelectProfile,
@@ -232,7 +234,6 @@ export function OccupantProfileDialog({
     const [activeTab, setActiveTab] = useState<OccupantProfileTab>('info');
     const [isAvatarLightboxOpen, setIsAvatarLightboxOpen] = useState(false);
     const ownerFollowSet = useMemo(() => new Set(ownerFollows), [ownerFollows]);
-    const isNip05Verified = verification?.status === 'verified';
     const displayName = resolveName(pubkey, profile);
     const relaySuggestionRows = useMemo(
         () => buildRelaySuggestionRows(relaySuggestionsByType),
@@ -472,6 +473,7 @@ export function OccupantProfileDialog({
         const personNpubLabel = personNpub.startsWith('npub1')
             ? truncateIdentifier(personNpub)
             : `${personPubkey.slice(0, 8)}...${personPubkey.slice(-6)}`;
+        const personVerification = verificationByPubkey[personPubkey];
         const selectable = typeof onSelectProfile === 'function';
         const canFollow = typeof onFollowProfile === 'function' && ownerPubkey !== personPubkey;
         const canCopy = typeof onCopyNpub === 'function';
@@ -489,12 +491,13 @@ export function OccupantProfileDialog({
         const personContent = (
             <>
                 <ItemMedia>
-                    <Avatar className="size-9">
-                        {personProfile?.picture ? (
-                            <AvatarImage src={personProfile.picture} alt={personDisplay} />
-                        ) : null}
-                        <AvatarFallback>{resolveInitials(personPubkey, personProfile)}</AvatarFallback>
-                    </Avatar>
+                    <VerifiedUserAvatar
+                        picture={personProfile?.picture}
+                        imageAlt={personDisplay}
+                        fallback={resolveInitials(personPubkey, personProfile)}
+                        nip05={personProfile?.nip05}
+                        verification={personVerification}
+                    />
                 </ItemMedia>
                 <ItemContent className="min-w-0">
                     <ItemTitle>
@@ -595,35 +598,37 @@ export function OccupantProfileDialog({
                         {profile?.picture ? (
                             <button
                                 type="button"
-                                className="nostr-dialog-avatar-trigger overflow-hidden rounded-full"
-                                aria-label={t('profile.dialog.openAvatar')}
-                                onClick={() => setIsAvatarLightboxOpen(true)}
-                            >
-                                <Avatar className="size-12 border border-border/70 shadow-xs">
-                                    <AvatarImage src={profile.picture} alt={t('profile.dialog.avatarAlt')} />
-                                    <AvatarFallback className="bg-muted text-muted-foreground">
-                                        {resolveInitials(pubkey, profile)}
-                                    </AvatarFallback>
-                                </Avatar>
-                            </button>
-                        ) : (
-                            <Avatar className="size-12 border border-border/70 shadow-xs" aria-hidden="true">
-                                <AvatarFallback className="bg-muted text-muted-foreground">
-                                    {resolveInitials(pubkey, profile)}
-                                </AvatarFallback>
-                            </Avatar>
-                        )}
+                        className="nostr-dialog-avatar-trigger overflow-hidden rounded-full"
+                        aria-label={t('profile.dialog.openAvatar')}
+                        onClick={() => setIsAvatarLightboxOpen(true)}
+                    >
+                        <VerifiedUserAvatar
+                            picture={profile.picture}
+                            imageAlt={t('profile.dialog.avatarAlt')}
+                            fallback={resolveInitials(pubkey, profile)}
+                            nip05={profile?.nip05}
+                            verification={verification}
+                            className="border border-border/70 shadow-xs"
+                            fallbackClassName="bg-muted text-muted-foreground"
+                        />
+                    </button>
+                ) : (
+                    <VerifiedUserAvatar
+                        imageAlt={t('profile.dialog.avatarAlt')}
+                        fallback={resolveInitials(pubkey, profile)}
+                        nip05={profile?.nip05}
+                        verification={verification}
+                        className="border border-border/70 shadow-xs"
+                        fallbackClassName="bg-muted text-muted-foreground"
+                        ariaHidden
+                    />
+                )}
 
-                        <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
-                            <div className="min-w-0 space-y-1">
-                                <p className="nostr-dialog-name nostr-identity-row inline-flex max-w-full items-center gap-2 text-base font-semibold text-foreground">
-                                    <span className="truncate">{resolveName(pubkey, profile)}</span>
-                                    {isNip05Verified ? (
-                                        <Badge className="nostr-verified-badge" variant="secondary" title={t('profile.dialog.nip05Verified')} aria-label={t('profile.dialog.nip05Verified')}>
-                                            <CircleCheckIcon aria-hidden="true" className="size-3" />
-                                        </Badge>
-                                    ) : null}
-                                </p>
+                <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
+                    <div className="min-w-0 space-y-1">
+                        <p className="nostr-dialog-name nostr-identity-row inline-flex max-w-full items-center gap-2 text-base font-semibold text-foreground">
+                            <span className="truncate">{resolveName(pubkey, profile)}</span>
+                        </p>
                                 <div className="nostr-dialog-pubkey-row flex items-center gap-1">
                                     <p className="nostr-dialog-pubkey truncate text-sm text-muted-foreground">{npubLabel}</p>
                                     <Button

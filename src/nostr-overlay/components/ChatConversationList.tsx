@@ -1,7 +1,6 @@
 import type { ChatConversationSummary } from './ChatsPage';
-import { Nip05Identifier } from './Nip05Identifier';
+import { VerifiedUserAvatar } from './VerifiedUserAvatar';
 import { useI18n } from '@/i18n/useI18n';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/components/ui/item';
 import { Spinner } from '@/components/ui/spinner';
@@ -68,23 +67,19 @@ export function ChatConversationList({ conversations, loading, activeConversatio
                                 onClick={() => onOpenConversation(conversation.id)}
                             >
                                 <ItemMedia>
-                                    <Avatar className="size-10">
-                                        {conversation.profile?.picture ? (
-                                            <AvatarImage src={conversation.profile.picture} alt={conversation.title} />
-                                        ) : null}
-                                        <AvatarFallback>{conversationInitials(conversation.title, conversation.peerPubkey)}</AvatarFallback>
-                                    </Avatar>
+                                    <VerifiedUserAvatar
+                                        picture={conversation.profile?.picture}
+                                        imageAlt={conversation.title}
+                                        fallback={conversationInitials(conversation.title, conversation.peerPubkey)}
+                                        nip05={conversation.profile?.nip05}
+                                        verification={conversation.verification}
+                                    />
                                 </ItemMedia>
 
                                 <ItemContent className="min-w-0">
                                     <ItemTitle className="nostr-chat-conversation-title-row">
                                         <span className="nostr-chat-conversation-title-content">
                                             <span className="nostr-chat-conversation-title">{conversation.title}</span>
-                                            <Nip05Identifier
-                                                {...(conversation.profile ? { profile: conversation.profile } : {})}
-                                                {...(conversation.verification ? { verification: conversation.verification } : {})}
-                                                mode="icon"
-                                            />
                                         </span>
                                         {conversation.hasUnread ? <span className="nostr-chat-conversation-unread" aria-hidden="true" /> : null}
                                     </ItemTitle>

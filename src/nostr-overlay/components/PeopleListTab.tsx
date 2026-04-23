@@ -6,8 +6,8 @@ import type { Nip05ValidationResult } from '../../nostr/nip05';
 import type { NostrProfile } from '../../nostr/types';
 import { profileHasZapEndpoint } from '../../nostr/zaps';
 import { ListLoadingFooter } from './ListLoadingFooter';
-import { Nip05Identifier } from './Nip05Identifier';
 import { PersonContextMenuItems } from './PersonContextMenuItems';
+import { VerifiedUserAvatar } from './VerifiedUserAvatar';
 import { useI18n } from '@/i18n/useI18n';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
@@ -23,7 +23,6 @@ import {
     ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item';
 import { cn } from '@/lib/utils';
 
@@ -264,11 +263,6 @@ export function PeopleListTab({
             : isFollowed
                 ? t('peopleList.unfollow', { displayName: display })
                 : t('peopleList.followPerson', { displayName: display });
-        const nip05IdentifierProps = {
-            ...(profile ? { profile } : {}),
-            ...(verification ? { verification } : {}),
-            mode: 'icon' as const,
-        };
         const contextMenuActionProps = {
             ...(canLocate ? { onLocateOnMap: () => onLocatePerson?.(pubkey) } : {}),
             ...(canCopy ? { onCopyNpub: () => onCopyNpub?.(pubkeyToNpub(pubkey)) } : {}),
@@ -295,17 +289,17 @@ export function PeopleListTab({
                         onClick={() => onSelectPerson?.(pubkey)}
                     >
                         <ItemMedia>
-                            <Avatar className="size-9">
-                                {profile?.picture ? (
-                                    <AvatarImage src={profile.picture} alt={display} />
-                                ) : null}
-                                <AvatarFallback>{personInitials(pubkey, profile)}</AvatarFallback>
-                            </Avatar>
+                            <VerifiedUserAvatar
+                                picture={profile?.picture}
+                                imageAlt={display}
+                                fallback={personInitials(pubkey, profile)}
+                                nip05={profile?.nip05}
+                                verification={verification}
+                            />
                         </ItemMedia>
                         <ItemContent className="min-w-0">
                             <ItemTitle className="nostr-identity-row">
                                 <span className="truncate">{display}</span>
-                                <Nip05Identifier {...nip05IdentifierProps} />
                             </ItemTitle>
                             <ItemDescription className="truncate">{npubLabel}</ItemDescription>
                         </ItemContent>
@@ -313,17 +307,17 @@ export function PeopleListTab({
                 ) : (
                     <>
                         <ItemMedia>
-                            <Avatar className="size-9">
-                                {profile?.picture ? (
-                                    <AvatarImage src={profile.picture} alt={display} />
-                                ) : null}
-                                <AvatarFallback>{personInitials(pubkey, profile)}</AvatarFallback>
-                            </Avatar>
+                            <VerifiedUserAvatar
+                                picture={profile?.picture}
+                                imageAlt={display}
+                                fallback={personInitials(pubkey, profile)}
+                                nip05={profile?.nip05}
+                                verification={verification}
+                            />
                         </ItemMedia>
                         <ItemContent className="min-w-0">
                             <ItemTitle className="nostr-identity-row">
                                 <span className="truncate">{display}</span>
-                                <Nip05Identifier {...nip05IdentifierProps} />
                             </ItemTitle>
                             <ItemDescription className="truncate">{npubLabel}</ItemDescription>
                         </ItemContent>

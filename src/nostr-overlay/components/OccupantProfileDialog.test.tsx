@@ -962,7 +962,7 @@ describe('OccupantProfileDialog', () => {
         expect(text).toContain('nota citada desde perfil');
     });
 
-    test('moves full verification indicator to information tab and shows icon badge near name', async () => {
+    test('moves full verification indicator to information tab and shows verified badge inside avatar', async () => {
         const rendered = await renderElement(
             <OccupantProfileDialog
                 {...buildProps({
@@ -985,8 +985,13 @@ describe('OccupantProfileDialog', () => {
         const nameRow = document.body.querySelector('.nostr-dialog-name') as HTMLElement;
         expect(nameRow).toBeDefined();
         expect(nameRow.textContent || '').not.toContain('alice@example.com');
+        expect(nameRow.querySelector('.nostr-verified-badge')).toBeNull();
 
-        const verifiedBadge = nameRow.querySelector('.nostr-verified-badge') as HTMLElement;
+        const avatar = document.body.querySelector('.nostr-dialog-header [data-slot="avatar"]') as HTMLElement;
+        expect(avatar).toBeDefined();
+        expect(avatar.getAttribute('data-size')).toBe('lg');
+
+        const verifiedBadge = document.body.querySelector('.nostr-dialog-header [data-slot="avatar-badge"]') as HTMLElement;
         expect(verifiedBadge).toBeDefined();
         expect(verifiedBadge.textContent || '').toBe('');
 
