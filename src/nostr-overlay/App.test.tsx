@@ -3880,6 +3880,64 @@ describe('Nostr overlay App', () => {
         expect(rendered.container.querySelector('.nostr-panel-toolbar .nostr-notifications-unread-dot')).toBeNull();
     });
 
+    test('does not start social notifications for readonly npub sessions', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const socialNotifications = createSocialNotificationsServiceMock();
+        const fetchFollowsByNpubFn = vi.fn().mockResolvedValue({
+            ownerPubkey,
+            follows: [],
+            relayHints: [],
+        });
+        const fetchProfilesFn = vi.fn().mockResolvedValue({
+            [ownerPubkey]: { pubkey: ownerPubkey, displayName: 'Owner' },
+        });
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByNpubFn,
+                    fetchProfilesFn,
+                    fetchFollowersBestEffortFn: vi.fn().mockResolvedValue({
+                        followers: [],
+                        scannedBatches: 1,
+                        complete: true,
+                    }),
+                    socialNotificationsService: socialNotifications.service,
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+        const form = rendered.container.querySelector('form');
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(npubInput, encodeHexToNpub(ownerPubkey));
+            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        });
+
+        await waitFor(() => fetchFollowsByNpubFn.mock.calls.length > 0 && fetchProfilesFn.mock.calls.length > 0);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+        await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        });
+
+        expect(socialNotifications.service.loadInitialSocial).not.toHaveBeenCalled();
+        expect(socialNotifications.service.subscribeSocial).not.toHaveBeenCalled();
+    });
+
     test('uses lastReadAt semantics for realtime notifications unread state', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const storageKey = buildSocialLastReadStorageKey(ownerPubkey, 'v1');
@@ -8193,11 +8251,13 @@ describe('Nostr overlay App', () => {
             triggerOccupiedBuildingClick({ buildingIndex: 4, pubkey: followedPubkey });
         });
 
-        await selectActiveProfileDialogTab('Feed');
         await waitFor(() => loadPosts.mock.calls.length > 0);
         await waitFor(() => loadProfileStats.mock.calls.length > 0);
-        await selectActiveProfileDialogTab('Seguidores');
+        await waitFor(() => loadFollows.mock.calls.length === 2);
         await waitFor(() => loadFollowers.mock.calls.length === 2);
+
+        await selectActiveProfileDialogTab('Feed');
+        await selectActiveProfileDialogTab('Seguidores');
 
         expect(loadPosts).toHaveBeenCalledWith(expect.objectContaining({
             scopedReadRelays: expect.arrayContaining([

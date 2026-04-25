@@ -109,6 +109,40 @@ describe('content service', () => {
     expect(querySync).toHaveBeenNthCalledWith(2, ['wss://bootstrap.one'], expect.any(Object));
   });
 
+  it('returns an empty posts page when the posts gateway times out', async () => {
+    const timeoutError = new Error('Relay query timed out after 7000ms');
+    timeoutError.name = 'TimeoutError';
+    const postsGateway: RelayGateway<ContentPostsQuery, ContentPostsResponseDto> = {
+      query: vi.fn(async () => {
+        throw timeoutError;
+      }),
+      clearCache: vi.fn(),
+    };
+    const profileStatsGateway: RelayGateway<ProfileStatsQuery, ProfileStatsResponseDto> = {
+      query: vi.fn(async () => ({
+        followsCount: 0,
+        followersCount: 0,
+      })),
+      clearCache: vi.fn(),
+    };
+
+    const service = createContentService({
+      postsGateway,
+      profileStatsGateway,
+    });
+
+    await expect(service.getPosts({
+      ownerPubkey: OWNER_PUBKEY,
+      pubkey: TARGET_PUBKEY,
+      limit: 10,
+      scopedReadRelays: ['wss://owner.scope'],
+    })).resolves.toEqual({
+      posts: [],
+      nextUntil: null,
+      hasMore: false,
+    });
+  });
+
   it('returns profile stats from follows + followers discovery', async () => {
     const follower = 'c'.repeat(64);
     const querySync = vi.fn(async (_relays: string[], filter: Record<string, unknown>) => {

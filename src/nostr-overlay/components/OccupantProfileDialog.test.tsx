@@ -83,6 +83,7 @@ function buildProps(overrides: Partial<Parameters<typeof OccupantProfileDialog>[
         profilesByPubkey: {},
         networkLoading: false,
         onLoadMorePosts: vi.fn(async () => {}),
+        onRetryPosts: vi.fn(async () => {}),
         engagementByEventId: {},
         onSelectProfile: vi.fn(),
         onResolveProfiles: vi.fn(async () => {}),
@@ -790,6 +791,176 @@ describe('OccupantProfileDialog', () => {
         });
 
         expect(onLoadMorePosts).toHaveBeenCalledTimes(1);
+    });
+
+    test('shows a retry empty state instead of raw internal server errors in the feed tab', async () => {
+        const onRetryPosts = vi.fn(async () => {});
+        const rendered = await renderElement(
+            <OccupantProfileDialog
+                {...buildProps({
+                    posts: [],
+                    postsLoading: false,
+                    postsError: 'Internal server error',
+                    onRetryPosts,
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        await selectTab('Feed');
+
+        const text = document.body.textContent || '';
+        expect(text).not.toContain('Internal server error');
+        expect(text).toContain('No se pudo cargar el feed');
+        expect(text).toContain('Reintentar');
+
+        const retryButton = Array.from(document.body.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Reintentar')
+        ) as HTMLButtonElement | undefined;
+        expect(retryButton).toBeDefined();
+
+        await act(async () => {
+            retryButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onRetryPosts).toHaveBeenCalledTimes(1);
+    });
+
+    test('keeps loaded feed posts visible and shows retry CTA instead of raw feed errors', async () => {
+        const onRetryPosts = vi.fn(async () => {});
+        const rendered = await renderElement(
+            <OccupantProfileDialog
+                {...buildProps({
+                    posts: [
+                        {
+                            id: 'post-with-error-1',
+                            pubkey: 'a'.repeat(64),
+                            createdAt: 1_700_000_000,
+                            content: 'Nota ya cargada',
+                        },
+                    ],
+                    postsLoading: false,
+                    postsError: 'Request timed out after 10000ms',
+                    onRetryPosts,
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        await selectTab('Feed');
+        await waitForCondition(() => (document.body.textContent || '').includes('Nota ya cargada'));
+
+        const activePanel = document.body.querySelector('[data-slot="tabs-content"][data-state="active"]') as HTMLElement;
+        expect(activePanel.textContent || '').toContain('Nota ya cargada');
+        expect(activePanel.textContent || '').not.toContain('Request timed out after 10000ms');
+        expect(activePanel.textContent || '').toContain('No se pudo cargar el feed');
+
+        const retryButton = Array.from(activePanel.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Reintentar')
+        ) as HTMLButtonElement | undefined;
+        expect(retryButton).toBeDefined();
+
+        await act(async () => {
+            retryButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onRetryPosts).toHaveBeenCalledTimes(1);
+    });
+
+    test('shows a retry empty state instead of raw network errors in follower tabs', async () => {
+        const onRetryNetwork = vi.fn(async () => {});
+        const rendered = await renderElement(
+            <OccupantProfileDialog
+                {...buildProps({
+                    follows: [],
+                    followers: [],
+                    networkLoading: false,
+                    networkError: 'Request timed out after 10000ms',
+                    onRetryNetwork,
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        await selectTab('Seguidores');
+
+        let activePanel = document.body.querySelector('[data-slot="tabs-content"][data-state="active"]') as HTMLElement;
+        expect(activePanel.textContent || '').not.toContain('Request timed out after 10000ms');
+        expect(activePanel.textContent || '').toContain('No se pudo cargar la red social');
+        expect(activePanel.textContent || '').toContain('Reintentar');
+
+        let retryButton = Array.from(activePanel.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Reintentar')
+        ) as HTMLButtonElement | undefined;
+        expect(retryButton).toBeDefined();
+
+        await act(async () => {
+            retryButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+        expect(onRetryNetwork).toHaveBeenCalledTimes(1);
+
+        await selectTab('Siguiendo');
+
+        activePanel = document.body.querySelector('[data-slot="tabs-content"][data-state="active"]') as HTMLElement;
+        expect(activePanel.textContent || '').not.toContain('Request timed out after 10000ms');
+        expect(activePanel.textContent || '').toContain('No se pudo cargar la red social');
+
+        retryButton = Array.from(activePanel.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Reintentar')
+        ) as HTMLButtonElement | undefined;
+        expect(retryButton).toBeDefined();
+
+        await act(async () => {
+            retryButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+        expect(onRetryNetwork).toHaveBeenCalledTimes(2);
+    });
+
+    test('keeps loaded network lists visible and shows retry CTA instead of raw network errors', async () => {
+        const onRetryNetwork = vi.fn(async () => {});
+        const rendered = await renderElement(
+            <OccupantProfileDialog
+                {...buildProps({
+                    networkError: 'Request timed out after 10000ms',
+                    onRetryNetwork,
+                })}
+            />
+        );
+        mounted.push(rendered);
+
+        await selectTab('Seguidores');
+
+        let activePanel = document.body.querySelector('[data-slot="tabs-content"][data-state="active"]') as HTMLElement;
+        expect(activePanel.textContent || '').toContain('Dave');
+        expect(activePanel.textContent || '').not.toContain('Request timed out after 10000ms');
+        expect(activePanel.textContent || '').toContain('No se pudo cargar la red social');
+
+        let retryButton = Array.from(activePanel.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Reintentar')
+        ) as HTMLButtonElement | undefined;
+        expect(retryButton).toBeDefined();
+
+        await act(async () => {
+            retryButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+        expect(onRetryNetwork).toHaveBeenCalledTimes(1);
+
+        await selectTab('Siguiendo');
+
+        activePanel = document.body.querySelector('[data-slot="tabs-content"][data-state="active"]') as HTMLElement;
+        expect(activePanel.textContent || '').toContain('Bob');
+        expect(activePanel.textContent || '').not.toContain('Request timed out after 10000ms');
+        expect(activePanel.textContent || '').toContain('No se pudo cargar la red social');
+
+        retryButton = Array.from(activePanel.querySelectorAll('button')).find((button) =>
+            (button.textContent || '').includes('Reintentar')
+        ) as HTMLButtonElement | undefined;
+        expect(retryButton).toBeDefined();
+
+        await act(async () => {
+            retryButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+        expect(onRetryNetwork).toHaveBeenCalledTimes(2);
     });
 
     test('keeps a small inset around feed note cards so borders are not clipped', async () => {

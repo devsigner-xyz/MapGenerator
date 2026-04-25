@@ -29,12 +29,18 @@ interface ProbeProps {
 
 interface ActiveProfileProbeState {
     posts: Array<{ id: string }>;
+    postsError?: string;
     hasMorePosts: boolean;
     loadMorePosts: () => Promise<void>;
+    retryPosts: () => Promise<void>;
     statsError?: string;
     networkLoading: boolean;
+    networkError?: string;
+    retryNetwork: () => Promise<void>;
     followsCount: number;
     followersCount: number;
+    follows: string[];
+    followers: string[];
     relaySuggestionsByType: RelaySettingsByType;
 }
 
@@ -232,6 +238,37 @@ describe('useActiveProfileQuery', () => {
         expect(loadPosts).toHaveBeenNthCalledWith(2, { pubkey: 'alice', limit: 10, until: 123 });
     });
 
+    test('exposes a retry action for failed initial posts loads', async () => {
+        const loadPosts = vi
+            .fn()
+            .mockRejectedValueOnce(new Error('status 400'))
+            .mockResolvedValueOnce(page(['post-after-retry']));
+        const service: ActiveProfileQueryService = {
+            loadPosts,
+            loadStats: async () => ({ followsCount: 0, followersCount: 0 }),
+            loadNetwork: async () => network(),
+        };
+
+        let latest: ActiveProfileProbeState | null = null;
+        const rendered = await renderElement(createElement(ActiveProfileProbe, {
+            pubkey: 'alice',
+            service,
+            onUpdate: (next: ActiveProfileProbeState) => {
+                latest = next;
+            },
+        }));
+        mounted.push(rendered);
+
+        await waitFor(() => latest?.postsError === 'status 400');
+
+        await act(async () => {
+            await latest?.retryPosts();
+        });
+
+        await waitFor(() => Boolean(latest?.posts.some((post) => post.id === 'post-after-retry')));
+        expect(loadPosts).toHaveBeenCalledTimes(2);
+    });
+
     test('falls back to network counts when stats query fails', async () => {
         const service: ActiveProfileQueryService = {
             loadPosts: async () => page([]),
@@ -260,6 +297,37 @@ describe('useActiveProfileQuery', () => {
         const followersCount = current ? current.followersCount : 0;
         expect(followsCount).toBe(2);
         expect(followersCount).toBe(3);
+    });
+
+    test('exposes a retry action for failed active profile network loads', async () => {
+        const loadNetwork = vi
+            .fn()
+            .mockRejectedValueOnce(new Error('Request timed out after 10000ms'))
+            .mockResolvedValueOnce(network(['p1'], ['p2']));
+        const service: ActiveProfileQueryService = {
+            loadPosts: async () => page([]),
+            loadStats: async () => ({ followsCount: 0, followersCount: 0 }),
+            loadNetwork,
+        };
+
+        let latest: ActiveProfileProbeState | null = null;
+        const rendered = await renderElement(createElement(ActiveProfileProbe, {
+            pubkey: 'alice',
+            service,
+            onUpdate: (next: ActiveProfileProbeState) => {
+                latest = next;
+            },
+        }));
+        mounted.push(rendered);
+
+        await waitFor(() => latest?.networkError === 'Request timed out after 10000ms');
+
+        await act(async () => {
+            await latest?.retryNetwork();
+        });
+
+        await waitFor(() => latest?.follows.includes('p1') === true && latest?.followers.includes('p2') === true);
+        expect(loadNetwork).toHaveBeenCalledTimes(2);
     });
 
     test('returns relay suggestions provided by network query', async () => {

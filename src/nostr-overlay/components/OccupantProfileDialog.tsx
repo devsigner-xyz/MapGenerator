@@ -22,7 +22,7 @@ import {
     ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item';
@@ -55,6 +55,8 @@ interface OccupantProfileDialogProps {
     verification?: Nip05ValidationResult;
     verificationByPubkey?: Record<string, Nip05ValidationResult | undefined>;
     onLoadMorePosts: () => Promise<void>;
+    onRetryPosts?: () => Promise<void>;
+    onRetryNetwork?: () => Promise<void>;
     onSelectHashtag?: (hashtag: string) => void;
     onSelectProfile?: (pubkey: string) => void;
     onCopyNpub?: (value: string) => void | Promise<void>;
@@ -222,6 +224,8 @@ export function OccupantProfileDialog({
     onResolveEventReferences,
     eventReferencesById,
     onClose,
+    onRetryPosts,
+    onRetryNetwork,
 }: OccupantProfileDialogProps) {
     const { t } = useI18n();
     const followsTimerRef = useRef<number | null>(null);
@@ -567,6 +571,40 @@ export function OccupantProfileDialog({
         ...(eventReferencesById ? { eventReferencesById } : {}),
     };
     const canRenderPostActions = typeof onOpenThread === 'function' && typeof onToggleReaction === 'function' && typeof onToggleRepost === 'function' && typeof onZap === 'function';
+    const renderFeedErrorState = (): ReactNode => (
+        <div className="nostr-profile-posts-empty-state">
+            <Empty className="nostr-profile-posts-empty">
+                <EmptyHeader>
+                    <EmptyTitle>{t('profile.feed.errorTitle')}</EmptyTitle>
+                    <EmptyDescription>{t('profile.feed.errorDescription')}</EmptyDescription>
+                </EmptyHeader>
+                {onRetryPosts ? (
+                    <EmptyContent>
+                        <Button type="button" variant="outline" onClick={() => void onRetryPosts()}>
+                            {t('profile.feed.retry')}
+                        </Button>
+                    </EmptyContent>
+                ) : null}
+            </Empty>
+        </div>
+    );
+    const renderNetworkErrorState = (): ReactNode => (
+        <div className="nostr-profile-network-empty-state">
+            <Empty className="nostr-profile-network-empty">
+                <EmptyHeader>
+                    <EmptyTitle>{t('profile.network.errorTitle')}</EmptyTitle>
+                    <EmptyDescription>{t('profile.network.errorDescription')}</EmptyDescription>
+                </EmptyHeader>
+                {onRetryNetwork ? (
+                    <EmptyContent>
+                        <Button type="button" variant="outline" onClick={() => void onRetryNetwork()}>
+                            {t('profile.network.retry')}
+                        </Button>
+                    </EmptyContent>
+                ) : null}
+            </Empty>
+        </div>
+    );
 
     return (
         <Dialog open onOpenChange={(open) => {
@@ -755,13 +793,13 @@ export function OccupantProfileDialog({
                                 onScroll={(event) => handleTabScroll('feed', event)}
                             >
                                 <section className="nostr-profile-posts">
-                                    {postsError ? <p className="nostr-error">{postsError}</p> : null}
+                                    {postsError && posts.length === 0 ? renderFeedErrorState() : null}
 
                                     {!postsError && posts.length === 0 && !postsLoading ? (
                                         <div className="nostr-profile-posts-empty-state">
                                             <Empty className="nostr-profile-posts-empty">
                                                 <EmptyHeader>
-                                                    <EmptyTitle>No hay publicaciones recientes disponibles.</EmptyTitle>
+                                                    <EmptyTitle>{t('profile.feed.empty')}</EmptyTitle>
                                                 </EmptyHeader>
                                             </Empty>
                                         </div>
@@ -814,6 +852,8 @@ export function OccupantProfileDialog({
                                         </div>
                                     ) : null}
 
+                                    {postsError && posts.length > 0 ? renderFeedErrorState() : null}
+
                                     {postsLoading && posts.length === 0 ? (
                                         <div className="nostr-profile-posts-empty-state">
                                             <Empty className="nostr-profile-posts-empty">
@@ -856,9 +896,10 @@ export function OccupantProfileDialog({
                                                 <EmptyDescription>{t('profile.followers.loadingDescription', { displayName })}</EmptyDescription>
                                             </EmptyHeader>
                                         </Empty>
+                                    ) : networkError && followers.length === 0 ? (
+                                        renderNetworkErrorState()
                                     ) : (
                                         <>
-                                            {networkError ? <p className="nostr-error">{networkError}</p> : null}
                                             {followers.length === 0 ? (
                                                 <div className="nostr-profile-network-empty-state">
                                                     <Empty className="nostr-profile-network-empty">
@@ -877,6 +918,7 @@ export function OccupantProfileDialog({
                                                     ))}
                                                 </ItemGroup>
                                             ) : null}
+                                            {networkError && followers.length > 0 ? renderNetworkErrorState() : null}
                                             <ListLoadingFooter loading={followersLoadingMore} />
                                         </>
                                     )}
@@ -901,9 +943,10 @@ export function OccupantProfileDialog({
                                                 <EmptyDescription>{t('profile.following.loadingDescription', { displayName })}</EmptyDescription>
                                             </EmptyHeader>
                                         </Empty>
+                                    ) : networkError && follows.length === 0 ? (
+                                        renderNetworkErrorState()
                                     ) : (
                                         <>
-                                            {networkError ? <p className="nostr-error">{networkError}</p> : null}
                                             {follows.length === 0 ? (
                                                 <div className="nostr-profile-network-empty-state">
                                                     <Empty className="nostr-profile-network-empty">
@@ -922,6 +965,7 @@ export function OccupantProfileDialog({
                                                     ))}
                                                 </ItemGroup>
                                             ) : null}
+                                            {networkError && follows.length > 0 ? renderNetworkErrorState() : null}
                                             <ListLoadingFooter loading={followsLoadingMore} />
                                         </>
                                     )}

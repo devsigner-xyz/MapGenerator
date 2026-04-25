@@ -11,7 +11,7 @@ import type {
 } from '../../relay/relay-gateway.types';
 import type { RelayQueryPlanner } from '../../relay/relay-query-planner';
 import { createRelayQueryPlanner } from '../../relay/relay-query-planner';
-import { relaySetKey } from '../../relay/relay-resolver';
+import { relaySetKey, resolveRelaySets } from '../../relay/relay-resolver';
 import type {
   GraphFollowersQuery,
   GraphFollowersResponseDto,
@@ -35,6 +35,7 @@ const DEFAULT_BOOTSTRAP_RELAYS = [
 ];
 
 const DEFAULT_RELAY_QUERY_TIMEOUT_MS = 7_000;
+const DEFAULT_FOLLOWERS_RELAY_QUERY_TIMEOUT_MS = 12_000;
 
 const normalizePubkey = (value: string): string => value.trim().toLowerCase();
 
@@ -179,15 +180,25 @@ const createPoolFetchers = (options: {
     }
   };
 
+  const resolveRequestRelaySets = (scopedReadRelays: string[]): { primary: string[]; fallback: string[] } => {
+    const relaySets = resolveRelaySets({
+      scopedRelays: scopedReadRelays,
+      bootstrapRelays: options.bootstrapRelays,
+    });
+
+    return {
+      primary: relaySets.primary,
+      fallback: relaySets.fallback,
+    };
+  };
+
   const fetchFollows = async (
     query: GraphFollowsQuery,
     _context: RelayGatewayQueryContext,
   ): Promise<GraphFollowsResponseDto> => {
     const pubkey = normalizePubkey(query.pubkey);
-    const relaySets = await options.relayQueryPlanner.planPosts({
-      scopedReadRelays: toScopedReadRelays(query.scopedReadRelays),
-      targetPubkey: pubkey,
-    });
+    const scopedReadRelays = toScopedReadRelays(query.scopedReadRelays);
+    const relaySets = resolveRequestRelaySets(scopedReadRelays);
     const events = await queryWithFallback(relaySets, async (relays) => {
       if (relays.length === 0) {
         return [] as NostrEventLike[];
@@ -215,15 +226,18 @@ const createPoolFetchers = (options: {
     const targetPubkey = normalizePubkey(query.pubkey);
     const candidateAuthors = parseCandidateAuthors(query.candidateAuthors)
       .filter((author) => author !== targetPubkey);
-    const plan = await options.relayQueryPlanner.planFollowers({
-      scopedReadRelays: toScopedReadRelays(query.scopedReadRelays),
-      targetPubkey,
-      candidateAuthors,
-    });
+    const relaySets = resolveRequestRelaySets(toScopedReadRelays(query.scopedReadRelays));
+    const candidateRelays = relaySets.primary.length > 0 ? relaySets.primary : options.bootstrapRelays;
     const discovery = await discoverFollowers({
       targetPubkey,
-      ownerScope: plan.ownerScope,
-      candidateAuthorScopes: plan.candidateAuthorScopes,
+      ownerScope: relaySets,
+      candidateAuthorScopes: candidateAuthors.length > 0 && candidateRelays.length > 0
+        ? [{
+          authors: candidateAuthors,
+          relays: candidateRelays,
+          fallbackRelays: options.bootstrapRelays,
+        }]
+        : [],
       queryEvents: async (relays, filter) => {
         return options.pool.querySync(relays, filter) as Promise<NostrEventLike[]>;
       },
@@ -274,7 +288,7 @@ export const createGraphService = (options: GraphServiceOptions = {}): GraphServ
     options.followersGateway
     ?? createRelayGateway<GraphFollowersQuery, GraphFollowersResponseDto>({
       queryFn: options.fetchFollowers ?? fetchers.fetchFollowers,
-      defaultTimeoutMs: options.defaultTimeoutMs ?? DEFAULT_RELAY_QUERY_TIMEOUT_MS,
+      defaultTimeoutMs: options.defaultTimeoutMs ?? DEFAULT_FOLLOWERS_RELAY_QUERY_TIMEOUT_MS,
       cache: {
         ttlMs: 10_000,
         maxEntries: 500,

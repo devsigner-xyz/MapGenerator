@@ -4,6 +4,7 @@ import type { AuthorRelayDirectory } from '../../relay/author-relay-directory';
 import { createAuthorRelayDirectory } from '../../relay/author-relay-directory';
 import { discoverFollowers, parseCandidateAuthors, parseFollowsFromKind3 } from '../../relay/follower-discovery';
 import { shouldUseFallbackRelays } from '../../relay/relay-fallback';
+import { isRelayGatewayTimeoutError } from '../../relay/relay-gateway';
 import { createRelayGateway } from '../../relay/relay-gateway';
 import type {
   RelayGateway,
@@ -34,7 +35,7 @@ const DEFAULT_BOOTSTRAP_RELAYS = [
   'wss://relay.nostr.band',
 ];
 
-const DEFAULT_RELAY_QUERY_TIMEOUT_MS = 7_000;
+const DEFAULT_RELAY_QUERY_TIMEOUT_MS = 12_000;
 
 const normalizePubkey = (value: string): string => value.trim().toLowerCase();
 
@@ -87,10 +88,22 @@ class GatewayContentService implements ContentService {
 
   async getPosts(query: ContentPostsQuery): Promise<ContentPostsResponseDto> {
     const scopedRelaySetKey = relaySetKey(toScopedReadRelays(query.scopedReadRelays));
-    return this.postsGateway.query({
-      key: `content:posts:${normalizePubkey(query.pubkey)}:${query.limit}:${query.until ?? ''}:${scopedRelaySetKey}`,
-      params: query,
-    });
+    try {
+      return await this.postsGateway.query({
+        key: `content:posts:${normalizePubkey(query.pubkey)}:${query.limit}:${query.until ?? ''}:${scopedRelaySetKey}`,
+        params: query,
+      });
+    } catch (error) {
+      if (!isRelayGatewayTimeoutError(error)) {
+        throw error;
+      }
+
+      return {
+        posts: [],
+        nextUntil: null,
+        hasMore: false,
+      };
+    }
   }
 
   async getProfileStats(query: ProfileStatsQuery): Promise<ProfileStatsResponseDto> {

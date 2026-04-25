@@ -572,8 +572,9 @@ export function App({ mapBridge, services }: AppProps) {
     const chatState = directMessages;
     const openChatStateList = chatState.openList;
     const openChatStateConversation = chatState.openConversation;
+    const canUseSocialNotifications = Boolean(overlay.ownerPubkey && overlay.canWrite && overlay.socialNotificationsService);
     const socialNotifications = useSocialNotificationsController({
-        ...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {}),
+        ...(canUseSocialNotifications && overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {}),
         service: overlay.socialNotificationsService,
     });
     const socialState = socialNotifications;
@@ -745,7 +746,7 @@ export function App({ mapBridge, services }: AppProps) {
     }, [chatState, chatActiveConversationId]);
 
     const canAccessDirectMessages = Boolean(overlay.ownerPubkey && overlay.canDirectMessages && overlay.directMessagesService);
-    const canAccessSocialNotifications = Boolean(overlay.ownerPubkey && overlay.canWrite && overlay.socialNotificationsService);
+    const canAccessSocialNotifications = canUseSocialNotifications;
     const canAccessFollowingFeed = Boolean(overlay.ownerPubkey);
     const relayStatusTargets = relaySettingsSnapshot.relays;
     const relayConnectionSummary = useRelayConnectionSummary(relayStatusTargets, {
@@ -2060,6 +2061,7 @@ export function App({ mapBridge, services }: AppProps) {
                         : {})}
                     verificationByPubkey={verificationByPubkey}
                     onLoadMorePosts={activeProfileData.loadMorePosts}
+                    onRetryNetwork={activeProfileData.retryNetwork}
                     onSelectHashtag={selectProfilePostHashtag}
                     onSelectProfile={openMentionedProfile}
                     onCopyNpub={copyOwnerIdentifier}
@@ -2090,6 +2092,7 @@ export function App({ mapBridge, services }: AppProps) {
                     onResolveEventReferences={resolveEventReferences}
                     eventReferencesById={eventReferencesById}
                     onClose={overlay.closeActiveProfileDialog}
+                    onRetryPosts={activeProfileData.retryPosts}
                 />
             ) : null}
 

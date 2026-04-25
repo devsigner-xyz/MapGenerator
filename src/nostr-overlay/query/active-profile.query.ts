@@ -51,6 +51,8 @@ interface ActiveProfileQueryState {
     networkLoading: boolean;
     networkError?: string;
     loadMorePosts: () => Promise<void>;
+    retryPosts: () => Promise<void>;
+    retryNetwork: () => Promise<void>;
 }
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -147,6 +149,14 @@ export function useActiveProfileQuery(input: UseActiveProfileQueryInput): Active
         await postsQuery.fetchNextPage();
     }, [postsQuery]);
 
+    const retryPosts = useCallback(async () => {
+        await postsQuery.refetch();
+    }, [postsQuery]);
+
+    const retryNetwork = useCallback(async () => {
+        await networkQuery.refetch();
+    }, [networkQuery]);
+
     const network = networkQuery.data ?? EMPTY_NETWORK;
     const followsCount = statsQuery.data?.followsCount ?? network.follows.length;
     const followersCount = statsQuery.data?.followersCount ?? network.followers.length;
@@ -167,5 +177,7 @@ export function useActiveProfileQuery(input: UseActiveProfileQueryInput): Active
         networkLoading: networkQuery.isPending,
         ...(networkQuery.error ? { networkError: toErrorMessage(networkQuery.error, 'No se pudo cargar red social del perfil') } : {}),
         loadMorePosts,
+        retryPosts,
+        retryNetwork,
     };
 }
