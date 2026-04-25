@@ -5,12 +5,53 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createContentService } from './content.service';
 import type { RelayGateway } from '../../relay/relay-gateway.types';
+import type { RelayQueryExecutor } from '../../relay/relay-query-executor';
 import type { ContentPostsQuery, ContentPostsResponseDto, ProfileStatsQuery, ProfileStatsResponseDto } from './content.schemas';
 
 const OWNER_PUBKEY = 'a'.repeat(64);
 const TARGET_PUBKEY = 'b'.repeat(64);
 
 describe('content service', () => {
+  it('uses an injected relay query executor for post lookups', async () => {
+    const query = vi.fn(async <TEvent>() => [
+      {
+        id: '1'.repeat(64),
+        pubkey: TARGET_PUBKEY,
+        created_at: 30,
+        tags: [],
+        content: 'hello',
+      } as TEvent,
+    ]);
+    const pool = { querySync: vi.fn(async () => []) } as unknown as SimplePool;
+
+    const service = createContentService({
+      pool,
+      bootstrapRelays: ['wss://bootstrap.one'],
+      relayQueryExecutor: { query } as RelayQueryExecutor,
+      authorRelayDirectory: {
+        getAuthorReadRelays: vi.fn(async () => []),
+        getAuthorWriteRelays: vi.fn(async () => []),
+      },
+    });
+
+    const result = await service.getPosts({
+      ownerPubkey: OWNER_PUBKEY,
+      pubkey: TARGET_PUBKEY,
+      limit: 10,
+      scopedReadRelays: ['wss://owner.scope'],
+    });
+
+    expect(result.posts.map((post) => post.id)).toEqual(['1'.repeat(64)]);
+    expect(query).toHaveBeenCalledWith(expect.objectContaining({
+      relays: ['wss://owner.scope'],
+      filter: expect.objectContaining({
+        authors: [TARGET_PUBKEY],
+        kinds: [1],
+      }),
+    }));
+    expect(pool.querySync).not.toHaveBeenCalled();
+  });
+
   it('returns stable posts page with limit+1 pagination', async () => {
     const querySync = vi.fn(async (_relays: string[], filter: Record<string, unknown>) => {
       if (Array.isArray(filter.kinds) && filter.kinds[0] === 1) {

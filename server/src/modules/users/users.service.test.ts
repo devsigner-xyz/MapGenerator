@@ -5,6 +5,7 @@ import { nip19 } from 'nostr-tools';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { RelayGateway } from '../../relay/relay-gateway.types';
+import type { RelayQueryExecutor } from '../../relay/relay-query-executor';
 import type { UsersSearchQuery, UsersSearchResponseDto } from './users.schemas';
 import { createUsersService } from './users.service';
 import { DEFAULT_SEARCH_RELAYS } from './search-relay-defaults';
@@ -36,6 +37,41 @@ const makeMetadataEvent = ({
 });
 
 describe('users service', () => {
+  it('uses an injected relay query executor for user search lookups', async () => {
+    const query = vi.fn(async <TEvent>() => [
+      makeMetadataEvent({
+        id: '1'.repeat(64),
+        pubkey: TEXT_PUBKEY_A,
+        createdAt: 120,
+        content: JSON.stringify({ name: 'alice' }),
+      }) as TEvent,
+    ]);
+    const pool = { querySync: vi.fn(async () => []) } as unknown as SimplePool;
+
+    const service = createUsersService({
+      pool,
+      bootstrapRelays: ['wss://bootstrap.one'],
+      relayQueryExecutor: { query } as RelayQueryExecutor,
+    });
+
+    const result = await service.searchUsers({
+      ownerPubkey: OWNER_A,
+      q: 'alice',
+      limit: 5,
+      searchRelays: ['wss://search.nos.today'],
+    });
+
+    expect(result.pubkeys).toEqual([TEXT_PUBKEY_A]);
+    expect(query).toHaveBeenCalledWith(expect.objectContaining({
+      relays: ['wss://search.nos.today'],
+      filter: expect.objectContaining({
+        kinds: [0],
+        search: 'alice',
+      }),
+    }));
+    expect(pool.querySync).not.toHaveBeenCalled();
+  });
+
   it('includes exact npub match even when no metadata is found', async () => {
     const querySyncSpy = vi.fn<SimplePool['querySync']>(async () => []);
     const pool = {

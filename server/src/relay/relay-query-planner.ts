@@ -1,5 +1,5 @@
 import { canonicalRelaySet, relaySetKey, resolveRelaySets } from './relay-resolver';
-import type { AuthorRelayDirectory } from './author-relay-directory';
+import { selectReadRelays, type AuthorRelayDirectory } from './author-relay-directory';
 
 export interface RelayScopePlan {
   primary: string[];
@@ -72,16 +72,19 @@ export function createRelayQueryPlanner(
 
   return {
     async planPosts(input) {
-      const targetAuthorReadRelays = await (async (): Promise<string[]> => {
-        try {
-          return await options.authorRelayDirectory.getAuthorReadRelays(input.targetPubkey);
-        } catch {
-          return [];
-        }
-      })();
+      const readRelays = await selectReadRelays({
+        authors: [input.targetPubkey],
+        scopedReadRelays: input.scopedReadRelays,
+        bootstrapRelays,
+        authorRelayDirectory: options.authorRelayDirectory,
+      });
+      const hasScopedReadRelays = canonicalRelaySet(input.scopedReadRelays ?? []).length > 0;
+      const primaryReadRelays = !hasScopedReadRelays && relaySetKey(readRelays) === relaySetKey(bootstrapRelays)
+        ? []
+        : readRelays;
 
       return canonicalizeScopePlan(resolveRelaySets({
-        scopedRelays: canonicalRelaySet(input.scopedReadRelays ?? [], targetAuthorReadRelays),
+        scopedRelays: primaryReadRelays,
         userRelays: [],
         bootstrapRelays,
       }));

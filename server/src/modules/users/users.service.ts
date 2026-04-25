@@ -1,11 +1,16 @@
 import { SimplePool, type Filter, nip19 } from 'nostr-tools';
 
+import { normalizeHexPubkey } from '../../nostr/nostr-validation';
 import { shouldUseFallbackRelays } from '../../relay/relay-fallback';
 import { createRelayGateway } from '../../relay/relay-gateway';
 import type {
   RelayGateway,
   RelayGatewayQueryContext,
 } from '../../relay/relay-gateway.types';
+import {
+  createRelayQueryExecutor,
+  type RelayQueryExecutor,
+} from '../../relay/relay-query-executor';
 import { resolveRelaySets } from '../../relay/relay-resolver';
 import type {
   UserProfileDto,
@@ -41,7 +46,6 @@ const DEFAULT_BOOTSTRAP_RELAYS = [
 ];
 
 const METADATA_KIND = 0;
-const LOWER_HEX_64_PATTERN = /^[0-9a-f]{64}$/;
 const SEARCH_OVERSCAN_FACTOR = 4;
 const PROFILE_NAME_MAX_LENGTH = 128;
 const PROFILE_DISPLAY_NAME_MAX_LENGTH = 128;
@@ -115,10 +119,7 @@ const normalizeSearchRelays = (searchRelays?: string[]): string[] => {
 
 const searchRelaySetKey = (searchRelays?: string[]): string => normalizeSearchRelays(searchRelays).join('|');
 
-const normalizePubkeyCandidate = (value: string): string | null => {
-  const normalized = value.trim().toLowerCase();
-  return LOWER_HEX_64_PATTERN.test(normalized) ? normalized : null;
-};
+const normalizePubkeyCandidate = (value: string): string | null => normalizeHexPubkey(value);
 
 const decodeNpub = (value: string): string | null => {
   const normalized = value.trim().toLowerCase();
@@ -134,8 +135,7 @@ const decodeNpub = (value: string): string | null => {
       return null;
     }
 
-    const pubkey = decoded.data.toLowerCase();
-    return LOWER_HEX_64_PATTERN.test(pubkey) ? pubkey : null;
+    return normalizeHexPubkey(decoded.data);
   } catch {
     return null;
   }
@@ -208,6 +208,7 @@ export interface UsersServiceOptions {
   ) => Promise<UsersSearchResponseDto>;
   defaultTimeoutMs?: number;
   bootstrapRelays?: string[];
+  relayQueryExecutor?: RelayQueryExecutor;
   pool?: SimplePool;
 }
 
@@ -229,6 +230,7 @@ class GatewayUsersService implements UsersService {
 const createPoolFetchers = (options: {
   pool: SimplePool;
   bootstrapRelays: string[];
+  relayQueryExecutor: RelayQueryExecutor;
 }): {
   fetchUsers: (
     query: UsersSearchQuery,
@@ -259,7 +261,7 @@ const createPoolFetchers = (options: {
 
   const fetchUsers = async (
     query: UsersSearchQuery,
-    _context: RelayGatewayQueryContext,
+    context: RelayGatewayQueryContext,
   ): Promise<UsersSearchResponseDto> => {
     const normalizedQuery = normalizeQueryText(query.q);
     const exactHex = normalizePubkeyCandidate(normalizedQuery);
@@ -279,10 +281,14 @@ const createPoolFetchers = (options: {
 
         if (exactPubkeys.length > 0) {
           requests.push(
-            options.pool.querySync(textSearchRelays, {
-              authors: exactPubkeys,
-              kinds: [METADATA_KIND],
-              limit: exactPubkeys.length,
+            options.relayQueryExecutor.query<NostrEventLike>({
+              relays: textSearchRelays,
+              signal: context.signal,
+              filter: {
+                authors: exactPubkeys,
+                kinds: [METADATA_KIND],
+                limit: exactPubkeys.length,
+              },
             }),
           );
         }
@@ -292,7 +298,11 @@ const createPoolFetchers = (options: {
           limit: textSearchLimit,
         };
         textFilter.search = normalizedQuery;
-        requests.push(options.pool.querySync(textSearchRelays, textFilter));
+        requests.push(options.relayQueryExecutor.query<NostrEventLike>({
+          relays: textSearchRelays,
+          filter: textFilter,
+          signal: context.signal,
+        }));
 
         const settled = await Promise.all(requests);
         return settled.flat();
@@ -359,9 +369,11 @@ const createPoolFetchers = (options: {
 export const createUsersService = (options: UsersServiceOptions = {}): UsersService => {
   const pool = options.pool ?? new SimplePool();
   const bootstrapRelays = options.bootstrapRelays ?? DEFAULT_BOOTSTRAP_RELAYS;
+  const relayQueryExecutor = options.relayQueryExecutor ?? createRelayQueryExecutor({ pool });
   const fetchers = createPoolFetchers({
     pool,
     bootstrapRelays,
+    relayQueryExecutor,
   });
 
   const usersGateway =

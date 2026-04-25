@@ -26,6 +26,7 @@ import { rateLimitPlugin } from './plugins/rate-limit';
 import { requestContextPlugin } from './plugins/request-context';
 import { securityHeadersPlugin } from './plugins/security-headers';
 import { healthRoute } from './routes/health.route';
+import { createAppServices } from './services/app-services';
 
 export interface BuildAppOptions {
   identityService?: IdentityService;
@@ -62,6 +63,7 @@ const resolveTrustProxy = (): FastifyServerOptions['trustProxy'] => {
 
 export const buildApp = (options: BuildAppOptions = {}): FastifyInstance => {
   const app = Fastify({ logger: false, trustProxy: resolveTrustProxy() });
+  const defaultServices = createAppServices();
 
   app.register(requestContextPlugin);
   app.register(corsPlugin);
@@ -73,35 +75,35 @@ export const buildApp = (options: BuildAppOptions = {}): FastifyInstance => {
   app.register(healthRoute, { prefix: '/v1' });
   app.register(identityRoutes, {
     prefix: '/v1',
-    service: options.identityService,
+    service: options.identityService ?? defaultServices.identityService,
   });
   app.register(graphRoutes, {
     prefix: '/v1',
-    service: options.graphService,
+    service: options.graphService ?? defaultServices.graphService,
   });
   app.register(contentRoutes, {
     prefix: '/v1',
-    service: options.contentService,
+    service: options.contentService ?? defaultServices.contentService,
   });
   app.register(socialRoutes, {
     prefix: '/v1',
-    service: options.socialService,
+    service: options.socialService ?? defaultServices.socialService,
   });
   app.register(notificationsRoutes, {
     prefix: '/v1',
-    service: options.notificationsService,
+    service: options.notificationsService ?? defaultServices.notificationsService,
   });
   app.register(dmRoutes, {
     prefix: '/v1',
-    service: options.dmService,
+    service: options.dmService ?? defaultServices.dmService,
   });
   app.register(usersRoutes, {
     prefix: '/v1',
-    service: options.usersService,
+    service: options.usersService ?? defaultServices.usersService,
   });
   app.register(publishRoutes, {
     prefix: '/v1',
-    service: options.publishService,
+    service: options.publishService ?? defaultServices.publishService,
   });
 
   return app;

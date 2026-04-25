@@ -1,11 +1,20 @@
 import { SimplePool, type Filter } from 'nostr-tools';
 
+import {
+  normalizeHexEventId,
+  normalizeHexPubkey,
+  sanitizeNostrTagValue,
+} from '../../nostr/nostr-validation';
 import { shouldUseFallbackRelays } from '../../relay/relay-fallback';
 import { createRelayGateway } from '../../relay/relay-gateway';
 import type {
   RelayGateway,
   RelayGatewayQueryContext,
 } from '../../relay/relay-gateway.types';
+import {
+  createRelayQueryExecutor,
+  type RelayQueryExecutor,
+} from '../../relay/relay-query-executor';
 import { resolveRelaySets } from '../../relay/relay-resolver';
 import type {
   NotificationEventDto,
@@ -32,7 +41,6 @@ const DEFAULT_BOOTSTRAP_RELAYS = [
 ];
 
 const NOTIFICATION_KINDS = [1, 6, 7, 16, 9735];
-const HEX_64_REGEX = /^[0-9a-f]{64}$/;
 
 const byCreatedAtDesc = (left: NostrEventLike, right: NostrEventLike): number => {
   if (left.created_at !== right.created_at) {
@@ -57,13 +65,27 @@ const dedupeById = (events: NostrEventLike[]): NostrEventLike[] => {
 const sanitizeTags = (tags: string[][]): string[][] => {
   return tags
     .filter((tag) => Array.isArray(tag))
-    .map((tag) => tag.filter((value): value is string => typeof value === 'string'))
+    .map((tag) => tag.map(sanitizeNostrTagValue).filter((value): value is string => value !== null))
     .filter((tag) => tag.length > 0);
 };
 
-const firstHexTagValue = (tags: string[][], name: string): string | null => {
-  const tag = tags.find((candidate) => candidate[0] === name && HEX_64_REGEX.test(candidate[1] ?? ''));
-  return tag?.[1] ?? null;
+const firstHexTagValue = (
+  tags: string[][],
+  name: string,
+  normalize: (value: string) => string | null,
+): string | null => {
+  for (const tag of tags) {
+    if (tag[0] !== name || typeof tag[1] !== 'string') {
+      continue;
+    }
+
+    const normalized = normalize(tag[1]);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return null;
 };
 
 const toEventDto = (event: NostrEventLike, tags: string[][]): NotificationEventDto => {
@@ -85,8 +107,8 @@ const toNotificationItem = (event: NostrEventLike): NotificationItemDto => {
     kind: event.kind,
     actorPubkey: event.pubkey,
     createdAt: event.created_at,
-    targetEventId: firstHexTagValue(tags, 'e'),
-    targetPubkey: firstHexTagValue(tags, 'p'),
+    targetEventId: firstHexTagValue(tags, 'e', normalizeHexEventId),
+    targetPubkey: firstHexTagValue(tags, 'p', normalizeHexPubkey),
     rawEvent: toEventDto(event, tags),
   };
 };
@@ -120,6 +142,7 @@ export interface NotificationsServiceOptions {
   ) => Promise<NotificationItemDto[]>;
   defaultTimeoutMs?: number;
   bootstrapRelays?: string[];
+  relayQueryExecutor?: RelayQueryExecutor;
   pool?: SimplePool;
 }
 
@@ -215,6 +238,7 @@ class GatewayNotificationsService implements NotificationsService {
 const createPoolFetchers = (options: {
   pool: SimplePool;
   bootstrapRelays: string[];
+  relayQueryExecutor: RelayQueryExecutor;
 }): {
   fetchNotifications: (
     query: NotificationsQuery,
@@ -252,18 +276,23 @@ const createPoolFetchers = (options: {
   const queryNotificationEvents = async (
     relays: string[],
     filter: Filter,
+    signal: AbortSignal,
   ): Promise<NostrEventLike[]> => {
     if (relays.length === 0) {
       return [];
     }
 
-    const events = await options.pool.querySync(relays, filter);
+    const events = await options.relayQueryExecutor.query<NostrEventLike>({
+      relays,
+      filter,
+      signal,
+    });
     return dedupeById(events).sort(byCreatedAtDesc);
   };
 
   const fetchNotifications = async (
     query: NotificationsQuery,
-    _context: RelayGatewayQueryContext,
+    context: RelayGatewayQueryContext,
   ): Promise<NotificationsResponseDto> => {
     const until = query.since > 0 ? query.since : undefined;
 
@@ -273,7 +302,7 @@ const createPoolFetchers = (options: {
         kinds: NOTIFICATION_KINDS,
         until,
         limit: query.limit + 1,
-      }),
+      }, context.signal),
     );
 
     const pagination = paginateEvents(events, query.limit);
@@ -287,7 +316,7 @@ const createPoolFetchers = (options: {
 
   const fetchNotificationStream = async (
     query: NotificationsStreamQuery,
-    _context: RelayGatewayQueryContext,
+    context: RelayGatewayQueryContext,
   ): Promise<NotificationItemDto[]> => {
     const events = await queryWithFallback((relays) =>
       queryNotificationEvents(relays, {
@@ -295,7 +324,7 @@ const createPoolFetchers = (options: {
         kinds: NOTIFICATION_KINDS,
         since: query.since,
         limit: STREAM_FETCH_LIMIT,
-      }),
+      }, context.signal),
     );
 
     return events.map(toNotificationItem);
@@ -312,9 +341,11 @@ export const createNotificationsService = (
 ): NotificationsService => {
   const pool = options.pool ?? new SimplePool();
   const bootstrapRelays = options.bootstrapRelays ?? DEFAULT_BOOTSTRAP_RELAYS;
+  const relayQueryExecutor = options.relayQueryExecutor ?? createRelayQueryExecutor({ pool });
   const fetchers = createPoolFetchers({
     pool,
     bootstrapRelays,
+    relayQueryExecutor,
   });
 
   const listGateway =

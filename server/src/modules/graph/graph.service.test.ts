@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createGraphService } from './graph.service';
 import type { RelayGateway } from '../../relay/relay-gateway.types';
+import type { RelayQueryExecutor } from '../../relay/relay-query-executor';
 import type { GraphFollowersQuery, GraphFollowersResponseDto, GraphFollowsQuery, GraphFollowsResponseDto } from './graph.schemas';
 
 const OWNER_PUBKEY = 'a'.repeat(64);
@@ -13,6 +14,45 @@ const FOLLOW_ONE = 'c'.repeat(64);
 const FOLLOW_TWO = 'd'.repeat(64);
 
 describe('graph service', () => {
+  it('uses an injected relay query executor for follows lookups', async () => {
+    const query = vi.fn(async <TEvent>() => [
+      {
+        id: '1'.repeat(64),
+        pubkey: TARGET_PUBKEY,
+        created_at: 100,
+        tags: [['p', FOLLOW_ONE, 'wss://relay.one']],
+        content: '',
+      } as TEvent,
+    ]);
+    const pool = { querySync: vi.fn(async () => []) } as unknown as SimplePool;
+
+    const service = createGraphService({
+      pool,
+      bootstrapRelays: ['wss://bootstrap.one'],
+      relayQueryExecutor: { query } as RelayQueryExecutor,
+      authorRelayDirectory: {
+        getAuthorReadRelays: vi.fn(async () => []),
+        getAuthorWriteRelays: vi.fn(async () => []),
+      },
+    });
+
+    const result = await service.getFollows({
+      ownerPubkey: OWNER_PUBKEY,
+      pubkey: TARGET_PUBKEY,
+      scopedReadRelays: ['wss://relay.follows'],
+    });
+
+    expect(result.follows).toEqual([FOLLOW_ONE]);
+    expect(query).toHaveBeenCalledWith(expect.objectContaining({
+      relays: ['wss://relay.follows'],
+      filter: expect.objectContaining({
+        authors: [TARGET_PUBKEY],
+        kinds: [3],
+      }),
+    }));
+    expect(pool.querySync).not.toHaveBeenCalled();
+  });
+
   it('returns follows and relay hints from latest kind3 event', async () => {
     const querySync = vi.fn(async () => [
       {

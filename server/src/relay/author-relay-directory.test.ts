@@ -3,7 +3,8 @@
 import type { SimplePool } from 'nostr-tools';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createAuthorRelayDirectory } from './author-relay-directory';
+import { createAuthorRelayDirectory, selectReadRelays } from './author-relay-directory';
+import type { RelayQueryExecutor } from './relay-query-executor';
 
 const AUTHOR_PUBKEY = 'a'.repeat(64);
 
@@ -90,5 +91,78 @@ describe('createAuthorRelayDirectory', () => {
         limit: 1,
       }),
     );
+  });
+
+  it('uses an injected relay query executor for metadata lookups', async () => {
+    const query = vi.fn(async <TEvent>(request: { filter: { kinds?: number[] } }) => {
+      if (request.filter.kinds?.[0] === 10002) {
+        return [
+          {
+            id: '3'.repeat(64),
+            pubkey: AUTHOR_PUBKEY,
+            kind: 10002,
+            created_at: 200,
+            tags: [['r', 'wss://relay.read', 'read']],
+            content: '',
+          } as TEvent,
+        ];
+      }
+
+      return [];
+    });
+    const pool = { querySync: vi.fn(async () => []) } as unknown as SimplePool;
+    const directory = createAuthorRelayDirectory({
+      pool,
+      bootstrapRelays: ['wss://bootstrap.one'],
+      relayQueryExecutor: { query: query as RelayQueryExecutor['query'] },
+    });
+
+    await expect(directory.getAuthorReadRelays(AUTHOR_PUBKEY)).resolves.toEqual(['wss://relay.read']);
+    expect(query).toHaveBeenCalledWith(expect.objectContaining({
+      relays: ['wss://bootstrap.one'],
+      filter: expect.objectContaining({
+        authors: [AUTHOR_PUBKEY],
+        kinds: [10002],
+      }),
+    }));
+    expect(pool.querySync).not.toHaveBeenCalled();
+  });
+});
+
+describe('selectReadRelays', () => {
+  it('uses bootstrap relays when authors are invalid and no scoped relays are available', async () => {
+    await expect(selectReadRelays({
+      authors: ['not-a-pubkey'],
+      bootstrapRelays: ['wss://bootstrap.one'],
+    })).resolves.toEqual(['wss://bootstrap.one']);
+  });
+
+  it('prefers discovered author read relays for valid authors', async () => {
+    const authorRelayDirectory = {
+      getAuthorReadRelays: vi.fn(async () => ['wss://relay.two', 'wss://relay.one']),
+      getAuthorWriteRelays: vi.fn(async () => []),
+    };
+
+    await expect(selectReadRelays({
+      authors: [AUTHOR_PUBKEY],
+      bootstrapRelays: ['wss://bootstrap.one'],
+      authorRelayDirectory,
+    })).resolves.toEqual(['wss://relay.one', 'wss://relay.two']);
+
+    expect(authorRelayDirectory.getAuthorReadRelays).toHaveBeenCalledWith(AUTHOR_PUBKEY);
+  });
+
+  it('dedupes scoped and discovered relays in deterministic order', async () => {
+    const authorRelayDirectory = {
+      getAuthorReadRelays: vi.fn(async () => ['wss://relay.two', 'wss://relay.one']),
+      getAuthorWriteRelays: vi.fn(async () => []),
+    };
+
+    await expect(selectReadRelays({
+      authors: [AUTHOR_PUBKEY],
+      scopedReadRelays: ['wss://relay.two', 'wss://relay.scoped'],
+      bootstrapRelays: ['wss://bootstrap.one'],
+      authorRelayDirectory,
+    })).resolves.toEqual(['wss://relay.one', 'wss://relay.scoped', 'wss://relay.two']);
   });
 });

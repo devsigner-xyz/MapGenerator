@@ -1,5 +1,6 @@
 import { SimplePool } from 'nostr-tools';
 
+import { normalizeHexPubkey } from '../../nostr/nostr-validation';
 import type { AuthorRelayDirectory } from '../../relay/author-relay-directory';
 import { createAuthorRelayDirectory } from '../../relay/author-relay-directory';
 import { discoverFollowers, parseCandidateAuthors, parseFollowsFromKind3 } from '../../relay/follower-discovery';
@@ -11,6 +12,10 @@ import type {
 } from '../../relay/relay-gateway.types';
 import type { RelayQueryPlanner } from '../../relay/relay-query-planner';
 import { createRelayQueryPlanner } from '../../relay/relay-query-planner';
+import {
+  createRelayQueryExecutor,
+  type RelayQueryExecutor,
+} from '../../relay/relay-query-executor';
 import { relaySetKey, resolveRelaySets } from '../../relay/relay-resolver';
 import type {
   GraphFollowersQuery,
@@ -37,7 +42,7 @@ const DEFAULT_BOOTSTRAP_RELAYS = [
 const DEFAULT_RELAY_QUERY_TIMEOUT_MS = 7_000;
 const DEFAULT_FOLLOWERS_RELAY_QUERY_TIMEOUT_MS = 12_000;
 
-const normalizePubkey = (value: string): string => value.trim().toLowerCase();
+const normalizePubkey = (value: string): string => normalizeHexPubkey(value) ?? value.trim().toLowerCase();
 
 const parseRelayHintsFromKind3 = (event: NostrEventLike | null | undefined): string[] => {
   if (!event) {
@@ -80,6 +85,7 @@ export interface GraphServiceOptions {
   followersGateway?: RelayGateway<GraphFollowersQuery, GraphFollowersResponseDto>;
   authorRelayDirectory?: AuthorRelayDirectory;
   relayQueryPlanner?: RelayQueryPlanner;
+  relayQueryExecutor?: RelayQueryExecutor;
   fetchFollows?: (
     query: GraphFollowsQuery,
     context: RelayGatewayQueryContext,
@@ -145,6 +151,7 @@ const createPoolFetchers = (options: {
   pool: SimplePool;
   bootstrapRelays: string[];
   relayQueryPlanner: RelayQueryPlanner;
+  relayQueryExecutor: RelayQueryExecutor;
 }): {
   fetchFollows: (
     query: GraphFollowsQuery,
@@ -194,7 +201,7 @@ const createPoolFetchers = (options: {
 
   const fetchFollows = async (
     query: GraphFollowsQuery,
-    _context: RelayGatewayQueryContext,
+    context: RelayGatewayQueryContext,
   ): Promise<GraphFollowsResponseDto> => {
     const pubkey = normalizePubkey(query.pubkey);
     const scopedReadRelays = toScopedReadRelays(query.scopedReadRelays);
@@ -204,11 +211,15 @@ const createPoolFetchers = (options: {
         return [] as NostrEventLike[];
       }
 
-      return options.pool.querySync(relays, {
-        authors: [pubkey],
-        kinds: [3],
-        limit: 1,
-      }) as Promise<NostrEventLike[]>;
+      return options.relayQueryExecutor.query<NostrEventLike>({
+        relays,
+        signal: context.signal,
+        filter: {
+          authors: [pubkey],
+          kinds: [3],
+          limit: 1,
+        },
+      });
     }, (events) => events.length === 0);
 
     const latest = [...events].sort(byCreatedAtDesc)[0] ?? null;
@@ -221,7 +232,7 @@ const createPoolFetchers = (options: {
 
   const fetchFollowers = async (
     query: GraphFollowersQuery,
-    _context: RelayGatewayQueryContext,
+    context: RelayGatewayQueryContext,
   ): Promise<GraphFollowersResponseDto> => {
     const targetPubkey = normalizePubkey(query.pubkey);
     const candidateAuthors = parseCandidateAuthors(query.candidateAuthors)
@@ -239,7 +250,11 @@ const createPoolFetchers = (options: {
         }]
         : [],
       queryEvents: async (relays, filter) => {
-        return options.pool.querySync(relays, filter) as Promise<NostrEventLike[]>;
+        return options.relayQueryExecutor.query<NostrEventLike>({
+          relays,
+          filter,
+          signal: context.signal,
+        });
       },
     });
 
@@ -259,9 +274,11 @@ const createPoolFetchers = (options: {
 export const createGraphService = (options: GraphServiceOptions = {}): GraphService => {
   const pool = options.pool ?? new SimplePool();
   const bootstrapRelays = options.bootstrapRelays ?? DEFAULT_BOOTSTRAP_RELAYS;
+  const relayQueryExecutor = options.relayQueryExecutor ?? createRelayQueryExecutor({ pool });
   const authorRelayDirectory = options.authorRelayDirectory ?? createAuthorRelayDirectory({
     pool,
     bootstrapRelays,
+    relayQueryExecutor,
   });
   const relayQueryPlanner = options.relayQueryPlanner ?? createRelayQueryPlanner({
     bootstrapRelays,
@@ -271,6 +288,7 @@ export const createGraphService = (options: GraphServiceOptions = {}): GraphServ
     pool,
     bootstrapRelays,
     relayQueryPlanner,
+    relayQueryExecutor,
   });
 
   const followsGateway =

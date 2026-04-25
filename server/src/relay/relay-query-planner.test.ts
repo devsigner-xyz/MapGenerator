@@ -46,6 +46,23 @@ describe('createRelayQueryPlanner', () => {
     });
   });
 
+  it('keeps bootstrap relays as fallback only when post reads have no primary relays', async () => {
+    const planner = createRelayQueryPlanner({
+      bootstrapRelays: ['wss://bootstrap.one'],
+      authorRelayDirectory: {
+        getAuthorReadRelays: vi.fn(async () => []),
+        getAuthorWriteRelays: vi.fn(async () => []),
+      },
+    });
+
+    await expect(planner.planPosts({
+      targetPubkey: TARGET_PUBKEY,
+    })).resolves.toEqual({
+      primary: [],
+      fallback: ['wss://bootstrap.one'],
+    });
+  });
+
   it('groups candidate authors by canonical relay set and caps fan-out relays', async () => {
     const getAuthorWriteRelays = vi.fn(async (pubkey: string) => {
       if (pubkey === AUTHOR_ONE || pubkey === AUTHOR_TWO) {

@@ -4,6 +4,7 @@ import type { SimplePool } from 'nostr-tools';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { RelayGateway } from '../../relay/relay-gateway.types';
+import type { RelayQueryExecutor } from '../../relay/relay-query-executor';
 import type {
   NotificationItemDto,
   NotificationsQuery,
@@ -50,6 +51,36 @@ const makeItem = (item: { id: string; createdAt: number; kind?: number }): Notif
 });
 
 describe('notifications service list behavior', () => {
+  it('uses an injected relay query executor for list lookups', async () => {
+    const id = '1'.repeat(64);
+    const query = vi.fn(async <TEvent>() => [
+      makeEvent({ id, createdAt: 40 }) as TEvent,
+    ]);
+    const pool = { querySync: vi.fn(async () => []) } as unknown as SimplePool;
+
+    const service = createNotificationsService({
+      pool,
+      bootstrapRelays: ['wss://bootstrap.one'],
+      relayQueryExecutor: { query } as RelayQueryExecutor,
+    });
+
+    const result = await service.getNotifications({
+      ownerPubkey: OWNER_PUBKEY,
+      limit: 10,
+      since: 0,
+    });
+
+    expect(result.items.map((item) => item.id)).toEqual([id]);
+    expect(query).toHaveBeenCalledWith(expect.objectContaining({
+      relays: ['wss://bootstrap.one'],
+      filter: expect.objectContaining({
+        '#p': [OWNER_PUBKEY],
+        kinds: expect.arrayContaining([1, 6, 7, 16, 9735]),
+      }),
+    }));
+    expect(pool.querySync).not.toHaveBeenCalled();
+  });
+
   it('sorts deterministically, dedupes by id, and computes pagination using limit+1', async () => {
     const idA = '1'.repeat(64);
     const idB = '2'.repeat(64);

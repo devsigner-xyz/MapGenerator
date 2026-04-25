@@ -1,6 +1,8 @@
 import type { SimplePool } from 'nostr-tools';
 
+import { normalizeHexPubkey } from '../nostr/nostr-validation';
 import { createTTLCache } from '../cache/ttl-cache';
+import { createRelayQueryExecutor, type RelayQueryExecutor } from './relay-query-executor';
 import { canonicalRelaySet } from './relay-resolver';
 
 interface NostrEventLike {
@@ -28,19 +30,26 @@ export interface CreateAuthorRelayDirectoryOptions {
   ttlMs?: number;
   maxEntries?: number;
   maxRelaysPerAuthor?: number;
+  relayQueryExecutor?: RelayQueryExecutor;
 }
 
-const HEX_64_REGEX = /^[0-9a-f]{64}$/;
+export interface RelaySelectionInput {
+  authors: string[];
+  scopedReadRelays?: string[];
+  bootstrapRelays: string[];
+  authorRelayDirectory?: AuthorRelayDirectory;
+}
+
 const DEFAULT_CACHE_TTL_MS = 5 * 60_000;
 const DEFAULT_CACHE_MAX_ENTRIES = 500;
 const DEFAULT_MAX_RELAYS_PER_AUTHOR = 8;
 
 function normalizePubkey(value: string): string {
-  return value.trim().toLowerCase();
+  return normalizeHexPubkey(value) ?? value.trim().toLowerCase();
 }
 
 function isHexPubkey(value: string): boolean {
-  return HEX_64_REGEX.test(value);
+  return normalizeHexPubkey(value) !== null;
 }
 
 function byCreatedAtDesc(left: NostrEventLike, right: NostrEventLike): number {
@@ -140,6 +149,7 @@ export function createAuthorRelayDirectory(
   options: CreateAuthorRelayDirectoryOptions,
 ): AuthorRelayDirectory {
   const maxRelaysPerAuthor = options.maxRelaysPerAuthor ?? DEFAULT_MAX_RELAYS_PER_AUTHOR;
+  const relayQueryExecutor = options.relayQueryExecutor ?? createRelayQueryExecutor({ pool: options.pool });
   const cache = createTTLCache<string, RelayMetadata>({
     ttlMs: options.ttlMs ?? DEFAULT_CACHE_TTL_MS,
     maxEntries: options.maxEntries ?? DEFAULT_CACHE_MAX_ENTRIES,
@@ -156,11 +166,14 @@ export function createAuthorRelayDirectory(
       return cached;
     }
 
-    const relayListEvents = await options.pool.querySync(options.bootstrapRelays, {
-      authors: [normalizedPubkey],
-      kinds: [10002],
-      limit: 1,
-    }) as NostrEventLike[];
+    const relayListEvents = await relayQueryExecutor.query<NostrEventLike>({
+      relays: options.bootstrapRelays,
+      filter: {
+        authors: [normalizedPubkey],
+        kinds: [10002],
+        limit: 1,
+      },
+    });
     const latestRelayList = [...relayListEvents].sort(byCreatedAtDesc)[0] ?? null;
     const relayListMetadata = parseRelayMetadataFromKind10002(latestRelayList, maxRelaysPerAuthor);
 
@@ -169,11 +182,14 @@ export function createAuthorRelayDirectory(
       return relayListMetadata;
     }
 
-    const kind3Events = await options.pool.querySync(options.bootstrapRelays, {
-      authors: [normalizedPubkey],
-      kinds: [3],
-      limit: 1,
-    }) as NostrEventLike[];
+    const kind3Events = await relayQueryExecutor.query<NostrEventLike>({
+      relays: options.bootstrapRelays,
+      filter: {
+        authors: [normalizedPubkey],
+        kinds: [3],
+        limit: 1,
+      },
+    });
     const latestKind3 = [...kind3Events].sort(byCreatedAtDesc)[0] ?? null;
     const fallbackMetadata = parseRelayHintsFromKind3(latestKind3, maxRelaysPerAuthor);
     cache.set(normalizedPubkey, fallbackMetadata);
@@ -188,4 +204,25 @@ export function createAuthorRelayDirectory(
       return (await loadRelayMetadata(pubkey)).write;
     },
   };
+}
+
+export async function selectReadRelays(input: RelaySelectionInput): Promise<string[]> {
+  const scopedReadRelays = canonicalRelaySet(input.scopedReadRelays ?? []);
+  const validAuthors = [...new Set(input.authors.map(normalizeHexPubkey).filter((value): value is string => value !== null))];
+
+  if (validAuthors.length === 0 || !input.authorRelayDirectory) {
+    return scopedReadRelays.length > 0 ? scopedReadRelays : canonicalRelaySet(input.bootstrapRelays);
+  }
+
+  const discoveredRelays: string[] = [];
+  for (const author of validAuthors) {
+    try {
+      discoveredRelays.push(...await input.authorRelayDirectory.getAuthorReadRelays(author));
+    } catch {
+      // Discovery failures should not prevent fallback relay selection.
+    }
+  }
+
+  const selectedRelays = canonicalRelaySet(scopedReadRelays, discoveredRelays);
+  return selectedRelays.length > 0 ? selectedRelays : canonicalRelaySet(input.bootstrapRelays);
 }

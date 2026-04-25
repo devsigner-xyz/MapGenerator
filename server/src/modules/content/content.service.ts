@@ -1,5 +1,6 @@
 import { SimplePool } from 'nostr-tools';
 
+import { normalizeHexPubkey } from '../../nostr/nostr-validation';
 import type { AuthorRelayDirectory } from '../../relay/author-relay-directory';
 import { createAuthorRelayDirectory } from '../../relay/author-relay-directory';
 import { discoverFollowers, parseCandidateAuthors, parseFollowsFromKind3 } from '../../relay/follower-discovery';
@@ -12,6 +13,10 @@ import type {
 } from '../../relay/relay-gateway.types';
 import type { RelayQueryPlanner } from '../../relay/relay-query-planner';
 import { createRelayQueryPlanner } from '../../relay/relay-query-planner';
+import {
+  createRelayQueryExecutor,
+  type RelayQueryExecutor,
+} from '../../relay/relay-query-executor';
 import { relaySetKey } from '../../relay/relay-resolver';
 import type {
   ContentPostsQuery,
@@ -37,7 +42,7 @@ const DEFAULT_BOOTSTRAP_RELAYS = [
 
 const DEFAULT_RELAY_QUERY_TIMEOUT_MS = 12_000;
 
-const normalizePubkey = (value: string): string => value.trim().toLowerCase();
+const normalizePubkey = (value: string): string => normalizeHexPubkey(value) ?? value.trim().toLowerCase();
 
 const byCreatedAtDesc = (left: NostrEventLike, right: NostrEventLike): number => {
   if (left.created_at !== right.created_at) {
@@ -62,6 +67,7 @@ export interface ContentServiceOptions {
   profileStatsGateway?: RelayGateway<ProfileStatsQuery, ProfileStatsResponseDto>;
   authorRelayDirectory?: AuthorRelayDirectory;
   relayQueryPlanner?: RelayQueryPlanner;
+  relayQueryExecutor?: RelayQueryExecutor;
   fetchPosts?: (
     query: ContentPostsQuery,
     context: RelayGatewayQueryContext,
@@ -128,6 +134,7 @@ const createPoolFetchers = (options: {
   pool: SimplePool;
   bootstrapRelays: string[];
   relayQueryPlanner: RelayQueryPlanner;
+  relayQueryExecutor: RelayQueryExecutor;
 }): {
   fetchPosts: (
     query: ContentPostsQuery,
@@ -165,7 +172,7 @@ const createPoolFetchers = (options: {
 
   const fetchPosts = async (
     query: ContentPostsQuery,
-    _context: RelayGatewayQueryContext,
+    context: RelayGatewayQueryContext,
   ): Promise<ContentPostsResponseDto> => {
     const pubkey = normalizePubkey(query.pubkey);
     const until = typeof query.until === 'number' && query.until > 0 ? query.until : undefined;
@@ -179,12 +186,16 @@ const createPoolFetchers = (options: {
         return [] as NostrEventLike[];
       }
 
-      return options.pool.querySync(relays, {
-        authors: [pubkey],
-        kinds: [1],
-        until,
-        limit: query.limit + 1,
-      }) as Promise<NostrEventLike[]>;
+      return options.relayQueryExecutor.query<NostrEventLike>({
+        relays,
+        signal: context.signal,
+        filter: {
+          authors: [pubkey],
+          kinds: [1],
+          until,
+          limit: query.limit + 1,
+        },
+      });
     }, (events) => events.length === 0);
 
     const sorted = [...events].sort(byCreatedAtDesc);
@@ -208,7 +219,7 @@ const createPoolFetchers = (options: {
 
   const fetchProfileStats = async (
     query: ProfileStatsQuery,
-    _context: RelayGatewayQueryContext,
+    context: RelayGatewayQueryContext,
   ): Promise<ProfileStatsResponseDto> => {
     const targetPubkey = normalizePubkey(query.pubkey);
     const candidateAuthors = parseCandidateAuthors(query.candidateAuthors)
@@ -228,11 +239,15 @@ const createPoolFetchers = (options: {
         return null;
       }
 
-      const events = await options.pool.querySync(relays, {
-        authors: [targetPubkey],
-        kinds: [3],
-        limit: 1,
-      }) as NostrEventLike[];
+      const events = await options.relayQueryExecutor.query<NostrEventLike>({
+        relays,
+        signal: context.signal,
+        filter: {
+          authors: [targetPubkey],
+          kinds: [3],
+          limit: 1,
+        },
+      });
 
       return [...events].sort(byCreatedAtDesc)[0] ?? null;
     }, (event) => event === null);
@@ -242,7 +257,11 @@ const createPoolFetchers = (options: {
       ownerScope: followerPlan.ownerScope,
       candidateAuthorScopes: followerPlan.candidateAuthorScopes,
       queryEvents: async (relays, filter) => {
-        return options.pool.querySync(relays, filter) as Promise<NostrEventLike[]>;
+        return options.relayQueryExecutor.query<NostrEventLike>({
+          relays,
+          filter,
+          signal: context.signal,
+        });
       },
     });
 
@@ -261,9 +280,11 @@ const createPoolFetchers = (options: {
 export const createContentService = (options: ContentServiceOptions = {}): ContentService => {
   const pool = options.pool ?? new SimplePool();
   const bootstrapRelays = options.bootstrapRelays ?? DEFAULT_BOOTSTRAP_RELAYS;
+  const relayQueryExecutor = options.relayQueryExecutor ?? createRelayQueryExecutor({ pool });
   const authorRelayDirectory = options.authorRelayDirectory ?? createAuthorRelayDirectory({
     pool,
     bootstrapRelays,
+    relayQueryExecutor,
   });
   const relayQueryPlanner = options.relayQueryPlanner ?? createRelayQueryPlanner({
     bootstrapRelays,
@@ -273,6 +294,7 @@ export const createContentService = (options: ContentServiceOptions = {}): Conte
     pool,
     bootstrapRelays,
     relayQueryPlanner,
+    relayQueryExecutor,
   });
 
   const postsGateway =
