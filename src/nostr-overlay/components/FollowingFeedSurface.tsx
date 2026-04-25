@@ -72,7 +72,7 @@ export function FollowingFeedSurface({ agoraFeedLayout = 'list', onAgoraFeedLayo
 
     return (
         <OverlaySurface ariaLabel="Agora" className="nostr-following-feed-surface" contentClassName="nostr-following-feed-routed-surface-content gap-0">
-            <div>
+            <div className="flex min-h-0 flex-1 flex-col">
                 <FollowingFeedContent
                     {...feedProps}
                     agoraFeedLayout={agoraFeedLayout}

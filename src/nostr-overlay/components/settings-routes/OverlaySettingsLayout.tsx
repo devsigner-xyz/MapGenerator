@@ -10,7 +10,7 @@ export function OverlaySettingsLayout(contextValue: OverlaySettingsLayoutProps) 
 
     return (
         <OverlaySurface ariaLabel={t('settings.layout.aria')}>
-            <div>
+            <div className="flex min-h-0 flex-1 flex-col">
                 <div className="nostr-settings-page nostr-routed-surface-panel nostr-page-layout">
                     <Outlet context={contextValue} />
                 </div>

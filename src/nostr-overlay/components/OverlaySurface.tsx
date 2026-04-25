@@ -27,11 +27,13 @@ export function OverlaySurface({
             <div
                 data-testid={contentTestId}
                 className={cn(
-                    'flex h-full w-full flex-col gap-2.5 bg-overlay-surface p-3 text-foreground backdrop-blur-sm',
+                    'flex h-full w-full flex-col gap-2.5 overflow-hidden bg-overlay-surface p-3 text-foreground backdrop-blur-sm',
                     contentClassName,
                 )}
             >
-                {children}
+                <div data-slot="overlay-surface-body" className="flex min-h-0 w-full flex-1 flex-col">
+                    {children}
+                </div>
             </div>
         </section>
     );

@@ -63,7 +63,7 @@ export function ChatsPage({
 
     return (
         <OverlaySurface ariaLabel={t('chats.title')}>
-            <div>
+            <div className="flex min-h-0 flex-1 flex-col">
                 {showBootstrappingState ? (
                     <div className="nostr-chats-page nostr-routed-surface-panel nostr-page-layout nostr-chats-loading-page" data-chat-source="query">
                         <Empty className="nostr-chats-loading-empty">

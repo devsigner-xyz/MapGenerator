@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ImageIcon } from 'lucide-react';
+import { CopyIcon, ImageIcon } from 'lucide-react';
 import type { AgoraFeedLayout } from '../../nostr/ui-settings';
 import type { NostrEvent, NostrProfile } from '../../nostr/types';
 import type { SocialEngagementMetrics, SocialFeedItem } from '../../nostr/social-feed-service';
@@ -250,8 +250,26 @@ export function FollowingFeedContent({
     };
 
     const replyDisabled = !canWrite || isPublishingReply || !replyTargetEventId;
-    const resolvedSubtitle = activeThread
-        ? t('feed.threadDescription')
+    const activeThreadNoteId = activeThread?.root?.id ?? activeThread?.rootEventId;
+    const resolvedSubtitle = activeThread && activeThreadNoteId
+        ? (
+            <span className="inline-flex min-w-0 items-center gap-1.5">
+                <span className="truncate font-mono text-xs">{activeThreadNoteId}</span>
+                {onCopyNoteId ? (
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-7 shrink-0"
+                        aria-label={t('note.menu.copyIdAria', { noteId: activeThreadNoteId })}
+                        title={t('note.menu.copyIdAria', { noteId: activeThreadNoteId })}
+                        onClick={() => onCopyNoteId(activeThreadNoteId)}
+                    >
+                        <CopyIcon aria-hidden="true" />
+                    </Button>
+                ) : null}
+            </span>
+        )
         : (headerSubtitle || t('feed.subtitle.following'));
     const showThreadBlockingEmpty = Boolean(activeThread && activeThread.isLoading && !activeThread.root && activeThread.replies.length === 0);
     const showThreadLoadingFooter = Boolean(activeThread && (activeThread.isLoadingMore || (activeThread.isLoading && (Boolean(activeThread.root) || activeThread.replies.length > 0))));
@@ -342,7 +360,7 @@ export function FollowingFeedContent({
             <div className="nostr-following-feed-header">
                 <OverlayPageHeader
                     className="nostr-following-feed-page-header"
-                    title={activeThread ? t('feed.threadTitle') : 'Agora'}
+                    title={activeThread ? t('feed.noteTitle') : 'Agora'}
                     description={resolvedSubtitle}
                 />
 

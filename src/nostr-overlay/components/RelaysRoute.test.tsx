@@ -109,4 +109,23 @@ describe('RelaysRoute', () => {
         expect(text).toContain('Configured relays');
         expect(text).toContain('Configured relays, suggested relays, and Nostr connection status.');
     });
+
+    test('renders route content inside a height-constrained overlay body', async () => {
+        const rendered = await renderElement(
+            <MemoryRouter initialEntries={['/relays']}>
+                <Routes>
+                    <Route path="/relays" element={<RelaysRoute />} />
+                </Routes>
+            </MemoryRouter>
+        );
+        mounted.push(rendered);
+
+        const body = rendered.container.querySelector('[data-slot="overlay-surface-body"]') as HTMLElement | null;
+        const page = rendered.container.querySelector('.nostr-settings-page.nostr-routed-surface-panel') as HTMLElement | null;
+        expect(body).not.toBeNull();
+        expect(body?.className).toContain('min-h-0');
+        expect(body?.className).toContain('flex-1');
+        expect(page?.parentElement?.className || '').toContain('min-h-0');
+        expect(page?.parentElement?.className || '').toContain('flex-1');
+    });
 });

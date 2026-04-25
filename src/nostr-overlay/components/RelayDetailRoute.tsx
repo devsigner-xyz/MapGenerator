@@ -49,7 +49,7 @@ export function RelayDetailRoute({
 
     return (
         <OverlaySurface ariaLabel={t('relayRoute.aria')}>
-                <div>
+                <div className="flex min-h-0 flex-1 flex-col">
                     <div className="nostr-settings-page nostr-routed-surface-panel nostr-page-layout nostr-settings-page-relays">
                     <SettingsRelayDetailPage
                         selectedRelay={relayDetail.selectedRelay}

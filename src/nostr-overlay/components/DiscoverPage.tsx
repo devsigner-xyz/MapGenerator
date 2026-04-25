@@ -20,7 +20,7 @@ export function DiscoverPage({ discoveredIds }: DiscoverPageProps) {
 
     return (
         <OverlaySurface ariaLabel={t('discover.aria')}>
-            <div>
+            <div className="flex min-h-0 flex-1 flex-col">
                 <div className="nostr-easter-egg-missions-page nostr-routed-surface-panel nostr-page-layout">
                     <OverlayPageHeader
                         title={t('discover.title')}
@@ -34,7 +34,14 @@ export function DiscoverPage({ discoveredIds }: DiscoverPageProps) {
                                     <li key={mission.id}>
                                         <Card size="sm" data-testid="discover-mission-card" className="gap-0 py-0">
                                             <CardContent className="flex items-center justify-between gap-3 px-4 py-3">
-                                                <span className="text-sm text-card-foreground">{mission.label}</span>
+                                                <span className="grid min-w-0 gap-0.5">
+                                                    <span data-testid="discover-mission-title" className="text-sm font-medium text-card-foreground">
+                                                        {t(mission.titleKey)}
+                                                    </span>
+                                                    <span data-testid="discover-mission-subtitle" className="text-xs text-muted-foreground">
+                                                        {t(mission.subtitleKey)}
+                                                    </span>
+                                                </span>
                                                 <Badge variant={discovered ? 'secondary' : 'outline'}>
                                                     {discovered ? t('discover.status.found') : t('discover.status.pending')}
                                                 </Badge>

@@ -99,6 +99,14 @@ function notificationNotePrefix(item: NotificationInboxItem, t: ReturnType<typeo
     return null;
 }
 
+function notificationZapAmountSuffix(item: NotificationInboxItem, t: ReturnType<typeof useI18n>['t']): string | null {
+    if (item.category !== 'zap') {
+        return null;
+    }
+
+    return t('notifications.row.zap.amountSuffix', { count: String(item.zapTotalSats ?? 0) });
+}
+
 function NotificationCategoryIcon({ category, className }: { category: NotificationCategory; className?: string }) {
     if (category === 'zap') {
         return <ZapIcon className={className} aria-hidden="true" />;
@@ -289,6 +297,7 @@ function NotificationTitleContent({
 }): ReactNode {
     const extraCount = Math.max(0, item.actors.length - 1);
     const notePrefix = notificationNotePrefix(item, t);
+    const zapAmountSuffix = notificationZapAmountSuffix(item, t);
 
     return (
         <>
@@ -332,6 +341,12 @@ function NotificationTitleContent({
                     ) : (
                         <span>{t('notifications.row.noteLabel')}</span>
                     )}
+                    {zapAmountSuffix ? (
+                        <>
+                            {' '}
+                            <span>{zapAmountSuffix}</span>
+                        </>
+                    ) : null}
                 </>
             ) : (
                 <span>{notificationRowSuffix(item, t)}</span>
@@ -391,7 +406,7 @@ function NotificationSection({
                         && Boolean(item.targetEventId)
                         && !targetEvent
                         && unresolvedTargetIds.has(item.targetEventId || '');
-                    const hasSecondaryContent = item.category === 'zap' || Boolean(detachedPreview) || shouldShowUnavailable;
+                    const hasSecondaryContent = Boolean(detachedPreview) || shouldShowUnavailable;
                     const shouldCenterPrimaryRow = !hasSecondaryContent || Boolean(detachedPreview);
 
                     const body = (
@@ -410,14 +425,11 @@ function NotificationSection({
                                             t={t}
                                         />
                                     </ItemTitle>
-                                    <time className="shrink-0 text-xs text-muted-foreground" dateTime={new Date(item.occurredAt * 1000).toISOString()}>
-                                        {timestamp}
-                                    </time>
                                 </ItemHeader>
 
-                                {item.category === 'zap' ? (
-                                    <ItemDescription>{t('notifications.meta.sats', { count: String(item.zapTotalSats ?? 0) })}</ItemDescription>
-                                ) : null}
+                                <time className="text-xs text-muted-foreground" dateTime={new Date(item.occurredAt * 1000).toISOString()}>
+                                    {timestamp}
+                                </time>
 
                                 {shouldShowUnavailable ? (
                                     openEventId && onOpenThread ? (

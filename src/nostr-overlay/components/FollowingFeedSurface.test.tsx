@@ -266,12 +266,12 @@ describe('FollowingFeedSurface', () => {
         expect(rendered.container.querySelector('[data-slot="toggle-group"]')).toBeNull();
     });
 
-    test('renders thread header copy in english when ui language is en', async () => {
-        window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ language: 'en' }));
-
+    test('renders note detail header with note id copy action', async () => {
+        const onCopyNoteId = vi.fn();
         const rendered = await renderElement(
             <FollowingFeedSurface
                 {...buildProps({
+                    onCopyNoteId,
                     activeThread: {
                         rootEventId: 'root-1',
                         root: {
@@ -301,9 +301,19 @@ describe('FollowingFeedSurface', () => {
         mounted.push(rendered);
 
         const text = rendered.container.textContent || '';
-        expect(text).toContain('Thread');
-        expect(text).toContain('Replies and activity for the selected conversation.');
+        expect(text).toContain('Nota');
+        expect(text).toContain('root-1');
+        expect(text).not.toContain('Hilo');
         expect(text).not.toContain('Respuestas y actividad de la conversación seleccionada.');
+
+        const copyButton = rendered.container.querySelector('button[aria-label="Copiar identificador de nota root-1"]') as HTMLButtonElement | null;
+        expect(copyButton).not.toBeNull();
+
+        await act(async () => {
+            copyButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onCopyNoteId).toHaveBeenCalledWith('root-1');
     });
 
     test('feed scroll requests next query page without rendering manual load more button', async () => {

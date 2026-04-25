@@ -213,14 +213,21 @@ describe('NotificationsPage', () => {
         const text = rendered.container.textContent || '';
         expect(text).toContain('Nuevas');
         expect(text).toContain('Recientes');
-        expect(text).toContain('Bob y 1 mas zapearon tu nota');
-        expect(text).toContain('63 sats');
+        expect(text).toContain('Bob y 1 mas zapearon tu nota con 63 sats');
         expect(text).toContain('nota target uno');
         expect(text).toContain('Carol reacciono con ❤️ a tu nota');
         expect(text).toContain('nota target dos');
         expect(text).not.toContain('Reaccion');
         expect(text).not.toContain('Zap');
         expect(text).not.toContain('2 eventos');
+
+        const zapTitle = Array.from(rendered.container.querySelectorAll('[data-slot="item-title"]')).find((node) =>
+            (node.textContent || '').includes('zapearon tu nota')
+        ) as HTMLElement | undefined;
+        expect(zapTitle?.textContent || '').toContain('con 63 sats');
+        expect(Array.from(rendered.container.querySelectorAll('[data-slot="item-description"]')).some((node) =>
+            (node.textContent || '').trim() === '63 sats'
+        )).toBe(false);
     });
 
     test('uses unique actor count in grouped row copy when the same actor emits multiple events', async () => {
@@ -278,7 +285,7 @@ describe('NotificationsPage', () => {
         mounted.push(rendered);
 
         const text = rendered.container.textContent || '';
-        expect(text).toContain('Alice zappeo tu nota');
+        expect(text).toContain('Alice zapeó tu nota con 63 sats');
         expect(text).not.toContain('Alice y 1 mas zapearon tu nota');
         expect(text).not.toContain('2 eventos');
     });
@@ -684,7 +691,7 @@ describe('NotificationsPage', () => {
 
         const text = rendered.container.textContent || '';
         expect(onResolveProfiles).not.toHaveBeenCalled();
-        expect(text).toContain('anonimo y 1 mas zapearon tu nota');
+        expect(text).toContain('anonimo y 1 mas zapearon tu nota con 63 sats');
     });
 
     test('renders a single actor avatar with a notification type badge', async () => {
@@ -732,6 +739,35 @@ describe('NotificationsPage', () => {
         expect(rendered.container.querySelector('[data-slot="avatar-image"]')).toBeNull();
         expect(rendered.container.querySelector('[data-slot="avatar-fallback"]')?.textContent).toBe('2');
         expect(rendered.container.querySelector('[data-slot="avatar-badge"] svg')).not.toBeNull();
+    });
+
+    test('renders notification timestamp below the title instead of in the title row', async () => {
+        const actor = '1'.repeat(64);
+
+        const rendered = await renderElement(
+            <NotificationsPage
+                hasUnread={false}
+                newNotifications={[
+                    buildItem({ id: 'reaction-1', actorPubkey: actor, createdAt: 120 }),
+                ]}
+                recentNotifications={[]}
+                profilesByPubkey={{ [actor]: buildProfile(actor, 'Alice') }}
+                eventReferencesById={{}}
+            />,
+        );
+        mounted.push(rendered);
+
+        const itemContent = rendered.container.querySelector('[data-slot="item-content"]') as HTMLElement | null;
+        const header = itemContent?.querySelector('[data-slot="item-header"]') as HTMLElement | null;
+        const title = itemContent?.querySelector('[data-slot="item-title"]') as HTMLElement | null;
+        const timestamp = itemContent?.querySelector('time') as HTMLElement | null;
+
+        expect(header).not.toBeNull();
+        expect(title).not.toBeNull();
+        expect(timestamp).not.toBeNull();
+        expect(header?.contains(title)).toBe(true);
+        expect(header?.contains(timestamp)).toBe(false);
+        expect(title?.compareDocumentPosition(timestamp as Node) || 0).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     });
 
     test('renders the reaction itself in the avatar badge for reactions', async () => {

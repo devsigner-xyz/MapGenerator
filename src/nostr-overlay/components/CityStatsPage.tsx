@@ -109,7 +109,7 @@ export function CityStatsPage({
 
     return (
         <OverlaySurface ariaLabel={t('cityStats.aria')}>
-            <div>
+            <div className="flex min-h-0 flex-1 flex-col">
                 <div className="nostr-city-stats-page nostr-routed-surface-panel nostr-page-layout sm:max-w-none">
                     <div className="nostr-city-stats-body">
                         <OverlayPageHeader

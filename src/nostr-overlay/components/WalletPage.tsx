@@ -46,7 +46,7 @@ export function WalletPage({
 
     return (
         <OverlaySurface ariaLabel={t('wallet.title')}>
-            <div data-testid="wallet-page">
+            <div data-testid="wallet-page" className="flex min-h-0 flex-1 flex-col">
                 <div className="nostr-routed-surface-panel nostr-page-layout gap-3">
                     <OverlayPageHeader
                         title={t('wallet.title')}

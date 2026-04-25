@@ -51,4 +51,19 @@ describe('DiscoverPage', () => {
         expect(text).toContain('Pending');
         expect(rendered.container.querySelectorAll('[data-testid="discover-mission-card"]')).toHaveLength(3);
     });
+
+    test('renders each mission as a title and subtitle pair', async () => {
+        const rendered = await renderElement(<DiscoverPage discoveredIds={[]} />);
+        mounted.push(rendered);
+
+        const firstMission = rendered.container.querySelector('[data-testid="discover-mission-card"]') as HTMLElement | null;
+        expect(firstMission).not.toBeNull();
+        const title = firstMission?.querySelector('[data-testid="discover-mission-title"]') as HTMLElement | null;
+        const subtitle = firstMission?.querySelector('[data-testid="discover-mission-subtitle"]') as HTMLElement | null;
+
+        expect(title).not.toBeNull();
+        expect(subtitle).not.toBeNull();
+        expect(title?.textContent || '').toContain('Encuentra Bitcoin whitepaper');
+        expect(subtitle?.textContent || '').toContain('Bitcoin: A Peer-to-Peer Electronic Cash System');
+    });
 });

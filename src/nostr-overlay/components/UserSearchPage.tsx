@@ -233,7 +233,7 @@ export function UserSearchPage({
 
     return (
         <OverlaySurface ariaLabel={t('userSearch.title')}>
-            <div>
+            <div className="flex min-h-0 flex-1 flex-col">
                 <div className="nostr-global-search-page nostr-routed-surface-panel nostr-page-layout">
                     <OverlayPageHeader
                         title={t('userSearch.title')}

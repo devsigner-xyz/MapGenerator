@@ -24,7 +24,11 @@ export function OverlayPageHeader({
                         <h2 className="scroll-m-20 text-xl font-semibold tracking-tight">{title}</h2>
                         {indicator}
                     </div>
-                    {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+                    {description ? (
+                        typeof description === 'string'
+                            ? <p className="text-sm text-muted-foreground">{description}</p>
+                            : <div className="text-sm text-muted-foreground">{description}</div>
+                    ) : null}
                 </div>
 
                 {actions ? (
