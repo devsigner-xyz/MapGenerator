@@ -18,6 +18,17 @@ import * as ndkClientModule from '../nostr/ndk-client';
 import * as writeGatewayModule from '../nostr/write-gateway';
 import * as runtimeDmServiceModule from '../nostr/dm-runtime-service';
 import * as dmApiServiceModule from '../nostr-api/dm-api-service';
+
+const { createFireworksMock } = vi.hoisted(() => ({
+    createFireworksMock: vi.fn(),
+}));
+
+vi.mock('@tsparticles/fireworks', () => ({
+    fireworks: {
+        create: createFireworksMock,
+    },
+}));
+
 import { App } from './App';
 import type { NostrOverlayServices } from './hooks/useNostrOverlay';
 import type { MapBridge } from './map-bridge';
@@ -481,6 +492,8 @@ beforeAll(() => {
 beforeEach(() => {
     window.localStorage.clear();
     __resetFollowsCacheForTests();
+    createFireworksMock.mockReset();
+    createFireworksMock.mockResolvedValue({ stop: vi.fn() });
     (window as unknown as { nostr?: unknown }).nostr = createNip07ExtensionMock();
     Object.defineProperty(window, 'matchMedia', {
         writable: true,
@@ -6766,6 +6779,36 @@ describe('Nostr overlay App', () => {
         const links = Array.from(rendered.container.querySelectorAll('.nostr-easter-egg-action')) as HTMLAnchorElement[];
         expect(links.some((link) => (link.textContent || '').includes('Descargar PDF'))).toBe(true);
         expect(links.some((link) => (link.textContent || '').includes('Abrir / Ampliar'))).toBe(true);
+    });
+
+    test('starts easter egg fireworks only on first discovery', async () => {
+        const { bridge, triggerEasterEggBuildingClick } = createMapBridgeStub();
+        const rendered = await renderApp(<App mapBridge={bridge} services={createBasicOverlayServices()} />);
+        mounted.push(rendered);
+
+        await loginWithNip07(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        await act(async () => {
+            triggerEasterEggBuildingClick({
+                buildingIndex: 7,
+                easterEggId: 'bitcoin_whitepaper',
+            });
+        });
+
+        await waitFor(() => createFireworksMock.mock.calls.length === 1);
+        expect(rendered.container.textContent || '').toContain('Bitcoin: A Peer-to-Peer Electronic Cash System');
+
+        await act(async () => {
+            triggerEasterEggBuildingClick({
+                buildingIndex: 7,
+                easterEggId: 'bitcoin_whitepaper',
+            });
+            await Promise.resolve();
+        });
+
+        expect(createFireworksMock).toHaveBeenCalledTimes(1);
+        expect(rendered.container.textContent || '').toContain('Bitcoin: A Peer-to-Peer Electronic Cash System');
     });
 
     test('opens easter egg dialog for text content', async () => {

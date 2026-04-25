@@ -33,6 +33,7 @@ import { encodeHexToNpub } from '../nostr/npub';
 import { MapPresenceLayer } from './components/MapPresenceLayer';
 import { OccupantProfileDialog } from './components/OccupantProfileDialog';
 import { EasterEggDialog } from './components/EasterEggDialog';
+import { EasterEggFireworks } from './components/EasterEggFireworks';
 import { DiscoverPage } from './components/DiscoverPage';
 import { SocialSidebar } from './components/SocialSidebar';
 import {
@@ -302,6 +303,7 @@ export function App({ mapBridge, services }: AppProps) {
     const [easterEggProgress, setEasterEggProgress] = useState<EasterEggProgressState>(() => loadEasterEggProgress());
     const [buildingContextMenu, setBuildingContextMenu] = useState<OccupiedBuildingContextMenuState | null>(null);
     const [activeEasterEgg, setActiveEasterEgg] = useState<EasterEggDialogState | null>(null);
+    const [easterEggCelebrationNonce, setEasterEggCelebrationNonce] = useState(0);
     const [chatComposerFocusKey, setChatComposerFocusKey] = useState('');
     const [chatPinnedConversationId, setChatPinnedConversationId] = useState<string | null>(null);
     const [eventReferencesById, setEventReferencesById] = useState<Record<string, NostrEvent>>({});
@@ -310,6 +312,7 @@ export function App({ mapBridge, services }: AppProps) {
     const contextMenuTriggerRef = useRef<HTMLSpanElement | null>(null);
     const contextMenuNonceRef = useRef(0);
     const easterEggNonceRef = useRef(0);
+    const easterEggProgressRef = useRef(easterEggProgress);
     const lastTrafficParticlesCountRef = useRef(
         Math.max(
             1,
@@ -321,6 +324,10 @@ export function App({ mapBridge, services }: AppProps) {
     const loginDisabled = overlay.status !== 'idle' && overlay.status !== 'success' && overlay.status !== 'error';
     const mapLoaderText = mapLoaderStageLabel(overlay.mapLoaderStage, uiSettings.language);
     const sessionRestorationResolved = overlay.sessionRestorationResolved;
+
+    useEffect(() => {
+        easterEggProgressRef.current = easterEggProgress;
+    }, [easterEggProgress]);
     const isAppReady = Boolean(overlay.authSession) && overlay.status === 'success' && !overlay.authSession?.locked;
     const showLoginGate = !sessionRestorationResolved || !isAppReady;
     const lastErrorToastRef = useRef<string | undefined>(undefined);
@@ -501,11 +508,20 @@ export function App({ mapBridge, services }: AppProps) {
         }
 
         return mapBridge.onEasterEggBuildingClick((payload) => {
-            setEasterEggProgress((currentProgress) => markEasterEggDiscovered({
+            const currentProgress = easterEggProgressRef.current;
+            const wasAlreadyDiscovered = currentProgress.discoveredIds.includes(payload.easterEggId);
+            const nextProgress = markEasterEggDiscovered({
                 easterEggId: payload.easterEggId,
                 currentState: currentProgress,
                 ...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {}),
-            }));
+            });
+
+            easterEggProgressRef.current = nextProgress;
+            if (!wasAlreadyDiscovered) {
+                setEasterEggCelebrationNonce((currentNonce) => currentNonce + 1);
+            }
+
+            setEasterEggProgress(nextProgress);
             easterEggNonceRef.current += 1;
             setActiveEasterEgg({
                 ...payload,
@@ -2104,6 +2120,8 @@ export function App({ mapBridge, services }: AppProps) {
                     onClose={() => setActiveEasterEgg(null)}
                 />
             ) : null}
+
+            <EasterEggFireworks nonce={easterEggCelebrationNonce} />
 
             {socialComposeState ? (
                 <SocialComposeDialog

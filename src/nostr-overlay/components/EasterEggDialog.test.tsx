@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
@@ -41,6 +43,12 @@ async function renderDialog(element: ReactElement): Promise<RenderResult> {
 }
 
 describe('EasterEggDialog', () => {
+    test('defines a max-width at least as wide as occupant profile dialogs', () => {
+        const styles = readFileSync(join(process.cwd(), 'src', 'nostr-overlay', 'styles.css'), 'utf8');
+
+        expect(styles).toMatch(/\.nostr-easter-egg-dialog\s*\{[^}]*max-width:\s*min\(1040px,\s*calc\(100vw - 32px\)\)/s);
+    });
+
     test('renders pdf controls and iframe for bitcoin whitepaper', async () => {
         const rendered = await renderDialog(
             <EasterEggDialog
