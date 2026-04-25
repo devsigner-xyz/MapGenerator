@@ -97,6 +97,25 @@ describe('NotificationsPage', () => {
         expect(rendered.container.querySelector('[data-slot="overlay-unread-indicator"]')).not.toBeNull();
     });
 
+    test('uses the common routed page layout spacing', async () => {
+        const rendered = await renderElement(
+            <NotificationsPage
+                hasUnread={false}
+                newNotifications={[]}
+                recentNotifications={[]}
+                profilesByPubkey={{}}
+                eventReferencesById={{}}
+            />,
+        );
+        mounted.push(rendered);
+
+        const page = rendered.container.querySelector('.nostr-notifications-page') as HTMLElement | null;
+
+        expect(page).not.toBeNull();
+        expect(page?.className).toContain('nostr-routed-surface-panel');
+        expect(page?.className).toContain('nostr-page-layout');
+    });
+
     test('renders empty state when there are no notifications in either section', async () => {
         const rendered = await renderElement(
             <NotificationsPage

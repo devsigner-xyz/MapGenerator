@@ -772,7 +772,7 @@
 .nostr-easter-egg-missions-list {
     list-style: none;
     margin: 0;
-    padding: 0;
+    padding: 1px;
     display: grid;
     gap: 0.44rem;
     max-height: 62vh;
@@ -817,7 +817,7 @@
     overflow: auto;
     display: grid;
     gap: 0.72rem;
-    padding-right: 0.1rem;
+    padding: 1px 0.1rem 1px 1px;
 }
 
 .nostr-page-layout {
@@ -1369,6 +1369,12 @@
     max-height: none;
 }
 
+.nostr-notifications-page {
+    display: flex;
+    flex-direction: column;
+    align-content: normal;
+}
+
 .nostr-routed-surface-panel.nostr-settings-page-relays {
     width: 100% !important;
     max-width: none !important;
@@ -1397,7 +1403,7 @@
 }
 
 .nostr-following-feed-routed-surface-content {
-    padding: 0;
+    padding: 0.75rem;
 }
 
 .nostr-following-feed-page {
@@ -1418,6 +1424,12 @@
     max-height: none;
     min-height: 0;
     flex: 1;
+    padding-right: 1px;
+    padding-left: 1px;
+}
+
+.nostr-following-feed-page > .nostr-following-feed-header {
+    padding: 0;
 }
 
 .nostr-following-feed-header {

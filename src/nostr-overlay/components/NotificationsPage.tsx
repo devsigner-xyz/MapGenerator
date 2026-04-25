@@ -576,7 +576,7 @@ export function NotificationsPage({
 
     return (
         <OverlaySurface ariaLabel={t('notifications.title')}>
-            <div className="flex min-h-0 flex-1 flex-col gap-3">
+            <div className="nostr-notifications-page nostr-routed-surface-panel nostr-page-layout flex min-h-0 flex-1 flex-col gap-3">
                 <OverlayPageHeader
                     title={t('notifications.title')}
                     description={t('notifications.description')}

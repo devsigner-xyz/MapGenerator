@@ -419,7 +419,8 @@ describe('FollowingFeedSurface', () => {
         expect(surfaceContent).toBeDefined();
         expect(routedSurfaceContent).toBeDefined();
         expect(routedSurfaceContent.className).toContain('nostr-following-feed-routed-surface-content');
-        expect(surfaceContent.className).toContain('nostr-following-feed-page-edge-to-edge');
+        expect(surfaceContent.className).not.toContain('nostr-following-feed-page-edge-to-edge');
+        expect(surfaceContent.className).toContain('nostr-page-layout');
         expect(surfaceContent.classList.contains('nostr-following-feed-dialog')).toBe(false);
         expect(rendered.container.querySelector('[data-slot="overlay-page-header"]')).not.toBeNull();
         expect(composeCard).toBeNull();

@@ -63,6 +63,28 @@ describe('WalletPage', () => {
         expect(rendered.container.textContent || '').not.toContain('Recibir');
     });
 
+    test('aligns card headers with card content padding', async () => {
+        const rendered = await renderElement(
+            <WalletPage
+                walletState={{ activeConnection: null }}
+                walletActivity={{ items: [] }}
+                nwcUriInput=""
+                onNwcUriInputChange={vi.fn()}
+                onConnectNwc={vi.fn()}
+                onConnectWebLn={vi.fn()}
+                onDisconnect={vi.fn()}
+                onRefresh={vi.fn()}
+            />
+        );
+        mounted.push(rendered);
+
+        const cardHeader = rendered.container.querySelector('[data-slot="card-header"]') as HTMLElement | null;
+        const cardContent = rendered.container.querySelector('[data-slot="card-content"]') as HTMLElement | null;
+
+        expect(cardHeader?.className).toContain('px-4');
+        expect(cardContent?.className).toContain('px-4');
+    });
+
     test('renders connected wallet details and activity', async () => {
         const rendered = await renderElement(
             <WalletPage

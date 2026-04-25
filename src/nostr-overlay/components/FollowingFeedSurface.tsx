@@ -71,13 +71,13 @@ export function FollowingFeedSurface({ agoraFeedLayout = 'list', onAgoraFeedLayo
         : undefined;
 
     return (
-        <OverlaySurface ariaLabel="Agora" className="nostr-following-feed-surface" contentClassName="nostr-following-feed-routed-surface-content gap-0 p-0">
+        <OverlaySurface ariaLabel="Agora" className="nostr-following-feed-surface" contentClassName="nostr-following-feed-routed-surface-content gap-0">
             <div>
                 <FollowingFeedContent
                     {...feedProps}
                     agoraFeedLayout={agoraFeedLayout}
                     {...(activeHashtag ? { activeHashtag } : {})}
-                    className="nostr-following-feed-surface-content nostr-following-feed-page nostr-following-feed-page-edge-to-edge nostr-routed-surface-panel nostr-page-layout"
+                    className="nostr-following-feed-surface-content nostr-following-feed-page nostr-routed-surface-panel nostr-page-layout"
                     headerSubtitle={headerSubtitle}
                     {...(headerActions ? { headerActions } : {})}
                 />
