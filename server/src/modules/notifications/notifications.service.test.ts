@@ -16,11 +16,11 @@ const OWNER_PUBKEY = 'a'.repeat(64);
 const ACTOR_PUBKEY = 'b'.repeat(64);
 const TARGET_EVENT_ID = 'c'.repeat(64);
 
-const makeEvent = (event: { id: string; createdAt: number }) => ({
+const makeEvent = (event: { id: string; createdAt: number; kind?: number }) => ({
   id: event.id,
   pubkey: ACTOR_PUBKEY,
   sig: 'f'.repeat(128),
-  kind: 1,
+  kind: event.kind ?? 1,
   created_at: event.createdAt,
   tags: [
     ['p', OWNER_PUBKEY],
@@ -29,9 +29,9 @@ const makeEvent = (event: { id: string; createdAt: number }) => ({
   content: 'mention',
 });
 
-const makeItem = (item: { id: string; createdAt: number }): NotificationItemDto => ({
+const makeItem = (item: { id: string; createdAt: number; kind?: number }): NotificationItemDto => ({
   id: item.id,
-  kind: 1,
+  kind: item.kind ?? 1,
   actorPubkey: ACTOR_PUBKEY,
   createdAt: item.createdAt,
   targetEventId: TARGET_EVENT_ID,
@@ -39,7 +39,7 @@ const makeItem = (item: { id: string; createdAt: number }): NotificationItemDto 
   rawEvent: {
     id: item.id,
     pubkey: ACTOR_PUBKEY,
-    kind: 1,
+    kind: item.kind ?? 1,
     createdAt: item.createdAt,
     content: 'mention',
     tags: [
@@ -114,6 +114,79 @@ describe('notifications service list behavior', () => {
     expect(result.hasMore).toBe(false);
     expect(result.nextSince).toBeNull();
     expect(listFilter?.until).toBe(55);
+  });
+
+  it('includes repost kind 16 in the notifications relay filter', async () => {
+    const querySyncSpy = vi.fn<SimplePool['querySync']>(async () => [
+      makeEvent({ id: '6'.repeat(64), createdAt: 30, kind: 16 }),
+    ]);
+
+    const pool = {
+      querySync: querySyncSpy,
+    } as unknown as SimplePool;
+
+    const service = createNotificationsService({
+      pool,
+      bootstrapRelays: ['wss://relay.damus.io'],
+    });
+
+    const result = await service.getNotifications({
+      ownerPubkey: OWNER_PUBKEY,
+      limit: 10,
+      since: 0,
+    });
+
+    const firstListCall = querySyncSpy.mock.calls[0];
+    expect(firstListCall).toBeDefined();
+    const listFilter = firstListCall?.[1] as Record<string, unknown> | undefined;
+
+    expect(result.items[0]).toMatchObject({ kind: 16 });
+    expect(listFilter?.kinds).toEqual(expect.arrayContaining([1, 6, 7, 16, 9735]));
+  });
+
+  it('sanitizes malformed relay tag values before building notification DTOs', async () => {
+    const id = '7'.repeat(64);
+    const querySyncSpy = vi.fn<SimplePool['querySync']>(async () => [
+      {
+        ...makeEvent({ id, createdAt: 30, kind: 16 }),
+        tags: [
+          ['p', OWNER_PUBKEY],
+          ['e', 'nevent1invalid'],
+          ['p', 'not-a-pubkey'],
+          ['k', 1],
+          ['a', null],
+        ],
+      },
+    ] as unknown as Awaited<ReturnType<SimplePool['querySync']>>);
+
+    const pool = {
+      querySync: querySyncSpy,
+    } as unknown as SimplePool;
+
+    const service = createNotificationsService({
+      pool,
+      bootstrapRelays: ['wss://relay.damus.io'],
+    });
+
+    const result = await service.getNotifications({
+      ownerPubkey: OWNER_PUBKEY,
+      limit: 10,
+      since: 0,
+    });
+
+    expect(result.items[0]).toMatchObject({
+      id,
+      kind: 16,
+      targetEventId: null,
+      targetPubkey: OWNER_PUBKEY,
+    });
+    expect(result.items[0]?.rawEvent.tags).toEqual([
+      ['p', OWNER_PUBKEY],
+      ['e', 'nevent1invalid'],
+      ['p', 'not-a-pubkey'],
+      ['k'],
+      ['a'],
+    ]);
   });
 });
 

@@ -1,4 +1,4 @@
-export type SocialNotificationKind = 1 | 6 | 7 | 9735;
+export type SocialNotificationKind = 1 | 6 | 7 | 16 | 9735;
 
 export interface SocialNotificationEvent {
     id: string;
@@ -32,6 +32,10 @@ export interface SocialNotificationsService {
         limit?: number;
         since?: number;
     }): Promise<SocialNotificationEvent[]>;
+}
+
+function isValidPubkey(value: unknown): value is string {
+    return typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 }
 
 function getTagEntries(tags: string[][], key: string): string[][] {
@@ -78,4 +82,19 @@ export function getNumericTagValue(tags: string[][], key: string): number | unde
     }
 
     return parsed;
+}
+
+export function getZapSenderPubkey(event: SocialNotificationEvent): string | undefined {
+    const descriptionValues = getTagValues(event.tags, 'description');
+    const latest = descriptionValues[descriptionValues.length - 1];
+    if (!latest) {
+        return undefined;
+    }
+
+    try {
+        const parsed = JSON.parse(latest) as { pubkey?: unknown };
+        return isValidPubkey(parsed?.pubkey) ? parsed.pubkey : undefined;
+    } catch {
+        return undefined;
+    }
 }

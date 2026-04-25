@@ -1,78 +1,592 @@
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+import { AtSignIcon, HeartIcon, MessageCircleIcon, Repeat2Icon, ZapIcon } from 'lucide-react';
 import type { SocialNotificationItem } from '../../nostr/social-notifications-service';
+import type { NostrEvent, NostrProfile } from '../../nostr/types';
+import { buildNotificationInboxSections, type NotificationCategory, type NotificationInboxItem } from '../query/social-notifications-inbox';
+import { fromResolvedReferenceEvent } from './note-card-adapters';
+import { shortId, withoutNoteActions } from './note-card-model';
+import { NoteCard } from './NoteCard';
 import { OverlayPageHeader } from './OverlayPageHeader';
 import { OverlayUnreadIndicator } from './OverlayUnreadIndicator';
-import { useI18n } from '@/i18n/useI18n';
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
-import { Item, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item';
 import { OverlaySurface } from './OverlaySurface';
+import { useI18n } from '@/i18n/useI18n';
+import { Avatar, AvatarBadge, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
+import { Item, ItemContent, ItemDescription, ItemHeader, ItemMedia, ItemTitle } from '@/components/ui/item';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
 
 interface NotificationsPageProps {
     hasUnread: boolean;
-    notifications: SocialNotificationItem[];
+    newNotifications: SocialNotificationItem[];
+    recentNotifications: SocialNotificationItem[];
+    profilesByPubkey: Record<string, NostrProfile>;
+    eventReferencesById: Record<string, NostrEvent>;
+    onResolveProfiles?: (pubkeys: string[]) => Promise<void> | void;
+    onResolveEventReferences?: (eventIds: string[]) => Promise<Record<string, NostrEvent> | void> | Record<string, NostrEvent> | void;
+    onOpenThread?: (eventId: string) => Promise<void> | void;
+    onOpenProfile?: (pubkey: string) => Promise<void> | void;
 }
 
-function notificationLabel(item: SocialNotificationItem, t: ReturnType<typeof useI18n>['t']): string {
-    if (item.kind === 1) {
-        return t('notifications.kind.mention');
+function resolveDisplayName(pubkey: string, profilesByPubkey: Record<string, NostrProfile>, fallback: string): string {
+    if (!pubkey) {
+        return fallback;
     }
 
-    if (item.kind === 6) {
-        return t('notifications.kind.repost');
-    }
-
-    if (item.kind === 7) {
-        return t('notifications.kind.reaction');
-    }
-
-    return t('notifications.kind.zap');
+    const profile = profilesByPubkey[pubkey];
+    return profile?.displayName || profile?.name || shortId(pubkey);
 }
 
-function shortPubkey(value: string, t: ReturnType<typeof useI18n>['t']): string {
-    if (!value || value.length < 16) {
-        return value || t('notifications.actor.unknown');
-    }
-
-    return `${value.slice(0, 8)}...${value.slice(-6)}`;
+function formatNotificationTimestamp(createdAt: number, locale: 'es' | 'en'): string {
+    return new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'es-ES', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+    }).format(new Date(createdAt * 1000));
 }
 
-export function NotificationsPage({ hasUnread, notifications }: NotificationsPageProps) {
-    const { t } = useI18n();
+function notificationRowSuffix(item: NotificationInboxItem, t: ReturnType<typeof useI18n>['t']): string {
+    const hasMoreActors = item.actors.length > 1;
+
+    if (item.category === 'zap') {
+        return t(hasMoreActors ? 'notifications.row.zap.groupSuffix' : 'notifications.row.zap.singleSuffix');
+    }
+
+    if (item.category === 'reaction') {
+        return t(hasMoreActors ? 'notifications.row.reaction.groupSuffix' : 'notifications.row.reaction.singleSuffix', {
+            reaction: item.reactionContent || '+',
+        });
+    }
+
+    if (item.category === 'repost') {
+        return t(hasMoreActors ? 'notifications.row.repost.groupSuffix' : 'notifications.row.repost.singleSuffix');
+    }
+
+    if (item.category === 'reply') {
+        return t('notifications.row.reply.singleSuffix');
+    }
+
+    return t('notifications.row.mention.singleSuffix');
+}
+
+function notificationNotePrefix(item: NotificationInboxItem, t: ReturnType<typeof useI18n>['t']): string | null {
+    const hasMoreActors = item.actors.length > 1;
+
+    if (item.category === 'zap') {
+        return t(hasMoreActors ? 'notifications.row.zap.groupNotePrefix' : 'notifications.row.zap.singleNotePrefix');
+    }
+
+    if (item.category === 'reaction') {
+        return t(hasMoreActors ? 'notifications.row.reaction.groupNotePrefix' : 'notifications.row.reaction.singleNotePrefix', {
+            reaction: item.reactionContent || '+',
+        });
+    }
+
+    if (item.category === 'repost') {
+        return t(hasMoreActors ? 'notifications.row.repost.groupNotePrefix' : 'notifications.row.repost.singleNotePrefix');
+    }
+
+    if (item.category === 'reply') {
+        return t('notifications.row.reply.singleNotePrefix');
+    }
+
+    return null;
+}
+
+function NotificationCategoryIcon({ category, className }: { category: NotificationCategory; className?: string }) {
+    if (category === 'zap') {
+        return <ZapIcon className={className} aria-hidden="true" />;
+    }
+
+    if (category === 'reaction') {
+        return <HeartIcon className={className} aria-hidden="true" />;
+    }
+
+    if (category === 'repost') {
+        return <Repeat2Icon className={className} aria-hidden="true" />;
+    }
+
+    if (category === 'reply') {
+        return <MessageCircleIcon className={className} aria-hidden="true" />;
+    }
+
+    return <AtSignIcon className={className} aria-hidden="true" />;
+}
+
+function stopNotificationRowPropagation(event: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>): void {
+    event.stopPropagation();
+}
+
+const notificationInlineActionClassName = 'inline cursor-pointer rounded-sm bg-transparent p-0 align-baseline text-current underline-offset-4 hover:underline focus-visible:underline';
+
+function profileInitials(pubkey: string, profile: NostrProfile | undefined, fallback: string): string {
+    const label = (profile?.displayName || profile?.name || fallback).trim();
+    if (!label) {
+        return pubkey.slice(0, 2).toUpperCase();
+    }
+
+    const words = label.split(/\s+/).filter(Boolean);
+    if (words.length === 1) {
+        return (words[0] ?? '').slice(0, 2).toUpperCase();
+    }
+
+    return `${words[0]?.[0] || ''}${words[1]?.[0] || ''}`.toUpperCase();
+}
+
+function NotificationBadgeContent({ item }: { item: NotificationInboxItem }) {
+    if (item.category === 'reaction' && item.reactionContent && item.reactionContent !== '+') {
+        return <span aria-hidden="true">{item.reactionContent}</span>;
+    }
+
+    return <NotificationCategoryIcon category={item.category} aria-hidden="true" />;
+}
+
+function NotificationMedia({
+    item,
+    profilesByPubkey,
+    t,
+}: {
+    item: NotificationInboxItem;
+    profilesByPubkey: Record<string, NostrProfile>;
+    t: ReturnType<typeof useI18n>['t'];
+}) {
+    const isGrouped = item.actors.length > 1;
+    const profile = profilesByPubkey[item.primaryActorPubkey];
+    const label = resolveDisplayName(item.primaryActorPubkey, profilesByPubkey, t('notifications.actor.anonymous'));
+
+    return (
+        <ItemMedia>
+            <Avatar size="lg">
+                {!isGrouped && profile?.picture ? <AvatarImage src={profile.picture} alt={label} /> : null}
+                <AvatarFallback className="font-medium">
+                    {isGrouped ? item.actors.length : profileInitials(item.primaryActorPubkey, profile, label)}
+                </AvatarFallback>
+                <AvatarBadge className="size-4 text-[10px] leading-none [&>svg]:size-2.5">
+                    <NotificationBadgeContent item={item} />
+                </AvatarBadge>
+            </Avatar>
+        </ItemMedia>
+    );
+}
+
+function NotificationActorButton({
+    pubkey,
+    profilesByPubkey,
+    onOpenProfile,
+    t,
+}: {
+    pubkey: string;
+    profilesByPubkey: Record<string, NostrProfile>;
+    onOpenProfile?: (pubkey: string) => Promise<void> | void;
+    t: ReturnType<typeof useI18n>['t'];
+}) {
+    const label = resolveDisplayName(pubkey, profilesByPubkey, t('notifications.actor.anonymous'));
+
+    if (!pubkey || !onOpenProfile) {
+        return <span>{label}</span>;
+    }
+
+    return (
+        <button
+            type="button"
+            data-slot="notification-actor"
+            className={notificationInlineActionClassName}
+            onClick={(event) => {
+                stopNotificationRowPropagation(event);
+                void onOpenProfile(pubkey);
+            }}
+            onKeyDown={stopNotificationRowPropagation}
+        >
+            {label}
+        </button>
+    );
+}
+
+function NotificationMoreActorsMenu({
+    item,
+    profilesByPubkey,
+    onOpenProfile,
+    t,
+}: {
+    item: NotificationInboxItem;
+    profilesByPubkey: Record<string, NostrProfile>;
+    onOpenProfile?: (pubkey: string) => Promise<void> | void;
+    t: ReturnType<typeof useI18n>['t'];
+}) {
+    const extraCount = Math.max(0, item.actors.length - 1);
+    if (extraCount === 0) {
+        return null;
+    }
+
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <button
+                    type="button"
+                    data-slot="notification-more-actors"
+                    className={notificationInlineActionClassName}
+                    onClick={stopNotificationRowPropagation}
+                    onKeyDown={stopNotificationRowPropagation}
+                >
+                    {t('notifications.row.more', { count: String(extraCount) })}
+                </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-64 p-0">
+                <DropdownMenuLabel className="px-3 py-2">{t('notifications.people.title')}</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <ScrollArea className="max-h-56">
+                    <DropdownMenuGroup className="p-1">
+                        {item.actors.map((actor) => (
+                            <DropdownMenuItem
+                                key={actor.key}
+                                onSelect={() => {
+                                    if (!actor.pubkey || !onOpenProfile) {
+                                        return;
+                                    }
+                                    void onOpenProfile(actor.pubkey);
+                                }}
+                            >
+                                {resolveDisplayName(actor.pubkey, profilesByPubkey, t('notifications.actor.anonymous'))}
+                            </DropdownMenuItem>
+                        ))}
+                    </DropdownMenuGroup>
+                </ScrollArea>
+            </DropdownMenuContent>
+        </DropdownMenu>
+    );
+}
+
+function NotificationTitleContent({
+    item,
+    profilesByPubkey,
+    openEventId,
+    onOpenThread,
+    onOpenProfile,
+    t,
+}: {
+    item: NotificationInboxItem;
+    profilesByPubkey: Record<string, NostrProfile>;
+    openEventId?: string;
+    onOpenThread?: (eventId: string) => Promise<void> | void;
+    onOpenProfile?: (pubkey: string) => Promise<void> | void;
+    t: ReturnType<typeof useI18n>['t'];
+}): ReactNode {
+    const extraCount = Math.max(0, item.actors.length - 1);
+    const notePrefix = notificationNotePrefix(item, t);
+
+    return (
+        <>
+            <NotificationActorButton
+                pubkey={item.primaryActorPubkey}
+                profilesByPubkey={profilesByPubkey}
+                {...(onOpenProfile ? { onOpenProfile } : {})}
+                t={t}
+            />
+            {' '}
+            {extraCount > 0 ? (
+                <>
+                    <span>{t('notifications.row.and')}</span>
+                    {' '}
+                    <NotificationMoreActorsMenu
+                        item={item}
+                        profilesByPubkey={profilesByPubkey}
+                        {...(onOpenProfile ? { onOpenProfile } : {})}
+                        t={t}
+                    />
+                    {' '}
+                </>
+            ) : null}
+            {notePrefix ? (
+                <>
+                    <span>{notePrefix}</span>
+                    {' '}
+                    {openEventId && onOpenThread ? (
+                        <button
+                            type="button"
+                            data-slot="notification-target-note"
+                            className={notificationInlineActionClassName}
+                            onClick={(event) => {
+                                stopNotificationRowPropagation(event);
+                                void onOpenThread(openEventId);
+                            }}
+                            onKeyDown={stopNotificationRowPropagation}
+                        >
+                            {t('notifications.row.noteLabel')}
+                        </button>
+                    ) : (
+                        <span>{t('notifications.row.noteLabel')}</span>
+                    )}
+                </>
+            ) : (
+                <span>{notificationRowSuffix(item, t)}</span>
+            )}
+        </>
+    );
+}
+
+function NotificationSection({
+    title,
+    items,
+    locale,
+    profilesByPubkey,
+    eventReferencesById,
+    unresolvedTargetIds,
+    onOpenThread,
+    onOpenProfile,
+    t,
+}: {
+    title: string;
+    items: NotificationInboxItem[];
+    locale: 'es' | 'en';
+    profilesByPubkey: Record<string, NostrProfile>;
+    eventReferencesById: Record<string, NostrEvent>;
+    unresolvedTargetIds: Set<string>;
+    onOpenThread?: (eventId: string) => Promise<void> | void;
+    onOpenProfile?: (pubkey: string) => Promise<void> | void;
+    t: ReturnType<typeof useI18n>['t'];
+}) {
+    if (items.length === 0) {
+        return null;
+    }
+
+    return (
+        <section className="grid gap-2.5">
+            <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold tracking-tight">{title}</h3>
+                <Badge variant="outline">{items.length}</Badge>
+            </div>
+
+            <div className="grid gap-2">
+                {items.map((item) => {
+                    const timestamp = formatNotificationTimestamp(item.occurredAt, locale);
+                    const mentionOrReplySourceEvent = (item.category === 'mention' || item.category === 'reply')
+                        ? item.sourceItems[0]?.rawEvent
+                        : undefined;
+                    const targetEvent = !mentionOrReplySourceEvent && item.targetEventId ? eventReferencesById[item.targetEventId] : undefined;
+                    const previewSourceEvent = mentionOrReplySourceEvent ?? targetEvent;
+                    const targetPreview = previewSourceEvent ? fromResolvedReferenceEvent(previewSourceEvent) : null;
+                    const openEventId = item.category === 'reply' || item.category === 'mention'
+                        ? item.targetEventId || previewSourceEvent?.id
+                        : previewSourceEvent?.id ?? item.targetEventId;
+                    const shouldShowUnavailable = !mentionOrReplySourceEvent
+                        && Boolean(item.targetEventId)
+                        && !targetEvent
+                        && unresolvedTargetIds.has(item.targetEventId || '');
+                    const replyContent = item.sourceItems[0]?.content || item.sourceItems[0]?.rawEvent.content || '';
+                    const hasReplyContent = item.category === 'reply' && replyContent.trim().length > 0;
+                    const hasSecondaryContent = item.category === 'zap' || hasReplyContent || Boolean(targetPreview) || shouldShowUnavailable;
+
+                    const body = (
+                        <>
+                            <NotificationMedia item={item} profilesByPubkey={profilesByPubkey} t={t} />
+
+                            <ItemContent className="min-w-0">
+                                <ItemHeader className={`${hasSecondaryContent ? 'items-start' : 'items-center'} gap-3`}>
+                                    <ItemTitle className="inline-block min-w-0 max-w-full gap-0 whitespace-normal break-words">
+                                        <NotificationTitleContent
+                                            item={item}
+                                            profilesByPubkey={profilesByPubkey}
+                                            {...(openEventId ? { openEventId } : {})}
+                                            {...(onOpenThread ? { onOpenThread } : {})}
+                                            {...(onOpenProfile ? { onOpenProfile } : {})}
+                                            t={t}
+                                        />
+                                    </ItemTitle>
+                                    <time className="shrink-0 text-xs text-muted-foreground" dateTime={new Date(item.occurredAt * 1000).toISOString()}>
+                                        {timestamp}
+                                    </time>
+                                </ItemHeader>
+
+                                {item.category === 'zap' ? (
+                                    <ItemDescription>{t('notifications.meta.sats', { count: String(item.zapTotalSats ?? 0) })}</ItemDescription>
+                                ) : null}
+
+                                {hasReplyContent ? (
+                                    <ItemDescription className="line-clamp-3 whitespace-pre-wrap">{replyContent}</ItemDescription>
+                                ) : targetPreview ? (
+                                    openEventId && onOpenThread ? (
+                                        <div
+                                            data-slot="notification-open-target"
+                                            className="mt-2 w-full cursor-pointer rounded-md text-left hover:bg-muted/40 focus-within:ring-[3px] focus-within:ring-ring/50"
+                                            onClick={() => void onOpenThread(openEventId)}
+                                        >
+                                            <NoteCard
+                                                note={withoutNoteActions(targetPreview)}
+                                                profilesByPubkey={profilesByPubkey}
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div className="pt-2">
+                                            <NoteCard
+                                                note={withoutNoteActions(targetPreview)}
+                                                profilesByPubkey={profilesByPubkey}
+                                            />
+                                        </div>
+                                    )
+                                ) : shouldShowUnavailable ? (
+                                    openEventId && onOpenThread ? (
+                                        <div
+                                            data-slot="notification-open-target"
+                                            className="mt-2 w-full cursor-pointer rounded-md text-left hover:bg-muted/40 focus-within:ring-[3px] focus-within:ring-ring/50"
+                                            onClick={() => void onOpenThread(openEventId)}
+                                        >
+                                            <ItemDescription>{t('notifications.target.unavailable')}</ItemDescription>
+                                        </div>
+                                    ) : (
+                                        <ItemDescription>{t('notifications.target.unavailable')}</ItemDescription>
+                                    )
+                                ) : null}
+                            </ItemContent>
+                        </>
+                    );
+
+                    return (
+                        <Item key={item.groupKey} variant="outline" size="sm" className={hasSecondaryContent ? 'items-start' : 'items-center'}>
+                            {body}
+                        </Item>
+                    );
+                })}
+            </div>
+        </section>
+    );
+}
+
+export function NotificationsPage({
+    hasUnread,
+    newNotifications,
+    recentNotifications,
+    profilesByPubkey,
+    eventReferencesById,
+    onResolveProfiles,
+    onResolveEventReferences,
+    onOpenThread,
+    onOpenProfile,
+}: NotificationsPageProps) {
+    const { t, locale } = useI18n();
+    const requestedProfilesRef = useRef(new Set<string>());
+    const requestedEventsRef = useRef(new Set<string>());
+    const [attemptedTargetEventIds, setAttemptedTargetEventIds] = useState<string[]>([]);
+
+    const sections = useMemo(() => buildNotificationInboxSections({
+        newNotifications,
+        recentNotifications,
+    }), [newNotifications, recentNotifications]);
+
+    useEffect(() => {
+        requestedProfilesRef.current.clear();
+        requestedEventsRef.current.clear();
+        setAttemptedTargetEventIds([]);
+    }, [sections]);
+
+    useEffect(() => {
+        if (typeof onResolveProfiles !== 'function') {
+            return;
+        }
+
+        const missingPubkeys = [...sections.newItems, ...sections.recentItems]
+            .flatMap((item) => item.actors.map((actor) => actor.pubkey))
+            .filter((pubkey) => pubkey.length > 0)
+            .filter((pubkey, index, collection) => collection.indexOf(pubkey) === index)
+            .filter((pubkey) => !profilesByPubkey[pubkey] && !requestedProfilesRef.current.has(pubkey));
+
+        if (missingPubkeys.length === 0) {
+            return;
+        }
+
+        missingPubkeys.forEach((pubkey) => {
+            requestedProfilesRef.current.add(pubkey);
+        });
+        void onResolveProfiles(missingPubkeys);
+    }, [onResolveProfiles, profilesByPubkey, sections]);
+
+    useEffect(() => {
+        if (typeof onResolveEventReferences !== 'function') {
+            return;
+        }
+
+        const missingEventIds = [...sections.newItems, ...sections.recentItems]
+            .filter((item) => item.category !== 'mention' && item.category !== 'reply')
+            .map((item) => item.targetEventId)
+            .filter((eventId): eventId is string => typeof eventId === 'string' && eventId.length > 0)
+            .filter((eventId, index, collection) => collection.indexOf(eventId) === index)
+            .filter((eventId) => !eventReferencesById[eventId] && !requestedEventsRef.current.has(eventId));
+
+        if (missingEventIds.length === 0) {
+            return;
+        }
+
+        missingEventIds.forEach((eventId) => {
+            requestedEventsRef.current.add(eventId);
+        });
+
+        void Promise.resolve(onResolveEventReferences(missingEventIds)).finally(() => {
+            setAttemptedTargetEventIds((current) => {
+                const next = new Set(current);
+                missingEventIds.forEach((eventId) => {
+                    next.add(eventId);
+                });
+                return [...next];
+            });
+        });
+    }, [eventReferencesById, onResolveEventReferences, sections]);
+
+    const unresolvedTargetIds = useMemo(() => {
+        return new Set(
+            [...sections.newItems, ...sections.recentItems]
+                .map((item) => item.targetEventId)
+                .filter((eventId): eventId is string => typeof eventId === 'string' && eventId.length > 0)
+                .filter((eventId) => !eventReferencesById[eventId] && (attemptedTargetEventIds.includes(eventId) || typeof onResolveEventReferences !== 'function'))
+        );
+    }, [attemptedTargetEventIds, eventReferencesById, onResolveEventReferences, sections]);
+
+    const isEmpty = sections.newItems.length === 0 && sections.recentItems.length === 0;
+
     return (
         <OverlaySurface ariaLabel={t('notifications.title')}>
-            <div>
-                <div className="nostr-notifications-page nostr-routed-surface-panel nostr-page-layout">
-                    <OverlayPageHeader
-                        title={t('notifications.title')}
-                        description={t('notifications.description')}
-                        indicator={hasUnread ? <OverlayUnreadIndicator className="nostr-notifications-unread-dot" srLabel={t('notifications.unread')} /> : null}
-                    />
+            <div className="flex min-h-0 flex-1 flex-col gap-3">
+                <OverlayPageHeader
+                    title={t('notifications.title')}
+                    description={t('notifications.description')}
+                    indicator={hasUnread ? <OverlayUnreadIndicator className="nostr-notifications-unread-dot" srLabel={t('notifications.unread')} /> : null}
+                />
 
-                    <section className="grid min-h-0 gap-2.5">
-                        {notifications.length === 0 ? (
-                            <div className="nostr-notifications-empty-state">
-                                <Empty className="nostr-notifications-empty">
-                                    <EmptyHeader>
-                                        <EmptyTitle>{t('notifications.empty.title')}</EmptyTitle>
-                                        <EmptyDescription>{t('notifications.empty.description')}</EmptyDescription>
-                                    </EmptyHeader>
-                                </Empty>
-                            </div>
-                        ) : (
-                            <ul className="nostr-notifications-list">
-                                {notifications.map((item) => (
-                                    <li key={item.id}>
-                                        <Item variant="outline" size="sm">
-                                            <ItemContent>
-                                                <ItemTitle>{notificationLabel(item, t)}</ItemTitle>
-                                                <ItemDescription>{shortPubkey(item.actorPubkey, t)}</ItemDescription>
-                                            </ItemContent>
-                                        </Item>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </section>
-                </div>
+                {isEmpty ? (
+                    <div className="flex min-h-0 flex-1 items-center justify-center">
+                        <Empty>
+                            <EmptyHeader>
+                                <EmptyTitle>{t('notifications.empty.title')}</EmptyTitle>
+                                <EmptyDescription>{t('notifications.empty.description')}</EmptyDescription>
+                            </EmptyHeader>
+                        </Empty>
+                    </div>
+                ) : (
+                    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
+                        <NotificationSection
+                            title={t('notifications.section.new')}
+                            items={sections.newItems}
+                            locale={locale}
+                            profilesByPubkey={profilesByPubkey}
+                            eventReferencesById={eventReferencesById}
+                            unresolvedTargetIds={unresolvedTargetIds}
+                            {...(onOpenThread ? { onOpenThread } : {})}
+                            {...(onOpenProfile ? { onOpenProfile } : {})}
+                            t={t}
+                        />
+                        {sections.newItems.length > 0 && sections.recentItems.length > 0 ? <Separator /> : null}
+                        <NotificationSection
+                            title={t('notifications.section.recent')}
+                            items={sections.recentItems}
+                            locale={locale}
+                            profilesByPubkey={profilesByPubkey}
+                            eventReferencesById={eventReferencesById}
+                            unresolvedTargetIds={unresolvedTargetIds}
+                            {...(onOpenThread ? { onOpenThread } : {})}
+                            {...(onOpenProfile ? { onOpenProfile } : {})}
+                            t={t}
+                        />
+                    </div>
+                )}
             </div>
         </OverlaySurface>
     );

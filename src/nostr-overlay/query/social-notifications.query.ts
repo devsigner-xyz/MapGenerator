@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+    getZapSenderPubkey,
     getLastTagValue,
     hasPTag,
     getNumericTagValue,
@@ -18,7 +19,7 @@ import {
 } from './read-state';
 import { createSocialQueryOptions } from './options';
 
-const SOCIAL_KINDS = new Set<number>([1, 6, 7, 9735]);
+const SOCIAL_KINDS = new Set<number>([1, 6, 7, 16, 9735]);
 const SOCIAL_NOTIFICATIONS_MAX_ITEMS = 200;
 
 interface UseSocialNotificationsControllerOptions {
@@ -43,7 +44,7 @@ interface SocialNotificationsControllerState {
 }
 
 function toSocialNotificationKind(value: number): SocialNotificationKind | null {
-    if (value === 1 || value === 6 || value === 7 || value === 9735) {
+    if (value === 1 || value === 6 || value === 7 || value === 16 || value === 9735) {
         return value;
     }
 
@@ -89,10 +90,14 @@ function toItem(event: SocialNotificationEvent): SocialNotificationItem | null {
     const targetKind = getNumericTagValue(event.tags, 'k');
     const targetAddress = getLastTagValue(event.tags, 'a');
 
+    const actorPubkey = kind === 9735
+        ? getZapSenderPubkey(event) ?? ''
+        : event.pubkey;
+
     return {
         id: event.id,
         kind,
-        actorPubkey: event.pubkey,
+        actorPubkey,
         createdAt: normalizeToEpochSeconds(event.created_at),
         content: event.content,
         ...(targetEventId ? { targetEventId } : {}),

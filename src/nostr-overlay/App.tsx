@@ -1207,6 +1207,15 @@ export function App({ mapBridge, services }: AppProps) {
         void followingFeed.openThread(eventId);
     };
 
+    const openNotificationThread = (eventId: string): void => {
+        if (!eventId) {
+            return;
+        }
+
+        openFollowingFeed();
+        void followingFeed.openThread(eventId);
+    };
+
     const resolveEventReferences = async (
         eventIds: string[],
         options?: { relayHintsByEventId?: Record<string, string[]> }
@@ -1875,7 +1884,14 @@ export function App({ mapBridge, services }: AppProps) {
                     element={(
                         <NotificationsPage
                             hasUnread={socialState.hasUnread}
-                            notifications={socialState.pendingSnapshot}
+                            newNotifications={socialState.pendingSnapshot}
+                            recentNotifications={socialState.items}
+                            profilesByPubkey={overlay.profiles}
+                            eventReferencesById={eventReferencesById}
+                            onResolveProfiles={resolveMentionProfiles}
+                            onResolveEventReferences={resolveEventReferences}
+                            onOpenThread={openNotificationThread}
+                            onOpenProfile={(pubkey) => overlay.openActiveProfile(pubkey)}
                         />
                     )}
                 />

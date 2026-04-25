@@ -105,10 +105,20 @@ class GatewayGraphService implements GraphService {
 
   async getFollows(query: GraphFollowsQuery): Promise<GraphFollowsResponseDto> {
     const scopedRelaySetKey = relaySetKey(toScopedReadRelays(query.scopedReadRelays));
-    return this.followsGateway.query({
-      key: `graph:follows:${normalizePubkey(query.pubkey)}:${scopedRelaySetKey}`,
-      params: query,
-    });
+    const pubkey = normalizePubkey(query.pubkey);
+
+    try {
+      return await this.followsGateway.query({
+        key: `graph:follows:${pubkey}:${scopedRelaySetKey}`,
+        params: query,
+      });
+    } catch {
+      return {
+        pubkey,
+        follows: [],
+        relayHints: [],
+      };
+    }
   }
 
   async getFollowers(query: GraphFollowersQuery): Promise<GraphFollowersResponseDto> {

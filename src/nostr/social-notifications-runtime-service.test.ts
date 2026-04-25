@@ -3,11 +3,11 @@ import type { NostrEvent } from './types';
 import { createRuntimeSocialNotificationsService } from './social-notifications-runtime-service';
 import { createTransportPool } from './transport-pool';
 
-function notificationEvent(id: string, createdAt: number): NostrEvent {
+function notificationEvent(id: string, createdAt: number, kind = 1): NostrEvent {
     return {
         id,
         pubkey: 'a'.repeat(64),
-        kind: 1,
+        kind,
         created_at: createdAt,
         tags: [['p', 'b'.repeat(64)]],
         content: 'note',
@@ -75,5 +75,32 @@ describe('social-notifications-runtime-service', () => {
 
         expect(events.map((event) => event.id)).toEqual(['event-fallback']);
         expect(createTransport).toHaveBeenCalledTimes(2);
+    });
+
+    test('accepts kind 16 repost notifications in backfill and subscription filters', async () => {
+        const subscribe = vi.fn(() => ({ unsubscribe() { return; } }));
+        const transport = {
+            publishToRelays: vi.fn(async () => ({ ackedRelays: [], failedRelays: [], timeoutRelays: [] })),
+            subscribe,
+            fetchBackfill: vi.fn(async () => [notificationEvent('event-16', 150, 16)]),
+        };
+
+        const service = createRuntimeSocialNotificationsService({
+            createTransport: vi.fn(() => transport as any),
+            resolveRelays: () => ['wss://relay.one'],
+            transportPool: createTransportPool(),
+        });
+
+        const events = await service.loadInitialSocial({ ownerPubkey: 'b'.repeat(64), limit: 20 });
+        const unsubscribe = service.subscribeSocial({ ownerPubkey: 'b'.repeat(64) }, () => {
+            return;
+        });
+        unsubscribe();
+
+        expect(events).toEqual([notificationEvent('event-16', 150, 16)]);
+        expect(subscribe).toHaveBeenCalledWith(
+            [expect.objectContaining({ kinds: expect.arrayContaining([1, 6, 7, 16, 9735]) })],
+            expect.any(Function),
+        );
     });
 });

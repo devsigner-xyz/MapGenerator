@@ -3876,7 +3876,7 @@ describe('Nostr overlay App', () => {
         });
 
         expect(rendered.container.textContent || '').toContain('Notificaciones');
-        expect(rendered.container.textContent || '').toContain('Reaccion');
+        expect(rendered.container.textContent || '').toContain('reacciono con + a tu nota');
         expect(rendered.container.querySelector('.nostr-panel-toolbar .nostr-notifications-unread-dot')).toBeNull();
     });
 

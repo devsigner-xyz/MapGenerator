@@ -224,6 +224,40 @@ describe('graph service', () => {
     });
   });
 
+  it('returns an empty follows result when gateway query fails', async () => {
+    const followsGateway: RelayGateway<GraphFollowsQuery, GraphFollowsResponseDto> = {
+      query: vi.fn(async () => {
+        throw new Error('gateway timeout');
+      }),
+      clearCache: vi.fn(),
+    };
+    const followersGateway: RelayGateway<GraphFollowersQuery, GraphFollowersResponseDto> = {
+      query: vi.fn(async () => ({
+        pubkey: TARGET_PUBKEY,
+        followers: [],
+        complete: false,
+      })),
+      clearCache: vi.fn(),
+    };
+
+    const service = createGraphService({
+      followsGateway,
+      followersGateway,
+    });
+
+    const result = await service.getFollows({
+      ownerPubkey: OWNER_PUBKEY,
+      pubkey: TARGET_PUBKEY,
+      scopedReadRelays: ['wss://relay.follows'],
+    });
+
+    expect(result).toEqual({
+      pubkey: TARGET_PUBKEY,
+      follows: [],
+      relayHints: [],
+    });
+  });
+
   it('uses canonical relay-set cache keys for equivalent follower scopes', async () => {
     const followsGateway: RelayGateway<GraphFollowsQuery, GraphFollowsResponseDto> = {
       query: vi.fn(async () => ({

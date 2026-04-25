@@ -8,7 +8,7 @@ import type { DmTransport } from './dm-transport';
 import { createTransportPool, type TransportPool } from './transport-pool';
 import type { NostrFilter } from './types';
 
-const SOCIAL_NOTIFICATION_KINDS = [1, 6, 7, 9735] as const;
+const SOCIAL_NOTIFICATION_KINDS = [1, 6, 7, 16, 9735] as const;
 const DEFAULT_INITIAL_LIMIT = 120;
 
 interface CreateRuntimeSocialNotificationsServiceOptions {

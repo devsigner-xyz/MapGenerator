@@ -1,6 +1,7 @@
 # General rules 
 - Avoid custom styles if shadcn defaults can be applied.
 - Cuando se creen o modifiquen textos visibles para usuario, labels, placeholders, `title`, `aria-label` o copy similar, deben quedar preparados para internacionalización y usar la infraestructura de i18n existente en lugar de dejar strings hardcodeados.
+- When you are elaborating plans, always include reccommended skills for each chunk of the task.
 
 # Project Agents And Skills
 

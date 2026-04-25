@@ -31,7 +31,8 @@ const DEFAULT_BOOTSTRAP_RELAYS = [
   'wss://relay.nostr.band',
 ];
 
-const NOTIFICATION_KINDS = [1, 6, 7, 9735];
+const NOTIFICATION_KINDS = [1, 6, 7, 16, 9735];
+const HEX_64_REGEX = /^[0-9a-f]{64}$/;
 
 const byCreatedAtDesc = (left: NostrEventLike, right: NostrEventLike): number => {
   if (left.created_at !== right.created_at) {
@@ -53,31 +54,40 @@ const dedupeById = (events: NostrEventLike[]): NostrEventLike[] => {
   return [...map.values()];
 };
 
-const firstTagValue = (tags: string[][], name: string): string | null => {
-  const tag = tags.find((candidate) => candidate[0] === name && typeof candidate[1] === 'string');
+const sanitizeTags = (tags: string[][]): string[][] => {
+  return tags
+    .filter((tag) => Array.isArray(tag))
+    .map((tag) => tag.filter((value): value is string => typeof value === 'string'))
+    .filter((tag) => tag.length > 0);
+};
+
+const firstHexTagValue = (tags: string[][], name: string): string | null => {
+  const tag = tags.find((candidate) => candidate[0] === name && HEX_64_REGEX.test(candidate[1] ?? ''));
   return tag?.[1] ?? null;
 };
 
-const toEventDto = (event: NostrEventLike): NotificationEventDto => {
+const toEventDto = (event: NostrEventLike, tags: string[][]): NotificationEventDto => {
   return {
     id: event.id,
     pubkey: event.pubkey,
     kind: event.kind,
     createdAt: event.created_at,
     content: event.content,
-    tags: event.tags,
+    tags,
   };
 };
 
 const toNotificationItem = (event: NostrEventLike): NotificationItemDto => {
+  const tags = sanitizeTags(event.tags);
+
   return {
     id: event.id,
     kind: event.kind,
     actorPubkey: event.pubkey,
     createdAt: event.created_at,
-    targetEventId: firstTagValue(event.tags, 'e'),
-    targetPubkey: firstTagValue(event.tags, 'p'),
-    rawEvent: toEventDto(event),
+    targetEventId: firstHexTagValue(tags, 'e'),
+    targetPubkey: firstHexTagValue(tags, 'p'),
+    rawEvent: toEventDto(event, tags),
   };
 };
 
