@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { verifyEvent } from 'nostr-tools/pure';
-import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router';
+import { Navigate, Route, Routes } from 'react-router';
 import {
     DEFAULT_STREET_LABELS_ZOOM_LEVEL,
     getDefaultUiSettings,
@@ -24,11 +24,6 @@ import { requestEventZapInvoice } from '../nostr/zaps';
 import { requestProfileZapInvoice } from '../nostr/zaps';
 import { profileHasZapEndpoint } from '../nostr/zaps';
 import { createNwcClient, createNwcRelayIo, parseNwcConnectionUri, resolveNwcEncryptionMode, resolveNwcInfoCapabilities } from '../nostr/nwc';
-import {
-    loadEasterEggProgress,
-    markEasterEggDiscovered,
-    type EasterEggProgressState,
-} from '../nostr/easter-egg-progress';
 import { encodeHexToNpub } from '../nostr/npub';
 import { MapPresenceLayer } from './components/MapPresenceLayer';
 import { OccupantProfileDialog } from './components/OccupantProfileDialog';
@@ -63,13 +58,14 @@ import { PersonContextMenuItems } from './components/PersonContextMenuItems';
 import { useNostrOverlay, type MapLoaderStage, type NostrOverlayServices } from './hooks/useNostrOverlay';
 import { useNip05Verification } from './hooks/useNip05Verification';
 import { useFollowingFeedController } from './hooks/useFollowingFeedController';
+import { useEasterEggDiscoveryController } from './hooks/useEasterEggDiscoveryController';
 import { useFollowingFeedEngagementQuery } from './query/following-feed.query';
 import { applyEngagementDeltas, createEmptyEngagementByEventIds } from './query/following-feed.selectors';
 import { useSocialNotificationsController } from './query/social-notifications.query';
 import { useDirectMessagesController } from './query/direct-messages.query';
 import { useActiveProfileQuery } from './query/active-profile.query';
 import type { MentionDraft } from './mention-serialization';
-import type { EasterEggBuildingClickPayload, MapBridge, OccupiedBuildingContextPayload } from './map-bridge';
+import type { MapBridge, OccupiedBuildingContextPayload } from './map-bridge';
 import { extractStreetLabelUsernames } from './domain/street-label-users';
 import { getEasterEggEntry } from './easter-eggs/catalog';
 import { getSpecialBuildingEntry } from './special-buildings/catalog';
@@ -82,9 +78,11 @@ import {
     type RelayType,
 } from '../nostr/relay-settings';
 import type { NostrEvent } from '../nostr/types';
-import { buildSettingsPath, settingsViewFromPathname, type SettingsRouteView } from './settings/settings-routing';
 import { useRelayConnectionSummary } from './hooks/useRelayConnectionSummary';
 import { useOverlayTheme } from './hooks/useOverlayTheme';
+import { OverlayAppShell } from './shell/OverlayAppShell';
+import { useMapBridgeController } from './shell/use-map-bridge-controller';
+import { normalizeHashtag, useOverlayRouteState } from './shell/use-overlay-route-state';
 import type { NoteCardModel } from './components/note-card-model';
 import type { SocialEngagementByEventId } from '../nostr/social-feed-service';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -108,10 +106,6 @@ interface AppProps {
 }
 
 interface OccupiedBuildingContextMenuState extends OccupiedBuildingContextPayload {
-    nonce: number;
-}
-
-interface EasterEggDialogState extends EasterEggBuildingClickPayload {
     nonce: number;
 }
 
@@ -206,18 +200,23 @@ function mapLoaderStageLabel(stage: MapLoaderStage | null, language: UiSettingsS
     return null;
 }
 
-function normalizeHashtag(value: string | null): string | undefined {
-    if (typeof value !== 'string') {
-        return undefined;
-    }
-
-    const normalized = value.trim().replace(/^#+/, '').toLowerCase();
-    return normalized.length > 0 ? normalized : undefined;
-}
-
 export function App({ mapBridge, services }: AppProps) {
-    const navigate = useNavigate();
-    const location = useLocation();
+    const {
+        navigate,
+        location,
+        activeAgoraHashtag,
+        isMapRoute,
+        isAgoraRoute,
+        isChatsRoute,
+        isNotificationsRoute,
+        isUiSettingsDialogOpen,
+        openUiSettingsDialog,
+        closeUiSettingsDialog,
+        openSettingsPage,
+        openSettingsDestination,
+        openGlobalUserSearch,
+        closeGlobalUserSearch,
+    } = useOverlayRouteState();
     const overlay = useNostrOverlay(services ? { mapBridge, services } : { mapBridge });
     const activeProfileData = useActiveProfileQuery({
         ...(overlay.activeProfilePubkey ? { pubkey: overlay.activeProfilePubkey } : {}),
@@ -232,7 +231,6 @@ export function App({ mapBridge, services }: AppProps) {
     const [zapSettings, setZapSettings] = useState<ZapSettingsState>(() => loadZapSettings());
     const [walletSettings, setWalletSettings] = useState<WalletSettingsState>(() => loadWalletSettings());
     const [walletActivity, setWalletActivity] = useState<WalletActivityState>(() => loadWalletActivity());
-    const [isUiSettingsDialogOpen, setIsUiSettingsDialogOpen] = useState(false);
     const [walletNwcUriInput, setWalletNwcUriInput] = useState('');
     const [pendingZapIntent, setPendingZapIntent] = useState<PendingZapIntent | null>(null);
     const [optimisticZapByEventId, setOptimisticZapByEventId] = useState<Record<string, OptimisticZapEntry>>({});
@@ -300,10 +298,7 @@ export function App({ mapBridge, services }: AppProps) {
 
         return true;
     };
-    const [easterEggProgress, setEasterEggProgress] = useState<EasterEggProgressState>(() => loadEasterEggProgress());
     const [buildingContextMenu, setBuildingContextMenu] = useState<OccupiedBuildingContextMenuState | null>(null);
-    const [activeEasterEgg, setActiveEasterEgg] = useState<EasterEggDialogState | null>(null);
-    const [easterEggCelebrationNonce, setEasterEggCelebrationNonce] = useState(0);
     const [chatComposerFocusKey, setChatComposerFocusKey] = useState('');
     const [chatPinnedConversationId, setChatPinnedConversationId] = useState<string | null>(null);
     const [eventReferencesById, setEventReferencesById] = useState<Record<string, NostrEvent>>({});
@@ -311,8 +306,6 @@ export function App({ mapBridge, services }: AppProps) {
     const isMobile = useIsMobile();
     const contextMenuTriggerRef = useRef<HTMLSpanElement | null>(null);
     const contextMenuNonceRef = useRef(0);
-    const easterEggNonceRef = useRef(0);
-    const easterEggProgressRef = useRef(easterEggProgress);
     const lastTrafficParticlesCountRef = useRef(
         Math.max(
             1,
@@ -325,9 +318,6 @@ export function App({ mapBridge, services }: AppProps) {
     const mapLoaderText = mapLoaderStageLabel(overlay.mapLoaderStage, uiSettings.language);
     const sessionRestorationResolved = overlay.sessionRestorationResolved;
 
-    useEffect(() => {
-        easterEggProgressRef.current = easterEggProgress;
-    }, [easterEggProgress]);
     const isAppReady = Boolean(overlay.authSession) && overlay.status === 'success' && !overlay.authSession?.locked;
     const showLoginGate = !sessionRestorationResolved || !isAppReady;
     const lastErrorToastRef = useRef<string | undefined>(undefined);
@@ -391,84 +381,45 @@ export function App({ mapBridge, services }: AppProps) {
             .map(([buildingIndex]) => Number(buildingIndex))
             .filter((value) => Number.isInteger(value) && value >= 0);
     }, [uiSettings.verifiedBuildingsOverlayEnabled, overlay.occupancyByBuildingIndex, verificationByPubkey]);
+    const mapBridgeController = useMapBridgeController({
+        mapBridge,
+        viewportInsetLeft: isMobile
+            ? 0
+            : sidebarOpen
+                ? OVERLAY_SIDEBAR_EXPANDED_WIDTH
+                : OVERLAY_SIDEBAR_COLLAPSED_WIDTH,
+        showLoginGate,
+        streetLabelsEnabled: uiSettings.streetLabelsEnabled,
+        streetLabelsZoomLevel: uiSettings.streetLabelsZoomLevel,
+        streetLabelUsernames,
+        trafficParticlesCount: uiSettings.trafficParticlesCount,
+        trafficParticlesSpeed: uiSettings.trafficParticlesSpeed,
+        verifiedBuildingIndexes,
+    });
+    const {
+        easterEggProgress,
+        activeEasterEgg,
+        easterEggCelebrationNonce,
+        closeActiveEasterEgg,
+        resetEasterEggProgress,
+    } = useEasterEggDiscoveryController({
+        mapBridge,
+        ...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {}),
+    });
     const discoveredMissionsCount = useMemo(
         () => new Set(easterEggProgress.discoveredIds).size,
         [easterEggProgress.discoveredIds]
     );
 
     useEffect(() => {
-        setEasterEggProgress(loadEasterEggProgress(
-            overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : undefined
-        ));
-    }, [overlay.ownerPubkey]);
-
-    useEffect(() => {
         setZapSettings(loadZapSettings(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : undefined));
     }, [overlay.ownerPubkey]);
-
-    useEffect(() => {
-        if (!mapBridge) {
-            return;
-        }
-
-        if (showLoginGate) {
-            mapBridge.setViewportInsetLeft(0);
-            return () => {
-                mapBridge.setViewportInsetLeft(0);
-            };
-        }
-
-        mapBridge.setViewportInsetLeft(
-            isMobile
-                ? 0
-                : sidebarOpen
-                    ? OVERLAY_SIDEBAR_EXPANDED_WIDTH
-                    : OVERLAY_SIDEBAR_COLLAPSED_WIDTH
-        );
-        return () => {
-            mapBridge.setViewportInsetLeft(0);
-        };
-    }, [isMobile, mapBridge, showLoginGate, sidebarOpen]);
-
-    useEffect(() => {
-        if (!mapBridge) {
-            return;
-        }
-
-        mapBridge.setStreetLabelsEnabled(uiSettings.streetLabelsEnabled);
-        mapBridge.setStreetLabelsZoomLevel(uiSettings.streetLabelsZoomLevel);
-    }, [mapBridge, uiSettings.streetLabelsEnabled, uiSettings.streetLabelsZoomLevel]);
-
-    useEffect(() => {
-        if (!mapBridge) {
-            return;
-        }
-
-        mapBridge.setTrafficParticlesCount(uiSettings.trafficParticlesCount);
-        mapBridge.setTrafficParticlesSpeed(uiSettings.trafficParticlesSpeed);
-    }, [mapBridge, uiSettings.trafficParticlesCount, uiSettings.trafficParticlesSpeed]);
 
     useEffect(() => {
         if (uiSettings.trafficParticlesCount > 0) {
             lastTrafficParticlesCountRef.current = uiSettings.trafficParticlesCount;
         }
     }, [uiSettings.trafficParticlesCount]);
-
-    useEffect(() => {
-        if (!mapBridge) {
-            return;
-        }
-
-        mapBridge.setStreetLabelUsernames(streetLabelUsernames);
-    }, [mapBridge, streetLabelUsernames]);
-
-    useEffect(() => {
-        if (!mapBridge) {
-            return;
-        }
-
-        mapBridge.setVerifiedBuildingIndexes(verifiedBuildingIndexes);
-    }, [mapBridge, verifiedBuildingIndexes]);
 
     useEffect(() => {
         if (overlay.status !== 'error' || !overlay.error) {
@@ -501,34 +452,6 @@ export function App({ mapBridge, services }: AppProps) {
             });
         });
     }, [mapBridge, showLoginGate]);
-
-    useEffect(() => {
-        if (!mapBridge || !mapBridge.onEasterEggBuildingClick) {
-            return;
-        }
-
-        return mapBridge.onEasterEggBuildingClick((payload) => {
-            const currentProgress = easterEggProgressRef.current;
-            const wasAlreadyDiscovered = currentProgress.discoveredIds.includes(payload.easterEggId);
-            const nextProgress = markEasterEggDiscovered({
-                easterEggId: payload.easterEggId,
-                currentState: currentProgress,
-                ...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {}),
-            });
-
-            easterEggProgressRef.current = nextProgress;
-            if (!wasAlreadyDiscovered) {
-                setEasterEggCelebrationNonce((currentNonce) => currentNonce + 1);
-            }
-
-            setEasterEggProgress(nextProgress);
-            easterEggNonceRef.current += 1;
-            setActiveEasterEgg({
-                ...payload,
-                nonce: easterEggNonceRef.current,
-            });
-        });
-    }, [mapBridge, overlay.ownerPubkey]);
 
     useEffect(() => {
         if (!mapBridge) {
@@ -594,14 +517,6 @@ export function App({ mapBridge, services }: AppProps) {
         service: overlay.socialNotificationsService,
     });
     const socialState = socialNotifications;
-    const activeAgoraHashtag = useMemo(() => {
-        if (location.pathname !== '/agora') {
-            return undefined;
-        }
-
-        const search = new URLSearchParams(location.search);
-        return normalizeHashtag(search.get('tag'));
-    }, [location.pathname, location.search]);
     const followingFeed = useFollowingFeedController({
         ...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {}),
         follows: overlay.follows,
@@ -769,15 +684,7 @@ export function App({ mapBridge, services }: AppProps) {
         enabled: relayStatusTargets.length > 0,
         maxConcurrentProbes: 3,
     });
-    const activeSettingsView = useMemo(
-        () => settingsViewFromPathname(location.pathname),
-        [location.pathname]
-    );
     const resolvedOverlayTheme = useOverlayTheme(uiSettings.theme as UiTheme);
-    const isMapRoute = location.pathname === '/';
-    const isAgoraRoute = location.pathname === '/agora';
-    const isChatsRoute = location.pathname === '/chats';
-    const isNotificationsRoute = location.pathname === '/notificaciones';
     const followingFeedHasUnread = !followingFeed.isOpen && followingFeed.hasUnread;
     const canSendChatMessages = canAccessDirectMessages;
     const activeProfileVerification = overlay.activeProfilePubkey
@@ -909,20 +816,6 @@ export function App({ mapBridge, services }: AppProps) {
         return saved;
     };
 
-    useEffect(() => {
-        if (!location.pathname.startsWith('/settings/')) {
-            return;
-        }
-
-        if (location.pathname.startsWith('/settings/relays')) {
-            return;
-        }
-
-        if (!activeSettingsView) {
-            navigate(buildSettingsPath('zaps'), { replace: true });
-        }
-    }, [location.pathname, activeSettingsView, navigate]);
-
     const copyText = async (value: string, successMessage: string): Promise<void> => {
         if (!value) {
             return;
@@ -962,7 +855,7 @@ export function App({ mapBridge, services }: AppProps) {
             return;
         }
 
-        mapBridge.focusBuilding(overlay.ownerBuildingIndex);
+        mapBridgeController.focusBuilding(overlay.ownerBuildingIndex);
     };
 
     const locateFollowingOnMap = (pubkey: string): void => {
@@ -984,7 +877,7 @@ export function App({ mapBridge, services }: AppProps) {
             navigate('/');
         }
 
-        mapBridge.focusBuilding(buildingIndex);
+        mapBridgeController.focusBuilding(buildingIndex);
     };
 
     const selectSidebarPerson = (pubkey: string): void => {
@@ -1266,14 +1159,6 @@ export function App({ mapBridge, services }: AppProps) {
         navigate('/relays');
     };
 
-    const openGlobalUserSearch = (): void => {
-        navigate('/buscar-usuarios');
-    };
-
-    const closeGlobalUserSearch = (): void => {
-        navigate('/');
-    };
-
     const setStreetLabelsQuickToggle = (enabled: boolean): void => {
         setUiSettings((currentSettings) => saveUiSettings({
             ...currentSettings,
@@ -1332,28 +1217,6 @@ export function App({ mapBridge, services }: AppProps) {
 
     const persistUiSettings = (nextState: UiSettingsState): void => {
         setUiSettings(saveUiSettings(nextState));
-    };
-
-    const openUiSettingsDialog = (): void => {
-        setIsUiSettingsDialogOpen(true);
-    };
-
-    const closeUiSettingsDialog = (): void => {
-        setIsUiSettingsDialogOpen(false);
-    };
-
-    const openSettingsPage = (view: SettingsRouteView = 'zaps'): void => {
-        navigate(buildSettingsPath(view));
-    };
-
-    const openSettingsDestination = (view: SettingsRouteView | 'ui'): void => {
-        if (view === 'ui') {
-            openUiSettingsDialog();
-            return;
-        }
-
-        closeUiSettingsDialog();
-        openSettingsPage(view);
     };
 
     const openDmFromContextMenu = async (pubkey: string): Promise<void> => {
@@ -1595,9 +1458,8 @@ export function App({ mapBridge, services }: AppProps) {
 
     const handleLogout = async (): Promise<void> => {
         await overlay.logoutSession?.();
-        setEasterEggProgress({ discoveredIds: [] });
+        resetEasterEggProgress();
         setZapSettings(loadZapSettings());
-        setActiveEasterEgg(null);
         navigate('/');
     };
 
@@ -1641,11 +1503,8 @@ export function App({ mapBridge, services }: AppProps) {
     }, [pendingZapIntent, location.pathname]);
 
     return (
-        <div
-            className="nostr-overlay-shell"
-            style={{ width: (showLoginGate || isMobile) ? '100vw' : `${sidebarOpen ? OVERLAY_SIDEBAR_EXPANDED_WIDTH : OVERLAY_SIDEBAR_COLLAPSED_WIDTH}px` }}
-        >
-            {!showLoginGate ? (
+        <OverlayAppShell
+            sidebar={!showLoginGate ? (
                 <OverlaySidebar
                     open={sidebarOpen}
                     onOpenChange={setSidebarOpen}
@@ -1704,6 +1563,8 @@ export function App({ mapBridge, services }: AppProps) {
                     />
                 </OverlaySidebar>
             ) : null}
+            mapControls={(
+                <>
 
             {isMapRoute ? (
                 <MapZoomControls
@@ -1809,7 +1670,9 @@ export function App({ mapBridge, services }: AppProps) {
                     closeUiSettingsDialog();
                 }}
             />
-
+                </>
+            )}
+            main={(
             <Routes>
                 {showLoginGate ? (
                     <>
@@ -2038,7 +1901,9 @@ export function App({ mapBridge, services }: AppProps) {
                     </>
                 )}
             </Routes>
-
+            )}
+            dialogs={(
+                <>
             <MapPresenceLayer
                 mapBridge={mapBridge}
                 occupancyByBuildingIndex={overlay.occupancyByBuildingIndex}
@@ -2117,7 +1982,7 @@ export function App({ mapBridge, services }: AppProps) {
                     key={activeEasterEgg.nonce}
                     buildingIndex={activeEasterEgg.buildingIndex}
                     entry={getEasterEggEntry(activeEasterEgg.easterEggId)}
-                    onClose={() => setActiveEasterEgg(null)}
+                    onClose={closeActiveEasterEgg}
                 />
             ) : null}
 
@@ -2152,6 +2017,8 @@ export function App({ mapBridge, services }: AppProps) {
                     onStartSession={overlay.startSession}
                 />
             ) : null}
-        </div>
+                </>
+            )}
+        />
     );
 }

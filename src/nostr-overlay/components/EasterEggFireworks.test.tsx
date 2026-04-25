@@ -103,7 +103,7 @@ describe('EasterEggFireworks', () => {
         createFireworksMock.mockResolvedValue({ stop: stopFireworksMock });
         mockReducedMotionPreference(false);
 
-        const rendered = await renderElement(<EasterEggFireworks nonce={1} />);
+        await renderElement(<EasterEggFireworks nonce={1} />);
 
         await act(async () => {
             await Promise.resolve();

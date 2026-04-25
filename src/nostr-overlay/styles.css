@@ -10,8 +10,19 @@
     top: 0;
     left: 0;
     bottom: 0;
+    width: 100vw;
     z-index: 5;
     pointer-events: auto;
+}
+
+@media (min-width: 768px) {
+    .nostr-overlay-shell:has([data-slot="sidebar"][data-state="expanded"]) {
+        width: 380px;
+    }
+
+    .nostr-overlay-shell:has([data-slot="sidebar"][data-state="collapsed"]) {
+        width: 56px;
+    }
 }
 
 .nostr-panel-toolbar-status {
