@@ -12,6 +12,7 @@ import { OverlaySurface } from './OverlaySurface';
 import { useI18n } from '@/i18n/useI18n';
 import { Avatar, AvatarBadge, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Item, ItemContent, ItemDescription, ItemHeader, ItemMedia, ItemTitle } from '@/components/ui/item';
@@ -91,6 +92,10 @@ function notificationNotePrefix(item: NotificationInboxItem, t: ReturnType<typeo
         return t('notifications.row.reply.singleNotePrefix');
     }
 
+    if (item.category === 'mention') {
+        return t('notifications.row.mention.singleNotePrefix');
+    }
+
     return null;
 }
 
@@ -119,6 +124,16 @@ function stopNotificationRowPropagation(event: MouseEvent<HTMLElement> | Keyboar
 }
 
 const notificationInlineActionClassName = 'inline cursor-pointer rounded-sm bg-transparent p-0 align-baseline text-current underline-offset-4 hover:underline focus-visible:underline';
+const notificationNestedInteractiveSelector = 'button, a, input, select, textarea, video, audio, [controls], [role="button"], [role="link"], [data-slot="button"], [data-slot="context-menu-item"], [data-slot="context-menu-content"]';
+
+function isNestedInteractiveTarget(target: EventTarget | null, currentTarget: HTMLElement): boolean {
+    if (!(target instanceof Element)) {
+        return false;
+    }
+
+    const interactiveTarget = target.closest(notificationNestedInteractiveSelector);
+    return Boolean(interactiveTarget && interactiveTarget !== currentTarget);
+}
 
 function profileInitials(pubkey: string, profile: NostrProfile | undefined, fallback: string): string {
     const label = (profile?.displayName || profile?.name || fallback).trim();
@@ -360,29 +375,31 @@ function NotificationSection({
             <div className="grid gap-2">
                 {items.map((item) => {
                     const timestamp = formatNotificationTimestamp(item.occurredAt, locale);
-                    const mentionOrReplySourceEvent = (item.category === 'mention' || item.category === 'reply')
+                    const sourcePreviewEvent = (item.category === 'mention' || item.category === 'reply')
                         ? item.sourceItems[0]?.rawEvent
                         : undefined;
-                    const targetEvent = !mentionOrReplySourceEvent && item.targetEventId ? eventReferencesById[item.targetEventId] : undefined;
-                    const previewSourceEvent = mentionOrReplySourceEvent ?? targetEvent;
-                    const targetPreview = previewSourceEvent ? fromResolvedReferenceEvent(previewSourceEvent) : null;
+                    const targetEvent = item.targetEventId ? eventReferencesById[item.targetEventId] : undefined;
+                    const detachedPreviewEvent = sourcePreviewEvent ? undefined : targetEvent;
+                    const detachedPreview = detachedPreviewEvent ? fromResolvedReferenceEvent(detachedPreviewEvent) : null;
                     const openEventId = item.category === 'reply' || item.category === 'mention'
-                        ? item.targetEventId || previewSourceEvent?.id
-                        : previewSourceEvent?.id ?? item.targetEventId;
-                    const shouldShowUnavailable = !mentionOrReplySourceEvent
+                        ? item.targetEventId || sourcePreviewEvent?.id
+                        : item.targetEventId ?? targetEvent?.id;
+                    const detachedPreviewOpenEventId = sourcePreviewEvent
+                        ? openEventId
+                        : item.targetEventId ?? targetEvent?.id;
+                    const shouldShowUnavailable = !sourcePreviewEvent
                         && Boolean(item.targetEventId)
                         && !targetEvent
                         && unresolvedTargetIds.has(item.targetEventId || '');
-                    const replyContent = item.sourceItems[0]?.content || item.sourceItems[0]?.rawEvent.content || '';
-                    const hasReplyContent = item.category === 'reply' && replyContent.trim().length > 0;
-                    const hasSecondaryContent = item.category === 'zap' || hasReplyContent || Boolean(targetPreview) || shouldShowUnavailable;
+                    const hasSecondaryContent = item.category === 'zap' || Boolean(detachedPreview) || shouldShowUnavailable;
+                    const shouldCenterPrimaryRow = !hasSecondaryContent || Boolean(detachedPreview);
 
                     const body = (
                         <>
                             <NotificationMedia item={item} profilesByPubkey={profilesByPubkey} t={t} />
 
                             <ItemContent className="min-w-0">
-                                <ItemHeader className={`${hasSecondaryContent ? 'items-start' : 'items-center'} gap-3`}>
+                                <ItemHeader className={`${shouldCenterPrimaryRow ? 'items-center' : 'items-start'} gap-3`}>
                                     <ItemTitle className="inline-block min-w-0 max-w-full gap-0 whitespace-normal break-words">
                                         <NotificationTitleContent
                                             item={item}
@@ -402,29 +419,7 @@ function NotificationSection({
                                     <ItemDescription>{t('notifications.meta.sats', { count: String(item.zapTotalSats ?? 0) })}</ItemDescription>
                                 ) : null}
 
-                                {hasReplyContent ? (
-                                    <ItemDescription className="line-clamp-3 whitespace-pre-wrap">{replyContent}</ItemDescription>
-                                ) : targetPreview ? (
-                                    openEventId && onOpenThread ? (
-                                        <div
-                                            data-slot="notification-open-target"
-                                            className="mt-2 w-full cursor-pointer rounded-md text-left hover:bg-muted/40 focus-within:ring-[3px] focus-within:ring-ring/50"
-                                            onClick={() => void onOpenThread(openEventId)}
-                                        >
-                                            <NoteCard
-                                                note={withoutNoteActions(targetPreview)}
-                                                profilesByPubkey={profilesByPubkey}
-                                            />
-                                        </div>
-                                    ) : (
-                                        <div className="pt-2">
-                                            <NoteCard
-                                                note={withoutNoteActions(targetPreview)}
-                                                profilesByPubkey={profilesByPubkey}
-                                            />
-                                        </div>
-                                    )
-                                ) : shouldShowUnavailable ? (
+                                {shouldShowUnavailable ? (
                                     openEventId && onOpenThread ? (
                                         <div
                                             data-slot="notification-open-target"
@@ -438,11 +433,48 @@ function NotificationSection({
                                     )
                                 ) : null}
                             </ItemContent>
+
+                            {detachedPreview ? (
+                                detachedPreviewOpenEventId && onOpenThread ? (
+                                    <div
+                                        data-slot="notification-open-target"
+                                        className="basis-full cursor-pointer rounded-md text-left hover:bg-muted/40 focus-within:ring-[3px] focus-within:ring-ring/50"
+                                        onClick={(event) => {
+                                            if (isNestedInteractiveTarget(event.target, event.currentTarget)) {
+                                                return;
+                                            }
+
+                                            void onOpenThread(detachedPreviewOpenEventId);
+                                        }}
+                                    >
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className="sr-only focus:not-sr-only focus:mb-2"
+                                            onClick={() => void onOpenThread(detachedPreviewOpenEventId)}
+                                        >
+                                            {t('notifications.preview.openNote')}
+                                        </Button>
+                                        <NoteCard
+                                            note={withoutNoteActions(detachedPreview)}
+                                            profilesByPubkey={profilesByPubkey}
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="basis-full">
+                                        <NoteCard
+                                            note={withoutNoteActions(detachedPreview)}
+                                            profilesByPubkey={profilesByPubkey}
+                                        />
+                                    </div>
+                                )
+                            ) : null}
                         </>
                     );
 
                     return (
-                        <Item key={item.groupKey} variant="outline" size="sm" className={hasSecondaryContent ? 'items-start' : 'items-center'}>
+                        <Item key={item.groupKey} variant="outline" size="sm" className={shouldCenterPrimaryRow ? 'items-center' : 'items-start'}>
                             {body}
                         </Item>
                     );

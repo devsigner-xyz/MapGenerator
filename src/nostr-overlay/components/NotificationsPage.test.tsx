@@ -315,7 +315,54 @@ describe('NotificationsPage', () => {
         expect(onResolveEventReferences).toHaveBeenCalledWith([targetOne, targetTwo]);
     });
 
-    test('renders mention preview from the notification note itself when no target event preview applies', async () => {
+    test('renders mention title with an interactive nota label instead of an embedded note', async () => {
+        const actor = '1'.repeat(64);
+        const targetEventId = 'b'.repeat(64);
+        const onOpenThread = vi.fn();
+
+        const rendered = await renderElement(
+            <NotificationsPage
+                hasUnread={false}
+                newNotifications={[
+                    buildItem({
+                        id: 'mention-1',
+                        kind: 1,
+                        actorPubkey: actor,
+                        content: 'te menciono en esta nota',
+                        targetEventId,
+                        rawEvent: {
+                            id: 'mention-1',
+                            pubkey: actor,
+                            kind: 1,
+                            created_at: 100,
+                            tags: [['p', 'c'.repeat(64)]],
+                            content: 'te menciono en esta nota',
+                        },
+                    }),
+                ]}
+                recentNotifications={[]}
+                profilesByPubkey={{ [actor]: buildProfile(actor, 'Alice') }}
+                eventReferencesById={{}}
+                onOpenThread={onOpenThread}
+            />,
+        );
+        mounted.push(rendered);
+
+        const noteButton = rendered.container.querySelector('[data-slot="notification-target-note"]') as HTMLButtonElement | null;
+
+        expect(rendered.container.textContent || '').toContain('Alice te menciono en una nota');
+        expect(noteButton?.textContent).toBe('nota');
+        expect(rendered.container.querySelector('[data-slot="card"]')).toBeNull();
+        expect(rendered.container.textContent || '').not.toContain('La nota original no esta disponible.');
+
+        await act(async () => {
+            noteButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onOpenThread).toHaveBeenCalledWith(targetEventId);
+    });
+
+    test('centers mention avatar and title without rendering a note preview row', async () => {
         const actor = '1'.repeat(64);
 
         const rendered = await renderElement(
@@ -345,46 +392,17 @@ describe('NotificationsPage', () => {
         );
         mounted.push(rendered);
 
-        expect(rendered.container.textContent || '').toContain('te menciono en esta nota');
-        expect(rendered.container.textContent || '').not.toContain('La nota original no esta disponible.');
+        const card = rendered.container.querySelector('[data-slot="card"]') as HTMLElement | null;
+        const item = rendered.container.querySelector('[data-slot="item"]') as HTMLElement | null;
+        const header = rendered.container.querySelector('[data-slot="item-header"]') as HTMLElement | null;
+
+        expect(card).toBeNull();
+        expect(item?.className).toContain('items-center');
+        expect(header?.className).toContain('items-center');
+        expect(header?.className).not.toContain('items-start');
     });
 
-    test('renders reply notifications with only the reply content instead of a full note card', async () => {
-        const actor = '1'.repeat(64);
-
-        const rendered = await renderElement(
-            <NotificationsPage
-                hasUnread={false}
-                newNotifications={[
-                    buildItem({
-                        id: 'reply-1',
-                        kind: 1,
-                        actorPubkey: actor,
-                        content: 'esta es la respuesta',
-                        rawEvent: {
-                            id: 'reply-1',
-                            pubkey: actor,
-                            kind: 1,
-                            created_at: 100,
-                            tags: [['p', 'c'.repeat(64)], ['e', 'b'.repeat(64), '', 'reply']],
-                            content: 'esta es la respuesta',
-                        },
-                    }),
-                ]}
-                recentNotifications={[]}
-                profilesByPubkey={{ [actor]: buildProfile(actor, 'Alice') }}
-                eventReferencesById={{}}
-            />,
-        );
-        mounted.push(rendered);
-
-        const text = rendered.container.textContent || '';
-        expect(text).toContain('Alice respondio a tu nota');
-        expect(text).toContain('esta es la respuesta');
-        expect(rendered.container.querySelector('[data-slot="card"]')).toBeNull();
-    });
-
-    test('renders reply content as secondary text without making it interactive', async () => {
+    test('renders reply title with an interactive nota label instead of an embedded note', async () => {
         const actor = '1'.repeat(64);
         const targetEventId = 'b'.repeat(64);
         const onOpenThread = vi.fn();
@@ -417,16 +435,110 @@ describe('NotificationsPage', () => {
         );
         mounted.push(rendered);
 
-        const replyText = Array.from(rendered.container.querySelectorAll('[data-slot="item-description"]'))
-            .find((node) => (node.textContent || '').includes('esta es la respuesta')) as HTMLElement | undefined;
-        expect(replyText).toBeDefined();
-        expect(replyText?.closest('[data-slot="notification-open-target"]')).toBeNull();
+        const text = rendered.container.textContent || '';
+        const card = rendered.container.querySelector('[data-slot="card"]') as HTMLElement | null;
+        const header = rendered.container.querySelector('[data-slot="item-header"]') as HTMLElement | null;
+        const noteButton = rendered.container.querySelector('[data-slot="notification-target-note"]') as HTMLButtonElement | null;
+
+        expect(text).toContain('Alice respondio a tu nota');
+        expect(text).not.toContain('esta es la respuesta');
+        expect(card).toBeNull();
+        expect(header?.className).toContain('items-center');
+        expect(noteButton?.textContent).toBe('nota');
 
         await act(async () => {
-            replyText?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            noteButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
-        expect(onOpenThread).not.toHaveBeenCalled();
+        expect(onOpenThread).toHaveBeenCalledWith(targetEventId);
+    });
+
+    test('renders an inline nota button in reply titles', async () => {
+        const actor = '1'.repeat(64);
+        const targetEventId = 'b'.repeat(64);
+        const onOpenThread = vi.fn();
+
+        const rendered = await renderElement(
+            <NotificationsPage
+                hasUnread={false}
+                newNotifications={[
+                    buildItem({
+                        id: 'reply-1',
+                        kind: 1,
+                        actorPubkey: actor,
+                        targetEventId,
+                        content: 'esta es la respuesta',
+                        rawEvent: {
+                            id: 'reply-1',
+                            pubkey: actor,
+                            kind: 1,
+                            created_at: 100,
+                            tags: [['p', 'c'.repeat(64)], ['e', targetEventId, '', 'reply']],
+                            content: 'esta es la respuesta',
+                        },
+                    }),
+                ]}
+                recentNotifications={[]}
+                profilesByPubkey={{ [actor]: buildProfile(actor, 'Alice') }}
+                eventReferencesById={{}}
+                onOpenThread={onOpenThread}
+            />,
+        );
+        mounted.push(rendered);
+
+        const title = rendered.container.querySelector('[data-slot="item-title"]') as HTMLElement | null;
+        const noteButton = rendered.container.querySelector('[data-slot="notification-target-note"]') as HTMLButtonElement | null;
+
+        expect(title?.textContent || '').toContain('nota');
+        expect(noteButton?.textContent).toBe('nota');
+    });
+
+    test('renders referenced user note preview outside the primary item content row', async () => {
+        const actor = '1'.repeat(64);
+        const targetAuthor = '2'.repeat(64);
+        const targetEventId = 'b'.repeat(64);
+        const onOpenThread = vi.fn();
+
+        const rendered = await renderElement(
+            <NotificationsPage
+                hasUnread={false}
+                newNotifications={[
+                    buildItem({
+                        id: 'reaction-1',
+                        kind: 7,
+                        actorPubkey: actor,
+                        targetEventId,
+                        content: '❤️',
+                        rawEvent: {
+                            id: 'reaction-1',
+                            pubkey: actor,
+                            kind: 7,
+                            created_at: 100,
+                            tags: [['p', 'c'.repeat(64)], ['e', targetEventId]],
+                            content: '❤️',
+                        },
+                    }),
+                ]}
+                recentNotifications={[]}
+                profilesByPubkey={{
+                    [actor]: buildProfile(actor, 'Alice'),
+                    [targetAuthor]: buildProfile(targetAuthor, 'Nora'),
+                }}
+                eventReferencesById={{ [targetEventId]: buildEvent(targetEventId, targetAuthor, 'mi nota referenciada', 80) }}
+                onOpenThread={onOpenThread}
+            />,
+        );
+        mounted.push(rendered);
+
+        const text = rendered.container.textContent || '';
+        const card = rendered.container.querySelector('[data-slot="card"]') as HTMLElement | null;
+        const itemContent = rendered.container.querySelector('[data-slot="item-content"]') as HTMLElement | null;
+
+        expect(text).toContain('Alice reacciono con ❤️ a tu nota');
+        expect(text).toContain('mi nota referenciada');
+        expect(card).not.toBeNull();
+        expect(itemContent?.contains(card)).toBe(false);
+        expect(rendered.container.querySelector('[data-slot="notification-target-note"]')).not.toBeNull();
     });
 
     test('centers avatar and title when a notification has no secondary text', async () => {
@@ -622,7 +734,7 @@ describe('NotificationsPage', () => {
         expect(rendered.container.querySelector('[data-slot="avatar-badge"]')?.textContent).toBe('🔥');
     });
 
-    test('opens the referenced note when clicking only the inline nota label', async () => {
+    test('opens the referenced note when clicking the inline nota label', async () => {
         const actor = '1'.repeat(64);
         const targetEventId = 'b'.repeat(64);
         const onOpenThread = vi.fn();
@@ -642,6 +754,7 @@ describe('NotificationsPage', () => {
         mounted.push(rendered);
 
         const noteButton = rendered.container.querySelector('[data-slot="notification-target-note"]') as HTMLButtonElement | null;
+
         expect(noteButton?.textContent).toBe('nota');
 
         await act(async () => {
@@ -651,8 +764,9 @@ describe('NotificationsPage', () => {
         expect(onOpenThread).toHaveBeenCalledWith(targetEventId);
     });
 
-    test('opens the referenced note when clicking a notification row', async () => {
+    test('opens the referenced note when clicking its detached notification preview', async () => {
         const actor = '1'.repeat(64);
+        const targetAuthor = '2'.repeat(64);
         const targetEventId = 'b'.repeat(64);
         const onOpenThread = vi.fn();
 
@@ -663,8 +777,11 @@ describe('NotificationsPage', () => {
                     buildItem({ id: 'reaction-1', actorPubkey: actor, targetEventId }),
                 ]}
                 recentNotifications={[]}
-                profilesByPubkey={{ [actor]: buildProfile(actor, 'Alice') }}
-                eventReferencesById={{}}
+                profilesByPubkey={{
+                    [actor]: buildProfile(actor, 'Alice'),
+                    [targetAuthor]: buildProfile(targetAuthor, 'Nora'),
+                }}
+                eventReferencesById={{ [targetEventId]: buildEvent(targetEventId, targetAuthor, 'mi nota referenciada', 80) }}
                 onOpenThread={onOpenThread}
             />,
         );
@@ -672,12 +789,94 @@ describe('NotificationsPage', () => {
 
         const rowButton = rendered.container.querySelector('[data-slot="notification-open-target"]') as HTMLDivElement | null;
         expect(rowButton).not.toBeNull();
+        expect(rowButton?.getAttribute('role')).toBeNull();
+        expect(rowButton?.getAttribute('tabindex')).toBeNull();
 
         await act(async () => {
             rowButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
         expect(onOpenThread).toHaveBeenCalledWith(targetEventId);
+
+        onOpenThread.mockClear();
+        const keyboardButton = Array.from(rendered.container.querySelectorAll('button'))
+            .find((button) => button.textContent === 'Abrir nota') as HTMLButtonElement | undefined;
+        expect(keyboardButton).toBeDefined();
+
+        await act(async () => {
+            keyboardButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onOpenThread).toHaveBeenCalledWith(targetEventId);
+    });
+
+    test('does not open the referenced note when clicking nested interactive preview content', async () => {
+        const actor = '1'.repeat(64);
+        const targetAuthor = '2'.repeat(64);
+        const targetEventId = 'b'.repeat(64);
+        const onOpenThread = vi.fn();
+
+        const rendered = await renderElement(
+            <NotificationsPage
+                hasUnread={false}
+                newNotifications={[
+                    buildItem({ id: 'reaction-1', actorPubkey: actor, targetEventId }),
+                ]}
+                recentNotifications={[]}
+                profilesByPubkey={{
+                    [actor]: buildProfile(actor, 'Alice'),
+                    [targetAuthor]: buildProfile(targetAuthor, 'Nora'),
+                }}
+                eventReferencesById={{ [targetEventId]: buildEvent(targetEventId, targetAuthor, 'mi nota referenciada', 80) }}
+                onOpenThread={onOpenThread}
+            />,
+        );
+        mounted.push(rendered);
+
+        const rowButton = rendered.container.querySelector('[data-slot="notification-open-target"]') as HTMLDivElement | null;
+        const nestedButton = document.createElement('button');
+        rowButton?.appendChild(nestedButton);
+
+        await act(async () => {
+            nestedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onOpenThread).not.toHaveBeenCalled();
+    });
+
+    test('does not open the referenced note when clicking nested media controls', async () => {
+        const actor = '1'.repeat(64);
+        const targetAuthor = '2'.repeat(64);
+        const targetEventId = 'b'.repeat(64);
+        const onOpenThread = vi.fn();
+
+        const rendered = await renderElement(
+            <NotificationsPage
+                hasUnread={false}
+                newNotifications={[
+                    buildItem({ id: 'reaction-1', actorPubkey: actor, targetEventId }),
+                ]}
+                recentNotifications={[]}
+                profilesByPubkey={{
+                    [actor]: buildProfile(actor, 'Alice'),
+                    [targetAuthor]: buildProfile(targetAuthor, 'Nora'),
+                }}
+                eventReferencesById={{ [targetEventId]: buildEvent(targetEventId, targetAuthor, 'mi nota referenciada', 80) }}
+                onOpenThread={onOpenThread}
+            />,
+        );
+        mounted.push(rendered);
+
+        const rowButton = rendered.container.querySelector('[data-slot="notification-open-target"]') as HTMLDivElement | null;
+        const video = document.createElement('video');
+        video.controls = true;
+        rowButton?.appendChild(video);
+
+        await act(async () => {
+            video.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onOpenThread).not.toHaveBeenCalled();
     });
 
     test('opens the referenced target note from the inline nota label in a reply notification', async () => {
@@ -713,17 +912,18 @@ describe('NotificationsPage', () => {
         );
         mounted.push(rendered);
 
-        const openButton = rendered.container.querySelector('[data-slot="notification-target-note"]') as HTMLButtonElement | null;
-        expect(openButton).not.toBeNull();
+        const noteButton = rendered.container.querySelector('[data-slot="notification-target-note"]') as HTMLButtonElement | null;
+        expect(noteButton?.textContent).toBe('nota');
+        expect(rendered.container.querySelector('[data-slot="card"]')).toBeNull();
 
         await act(async () => {
-            openButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            noteButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
         expect(onOpenThread).toHaveBeenCalledWith(targetEventId);
     });
 
-    test('opens the referenced target note when clicking a mention notification', async () => {
+    test('opens the referenced target note from the inline nota label in a mention notification', async () => {
         const actor = '1'.repeat(64);
         const targetEventId = 'b'.repeat(64);
         const onOpenThread = vi.fn();
@@ -756,11 +956,12 @@ describe('NotificationsPage', () => {
         );
         mounted.push(rendered);
 
-        const openTarget = rendered.container.querySelector('[data-slot="notification-open-target"]') as HTMLDivElement | null;
-        expect(openTarget).not.toBeNull();
+        const noteButton = rendered.container.querySelector('[data-slot="notification-target-note"]') as HTMLButtonElement | null;
+        expect(noteButton?.textContent).toBe('nota');
+        expect(rendered.container.querySelector('[data-slot="card"]')).toBeNull();
 
         await act(async () => {
-            openTarget?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            noteButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
         expect(onOpenThread).toHaveBeenCalledWith(targetEventId);
