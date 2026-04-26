@@ -18,6 +18,7 @@ import { SVG } from '@svgdotjs/svg.js';
 import type ModelGenerator from './ts/model_generator';
 import { saveAs } from 'file-saver';
 import type { MapGenerationOptions } from './map-generation-options';
+import type { GenerationBounds } from './ts/ui/map_generation_context';
 import { mountNostrOverlay } from './nostr-overlay/bootstrap';
 import { createLatestRequestRunner } from './ts/ui/map_generation_request_guard';
 import { createMiddlePanState, stopMiddlePanState, type MiddlePanState, updateMiddlePanState } from './ts/ui/middle_pan_drag';
@@ -51,6 +52,7 @@ interface SpecialBuildingClickPayload {
 
 class Main {
     private readonly STARTING_WIDTH = 1440;  // Initially zooms in if width > STARTING_WIDTH
+    private readonly STARTUP_TARGET_BUILDINGS = 64;
 
     // UI
     private gui: dat.GUI = new dat.GUI({width: 300});
@@ -183,6 +185,7 @@ class Main {
                 ...(options?.targetBuildings === undefined ? {} : { targetBuildings: options.targetBuildings }),
                 tensorField: this.tensorField,
                 mainGui: this.mainGui,
+                onAttemptBoundsResolved: (bounds) => this.fitGenerationBoundsToViewport(bounds),
             });
             this.fitGeneratedMapToViewport();
             this.notifyMapGenerated();
@@ -193,7 +196,8 @@ class Main {
         requestAnimationFrame(() => this.update());
         void applyMapFirstStartup({
             closeTensorFolder: () => this.tensorFolder.close(),
-            generateMap: () => this.generateMap(),
+            generateMap: (options) => this.generateMap(options),
+            initialGenerationOptions: { targetBuildings: this.STARTUP_TARGET_BUILDINGS },
         });
     }
 
@@ -213,6 +217,27 @@ class Main {
             screenDimensions: this.domainController.screenDimensions,
             footprints: this.getBuildingFootprintsWorld(),
             centroids: this.getBuildingCentroidsWorld(),
+        });
+        if (!view) {
+            return;
+        }
+
+        this.domainController.zoom = view.zoom;
+        this.domainController.centerOnWorldPoint(view.center);
+    }
+
+    private fitGenerationBoundsToViewport(bounds: GenerationBounds): void {
+        const origin = bounds.origin;
+        const dimensions = bounds.worldDimensions;
+        const view = calculateGeneratedMapCoverView({
+            screenDimensions: this.domainController.screenDimensions,
+            footprints: [[
+                origin,
+                new Vector(origin.x + dimensions.x, origin.y),
+                origin.clone().add(dimensions),
+                new Vector(origin.x, origin.y + dimensions.y),
+            ]],
+            centroids: [],
         });
         if (!view) {
             return;

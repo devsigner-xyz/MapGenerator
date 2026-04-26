@@ -152,7 +152,32 @@ describe('OccupantProfileDialog', () => {
         expect(subheadings).not.toContain('Le siguen');
     });
 
-    test('shows copy npub action next to npub and writes full npub to clipboard', async () => {
+    test('renders a horizontal separator between profile header and tabs', async () => {
+        const rendered = await renderElement(<OccupantProfileDialog {...buildProps()} />);
+        mounted.push(rendered);
+
+        const header = document.body.querySelector('.nostr-dialog-header') as HTMLElement;
+        const separator = document.body.querySelector('.nostr-profile-dialog-separator[data-slot="separator"]') as HTMLElement;
+        const tabs = document.body.querySelector('.nostr-profile-dialog-tabs') as HTMLElement;
+        expect(header).not.toBeNull();
+        expect(separator).not.toBeNull();
+        expect(tabs).not.toBeNull();
+        expect(separator.getAttribute('data-orientation')).toBe('horizontal');
+        expect((header.compareDocumentPosition(separator) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(true);
+        expect((separator.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(true);
+    });
+
+    test('uses the shared dialog close button styling', async () => {
+        const rendered = await renderElement(<OccupantProfileDialog {...buildProps()} />);
+        mounted.push(rendered);
+
+        const closeButton = document.body.querySelector('button.absolute.top-2.right-2') as HTMLButtonElement | null;
+        expect(closeButton).not.toBeNull();
+        expect(closeButton?.className).toContain('absolute top-2 right-2');
+        expect(closeButton?.className).not.toContain('nostr-dialog-close');
+    });
+
+    test('copies the full npub when clicking the displayed npub', async () => {
         const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
         Object.assign(navigator, {
             clipboard: {
@@ -163,8 +188,11 @@ describe('OccupantProfileDialog', () => {
         const rendered = await renderElement(<OccupantProfileDialog {...buildProps()} />);
         mounted.push(rendered);
 
-        const copyButton = document.body.querySelector('button[aria-label="Copiar npub"]') as HTMLButtonElement;
+        expect(document.body.querySelector('.nostr-dialog-copy-npub')).toBeNull();
+
+        const copyButton = document.body.querySelector('.nostr-dialog-pubkey-copy') as HTMLButtonElement;
         expect(copyButton).toBeDefined();
+        expect(copyButton.textContent || '').toContain('npub1');
 
         await act(async () => {
             copyButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -191,7 +219,7 @@ describe('OccupantProfileDialog', () => {
         expect(document.body.querySelector('button[aria-label="Copy npub"]')).not.toBeNull();
     });
 
-    test('renders enriched about tab without avatar url row and opens avatar lightbox on click', async () => {
+    test('renders enriched about tab without avatar url row or avatar lightbox trigger', async () => {
         const rendered = await renderElement(
             <OccupantProfileDialog
                 {...buildProps({
@@ -239,19 +267,12 @@ describe('OccupantProfileDialog', () => {
         expect(text).not.toContain('Avatar');
         expect(text).not.toContain('https://example.com/avatar.png');
 
-        const avatarTrigger = document.body.querySelector('.nostr-dialog-avatar-trigger') as HTMLButtonElement;
-        expect(avatarTrigger).toBeDefined();
-        expect(avatarTrigger.querySelector('[data-slot="avatar"]')).not.toBeNull();
-
-        await act(async () => {
-            avatarTrigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
-
-        const lightboxRoot = document.body.querySelector('.yarl__root');
-        expect(lightboxRoot).toBeDefined();
+        expect(document.body.querySelector('.nostr-dialog-avatar-trigger')).toBeNull();
+        expect(document.body.querySelector('.nostr-dialog-header [data-slot="avatar"]')).not.toBeNull();
+        expect(document.body.querySelector('.yarl__root')).toBeNull();
     });
 
-    test('localizes avatar lightbox alt text in english when ui language is en', async () => {
+    test('does not expose avatar lightbox trigger in english when ui language is en', async () => {
         window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ language: 'en' }));
 
         const rendered = await renderElement(
@@ -267,15 +288,8 @@ describe('OccupantProfileDialog', () => {
         );
         mounted.push(rendered);
 
-        const avatarTrigger = document.body.querySelector('.nostr-dialog-avatar-trigger') as HTMLButtonElement;
-        expect(avatarTrigger).toBeDefined();
-
-        await act(async () => {
-            avatarTrigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        });
-
-        await waitForCondition(() => document.body.innerHTML.includes('Avatar of Alice'));
-        expect(document.body.innerHTML).toContain('Avatar of Alice');
+        expect(document.body.querySelector('.nostr-dialog-avatar-trigger')).toBeNull();
+        expect(document.body.innerHTML).not.toContain('Avatar of Alice');
     });
 
     test('uses shadcn empty loading state with spinner in feed tab', async () => {

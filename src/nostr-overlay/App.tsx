@@ -5,6 +5,7 @@ import {
     getDefaultUiSettings,
     loadUiSettings,
     saveUiSettings,
+    UI_SETTINGS_STORAGE_KEY,
     type UiTheme,
     type UiSettingsState,
 } from '../nostr/ui-settings';
@@ -103,6 +104,7 @@ import {
 } from '@/components/ui/context-menu';
 import { Toaster, toast } from 'sonner';
 import { translate } from '@/i18n/translate';
+import { SITE_THEME_CHANGE_EVENT } from '@/site/theme-preference';
 import type { OverlayServices } from './services/overlay-services';
 
 interface AppProps {
@@ -171,6 +173,24 @@ export function App({ mapBridge, services }: AppProps) {
     const loginDisabled = overlay.status !== 'idle' && overlay.status !== 'success' && overlay.status !== 'error';
     const mapLoaderText = selectMapLoaderStageLabel(overlay.mapLoaderStage, uiSettings.language);
     const sessionRestorationResolved = overlay.sessionRestorationResolved;
+
+    useEffect(() => {
+        const syncUiSettings = (event?: Event): void => {
+            if (event instanceof StorageEvent && event.key && event.key !== UI_SETTINGS_STORAGE_KEY) {
+                return;
+            }
+
+            setUiSettings(loadUiSettings());
+        };
+
+        window.addEventListener('storage', syncUiSettings);
+        window.addEventListener(SITE_THEME_CHANGE_EVENT, syncUiSettings);
+
+        return () => {
+            window.removeEventListener('storage', syncUiSettings);
+            window.removeEventListener(SITE_THEME_CHANGE_EVENT, syncUiSettings);
+        };
+    }, []);
 
     const isAppReady = Boolean(overlay.authSession) && overlay.status === 'success' && !overlay.authSession?.locked;
     const showLoginGate = !sessionRestorationResolved || !isAppReady;
@@ -984,7 +1004,7 @@ export function App({ mapBridge, services }: AppProps) {
             mapControls={(
                 <>
 
-            {isMapRoute ? (
+            {isMapRoute && !showLoginGate ? (
                 <MapZoomControls
                     mapBridge={mapBridge}
                     onRegenerateMap={overlay.regenerateMap}
@@ -992,7 +1012,7 @@ export function App({ mapBridge, services }: AppProps) {
                     onThemeChange={setThemeQuickToggle}
                 />
             ) : null}
-            {isMapRoute ? (
+            {isMapRoute && !showLoginGate ? (
                 <MapDisplayToggleControls
                     carsEnabled={uiSettings.trafficParticlesCount > 0}
                     streetLabelsEnabled={uiSettings.streetLabelsEnabled}

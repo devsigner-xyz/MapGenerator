@@ -18,6 +18,7 @@ import * as ndkClientModule from '../nostr/ndk-client';
 import * as writeGatewayModule from '../nostr/write-gateway';
 import * as runtimeDmServiceModule from '../nostr/dm-runtime-service';
 import * as dmApiServiceModule from '../nostr-api/dm-api-service';
+import { SITE_THEME_CHANGE_EVENT } from '../site/theme-preference';
 
 const { createFireworksMock } = vi.hoisted(() => ({
     createFireworksMock: vi.fn(),
@@ -7008,6 +7009,24 @@ describe('Nostr overlay App', () => {
         await waitFor(() => (bridge.setColourScheme as any).mock.calls.some((call: [string]) => call[0] === 'Nostr City Dark'));
         const storedUiSettings = JSON.parse(window.localStorage.getItem(UI_SETTINGS_STORAGE_KEY) || '{}') as { theme?: string };
         expect(storedUiSettings.theme).toBe('dark');
+    });
+
+    test('applies theme changes saved by the landing or docs selector while app is open', async () => {
+        const { bridge } = createMapBridgeStub();
+        const rendered = await renderApp(<App mapBridge={bridge} services={createBasicOverlayServices()} />);
+        mounted.push(rendered);
+
+        await loginWithNip07(rendered.container);
+        await waitFor(() => (rendered.container.textContent || '').includes('Owner'));
+
+        window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ language: 'es', theme: 'dark' }));
+
+        await act(async () => {
+            window.dispatchEvent(new CustomEvent(SITE_THEME_CHANGE_EVENT, { detail: 'dark' }));
+        });
+
+        await waitFor(() => document.documentElement.classList.contains('dark'));
+        await waitFor(() => (bridge.setColourScheme as any).mock.calls.some((call: [string]) => call[0] === 'Nostr City Dark'));
     });
 
     test('switches overlay copy live when changing language from interface settings', async () => {

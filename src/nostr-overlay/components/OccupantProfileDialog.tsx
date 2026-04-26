@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode, type UIEvent } from 'react';
-import Lightbox from 'yet-another-react-lightbox';
 import type { Nip05ValidationResult } from '../../nostr/nip05';
 import { encodeHexToNpub } from '../../nostr/npub';
 import { RELAY_TYPES, type RelaySettingsByType, type RelayType } from '../../nostr/relay-settings';
@@ -12,7 +11,7 @@ import { Nip05Identifier } from './Nip05Identifier';
 import { fromPostPreview } from './note-card-adapters';
 import type { NoteCardModel } from './note-card-model';
 import { withoutNoteActions } from './note-card-model';
-import { CopyIcon, EllipsisVerticalIcon } from 'lucide-react';
+import { EllipsisVerticalIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -24,6 +23,7 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
+import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item';
 import type { I18nContextValue } from '@/i18n/I18nProvider';
@@ -236,7 +236,6 @@ export function OccupantProfileDialog({
     const [followersLoadingMore, setFollowersLoadingMore] = useState(false);
     const [pendingFollowByPubkey, setPendingFollowByPubkey] = useState<Record<string, boolean>>({});
     const [activeTab, setActiveTab] = useState<OccupantProfileTab>('info');
-    const [isAvatarLightboxOpen, setIsAvatarLightboxOpen] = useState(false);
     const ownerFollowSet = useMemo(() => new Set(ownerFollows), [ownerFollows]);
     const displayName = resolveName(pubkey, profile);
     const relaySuggestionRows = useMemo(
@@ -618,30 +617,19 @@ export function OccupantProfileDialog({
                     width: '640px',
                     maxWidth: 'calc(100vw - 32px)',
                 }}
-                showCloseButton={false}
                 aria-label={t('profile.dialog.aria')}
             >
                 <DialogTitle className="sr-only">{t('profile.dialog.title')}</DialogTitle>
                 <DialogDescription className="sr-only">{t('profile.dialog.description')}</DialogDescription>
-                <Button type="button" variant="ghost" className="nostr-dialog-close" onClick={onClose} aria-label={t('profile.dialog.close')}>
-                    ×
-                </Button>
 
                 <div className="nostr-profile-dialog-body">
                     <div className={`nostr-profile-dialog-banner-shell${profile?.banner ? '' : ' is-placeholder'}`}>
                         {profile?.banner ? <img className="nostr-profile-dialog-banner" src={profile.banner} alt={t('profile.dialog.bannerAlt')} /> : null}
                     </div>
 
-                    <div className="nostr-dialog-header flex items-start gap-4">
-                        {profile?.picture ? (
-                            <button
-                                type="button"
-                        className="nostr-dialog-avatar-trigger overflow-hidden rounded-full"
-                        aria-label={t('profile.dialog.openAvatar')}
-                        onClick={() => setIsAvatarLightboxOpen(true)}
-                    >
+                    <div className="nostr-dialog-header flex items-center gap-3">
                         <VerifiedUserAvatar
-                            picture={profile.picture}
+                            picture={profile?.picture}
                             imageAlt={t('profile.dialog.avatarAlt')}
                             fallback={resolveInitials(pubkey, profile)}
                             nip05={profile?.nip05}
@@ -649,39 +637,24 @@ export function OccupantProfileDialog({
                             className="border border-border/70 shadow-xs"
                             fallbackClassName="bg-muted text-muted-foreground"
                         />
-                    </button>
-                ) : (
-                    <VerifiedUserAvatar
-                        imageAlt={t('profile.dialog.avatarAlt')}
-                        fallback={resolveInitials(pubkey, profile)}
-                        nip05={profile?.nip05}
-                        verification={verification}
-                        className="border border-border/70 shadow-xs"
-                        fallbackClassName="bg-muted text-muted-foreground"
-                        ariaHidden
-                    />
-                )}
 
-                <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
-                    <div className="min-w-0 space-y-1">
-                        <p className="nostr-dialog-name nostr-identity-row inline-flex max-w-full items-center gap-2 text-base font-semibold text-foreground">
-                            <span className="truncate">{resolveName(pubkey, profile)}</span>
-                        </p>
-                                <div className="nostr-dialog-pubkey-row flex items-center gap-1">
-                                    <p className="nostr-dialog-pubkey truncate text-sm text-muted-foreground">{npubLabel}</p>
-                                    <Button
+                        <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
+                            <div className="flex min-w-0 flex-col gap-0.5">
+                                <p className="nostr-dialog-name nostr-identity-row inline-flex max-w-full items-center gap-2 text-base font-semibold leading-tight text-foreground">
+                                    <span className="truncate">{resolveName(pubkey, profile)}</span>
+                                </p>
+                                <div className="nostr-dialog-pubkey-row flex min-w-0 items-center leading-tight">
+                                    <button
                                         type="button"
-                                        variant="ghost"
-                                        size="icon-xs"
-                                        className="nostr-dialog-copy-npub shrink-0"
+                                        className="nostr-dialog-pubkey nostr-dialog-pubkey-copy min-h-6 min-w-0 truncate rounded-sm text-left text-sm leading-tight text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
                                         aria-label={t('profile.dialog.copyNpub')}
                                         title={t('profile.dialog.copyNpub')}
                                         onClick={() => {
                                             void copyNpubToClipboard();
                                         }}
                                     >
-                                        <CopyIcon data-icon="inline-start" aria-hidden="true" />
-                                    </Button>
+                                        {npubLabel}
+                                    </button>
                                 </div>
                             </div>
 
@@ -690,7 +663,7 @@ export function OccupantProfileDialog({
                                     type="button"
                                     size="xs"
                                     variant={activeProfileFollowState.isFollowed ? 'secondary' : 'outline'}
-                                    className="shrink-0 self-start"
+                                    className="shrink-0"
                                     disabled={activeProfileFollowState.isDisabled}
                                     aria-label={activeProfileFollowState.ariaLabel}
                                     onClick={() => followProfile(pubkey)}
@@ -700,6 +673,8 @@ export function OccupantProfileDialog({
                             ) : null}
                         </div>
                     </div>
+
+                    <Separator className="nostr-profile-dialog-separator" />
 
                     <Tabs
                         value={activeTab}
@@ -719,16 +694,16 @@ export function OccupantProfileDialog({
                                 <section className="nostr-profile-info">
                                     <dl className="nostr-profile-info-list">
                                         {infoRows.map((row) => (
-                                            <div key={row.label}>
+                                            <div key={row.label} className="nostr-profile-info-row">
                                                 <dt>{row.label}</dt>
                                                 <dd>{row.value}</dd>
                                             </div>
                                         ))}
                                     </dl>
 
-                                    <section>
-                                        <div className="mb-2 flex items-center justify-between gap-2">
-                                            <h5 className="text-sm font-semibold">{t('profile.relays.declared')}</h5>
+                                    <section className="nostr-profile-info-section">
+                                        <div className="nostr-profile-info-section-header">
+                                            <h5>{t('profile.relays.declared')}</h5>
                                             {canAddAllRelaySuggestions ? (
                                                 <Button
                                                     type="button"
@@ -743,7 +718,7 @@ export function OccupantProfileDialog({
                                         </div>
 
                                         {relaySuggestionRows.length === 0 ? (
-                                            <p className="text-sm text-muted-foreground">{t('profile.relays.none')}</p>
+                                            <p className="nostr-profile-info-muted">{t('profile.relays.none')}</p>
                                         ) : (
                                             <ItemGroup className="nostr-profile-network-list">
                                                 {relaySuggestionRows.map((relayRow) => (
@@ -974,24 +949,6 @@ export function OccupantProfileDialog({
                         </TabsContent>
                     </Tabs>
                 </div>
-
-                <Lightbox
-                    open={isAvatarLightboxOpen && Boolean(profile?.picture)}
-                    close={() => setIsAvatarLightboxOpen(false)}
-                    index={0}
-                    slides={profile?.picture ? [{ src: profile.picture, alt: t('profile.dialog.avatarLightboxAlt', { displayName }) }] : []}
-                    portal={{
-                        root: typeof document === 'undefined' ? null : document.body,
-                    }}
-                    controller={{
-                        closeOnBackdropClick: true,
-                    }}
-                    styles={{
-                        root: {
-                            zIndex: 2147483000,
-                        },
-                    }}
-                />
             </DialogContent>
         </Dialog>
     );

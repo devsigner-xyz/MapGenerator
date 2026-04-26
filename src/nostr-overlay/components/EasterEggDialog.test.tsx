@@ -115,6 +115,8 @@ describe('EasterEggDialog', () => {
         expect(text).toContain('Download PDF');
         expect(text).toContain('Open / Expand');
         expect(text).toContain('Source');
-        expect(rendered.container.querySelector('button[aria-label="Close easter egg"]')).not.toBeNull();
+        const closeButton = rendered.container.querySelector('button.absolute.top-2.right-2') as HTMLButtonElement | null;
+        expect(closeButton).not.toBeNull();
+        expect(closeButton?.className).not.toContain('nostr-dialog-close');
     });
 });

@@ -1,6 +1,15 @@
+import { useEffect, useState } from 'react';
 import { resolvePublicAppUrl } from '@/site/app-url';
 import { resolvePublicDocsUrl } from '@/site/docs-url';
 import { useI18n } from '@/i18n/useI18n';
+import { UI_SETTINGS_STORAGE_KEY } from '@/nostr/ui-settings';
+import {
+  SITE_THEME_CHANGE_EVENT,
+  SITE_THEME_MEDIA_QUERY,
+  resolveSiteTheme,
+  saveSiteThemePreference,
+  type SiteTheme,
+} from '@/site/theme-preference';
 
 function scrollToSection(sectionId: string): void {
   document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -10,11 +19,70 @@ export default function LandingPage() {
   const appUrl = resolvePublicAppUrl();
   const docsUrl = resolvePublicDocsUrl();
   const { t } = useI18n();
+  const [theme, setTheme] = useState<SiteTheme>(() => resolveSiteTheme());
+
+  useEffect(() => {
+    const syncTheme = (event?: Event): void => {
+      if (event instanceof StorageEvent && event.key && event.key !== UI_SETTINGS_STORAGE_KEY) {
+        return;
+      }
+
+      setTheme(resolveSiteTheme());
+    };
+
+    window.addEventListener('storage', syncTheme);
+    window.addEventListener(SITE_THEME_CHANGE_EVENT, syncTheme);
+
+    const mediaQuery = typeof window.matchMedia === 'function' ? window.matchMedia(SITE_THEME_MEDIA_QUERY) : null;
+    if (mediaQuery) {
+      if (typeof mediaQuery.addEventListener === 'function') {
+        mediaQuery.addEventListener('change', syncTheme);
+      } else {
+        mediaQuery.addListener(syncTheme);
+      }
+    }
+
+    return () => {
+      window.removeEventListener('storage', syncTheme);
+      window.removeEventListener(SITE_THEME_CHANGE_EVENT, syncTheme);
+
+      if (mediaQuery) {
+        if (typeof mediaQuery.removeEventListener === 'function') {
+          mediaQuery.removeEventListener('change', syncTheme);
+        } else {
+          mediaQuery.removeListener(syncTheme);
+        }
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    document.documentElement.style.colorScheme = theme;
+
+    const iconHref = theme === 'dark' ? '/icon-dark-32x32.png' : '/icon-light-32x32.png';
+    const iconLink = document.head.querySelector<HTMLLinkElement>('link[rel="icon"]') || document.createElement('link');
+    iconLink.rel = 'icon';
+    iconLink.type = 'image/png';
+    iconLink.href = iconHref;
+    if (!iconLink.parentElement) {
+      document.head.appendChild(iconLink);
+    }
+  }, [theme]);
+
+  const selectTheme = (nextTheme: SiteTheme): void => {
+    setTheme(saveSiteThemePreference(nextTheme));
+  };
+
+  const logoSrc = theme === 'dark' ? '/logo-v2-dark.png' : '/logo-v2-light.png';
 
   return (
-    <div className="landing-shell">
+    <div className="landing-shell" data-theme={theme}>
       <header className="topbar">
-        <p className="brand">Nostr City</p>
+        <a className="brand" href="#hero" aria-label={t('landing.brand.homeAria')}>
+          <img className="brand-logo" src={logoSrc} alt={t('landing.brand.logoAlt')} />
+          <span>Nostr City</span>
+        </a>
 
         <nav className="topbar-links" aria-label={t('landing.nav.mainLinks')}>
           <a href={docsUrl}>{t('landing.nav.documentation')}</a>
@@ -24,6 +92,14 @@ export default function LandingPage() {
           <button type="button" onClick={() => scrollToSection('features')}>
             {t('landing.nav.features')}
           </button>
+          <div className="theme-toggle" role="group" aria-label={t('landing.theme.label')}>
+            <button type="button" aria-pressed={theme === 'light'} onClick={() => selectTheme('light')}>
+              {t('landing.theme.light')}
+            </button>
+            <button type="button" aria-pressed={theme === 'dark'} onClick={() => selectTheme('dark')}>
+              {t('landing.theme.dark')}
+            </button>
+          </div>
           <a className="app-link" href={appUrl}>{t('landing.nav.openApp')}</a>
         </nav>
       </header>

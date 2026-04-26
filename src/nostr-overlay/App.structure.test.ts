@@ -75,4 +75,9 @@ describe('Nostr overlay App shell structure', () => {
             }
         }
     });
+
+    it('gates map controls while the login gate is visible', () => {
+        expect(appSource).toMatch(/\{isMapRoute\s*&&\s*!showLoginGate\s*\?\s*\(\s*<MapZoomControls/);
+        expect(appSource).toMatch(/\{isMapRoute\s*&&\s*!showLoginGate\s*\?\s*\(\s*<MapDisplayToggleControls/);
+    });
 });

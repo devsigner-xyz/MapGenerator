@@ -41,6 +41,18 @@ describe('startup map mode', () => {
         expect(events).toEqual(['close']);
     });
 
+    test('applyMapFirstStartup forwards initial generation options', async () => {
+        const generateMap = vi.fn(async () => undefined);
+
+        await applyMapFirstStartup({
+            closeTensorFolder: vi.fn(),
+            generateMap,
+            initialGenerationOptions: { targetBuildings: 64 },
+        });
+
+        expect(generateMap).toHaveBeenCalledWith({ targetBuildings: 64 });
+    });
+
     test('shouldShowTensorField only depends on tensor folder state', () => {
         expect(shouldShowTensorField(true)).toBe(false);
         expect(shouldShowTensorField(false)).toBe(true);

@@ -1,7 +1,10 @@
+import type { MapGenerationOptions } from '../../map-generation-options';
+
 export interface MapFirstStartupOptions {
     closeTensorFolder: () => void;
-    generateMap: () => Promise<void> | void;
+    generateMap: (options?: MapGenerationOptions) => Promise<void> | void;
     shouldGenerateMap?: boolean;
+    initialGenerationOptions?: MapGenerationOptions;
 }
 
 export async function applyMapFirstStartup(options: MapFirstStartupOptions): Promise<void> {
@@ -10,7 +13,11 @@ export async function applyMapFirstStartup(options: MapFirstStartupOptions): Pro
         return;
     }
 
-    await Promise.resolve(options.generateMap());
+    await Promise.resolve(
+        options.initialGenerationOptions === undefined
+            ? options.generateMap()
+            : options.generateMap(options.initialGenerationOptions)
+    );
 }
 
 export function shouldShowTensorField(tensorFolderClosed: boolean): boolean {

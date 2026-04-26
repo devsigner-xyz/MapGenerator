@@ -15,7 +15,7 @@ export function UiSettingsDialog({ open, uiSettings, onPersistUiSettings, onOpen
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-xl">
+            <DialogContent className="nostr-settings-dialog nostr-settings-dialog-ui">
                 <DialogTitle className="sr-only">{t('settings.ui.title')}</DialogTitle>
                 <DialogDescription className="sr-only">{t('settings.ui.description')}</DialogDescription>
                 <SettingsUiPage uiSettings={uiSettings} onPersistUiSettings={onPersistUiSettings} />

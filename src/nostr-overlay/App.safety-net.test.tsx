@@ -506,6 +506,18 @@ describe('Nostr overlay App focused safety-net harness', () => {
         expect(rendered.container.textContent || '').toContain('Metodo de acceso');
     });
 
+    test('hides map controls while the login gate is visible', async () => {
+        const { bridge } = createMapBridgeStub();
+
+        const rendered = await renderApp(<App mapBridge={bridge} services={createBasicOverlayServices()} />);
+        mounted.push(rendered);
+
+        await waitFor(() => rendered.container.querySelector('[data-testid="login-gate-screen"]') !== null);
+
+        expect(rendered.container.querySelector('.nostr-map-zoom-controls')).toBeNull();
+        expect(rendered.container.querySelector('.nostr-map-display-controls')).toBeNull();
+    });
+
     test('does not open occupied-building context menu while the login gate is visible', async () => {
         const buildingIndex = 3;
         const pubkey = 'a'.repeat(64);

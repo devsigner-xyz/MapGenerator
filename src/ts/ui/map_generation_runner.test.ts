@@ -55,6 +55,36 @@ describe('runMapGeneration', () => {
         expect(result.actualBuildings).toBe(100);
     });
 
+    test('announces each target-driven attempt bounds before generating the attempt', async () => {
+        const counts = [40, 100];
+        const events: string[] = [];
+        const setRecommended = vi.fn();
+        const onAttemptBoundsResolved = vi.fn((bounds) => {
+            events.push(`fit:${bounds.worldDimensions.x}`);
+        });
+        const generateEverything = vi.fn(async (bounds) => {
+            events.push(`generate:${bounds.worldDimensions.x}`);
+        });
+        const getBuildingCentroidsWorld = vi.fn(() => Array.from({ length: counts.shift() ?? 0 }, (_, index) => new Vector(index, index)));
+
+        await runMapGeneration({
+            viewCenter: new Vector(500, 400),
+            screenDimensions: new Vector(1200, 800),
+            targetBuildings: 100,
+            tensorField: { setRecommended } as never,
+            mainGui: { generateEverything, getBuildingCentroidsWorld } as never,
+            onAttemptBoundsResolved,
+        });
+
+        expect(onAttemptBoundsResolved).toHaveBeenCalledTimes(2);
+        expect(events).toHaveLength(4);
+        const [firstFit, firstGenerate, secondFit, secondGenerate] = events as [string, string, string, string];
+        expect(firstFit).toMatch(/^fit:/);
+        expect(firstGenerate).toBe(firstFit.replace('fit:', 'generate:'));
+        expect(secondFit).toMatch(/^fit:/);
+        expect(secondGenerate).toBe(secondFit.replace('fit:', 'generate:'));
+    });
+
     test('replays the best attempt when calibration misses the band and returns the visible replay count', async () => {
         const counts = [130, 50, 125];
         const setRecommended = vi.fn();

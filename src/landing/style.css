@@ -1,16 +1,40 @@
 :root {
-  --bg-paper: #f3efe2;
-  --bg-ink: #132024;
-  --bg-deep: #0e1619;
+  --bg-paper: #ececec;
+  --bg-ink: #f8f9fa;
+  --bg-deep: #010432;
   --text-main: #17242a;
   --text-soft: #40565f;
-  --line: #9db0b4;
-  --accent: #d75f2f;
-  --accent-dark: #ae4620;
-  --panel: rgba(255, 252, 244, 0.78);
-  --panel-strong: rgba(255, 252, 244, 0.92);
+  --line: #c1c5d6;
+  --accent: #233cb5;
+  --accent-dark: #011556;
+  --accent-hot: #db5ff7;
+  --accent-foreground: #fff;
+  --map-water: #a6d5f9;
+  --map-park: #c6e8c6;
+  --map-road: #fff2af;
+  --panel: rgba(248, 249, 250, 0.78);
+  --panel-strong: rgba(255, 255, 255, 0.92);
   --radius: 18px;
-  --shadow: 0 24px 80px rgba(15, 31, 36, 0.18);
+  --shadow: 0 24px 80px rgba(1, 4, 50, 0.14);
+}
+
+:root.dark {
+  --bg-paper: #010432;
+  --bg-ink: #011556;
+  --bg-deep: #010b2d;
+  --text-main: #fcfdfe;
+  --text-soft: #bfefff;
+  --line: #233cb5;
+  --accent: #2abafb;
+  --accent-dark: #a2f0fe;
+  --accent-hot: #db5ff7;
+  --accent-foreground: #010432;
+  --map-water: #34108a;
+  --map-park: #4c1fae;
+  --map-road: #a2f0fe;
+  --panel: rgba(1, 21, 86, 0.7);
+  --panel-strong: rgba(1, 21, 86, 0.9);
+  --shadow: 0 24px 90px rgba(0, 0, 0, 0.36);
 }
 
 * {
@@ -27,8 +51,9 @@ body {
   font-family: 'Manrope', 'Segoe UI', sans-serif;
   color: var(--text-main);
   background:
-    radial-gradient(circle at 12% 18%, rgba(215, 95, 47, 0.15), transparent 48%),
-    radial-gradient(circle at 86% 12%, rgba(38, 118, 129, 0.22), transparent 42%),
+    radial-gradient(circle at 12% 18%, color-mix(in srgb, var(--map-road) 42%, transparent), transparent 48%),
+    radial-gradient(circle at 86% 12%, color-mix(in srgb, var(--map-water) 38%, transparent), transparent 42%),
+    radial-gradient(circle at 68% 82%, color-mix(in srgb, var(--map-park) 24%, transparent), transparent 42%),
     var(--bg-paper);
   line-height: 1.5;
 }
@@ -45,7 +70,7 @@ body {
   inset: 0;
   pointer-events: none;
   opacity: 0.23;
-  background-image: linear-gradient(rgba(19, 32, 36, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(19, 32, 36, 0.08) 1px, transparent 1px);
+  background-image: linear-gradient(color-mix(in srgb, var(--line) 34%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--line) 34%, transparent) 1px, transparent 1px);
   background-size: 58px 58px;
   z-index: -2;
 }
@@ -56,7 +81,7 @@ body {
   inset: 0;
   pointer-events: none;
   z-index: -1;
-  background: radial-gradient(circle at 50% 110%, rgba(12, 23, 26, 0.24), transparent 62%);
+  background: radial-gradient(circle at 50% 110%, color-mix(in srgb, var(--bg-deep) 24%, transparent), transparent 62%);
 }
 
 .topbar {
@@ -68,46 +93,89 @@ body {
   justify-content: space-between;
   gap: 1rem;
   padding: 1rem 1.8rem;
-  border-bottom: 1px solid rgba(20, 34, 39, 0.18);
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 44%, transparent);
   backdrop-filter: blur(8px);
-  background: rgba(243, 239, 226, 0.8);
+  background: color-mix(in srgb, var(--bg-paper) 82%, transparent);
 }
 
 .brand {
   margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
   font-family: 'Bricolage Grotesque', 'Segoe UI', sans-serif;
   font-size: 1.2rem;
   letter-spacing: 0.04em;
+  color: var(--text-main);
+  text-decoration: none;
+}
+
+.brand-logo {
+  display: block;
+  width: auto;
+  height: 2rem;
 }
 
 .topbar-links {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.65rem;
 }
 
 .topbar-links a,
 .topbar-links button {
   border-radius: 999px;
-  border: 1px solid rgba(19, 32, 36, 0.24);
+  border: 1px solid color-mix(in srgb, var(--line) 64%, transparent);
   text-decoration: none;
   color: var(--text-main);
-  background: rgba(255, 252, 244, 0.72);
+  background: color-mix(in srgb, var(--panel-strong) 78%, transparent);
   padding: 0.45rem 0.95rem;
   font-size: 0.86rem;
   font-family: inherit;
   cursor: pointer;
 }
 
+.topbar-links a:focus-visible,
+.topbar-links button:focus-visible,
+.brand:focus-visible,
+.hero-actions a:focus-visible,
+.hero-actions button:focus-visible,
+.footer-cta a:focus-visible {
+  outline: 3px solid var(--accent-hot);
+  outline-offset: 3px;
+}
+
 .topbar-links .app-link {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--accent-foreground);
   font-weight: 700;
 }
 
 .topbar-links .app-link:hover {
   background: var(--accent-dark);
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem;
+  border: 1px solid color-mix(in srgb, var(--line) 64%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel-strong) 74%, transparent);
+}
+
+.topbar-links .theme-toggle button {
+  border: 0;
+  background: transparent;
+  padding: 0.32rem 0.72rem;
+}
+
+.topbar-links .theme-toggle button[aria-pressed='true'] {
+  color: var(--accent-foreground);
+  background: var(--accent);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
 main {
@@ -118,7 +186,7 @@ main {
 
 section {
   margin-top: 1.8rem;
-  border: 1px solid rgba(18, 33, 37, 0.2);
+  border: 1px solid color-mix(in srgb, var(--line) 54%, transparent);
   border-radius: var(--radius);
   background: var(--panel);
   box-shadow: var(--shadow);
@@ -129,9 +197,9 @@ section {
   margin-top: 1.4rem;
   padding: 3.2rem 2.2rem;
   background:
-    linear-gradient(152deg, rgba(7, 20, 23, 0.93) 0%, rgba(14, 32, 37, 0.92) 48%, rgba(24, 57, 64, 0.88) 100%),
-    radial-gradient(circle at 18% 16%, rgba(215, 95, 47, 0.28), transparent 42%);
-  color: #f3efe2;
+    linear-gradient(152deg, color-mix(in srgb, var(--bg-deep) 96%, transparent) 0%, color-mix(in srgb, var(--bg-ink) 92%, var(--bg-deep)) 52%, color-mix(in srgb, var(--map-water) 34%, var(--bg-deep)) 100%),
+    radial-gradient(circle at 18% 16%, color-mix(in srgb, var(--accent-hot) 28%, transparent), transparent 42%);
+  color: #fcfdfe;
   position: relative;
 }
 
@@ -140,7 +208,7 @@ section {
   font-size: 0.78rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: rgba(243, 239, 226, 0.8);
+  color: color-mix(in srgb, #fcfdfe 80%, transparent);
 }
 
 h1,
@@ -161,7 +229,7 @@ h1 {
   margin-top: 1rem;
   max-width: 63ch;
   font-size: clamp(1rem, 1.5vw, 1.22rem);
-  color: rgba(243, 239, 226, 0.9);
+  color: color-mix(in srgb, #fcfdfe 90%, transparent);
 }
 
 .hero-actions {
@@ -174,7 +242,7 @@ h1 {
 .hero-actions a,
 .hero-actions button {
   border-radius: 999px;
-  border: 1px solid rgba(243, 239, 226, 0.42);
+  border: 1px solid color-mix(in srgb, #fcfdfe 42%, transparent);
   padding: 0.72rem 1.2rem;
   text-decoration: none;
   font-size: 0.93rem;
@@ -185,17 +253,17 @@ h1 {
 
 .hero-actions .app-link {
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-foreground);
   border-color: transparent;
 }
 
 .hero-actions .app-link:hover {
-  background: #ed6f3a;
+  background: var(--accent-dark);
 }
 
 .hero-actions button {
   background: transparent;
-  color: rgba(243, 239, 226, 0.9);
+  color: color-mix(in srgb, #fcfdfe 90%, transparent);
 }
 
 .hero-grid {
@@ -207,9 +275,9 @@ h1 {
 
 .hero-grid article {
   padding: 0.9rem;
-  border: 1px solid rgba(243, 239, 226, 0.18);
+  border: 1px solid color-mix(in srgb, #fcfdfe 18%, transparent);
   border-radius: 14px;
-  background: rgba(249, 247, 242, 0.06);
+  background: color-mix(in srgb, #fcfdfe 8%, transparent);
 }
 
 .hero-grid h3 {
@@ -219,7 +287,7 @@ h1 {
 .hero-grid p {
   margin: 0.45rem 0 0;
   font-size: 0.9rem;
-  color: rgba(243, 239, 226, 0.86);
+  color: color-mix(in srgb, #fcfdfe 86%, transparent);
 }
 
 .content {
@@ -253,9 +321,9 @@ h1 {
 }
 
 .card {
-  border: 1px solid rgba(20, 38, 43, 0.2);
+  border: 1px solid color-mix(in srgb, var(--line) 48%, transparent);
   border-radius: 14px;
-  background: #fffcf4;
+  background: color-mix(in srgb, var(--panel-strong) 94%, transparent);
   padding: 1rem;
 }
 
@@ -269,24 +337,24 @@ h1 {
 }
 
 .nostr-native {
-  background: linear-gradient(160deg, #0f1d21 0%, #17313a 100%);
-  color: #edf2f0;
+  background: linear-gradient(160deg, var(--bg-deep) 0%, color-mix(in srgb, var(--accent) 30%, var(--bg-ink)) 100%);
+  color: #fcfdfe;
 }
 
 .nostr-native p {
-  color: rgba(237, 242, 240, 0.88);
+  color: color-mix(in srgb, #fcfdfe 88%, transparent);
 }
 
 .nostr-native .card {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(237, 242, 240, 0.24);
+  background: color-mix(in srgb, #fcfdfe 7%, transparent);
+  border-color: color-mix(in srgb, #fcfdfe 24%, transparent);
 }
 
 .manifest {
   margin-top: 0.9rem;
   padding: 1rem;
   border-left: 4px solid var(--accent);
-  background: rgba(255, 255, 255, 0.07);
+  background: color-mix(in srgb, var(--map-road) 20%, transparent);
   border-radius: 10px;
 }
 
@@ -301,20 +369,20 @@ h1 {
 .footer-cta a {
   text-decoration: none;
   border-radius: 999px;
-  border: 1px solid rgba(20, 37, 42, 0.24);
+  border: 1px solid color-mix(in srgb, var(--line) 58%, transparent);
   padding: 0.62rem 1rem;
   font-weight: 700;
   color: var(--text-main);
-  background: #fff;
+  background: var(--panel-strong);
 }
 
-.footer-cta [data-app-link] {
-  color: #fff;
+.footer-cta .app-link {
+  color: var(--accent-foreground);
   border-color: var(--accent);
   background: var(--accent);
 }
 
-.footer-cta [data-app-link]:hover {
+.footer-cta .app-link:hover {
   background: var(--accent-dark);
 }
 
@@ -334,16 +402,26 @@ h1 {
 @media (max-width: 640px) {
   .topbar {
     padding: 0.8rem;
+    align-items: flex-start;
+  }
+
+  .brand span {
+    display: none;
   }
 
   .topbar-links {
     gap: 0.45rem;
+    justify-content: flex-end;
   }
 
   .topbar-links a,
   .topbar-links button {
     font-size: 0.77rem;
     padding: 0.38rem 0.72rem;
+  }
+
+  .topbar-links .theme-toggle button {
+    padding: 0.28rem 0.56rem;
   }
 
   main {

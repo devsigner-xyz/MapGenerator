@@ -31,11 +31,6 @@
     align-items: center;
 }
 
-.nostr-dialog-close:focus-visible {
-    outline: 2px solid #2b6f8f;
-    outline-offset: 2px;
-}
-
 .nostr-header {
     margin: 0;
 }
@@ -748,33 +743,19 @@
     padding: 0.95rem;
 }
 
-.nostr-dialog-close {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    z-index: 3;
-    border: 1px solid rgba(185, 197, 206, 0.95);
-    background: rgba(248, 251, 253, 0.98);
-    color: #304e5d;
-    border-radius: 7px;
-    width: 26px;
-    height: 26px;
-    cursor: pointer;
-}
-
-.nostr-dialog-avatar-trigger {
-    border: none;
-    background: transparent;
-    padding: 0;
-    cursor: zoom-in;
-}
-
 .nostr-settings-dialog {
     width: min(560px, calc(100vw - 32px));
     max-height: calc(100vh - 32px);
     overflow: hidden;
     display: flex;
     flex-direction: column;
+}
+
+.nostr-settings-dialog-ui {
+    width: min(760px, calc(100vw - 32px));
+    max-width: min(760px, calc(100vw - 32px));
+    max-height: min(84vh, 760px);
+    overflow-y: auto;
 }
 
 .nostr-settings-page {
@@ -2316,7 +2297,7 @@
 .nostr-profile-posts,
 .nostr-profile-network-tab {
     display: grid;
-    gap: 0.45rem;
+    gap: 0.6rem;
 }
 
 .nostr-profile-posts {
@@ -2342,34 +2323,65 @@
 }
 
 .nostr-profile-info h4,
+.nostr-profile-info h5,
 .nostr-profile-posts h4 {
     margin: 0;
     font-size: 0.9rem;
-    color: #1f3340;
+    color: var(--foreground);
 }
 
 .nostr-profile-info-list {
     margin: 0;
     display: grid;
-    gap: 0.45rem;
+    gap: 0.5rem;
+}
+
+.nostr-profile-info-row,
+.nostr-profile-info-section {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: color-mix(in oklab, var(--card) 94%, transparent);
+    color: var(--card-foreground);
+    padding: 0.65rem 0.75rem;
+}
+
+.nostr-profile-info-section {
+    display: grid;
+    gap: 0.55rem;
+}
+
+.nostr-profile-info-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
 }
 
 .nostr-profile-info-list dt {
     margin: 0;
     font-size: 0.75rem;
-    color: #5b6f7b;
+    font-weight: 500;
+    color: var(--muted-foreground);
 }
 
 .nostr-profile-info-list dd {
     margin: 0.18rem 0 0;
     font-size: 0.82rem;
-    color: #1f3340;
+    line-height: 1.45;
+    color: var(--card-foreground);
     word-break: break-word;
 }
 
 .nostr-profile-info-link {
-    color: #235b73;
+    color: var(--primary);
     text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.nostr-profile-info-muted {
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--muted-foreground);
 }
 
 .nostr-profile-identities {
@@ -2392,18 +2404,18 @@
 }
 
 .nostr-profile-network-list [data-slot="item"] {
-    border: 1px solid rgba(215, 222, 228, 0.95);
-    background: rgba(251, 253, 255, 0.95);
-    color: #233a45;
+    border: 1px solid var(--border);
+    background: color-mix(in oklab, var(--card) 94%, transparent);
+    color: var(--card-foreground);
 }
 
 .nostr-profile-network-list [data-slot="item"]:hover {
-    background: rgba(241, 246, 250, 0.98);
+    background: var(--muted);
 }
 
 .nostr-profile-network-list [data-slot="item-description"] {
     font-size: 0.75rem;
-    color: #5f727f;
+    color: var(--muted-foreground);
 }
 
 .nostr-loading-inline {
