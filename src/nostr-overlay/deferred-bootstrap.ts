@@ -1,5 +1,7 @@
+import type { OverlayServices } from './services/overlay-services';
+
 interface OverlayBootstrapModule {
-    mountNostrOverlay: () => void;
+    mountNostrOverlay: (win?: Window, options?: { services?: OverlayServices }) => void;
 }
 
 interface DeferredBootstrapScheduler {
@@ -10,6 +12,7 @@ interface DeferredBootstrapScheduler {
 export interface MountNostrOverlayDeferredOptions {
     scheduler?: DeferredBootstrapScheduler;
     importOverlayBootstrap?: () => Promise<OverlayBootstrapModule>;
+    services?: OverlayServices;
 }
 
 const defaultScheduler: DeferredBootstrapScheduler = {
@@ -29,7 +32,7 @@ export function mountNostrOverlayDeferred(options: MountNostrOverlayDeferredOpti
 
     const mountOverlay = (): void => {
         void importOverlayBootstrap().then((mod) => {
-            mod.mountNostrOverlay();
+            mod.mountNostrOverlay(undefined, options.services ? { services: options.services } : undefined);
         });
     };
 

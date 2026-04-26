@@ -569,7 +569,7 @@ describe('Nostr overlay App', () => {
 
     test('shows login dialog overlay with full-width map behind before session starts', async () => {
         const { bridge } = createMapBridgeStub();
-        const rendered = await renderApp(<App mapBridge={bridge} />);
+        const rendered = await renderApp(<App mapBridge={bridge} services={createBasicOverlayServices()} />);
         mounted.push(rendered);
 
         await waitFor(() => rendered.container.querySelector('input[name="npub"]') !== null);
@@ -595,7 +595,7 @@ describe('Nostr overlay App', () => {
         window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ language: 'en' }));
 
         const { bridge } = createMapBridgeStub();
-        const rendered = await renderApp(<App mapBridge={bridge} />);
+        const rendered = await renderApp(<App mapBridge={bridge} services={createBasicOverlayServices()} />);
         mounted.push(rendered);
 
         await waitFor(() => rendered.container.querySelector('input[name="npub"]') !== null);
@@ -609,7 +609,7 @@ describe('Nostr overlay App', () => {
 
     test('renders the scoped create-account selector copy and footer inside the auth flow', async () => {
         const { bridge } = createMapBridgeStub();
-        const rendered = await renderApp(<App mapBridge={bridge} />);
+        const rendered = await renderApp(<App mapBridge={bridge} services={createBasicOverlayServices()} />);
         mounted.push(rendered);
 
         await waitFor(() => rendered.container.querySelector('input[name="npub"]') !== null);
@@ -637,7 +637,7 @@ describe('Nostr overlay App', () => {
 
     test('renders updated external and local auth-flow copy with stable auth test ids', async () => {
         const { bridge } = createMapBridgeStub();
-        const rendered = await renderApp(<App mapBridge={bridge} />);
+        const rendered = await renderApp(<App mapBridge={bridge} services={createBasicOverlayServices()} />);
         mounted.push(rendered);
 
         await waitFor(() => rendered.container.querySelector('input[name="npub"]') !== null);
@@ -705,12 +705,7 @@ describe('Nostr overlay App', () => {
         const rendered = await renderApp(
             <App
                 mapBridge={bridge}
-                services={{
-                    createClient: () => ({
-                        connect: async () => {},
-                        fetchLatestReplaceableEvent: async () => null,
-                        fetchEvents: async () => [],
-                    }),
+                services={createBasicOverlayServices(ownerPubkey, {
                     fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
                         ownerPubkey,
                         follows: [],
@@ -724,7 +719,7 @@ describe('Nostr overlay App', () => {
                         scannedBatches: 1,
                         complete: true,
                     }),
-                }}
+                })}
             />,
             { initialEntries: ['/login'] }
         );
@@ -790,7 +785,7 @@ describe('Nostr overlay App', () => {
     test('shows the login form once restoration resolves without a persisted session', async () => {
         const { bridge } = createMapBridgeStub();
         const rendered = await renderApp(
-            <App mapBridge={bridge} />,
+            <App mapBridge={bridge} services={createBasicOverlayServices()} />,
             { initialEntries: ['/login'] }
         );
         mounted.push(rendered);
@@ -841,7 +836,7 @@ describe('Nostr overlay App', () => {
     test('redirects direct internal routes to /login when session is missing', async () => {
         const { bridge } = createMapBridgeStub();
         const rendered = await renderApp(
-            <App mapBridge={bridge} />,
+            <App mapBridge={bridge} services={createBasicOverlayServices()} />,
             { initialEntries: ['/estadisticas'] }
         );
         mounted.push(rendered);
@@ -860,12 +855,7 @@ describe('Nostr overlay App', () => {
         const rendered = await renderApp(
             <App
                 mapBridge={bridge}
-                services={{
-                    createClient: () => ({
-                        connect: async () => {},
-                        fetchLatestReplaceableEvent: async () => null,
-                        fetchEvents: async () => [],
-                    }),
+                services={createBasicOverlayServices(ownerPubkey, {
                     fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
                         ownerPubkey,
                         follows: [followedPubkey],
@@ -884,7 +874,7 @@ describe('Nostr overlay App', () => {
                         scannedBatches: 1,
                         complete: true,
                     }),
-                }}
+                })}
             />
         );
         mounted.push(rendered);
@@ -918,12 +908,7 @@ describe('Nostr overlay App', () => {
         const rendered = await renderApp(
             <App
                 mapBridge={bridge}
-                services={{
-                    createClient: () => ({
-                        connect: async () => {},
-                        fetchLatestReplaceableEvent: async () => null,
-                        fetchEvents: async () => [],
-                    }),
+                services={createBasicOverlayServices(ownerPubkey, {
                     fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
                         ownerPubkey,
                         follows: [],
@@ -937,7 +922,7 @@ describe('Nostr overlay App', () => {
                         scannedBatches: 1,
                         complete: true,
                     }),
-                }}
+                })}
             />
         );
         mounted.push(rendered);
@@ -985,12 +970,7 @@ describe('Nostr overlay App', () => {
         const rendered = await renderApp(
             <App
                 mapBridge={bridge}
-                services={{
-                    createClient: () => ({
-                        connect: async () => {},
-                        fetchLatestReplaceableEvent: async () => null,
-                        fetchEvents: async () => [],
-                    }),
+                services={createBasicOverlayServices(ownerPubkey, {
                     fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
                         ownerPubkey,
                         follows: [],
@@ -1004,7 +984,7 @@ describe('Nostr overlay App', () => {
                         scannedBatches: 1,
                         complete: true,
                     }),
-                }}
+                })}
             />
         );
         mounted.push(rendered);
@@ -1030,12 +1010,7 @@ describe('Nostr overlay App', () => {
         const rendered = await renderApp(
             <App
                 mapBridge={bridge}
-                services={{
-                    createClient: () => ({
-                        connect: async () => {},
-                        fetchLatestReplaceableEvent: async () => null,
-                        fetchEvents: async () => [],
-                    }),
+                services={createBasicOverlayServices(ownerPubkey, {
                     fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
                         ownerPubkey,
                         follows: [],
@@ -1049,7 +1024,7 @@ describe('Nostr overlay App', () => {
                         scannedBatches: 1,
                         complete: true,
                     }),
-                }}
+                })}
             />
         );
         mounted.push(rendered);
@@ -2296,7 +2271,7 @@ describe('Nostr overlay App', () => {
 
         try {
             const { bridge } = createMapBridgeStub();
-            const rendered = await renderApp(<App mapBridge={bridge} />);
+            const rendered = await renderApp(<App mapBridge={bridge} services={createBasicOverlayServices()} />);
             mounted.push(rendered);
 
             await waitFor(() => rendered.container.querySelector('[data-testid="login-gate-screen"]') !== null);
@@ -3827,7 +3802,7 @@ describe('Nostr overlay App', () => {
 
     test('hides chat entry points when session is not dm-capable', async () => {
         const { bridge } = createMapBridgeStub();
-        const rendered = await renderApp(<App mapBridge={bridge} />);
+        const rendered = await renderApp(<App mapBridge={bridge} services={createBasicOverlayServices()} />);
         mounted.push(rendered);
 
         await waitFor(() => rendered.container.querySelector('[data-testid="login-gate-screen"]') !== null);
@@ -4129,6 +4104,7 @@ describe('Nostr overlay App', () => {
                         fetchLatestReplaceableEvent: async () => null,
                         fetchEvents: async () => [],
                     }),
+                    directMessagesService: apiReadService,
                     fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
                         ownerPubkey,
                         follows: [],
@@ -4162,7 +4138,7 @@ describe('Nostr overlay App', () => {
 
         expect(rendered.container.textContent || '').toContain('hola api dm');
         expect(createRuntimeServiceSpy).not.toHaveBeenCalled();
-        expect(createDmApiServiceSpy).toHaveBeenCalled();
+        expect(createDmApiServiceSpy).not.toHaveBeenCalled();
         expect(apiReadService.subscribeInbox).toHaveBeenCalled();
         expect(apiReadService.loadInitialConversations).toHaveBeenCalled();
         expect(runtimeReadService.subscribeInbox).not.toHaveBeenCalled();
@@ -4327,12 +4303,8 @@ describe('Nostr overlay App', () => {
         const rendered = await renderApp(
             <App
                 mapBridge={bridge}
-                services={{
-                    createClient: () => ({
-                        connect: async () => {},
-                        fetchLatestReplaceableEvent: async () => null,
-                        fetchEvents: async () => [],
-                    }),
+                services={createBasicOverlayServices(ownerPubkey, {
+                    directMessagesService: apiReadService,
                     fetchFollowsByPubkeyFn: vi.fn().mockResolvedValue({
                         ownerPubkey,
                         follows: [peerPubkey],
@@ -4347,7 +4319,7 @@ describe('Nostr overlay App', () => {
                         scannedBatches: 1,
                         complete: true,
                     }),
-                }}
+                })}
             />
         );
         mounted.push(rendered);
@@ -4366,7 +4338,7 @@ describe('Nostr overlay App', () => {
         expect(rendered.container.textContent || '').toContain('historial visible');
 
         expect(createRuntimeServiceSpy).not.toHaveBeenCalled();
-        expect(createDmApiServiceSpy).toHaveBeenCalled();
+        expect(createDmApiServiceSpy).not.toHaveBeenCalled();
         expect(apiReadService.subscribeInbox).toHaveBeenCalled();
         expect(apiReadService.loadInitialConversations).toHaveBeenCalled();
         expect(runtimeReadService.subscribeInbox).not.toHaveBeenCalled();
@@ -4418,7 +4390,28 @@ describe('Nostr overlay App', () => {
         const rendered = await renderApp(
             <App
                 mapBridge={bridge}
-                services={{
+                services={createBasicOverlayServices(ownerPubkey, {
+                    directMessagesService: {
+                        subscribeInbox: vi.fn(() => () => {}),
+                        loadInitialConversations: vi.fn(async () => []),
+                        loadConversationMessages: vi.fn(async () => []),
+                        sendDm: vi.fn(async () => ({
+                            id: 'api-send',
+                            clientMessageId: 'api-send',
+                            conversationId: 'a'.repeat(64),
+                            peerPubkey: 'a'.repeat(64),
+                            direction: 'outgoing' as const,
+                            createdAt: 1700000401,
+                            plaintext: 'api send',
+                            deliveryState: 'sent' as const,
+                            publishResult: {
+                                ackedRelays: [],
+                                failedRelays: [],
+                                timeoutRelays: [],
+                            },
+                            attempts: 1,
+                        })),
+                    },
                     createClient: () => ({
                         connect: async () => {},
                         fetchLatestReplaceableEvent: async (_pubkey: string, kind: number) => {
@@ -4451,7 +4444,7 @@ describe('Nostr overlay App', () => {
                         scannedBatches: 1,
                         complete: true,
                     }),
-                }}
+                })}
             />
         );
         mounted.push(rendered);
@@ -4467,7 +4460,7 @@ describe('Nostr overlay App', () => {
 
         await waitFor(() => (rendered.container.textContent || '').includes('Chats'));
 
-        expect(createDmApiServiceSpy).toHaveBeenCalled();
+        expect(createDmApiServiceSpy).not.toHaveBeenCalled();
         expect(createRuntimeServiceSpy).not.toHaveBeenCalled();
         expect(createNdkDmTransportClientSpy).not.toHaveBeenCalled();
     });
@@ -4476,6 +4469,23 @@ describe('Nostr overlay App', () => {
         const ownerPubkey = SAMPLE_AUTH_PUBKEY;
         const followedPubkey = 'a'.repeat(64);
         const { bridge, triggerOccupiedBuildingContextMenu } = createMapBridgeStub();
+        let latestDirectMessageRelays: { inbox: string[]; outbox: string[] } = { inbox: [], outbox: [] };
+        const sendDm = vi.fn(async () => ({
+            id: 'outgoing-capped',
+            clientMessageId: 'outgoing-capped',
+            conversationId: followedPubkey,
+            peerPubkey: followedPubkey,
+            direction: 'outgoing' as const,
+            createdAt: 1700001501,
+            plaintext: 'mensaje capped',
+            deliveryState: 'sent' as const,
+            publishResult: {
+                ackedRelays: ['wss://relay.ack.example'],
+                failedRelays: [],
+                timeoutRelays: [],
+            },
+            attempts: 1,
+        }));
         const transportCreations: Array<{
             relays: string[];
             publishToRelays: ReturnType<typeof vi.fn>;
@@ -4520,7 +4530,16 @@ describe('Nostr overlay App', () => {
         const rendered = await renderApp(
             <App
                 mapBridge={bridge}
-                services={{
+                services={createBasicOverlayServices(ownerPubkey, {
+                    directMessagesService: {
+                        subscribeInbox: vi.fn(() => () => {}),
+                        loadInitialConversations: vi.fn(async () => []),
+                        loadConversationMessages: vi.fn(async () => []),
+                        sendDm,
+                    },
+                    setDirectMessageRelays: (relays) => {
+                        latestDirectMessageRelays = relays;
+                    },
                     createClient: () => ({
                         connect: async () => {},
                         fetchLatestReplaceableEvent: async (_pubkey: string, kind: number) => {
@@ -4569,7 +4588,7 @@ describe('Nostr overlay App', () => {
                         scannedBatches: 1,
                         complete: true,
                     }),
-                }}
+                })}
             />
         );
         mounted.push(rendered);
@@ -4611,15 +4630,11 @@ describe('Nostr overlay App', () => {
             sendButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
 
-        await waitFor(() => transportCreations.some((entry) => entry.publishToRelays.mock.calls.length > 0));
+        await waitFor(() => sendDm.mock.calls.length > 0);
 
-        const sendingTransport = transportCreations.find((entry) => entry.publishToRelays.mock.calls.length > 0);
-        expect(sendingTransport).toBeDefined();
-        expect(sendingTransport!.relays.length).toBeLessThanOrEqual(8);
-
-        const firstRelayTargets = sendingTransport!.publishToRelays.mock.calls[0]?.[1] as string[];
-        expect(Array.isArray(firstRelayTargets)).toBe(true);
-        expect(firstRelayTargets.length).toBeLessThanOrEqual(8);
+        expect(latestDirectMessageRelays.inbox.length).toBeLessThanOrEqual(8);
+        expect(latestDirectMessageRelays.outbox.length).toBeLessThanOrEqual(8);
+        expect(transportCreations).toHaveLength(0);
     });
 
     test('updates chat list when dm api bootstrap resolves after dialog is already open', async () => {
@@ -4682,7 +4697,8 @@ describe('Nostr overlay App', () => {
         const rendered = await renderApp(
             <App
                 mapBridge={bridge}
-                services={{
+                services={createBasicOverlayServices(ownerPubkey, {
+                    directMessagesService: apiReadService,
                     createClient: () => ({
                         connect: async () => {},
                         fetchLatestReplaceableEvent: async () => null,
@@ -4702,7 +4718,7 @@ describe('Nostr overlay App', () => {
                         scannedBatches: 1,
                         complete: true,
                     }),
-                }}
+                })}
             />
         );
         mounted.push(rendered);
@@ -4738,7 +4754,7 @@ describe('Nostr overlay App', () => {
         await waitFor(() => (rendered.container.textContent || '').includes('historial tardio'));
 
         expect(createRuntimeServiceSpy).not.toHaveBeenCalled();
-        expect(createDmApiServiceSpy).toHaveBeenCalled();
+        expect(createDmApiServiceSpy).not.toHaveBeenCalled();
         expect(runtimeReadService.loadInitialConversations).not.toHaveBeenCalled();
         expect(runtimeReadService.subscribeInbox).not.toHaveBeenCalled();
     });
@@ -6666,7 +6682,7 @@ describe('Nostr overlay App', () => {
 
     test('hides enviar mensaje action in context menu when session is not dm-capable', async () => {
         const { bridge, triggerOccupiedBuildingContextMenu } = createMapBridgeStub();
-        const rendered = await renderApp(<App mapBridge={bridge} />);
+        const rendered = await renderApp(<App mapBridge={bridge} services={createBasicOverlayServices()} />);
         mounted.push(rendered);
 
         await waitFor(() => rendered.container.querySelector('[data-testid="login-gate-screen"]') !== null);
@@ -8760,7 +8776,7 @@ describe('Nostr overlay App', () => {
         };
 
         const { bridge } = createMapBridgeStub();
-        const rendered = await renderApp(<App mapBridge={bridge} />);
+        const rendered = await renderApp(<App mapBridge={bridge} services={createBasicOverlayServices()} />);
         mounted.push(rendered);
 
         const methodSelectTrigger = rendered.container.querySelector('[data-slot="select-trigger"]') as HTMLButtonElement;
@@ -8926,6 +8942,11 @@ describe('Nostr overlay App', () => {
             <App
                 mapBridge={bridge}
                 services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
                     graphApiService: {
                         loadFollows: vi.fn().mockRejectedValue(new Error('Missing or invalid Nostr auth proof')),
                         loadFollowers: vi.fn().mockResolvedValue({ followers: [], complete: true }),

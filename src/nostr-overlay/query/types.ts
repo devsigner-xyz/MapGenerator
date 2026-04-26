@@ -31,4 +31,22 @@ export interface DirectMessagesConversationQueryInput {
     conversationId: string;
 }
 
+export interface ActiveProfilePostsQueryInput {
+    pubkey: string;
+    pageSize: number;
+}
+
+export interface ActiveProfileByPubkeyQueryInput {
+    pubkey: string;
+}
+
+export interface Nip05BatchQueryInput {
+    ownerPubkey: string;
+    checks: string[];
+}
+
+export interface RelayMetadataQueryInput {
+    relayUrl: string;
+}
+
 export type NostrOverlayQueryKey = QueryKey & readonly ['nostr-overlay', ...readonly unknown[]];

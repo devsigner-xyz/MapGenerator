@@ -253,7 +253,7 @@ export function useDirectMessagesController(options: UseDirectMessagesController
     }, [activeConversationId, allMessages, markConversationRead]);
 
     const sendDmMutation = useMutation({
-        mutationKey: ['nostr-overlay', 'social', 'direct-messages', 'send-dm'] as const,
+        mutationKey: nostrOverlayQueryKeys.directMessagesSendMutation(),
         mutationFn: async (input: {
             ownerPubkey: string;
             peerPubkey: string;

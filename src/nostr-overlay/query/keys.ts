@@ -1,9 +1,13 @@
 import type {
+    ActiveProfileByPubkeyQueryInput,
+    ActiveProfilePostsQueryInput,
     DirectMessagesConversationQueryInput,
     DirectMessagesListQueryInput,
     EngagementQueryInput,
     FollowingFeedQueryInput,
+    Nip05BatchQueryInput,
     NotificationsQueryInput,
+    RelayMetadataQueryInput,
     ThreadQueryInput,
 } from './types';
 
@@ -89,6 +93,7 @@ export const nostrOverlayQueryKeys = {
             conversationId: input.conversationId,
         },
     ] as const,
+    directMessagesSendMutation: () => [ROOT_SCOPE, SOCIAL_SCOPE, 'direct-messages', 'send-dm'] as const,
     userSearch: (input: { term: string; ownerPubkey?: string | undefined; searchRelaySetKey?: string | undefined }) => [
         ROOT_SCOPE,
         SOCIAL_SCOPE,
@@ -99,6 +104,50 @@ export const nostrOverlayQueryKeys = {
             searchRelaySetKey: input.searchRelaySetKey ?? 'default',
         },
     ] as const,
+    nip05Batch: (input: Nip05BatchQueryInput) => [
+        ROOT_SCOPE,
+        SOCIAL_SCOPE,
+        'nip05',
+        'batch',
+        {
+            ownerPubkey: input.ownerPubkey,
+            checks: normalizeValues(input.checks),
+        },
+    ] as const,
+    relayMetadata: (input: RelayMetadataQueryInput) => [
+        ROOT_SCOPE,
+        SOCIAL_SCOPE,
+        'relay-metadata',
+        { relayUrl: input.relayUrl },
+    ] as const,
+    activeProfilePosts: (input: ActiveProfilePostsQueryInput) => [
+        ROOT_SCOPE,
+        SOCIAL_SCOPE,
+        'active-profile',
+        'posts',
+        { pubkey: input.pubkey, pageSize: input.pageSize },
+    ] as const,
+    activeProfileStats: (input: ActiveProfileByPubkeyQueryInput) => [
+        ROOT_SCOPE,
+        SOCIAL_SCOPE,
+        'active-profile',
+        'stats',
+        { pubkey: input.pubkey },
+    ] as const,
+    activeProfileNetwork: (input: ActiveProfileByPubkeyQueryInput) => [
+        ROOT_SCOPE,
+        SOCIAL_SCOPE,
+        'active-profile',
+        'network',
+        { pubkey: input.pubkey },
+    ] as const,
+    followingFeedMutation: {
+        publishPost: () => [ROOT_SCOPE, SOCIAL_SCOPE, 'following-feed', 'publish-post'] as const,
+        publishQuote: () => [ROOT_SCOPE, SOCIAL_SCOPE, 'following-feed', 'publish-quote'] as const,
+        publishReply: () => [ROOT_SCOPE, SOCIAL_SCOPE, 'following-feed', 'publish-reply'] as const,
+        toggleReaction: () => [ROOT_SCOPE, SOCIAL_SCOPE, 'following-feed', 'toggle-reaction'] as const,
+        toggleRepost: () => [ROOT_SCOPE, SOCIAL_SCOPE, 'following-feed', 'toggle-repost'] as const,
+    },
     invalidation: {
         social: () => [ROOT_SCOPE, SOCIAL_SCOPE] as const,
         followingFeed: () => [ROOT_SCOPE, SOCIAL_SCOPE, 'following-feed'] as const,

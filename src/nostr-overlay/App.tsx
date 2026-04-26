@@ -55,14 +55,14 @@ import { SettingsShortcutsRoute } from './components/settings-routes/SettingsSho
 import { SettingsZapsRoute } from './components/settings-routes/SettingsZapsRoute';
 import { UiSettingsDialog } from './components/UiSettingsDialog';
 import { PersonContextMenuItems } from './components/PersonContextMenuItems';
-import { useNostrOverlay, type MapLoaderStage, type NostrOverlayServices } from './hooks/useNostrOverlay';
+import { useNostrOverlay, type MapLoaderStage } from './hooks/useNostrOverlay';
 import { useNip05Verification } from './hooks/useNip05Verification';
-import { useFollowingFeedController } from './hooks/useFollowingFeedController';
+import { useOverlaySocialFeedController } from './controllers/use-overlay-social-feed-controller';
+import { useOverlayNotificationsController } from './controllers/use-overlay-notifications-controller';
+import { useOverlayDmController } from './controllers/use-overlay-dm-controller';
 import { useEasterEggDiscoveryController } from './hooks/useEasterEggDiscoveryController';
 import { useFollowingFeedEngagementQuery } from './query/following-feed.query';
 import { applyEngagementDeltas, createEmptyEngagementByEventIds } from './query/following-feed.selectors';
-import { useSocialNotificationsController } from './query/social-notifications.query';
-import { useDirectMessagesController } from './query/direct-messages.query';
 import { useActiveProfileQuery } from './query/active-profile.query';
 import type { MentionDraft } from './mention-serialization';
 import type { MapBridge, OccupiedBuildingContextPayload } from './map-bridge';
@@ -99,10 +99,11 @@ import {
 } from '@/components/ui/context-menu';
 import { Toaster, toast } from 'sonner';
 import { translate } from '@/i18n/translate';
+import type { OverlayServices } from './services/overlay-services';
 
 interface AppProps {
     mapBridge: MapBridge | null;
-    services?: NostrOverlayServices;
+    services: OverlayServices;
 }
 
 interface OccupiedBuildingContextMenuState extends OccupiedBuildingContextPayload {
@@ -217,7 +218,7 @@ export function App({ mapBridge, services }: AppProps) {
         openGlobalUserSearch,
         closeGlobalUserSearch,
     } = useOverlayRouteState();
-    const overlay = useNostrOverlay(services ? { mapBridge, services } : { mapBridge });
+    const overlay = useNostrOverlay({ mapBridge, services });
     const activeProfileData = useActiveProfileQuery({
         ...(overlay.activeProfilePubkey ? { pubkey: overlay.activeProfilePubkey } : {}),
         service: overlay.activeProfileService,
@@ -249,10 +250,7 @@ export function App({ mapBridge, services }: AppProps) {
         walletServicePubkey: string;
         relays: string[];
     }): Promise<{ capabilities: ReturnType<typeof resolveNwcInfoCapabilities>; encryption: 'nip44_v2' | 'nip04' }> => {
-        const client = services?.createClient?.(connection.relays);
-        if (!client) {
-            throw new Error('No NWC client is available in this runtime');
-        }
+        const client = services.createClient(connection.relays);
 
         await client.connect();
         const infoEvent = await client.fetchLatestReplaceableEvent(connection.walletServicePubkey, 13194);
@@ -299,10 +297,7 @@ export function App({ mapBridge, services }: AppProps) {
         return true;
     };
     const [buildingContextMenu, setBuildingContextMenu] = useState<OccupiedBuildingContextMenuState | null>(null);
-    const [chatComposerFocusKey, setChatComposerFocusKey] = useState('');
-    const [chatPinnedConversationId, setChatPinnedConversationId] = useState<string | null>(null);
     const [eventReferencesById, setEventReferencesById] = useState<Record<string, NostrEvent>>({});
-    const chatRouteSyncKeyRef = useRef('');
     const isMobile = useIsMobile();
     const contextMenuTriggerRef = useRef<HTMLSpanElement | null>(null);
     const contextMenuNonceRef = useRef(0);
@@ -504,28 +499,55 @@ export function App({ mapBridge, services }: AppProps) {
         }
     };
 
-    const directMessages = useDirectMessagesController({
+    const {
+        chatState,
+        canAccessDirectMessages,
+        chatPinnedConversationId,
+        chatActiveConversationId,
+        chatComposerFocusKey,
+        setChatPinnedConversationId,
+        setChatComposerFocusKey,
+    } = useOverlayDmController({
         ...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {}),
-        dmService: overlay.directMessagesService,
+        canDirectMessages: overlay.canDirectMessages,
+        isChatsRoute,
+        locationSearch: location.search,
+        navigate,
+        service: overlay.directMessagesService,
     });
-    const chatState = directMessages;
-    const openChatStateList = chatState.openList;
-    const openChatStateConversation = chatState.openConversation;
-    const canUseSocialNotifications = Boolean(overlay.ownerPubkey && overlay.canWrite && overlay.socialNotificationsService);
-    const socialNotifications = useSocialNotificationsController({
-        ...(canUseSocialNotifications && overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {}),
+    const {
+        socialState,
+        canAccessSocialNotifications,
+    } = useOverlayNotificationsController({
+        ...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {}),
+        canWrite: overlay.canWrite,
+        isNotificationsRoute,
         service: overlay.socialNotificationsService,
     });
-    const socialState = socialNotifications;
-    const followingFeed = useFollowingFeedController({
+    const handleFollowPerson = useCallback(async (pubkey: string): Promise<void> => {
+        if (!pubkey || !overlay.canWrite) {
+            return;
+        }
+
+        try {
+            await overlay.followPerson(pubkey);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'No se pudo actualizar el seguimiento de esta cuenta';
+            toast.error(message, { duration: 2200 });
+        }
+    }, [overlay.canWrite, overlay.followPerson]);
+    const socialFeed = useOverlaySocialFeedController({
         ...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {}),
         follows: overlay.follows,
-        ...(activeAgoraHashtag ? { hashtag: activeAgoraHashtag } : {}),
-        pageSize: 10,
+        ...(activeAgoraHashtag ? { activeAgoraHashtag } : {}),
+        isAgoraRoute,
         canWrite: overlay.canWrite,
         service: overlay.socialFeedService,
         ...((overlay.socialPublisher ?? overlay.writeGateway) ? { writeGateway: overlay.socialPublisher ?? overlay.writeGateway } : {}),
+        onFollowPerson: handleFollowPerson,
     });
+    const followingFeed = socialFeed.followingFeed;
+    const followPerson = socialFeed.followPerson;
     const activeProfilePostEventIds = useMemo(
         () => activeProfileData.posts.map((post) => post.id),
         [activeProfileData.posts]
@@ -652,8 +674,6 @@ export function App({ mapBridge, services }: AppProps) {
         return summaries;
     }, [chatState, overlay.profiles, overlay.followerProfiles, chatPinnedConversationId, verificationByPubkey]);
 
-    const chatActiveConversationId = chatState.activeConversationId ?? chatPinnedConversationId;
-
     const chatMessages = useMemo<ChatDetailMessage[]>(() => {
         if (!chatActiveConversationId) {
             return [];
@@ -676,94 +696,18 @@ export function App({ mapBridge, services }: AppProps) {
         }));
     }, [chatState, chatActiveConversationId]);
 
-    const canAccessDirectMessages = Boolean(overlay.ownerPubkey && overlay.canDirectMessages && overlay.directMessagesService);
-    const canAccessSocialNotifications = canUseSocialNotifications;
-    const canAccessFollowingFeed = Boolean(overlay.ownerPubkey);
+    const canAccessFollowingFeed = socialFeed.canAccessFollowingFeed;
     const relayStatusTargets = relaySettingsSnapshot.relays;
     const relayConnectionSummary = useRelayConnectionSummary(relayStatusTargets, {
         enabled: relayStatusTargets.length > 0,
         maxConcurrentProbes: 3,
     });
     const resolvedOverlayTheme = useOverlayTheme(uiSettings.theme as UiTheme);
-    const followingFeedHasUnread = !followingFeed.isOpen && followingFeed.hasUnread;
+    const followingFeedHasUnread = socialFeed.followingFeedHasUnread;
     const canSendChatMessages = canAccessDirectMessages;
     const activeProfileVerification = overlay.activeProfilePubkey
         ? verificationByPubkey[overlay.activeProfilePubkey]
         : undefined;
-
-    useEffect(() => {
-        if (isAgoraRoute && canAccessFollowingFeed) {
-            void followingFeed.open();
-            return;
-        }
-
-        followingFeed.close();
-    }, [isAgoraRoute, canAccessFollowingFeed, followingFeed.close, followingFeed.open]);
-
-    useEffect(() => {
-        if (isNotificationsRoute && canAccessSocialNotifications) {
-            if (!socialState.isOpen) {
-                socialNotifications.open();
-            }
-            return;
-        }
-
-        if (socialState.isOpen) {
-            socialNotifications.close();
-        }
-    }, [
-        isNotificationsRoute,
-        canAccessSocialNotifications,
-        socialState.isOpen,
-        socialNotifications.close,
-        socialNotifications.open,
-    ]);
-
-    useEffect(() => {
-        if (!isChatsRoute) {
-            chatRouteSyncKeyRef.current = '';
-            return;
-        }
-
-        if (!overlay.ownerPubkey) {
-            return;
-        }
-
-        if (!canAccessDirectMessages) {
-            navigate('/', { replace: true });
-            return;
-        }
-
-        const syncKey = `${overlay.ownerPubkey}:${location.search}`;
-        if (chatRouteSyncKeyRef.current === syncKey) {
-            return;
-        }
-        chatRouteSyncKeyRef.current = syncKey;
-
-        const params = new URLSearchParams(location.search);
-        const peer = params.get('peer');
-        const compose = params.get('compose') === '1';
-
-        if (peer) {
-            openChatStateConversation(peer);
-            setChatPinnedConversationId(peer);
-            if (compose) {
-                setChatComposerFocusKey(`${peer}:${Date.now()}`);
-            }
-            return;
-        }
-
-        openChatStateList();
-        setChatPinnedConversationId(null);
-    }, [
-        canAccessDirectMessages,
-        isChatsRoute,
-        location.search,
-        navigate,
-        openChatStateConversation,
-        openChatStateList,
-        overlay.ownerPubkey,
-    ]);
 
     useEffect(() => {
         setRelaySettingsSnapshot(loadRelaySettings(
@@ -889,19 +833,6 @@ export function App({ mapBridge, services }: AppProps) {
 
         if (!isMapRoute) {
             navigate('/');
-        }
-    };
-
-    const followPerson = async (pubkey: string): Promise<void> => {
-        if (!pubkey || !overlay.canWrite) {
-            return;
-        }
-
-        try {
-            await overlay.followPerson(pubkey);
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'No se pudo actualizar el seguimiento de esta cuenta';
-            toast.error(message, { duration: 2200 });
         }
     };
 

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import type { RelayInformationDocument, RelayInfoState } from '../components/settings-pages/types';
+import { nostrOverlayQueryKeys } from './keys';
 import { createMetadataQueryOptions } from './options';
 
 interface UseRelayMetadataByUrlQueryInput {
@@ -120,7 +121,7 @@ export function useRelayMetadataByUrlQuery(input: UseRelayMetadataByUrlQueryInpu
 
     return useQueries({
         queries: relayEntries.map((entry) => createMetadataQueryOptions({
-            queryKey: ['nostr-overlay', 'social', 'relay-metadata', { relayUrl: entry.queryRelayUrl }] as const,
+            queryKey: nostrOverlayQueryKeys.relayMetadata({ relayUrl: entry.queryRelayUrl }),
             queryFn: () => fetchRelayInformation(entry.queryRelayUrl),
             enabled: input.enabled && fetchAvailable,
         })),

@@ -6,6 +6,7 @@ import {
     createIdentityApiService,
     type IdentityApiService,
 } from '../../nostr-api/identity-api-service';
+import { nostrOverlayQueryKeys } from './keys';
 import { createIdentityQueryOptions } from './options';
 
 interface UseNip05VerificationQueriesInput {
@@ -85,10 +86,10 @@ export function useNip05VerificationQueries(
     );
 
     const query = useQuery(createIdentityQueryOptions({
-        queryKey: ['nostr-overlay', 'social', 'nip05', 'batch', {
+        queryKey: nostrOverlayQueryKeys.nip05Batch({
             ownerPubkey: input.ownerPubkey || '__none__',
             checks: plans.map((plan) => `${plan.pubkey}::${plan.normalizedNip05}`),
-        }] as const,
+        }),
         queryFn: async (): Promise<Record<string, Nip05ValidationResult | undefined>> => {
             if (!input.ownerPubkey || plans.length === 0) {
                 return {};

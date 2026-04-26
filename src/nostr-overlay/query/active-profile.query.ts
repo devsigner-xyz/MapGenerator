@@ -3,6 +3,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import type { RelaySettingsByType } from '../../nostr/relay-settings';
 import type { NostrPostPreview } from '../../nostr/posts';
 import type { NostrProfile } from '../../nostr/types';
+import { nostrOverlayQueryKeys } from './keys';
 import { createSocialQueryOptions } from './options';
 
 export interface ActiveProfilePostsPage {
@@ -79,7 +80,7 @@ export function useActiveProfileQuery(input: UseActiveProfileQueryInput): Active
     const pageSize = Math.max(1, input.pageSize ?? DEFAULT_PAGE_SIZE);
 
     const postsQuery = useInfiniteQuery<ActiveProfilePostsPage, Error>(createSocialQueryOptions({
-        queryKey: ['nostr-overlay', 'social', 'active-profile', 'posts', { pubkey: pubkey || '__none__', pageSize }] as const,
+        queryKey: nostrOverlayQueryKeys.activeProfilePosts({ pubkey: pubkey || '__none__', pageSize }),
         queryFn: ({ pageParam }: { pageParam: unknown }) => {
             if (!pubkey) {
                 return Promise.resolve({
@@ -102,7 +103,7 @@ export function useActiveProfileQuery(input: UseActiveProfileQueryInput): Active
     }));
 
     const statsQuery = useQuery(createSocialQueryOptions({
-        queryKey: ['nostr-overlay', 'social', 'active-profile', 'stats', { pubkey: pubkey || '__none__' }] as const,
+        queryKey: nostrOverlayQueryKeys.activeProfileStats({ pubkey: pubkey || '__none__' }),
         queryFn: () => {
             if (!pubkey) {
                 return Promise.resolve({ followsCount: 0, followersCount: 0 });
@@ -114,7 +115,7 @@ export function useActiveProfileQuery(input: UseActiveProfileQueryInput): Active
     }));
 
     const networkQuery = useQuery(createSocialQueryOptions({
-        queryKey: ['nostr-overlay', 'social', 'active-profile', 'network', { pubkey: pubkey || '__none__' }] as const,
+        queryKey: nostrOverlayQueryKeys.activeProfileNetwork({ pubkey: pubkey || '__none__' }),
         queryFn: () => {
             if (!pubkey) {
                 return Promise.resolve(EMPTY_NETWORK);

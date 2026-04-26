@@ -3,6 +3,7 @@ import { nip19 } from 'nostr-tools';
 import type { SocialFeedItem, SocialFeedPage, SocialThreadItem, SocialThreadPage } from '../../nostr/social-feed-service';
 import type { FollowingFeedThreadView } from './following-feed.selectors';
 import { mergeFeedItems, mergeThreadReplies } from './following-feed.selectors';
+import { nostrOverlayQueryKeys } from './keys';
 
 export interface PublishEventInput {
     kind: number;
@@ -51,11 +52,11 @@ export interface PublishQuoteInput {
 }
 
 export const followingFeedMutationKeys = {
-    publishPost: ['nostr-overlay', 'social', 'following-feed', 'publish-post'] as const,
-    publishQuote: ['nostr-overlay', 'social', 'following-feed', 'publish-quote'] as const,
-    publishReply: ['nostr-overlay', 'social', 'following-feed', 'publish-reply'] as const,
-    toggleReaction: ['nostr-overlay', 'social', 'following-feed', 'toggle-reaction'] as const,
-    toggleRepost: ['nostr-overlay', 'social', 'following-feed', 'toggle-repost'] as const,
+    publishPost: nostrOverlayQueryKeys.followingFeedMutation.publishPost(),
+    publishQuote: nostrOverlayQueryKeys.followingFeedMutation.publishQuote(),
+    publishReply: nostrOverlayQueryKeys.followingFeedMutation.publishReply(),
+    toggleReaction: nostrOverlayQueryKeys.followingFeedMutation.toggleReaction(),
+    toggleRepost: nostrOverlayQueryKeys.followingFeedMutation.toggleRepost(),
 };
 
 export function sanitizeContent(content: string): string {

@@ -1,12 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { createAuthService } from '../../nostr/auth/auth-service';
 import { bootstrapLocalAccount } from '../../nostr/auth/bootstrap-profile';
 import type { ProviderResolveInput } from '../../nostr/auth/providers/types';
 import {
-    isDirectMessagesEnabled,
-    isEncryptionEnabled,
-    isWriteEnabled,
     type AuthSessionState,
     type LoginMethod,
 } from '../../nostr/auth/session';
@@ -14,7 +10,6 @@ import { assignPubkeysToBuildings, hashPubkeyToIndex, type AssignmentResult } fr
 import { buildOccupancyState } from '../../nostr/domain/occupancy';
 import { fetchFollowersBestEffort } from '../../nostr/followers';
 import { fetchFollowsByNpub, fetchFollowsByPubkey } from '../../nostr/follows';
-import { createLazyNdkClient } from '../../nostr/lazy-ndk-client';
 import { fetchLatestPostsByPubkey } from '../../nostr/posts';
 import { fetchProfileStats } from '../../nostr/profile-stats';
 import { fetchProfiles } from '../../nostr/profiles';
@@ -31,15 +26,11 @@ import {
 } from '../../nostr/relay-policy';
 import type { SocialNotificationsService } from '../../nostr/social-notifications-service';
 import type { NostrClient, NostrEvent, NostrProfile } from '../../nostr/types';
-import { createWriteGateway } from '../../nostr/write-gateway';
-import { createRuntimeDirectMessagesService } from '../../nostr/dm-runtime-service';
-import { createDmApiService } from '../../nostr-api/dm-api-service';
-import { createGraphApiService, type GraphApiService } from '../../nostr-api/graph-api-service';
-import { createIdentityApiService, type IdentityApiService } from '../../nostr-api/identity-api-service';
-import { createHttpClient, type HttpClientAuthContext } from '../../nostr-api/http-client';
-import { createSocialFeedApiService } from '../../nostr-api/social-feed-api-service';
-import { createSocialNotificationsApiService } from '../../nostr-api/social-notifications-api-service';
-import { createUserSearchApiService } from '../../nostr-api/user-search-api-service';
+import type { createWriteGateway } from '../../nostr/write-gateway';
+import type { GraphApiService } from '../../nostr-api/graph-api-service';
+import type { IdentityApiService } from '../../nostr-api/identity-api-service';
+import type { HttpClientAuthContext } from '../../nostr-api/http-client';
+import type { UserSearchApiService } from '../../nostr-api/user-search-api-service';
 import { resolveConservativeSocialRelaySets } from '../../nostr/relay-runtime';
 import type { MapBridge } from '../map-bridge';
 import { FEATURED_OCCUPANT_PUBKEYS } from '../domain/featured-occupants';
@@ -48,8 +39,9 @@ import type { DirectMessagesService } from '../query/direct-messages.query';
 import type { ActiveProfileQueryService } from '../query/active-profile.query';
 import { nostrOverlayQueryKeys } from '../query/keys';
 import { toast } from 'sonner';
-import { createSocialPublisher, type SocialPublisher } from '../social-publisher';
+import type { SocialPublisher } from '../social-publisher';
 import { mergeUserSearchResults, searchLocalUsers } from '../search/local-user-search';
+import { useOverlaySessionController } from '../controllers/use-overlay-session-controller';
 
 export type OverlayStatus =
     | 'idle'
@@ -66,8 +58,6 @@ export type MapLoaderStage =
     | 'building_map';
 
 interface OverlayData {
-    authSession: AuthSessionState | undefined;
-    savedLocalAccount: { pubkey: string; mode: 'device' | 'passphrase' } | undefined;
     ownerPubkey: string | undefined;
     ownerProfile: NostrProfile | undefined;
     ownerBuildingIndex: number | undefined;
@@ -95,7 +85,7 @@ interface OverlayState {
 }
 
 export interface NostrOverlayServices {
-    createClient?: (relays?: string[]) => NostrClient;
+    createClient: (relays?: string[]) => NostrClient;
     identityApiService?: IdentityApiService;
     fetchFollowsByNpubFn?: typeof fetchFollowsByNpub;
     fetchFollowsByPubkeyFn?: typeof fetchFollowsByPubkey;
@@ -108,20 +98,58 @@ export interface NostrOverlayServices {
     directMessagesService?: DirectMessagesService;
     socialNotificationsService?: SocialNotificationsService;
     socialFeedService?: SocialFeedService;
+    userSearchApiService?: UserSearchApiService;
     socialPublisher?: SocialPublisher;
+    configureAuthHeaders?: (getAuthHeaders: ((context: HttpClientAuthContext) => Promise<Record<string, string> | undefined>) | undefined) => void;
+    setOwnerPubkey?: (ownerPubkey: string | undefined) => void;
+    setWriteGateway?: (writeGateway: ReturnType<typeof createWriteGateway> | undefined) => void;
+    setDirectMessageRelays?: (relays: { inbox: string[]; outbox: string[] }) => void;
 }
 
 interface UseNostrOverlayOptions {
     mapBridge: MapBridge | null;
-    services?: NostrOverlayServices;
+    services: NostrOverlayServices;
 }
 
 const DM_INBOX_RELAY_CAP = 8;
 const DM_OUTBOX_RELAY_CAP = 8;
 const USER_SEARCH_LIMIT = 20;
 const EMPTY_SEARCH_RESULT = { pubkeys: [], profiles: {} };
-const AUTH_PROOF_TIMEOUT_MS = 8_000;
 const RELAY_METADATA_TIMEOUT_MS = 4_000;
+
+const missingGraphApiService: GraphApiService = {
+    loadFollows: async (input) => ({ ownerPubkey: input.pubkey, follows: [], relayHints: [] }),
+    loadFollowers: async () => ({ followers: [], complete: true }),
+    loadPosts: async () => ({ posts: [], hasMore: false }),
+    loadProfileStats: async () => ({ followsCount: 0, followersCount: 0 }),
+};
+
+const missingIdentityApiService: IdentityApiService = {
+    verifyNip05Batch: async () => [],
+    resolveProfiles: async () => ({}),
+};
+
+const missingSocialNotificationsService: SocialNotificationsService = {
+    subscribeSocial: () => () => {},
+    loadInitialSocial: async () => [],
+};
+
+const missingSocialFeedService: SocialFeedService = {
+    loadFollowingFeed: async () => ({ items: [], hasMore: false }),
+    loadHashtagFeed: async () => ({ items: [], hasMore: false }),
+    loadThread: async () => ({ root: null, replies: [], hasMore: false }),
+    loadEngagement: async () => ({}),
+};
+
+const missingUserSearchApiService: UserSearchApiService = {
+    searchUsers: async () => EMPTY_SEARCH_RESULT,
+};
+
+const disabledDirectMessagesService: DirectMessagesService = {
+    subscribeInbox: () => {},
+    loadInitialConversations: async () => [],
+    loadConversationMessages: async () => [],
+};
 
 function capRelayList(relays: string[], limit: number): string[] {
     const normalizedLimit = Math.max(1, Math.floor(limit));
@@ -145,8 +173,6 @@ function createEmptyActiveProfileState(): Pick<
 
 function createInitialData(): OverlayData {
     return {
-        authSession: undefined,
-        savedLocalAccount: undefined,
         ownerPubkey: undefined,
         ownerProfile: undefined,
         ownerBuildingIndex: undefined,
@@ -296,47 +322,6 @@ function hasLoadedOverlayData(status: OverlayStatus): boolean {
     return status === 'loading_followers' || status === 'success';
 }
 
-function toAbsoluteRequestUrl(url: string): string {
-    if (/^https?:\/\//i.test(url)) {
-        return url;
-    }
-
-    const locationOrigin = typeof window !== 'undefined' && window.location?.origin
-        ? window.location.origin
-        : 'http://localhost';
-    return new URL(url, locationOrigin).toString();
-}
-
-function encodeNostrAuthEvent(event: unknown): string {
-    const encoded = JSON.stringify(event);
-    if (typeof window !== 'undefined' && typeof window.btoa === 'function') {
-        return window.btoa(encoded);
-    }
-
-    if (typeof btoa === 'function') {
-        return btoa(encoded);
-    }
-
-    throw new Error('Unable to encode Nostr auth event');
-}
-
-async function maybeComputePayloadHash(input: unknown): Promise<string | undefined> {
-    if (input === undefined || input === null) {
-        return undefined;
-    }
-
-    const cryptoApi = globalThis.crypto;
-    if (!cryptoApi?.subtle) {
-        return undefined;
-    }
-
-    const payload = typeof input === 'string' ? input : JSON.stringify(input);
-    const digest = await cryptoApi.subtle.digest('SHA-256', new TextEncoder().encode(payload));
-    return Array.from(new Uint8Array(digest))
-        .map((value) => value.toString(16).padStart(2, '0'))
-        .join('');
-}
-
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
     return new Promise<T>((resolve, reject) => {
         const timer = window.setTimeout(() => {
@@ -359,7 +344,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: 
 export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions) {
     const OCCUPANCY_BATCH_SIZE = 8;
     const OCCUPANCY_BATCH_DELAY_MS = 22;
-    const createClient = services?.createClient || ((relays: string[] = []) => createLazyNdkClient({ relays }));
+    const createClient = services.createClient;
     const fetchFollowsByNpubFn = services?.fetchFollowsByNpubFn || fetchFollowsByNpub;
     const fetchFollowsByPubkeyFn = services?.fetchFollowsByPubkeyFn || fetchFollowsByPubkey;
     const fetchProfilesFn = services?.fetchProfilesFn || fetchProfiles;
@@ -367,90 +352,48 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
     const fetchFollowersBestEffortFn = services?.fetchFollowersBestEffortFn || fetchFollowersBestEffort;
     const fetchLatestPostsByPubkeyFn = services?.fetchLatestPostsByPubkeyFn || fetchLatestPostsByPubkey;
     const fetchProfileStatsFn = services?.fetchProfileStatsFn || fetchProfileStats;
-    const authService = useMemo(() => createAuthService(), []);
     const queryClient = useQueryClient();
-    const writeGateway = useMemo(
-        () =>
-            createWriteGateway({
-                getSession: () => authService.getSession(),
-                getProvider: () => authService.getActiveProvider(),
-            }),
-        [authService]
-    );
-    const getAuthHeaders = useCallback(async (context: HttpClientAuthContext): Promise<Record<string, string> | undefined> => {
-        const session = authService.getSession();
-        if (!session || session.readonly || session.locked) {
-            return undefined;
-        }
-
-        try {
-            const absoluteUrl = toAbsoluteRequestUrl(context.url);
-            const payloadHash = await maybeComputePayloadHash(context.body);
-            const authEvent = await withTimeout(
-                writeGateway.publishEvent({
-                    kind: 27_235,
-                    content: '',
-                    created_at: Math.floor(Date.now() / 1000),
-                    tags: [
-                        ['u', absoluteUrl],
-                        ['method', context.method.toUpperCase()],
-                        ['nonce', `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`],
-                        ...(payloadHash ? [['payload', payloadHash]] : []),
-                    ],
-                }),
-                AUTH_PROOF_TIMEOUT_MS,
-                'Timed out while signing Nostr auth proof',
-            );
-
-            return {
-                authorization: `Nostr ${encodeNostrAuthEvent(authEvent)}`,
-            };
-        } catch {
-            return undefined;
-        }
-    }, [authService, writeGateway]);
-    const bffClient = useMemo(
-        () => createHttpClient({ getAuthHeaders }),
-        [getAuthHeaders]
-    );
-    const socialPublisher = useMemo(
-        () => services?.socialPublisher ?? createSocialPublisher({
-            writeGateway,
-            client: bffClient,
-            resolveOwnerPubkey: () => authService.getSession()?.pubkey,
-        }),
-        [authService, bffClient, services?.socialPublisher, writeGateway]
-    );
+    const socialPublisher = services?.socialPublisher;
     const [state, setState] = useState<OverlayState>({
         status: 'idle',
         error: undefined,
         data: createInitialData(),
     });
     const [mapLoaderStage, setMapLoaderStage] = useState<MapLoaderStage | null>(null);
-    const [sessionRestorationResolved, setSessionRestorationResolved] = useState(false);
     const requestIdRef = useRef(0);
     const latestStateRef = useRef(state);
     const occupancyAnimationTokenRef = useRef(0);
     const skipNextMapGeneratedRef = useRef(false);
-    const didRestoreSessionRef = useRef(false);
+    const sessionController = useOverlaySessionController({
+        enabled: Boolean(mapBridge),
+        configureAuthHeaders: services?.configureAuthHeaders,
+        setWriteGateway: services?.setWriteGateway,
+        onRestoredSession: async (restored) => {
+            await loadOwnerGraph({
+                session: restored,
+                method: restored.method,
+            });
+        },
+    });
+    const authSession = sessionController.authSession;
+    const savedLocalAccount = sessionController.savedLocalAccount;
+    const sessionRestorationResolved = sessionController.sessionRestorationResolved;
+    const writeGateway = sessionController.writeGateway;
     const socialNotificationsService = useMemo(
-        () => services?.socialNotificationsService ?? createSocialNotificationsApiService({ client: bffClient }),
-        [bffClient, services?.socialNotificationsService]
+        () => services?.socialNotificationsService ?? missingSocialNotificationsService,
+        [services?.socialNotificationsService]
     );
     const socialFeedService = useMemo(
-        () => services?.socialFeedService ?? createSocialFeedApiService({
-            client: bffClient,
-            resolveOwnerPubkey: () => latestStateRef.current.data.ownerPubkey,
-        }),
-        [bffClient, services?.socialFeedService]
+        () => services?.socialFeedService ?? missingSocialFeedService,
+        [services?.socialFeedService]
     );
     const userSearchApiService = useMemo(
-        () => createUserSearchApiService({ client: bffClient }),
-        [bffClient]
+        () => services?.userSearchApiService ?? missingUserSearchApiService,
+        [services?.userSearchApiService]
     );
     const identityApiService = useMemo(
-        () => services?.identityApiService ?? createIdentityApiService({ client: bffClient }),
-        [bffClient, services?.identityApiService],
+        () => services?.identityApiService ?? missingIdentityApiService,
+        [services?.identityApiService],
     );
     const graphApiService = useMemo(() => {
         if (services?.graphApiService) {
@@ -466,7 +409,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         );
 
         if (!shouldUseLegacyReaders) {
-            return createGraphApiService({ client: bffClient });
+            return missingGraphApiService;
         }
 
         const resolveLegacyRelays = (): string[] => mergeRelaySets(
@@ -517,7 +460,6 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
 
         return legacyApiService;
     }, [
-        bffClient,
         createClient,
         fetchFollowersBestEffortFn,
         fetchFollowsByPubkeyFn,
@@ -551,7 +493,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             pubkeys: uniquePubkeys,
         });
     }, [fetchProfilesFn, identityApiService, services?.fetchProfilesFn]);
-    const scopedRelayOwnerPubkey = state.data.authSession?.pubkey;
+    const scopedRelayOwnerPubkey = authSession?.pubkey;
     const runtimeDmRelays = useMemo(() => {
         const loadedSettings = loadRelaySettings(createRelaySettingsInput(scopedRelayOwnerPubkey));
         const configuredDmInboxRelays = getRelaySetByType(loadedSettings, 'dmInbox');
@@ -595,79 +537,30 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         () => `${runtimeDmRelays.join('|')}::${runtimeDmOutboxRelays.join('|')}`,
         [runtimeDmRelays, runtimeDmOutboxRelays]
     );
+    useEffect(() => {
+        services?.setOwnerPubkey?.(state.data.ownerPubkey);
+    }, [services, state.data.ownerPubkey]);
+    useEffect(() => {
+        services?.setDirectMessageRelays?.({
+            inbox: runtimeDmRelays,
+            outbox: runtimeDmOutboxRelays,
+        });
+    }, [runtimeDmOutboxRelays, runtimeDmRelays, services]);
     const canUseDirectMessagesService = Boolean(
         state.data.ownerPubkey
-        && state.data.authSession
-        && state.data.authSession.pubkey === state.data.ownerPubkey
-        && isDirectMessagesEnabled(state.data.authSession)
+        && authSession
+        && authSession.pubkey === state.data.ownerPubkey
+        && sessionController.canDirectMessages
     );
     const directMessagesService = useMemo(
         () => {
             if (canUseDirectMessagesService) {
-                if (services?.directMessagesService) {
-                    return services.directMessagesService;
-                }
-
-                let runtimeService: ReturnType<typeof createRuntimeDirectMessagesService> | null = null;
-                const getRuntimeService = () => {
-                    if (runtimeService) {
-                        return runtimeService;
-                    }
-
-                    runtimeService = createRuntimeDirectMessagesService({
-                        writeGateway,
-                        resolveRelays: () => ({
-                            inbox: runtimeDmRelays,
-                            outbox: runtimeDmOutboxRelays,
-                        }),
-                    });
-                    return runtimeService;
-                };
-
-                const apiService = createDmApiService({
-                    client: bffClient,
-                    decryptDm: writeGateway.decryptDm,
-                    sendDm: async (input) => {
-                        const sendDm = getRuntimeService().sendDm;
-                        if (!sendDm) {
-                            throw new Error('Direct messages send is unavailable');
-                        }
-
-                        return sendDm(input);
-                    },
-                });
-
-                return {
-                    subscribeInbox(input, onMessage) {
-                        const apiUnsubscribe = apiService.subscribeInbox(input, onMessage);
-                        return typeof apiUnsubscribe === 'function' ? apiUnsubscribe : () => {};
-                    },
-                    ...(apiService.sendDm ? { sendDm: apiService.sendDm } : {}),
-                    async loadInitialConversations(input) {
-                        if (!apiService.loadInitialConversations) {
-                            return [];
-                        }
-
-                        return apiService.loadInitialConversations(input);
-                    },
-                    async loadConversationMessages(input) {
-                        if (!apiService.loadConversationMessages) {
-                            return [];
-                        }
-
-                        return apiService.loadConversationMessages(input);
-                    },
-                } satisfies DirectMessagesService;
+                return services?.directMessagesService ?? disabledDirectMessagesService;
             }
 
-            const disabledService: DirectMessagesService = {
-                subscribeInbox: () => {},
-                loadInitialConversations: async () => [],
-                loadConversationMessages: async () => [],
-            };
-            return disabledService;
+            return disabledDirectMessagesService;
         },
-        [bffClient, canUseDirectMessagesService, services?.directMessagesService, writeGateway, runtimeDmRelayKey]
+        [canUseDirectMessagesService, services?.directMessagesService, runtimeDmRelayKey]
     );
     const cancelOccupancyAnimation = (): number => {
         occupancyAnimationTokenRef.current += 1;
@@ -775,52 +668,6 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
     useEffect(() => {
         latestStateRef.current = state;
     }, [state]);
-
-    useEffect(() => {
-        if (didRestoreSessionRef.current) {
-            return;
-        }
-
-        if (!mapBridge) {
-            setSessionRestorationResolved(true);
-            return;
-        }
-
-        didRestoreSessionRef.current = true;
-        void (async () => {
-            try {
-                const restored = await authService.restoreSession();
-                const savedLocalAccount = await authService.getSavedLocalAccount();
-                setState((current) => ({
-                    ...current,
-                    data: {
-                        ...current.data,
-                        savedLocalAccount,
-                    },
-                }));
-
-                if (!restored) {
-                    return;
-                }
-
-                setState((current) => ({
-                    ...current,
-                    data: {
-                        ...current.data,
-                        authSession: restored,
-                        savedLocalAccount,
-                    },
-                }));
-
-                await loadOwnerGraph({
-                    session: restored,
-                    method: restored.method,
-                });
-            } finally {
-                setSessionRestorationResolved(true);
-            }
-        })();
-    }, [authService, mapBridge]);
 
     useEffect(() => {
         if (!mapBridge) {
@@ -944,10 +791,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             setState({
                 status: 'error',
                 error: 'No se pudo conectar la capa Nostr con el mapa',
-                data: {
-                    ...createInitialData(),
-                    authSession: input.session,
-                },
+                data: createInitialData(),
             });
             return;
         }
@@ -1126,8 +970,6 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 error: undefined,
                 data: {
                     ownerPubkey: graph.ownerPubkey,
-                    authSession: input.session,
-                    savedLocalAccount: latestStateRef.current.data.savedLocalAccount,
                     ownerProfile,
                     ownerBuildingIndex: resolveOwnerBuildingIndex(graph.ownerPubkey, buildings.length, reservedBuildingIndexes),
                     follows,
@@ -1256,18 +1098,14 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             setState({
                 status: 'error',
                 error: message,
-                data: {
-                    ...createInitialData(),
-                    authSession: input.session,
-                },
+                data: createInitialData(),
             });
         }
     };
 
     const startSession = async (method: LoginMethod, input: ProviderResolveInput): Promise<void> => {
         try {
-            const session = await authService.startSession(method, input);
-            const savedLocalAccount = await authService.getSavedLocalAccount();
+            const { session } = await sessionController.startSession(method, input);
             const previousOwnerPubkey = latestStateRef.current.data.ownerPubkey;
             const shouldResetOverlayData = Boolean(previousOwnerPubkey && previousOwnerPubkey !== session.pubkey);
             if (shouldResetOverlayData) {
@@ -1277,8 +1115,6 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                 ...current,
                 data: {
                     ...(shouldResetOverlayData ? createInitialData() : current.data),
-                    authSession: session,
-                    savedLocalAccount,
                 },
             }));
 
@@ -1322,8 +1158,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
     };
 
     const logoutSession = async (): Promise<void> => {
-        await authService.logout();
-        const savedLocalAccount = await authService.getSavedLocalAccount();
+        await sessionController.logoutSession();
         await clearSocialServerState();
         cancelOccupancyAnimation();
         setMapLoaderStage(null);
@@ -1331,10 +1166,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         setState({
             status: 'idle',
             error: undefined,
-            data: {
-                ...createInitialData(),
-                savedLocalAccount,
-            },
+            data: createInitialData(),
         });
 
         if (mapBridge) {
@@ -1461,7 +1293,7 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
             throw new Error('La red social aun se esta cargando');
         }
 
-        if (!isWriteEnabled(current.data.authSession)) {
+        if (!sessionController.canWrite) {
             throw new Error('Tu sesion actual no puede seguir cuentas');
         }
 
@@ -1909,11 +1741,11 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
         mapLoaderStage,
         sessionRestorationResolved,
         error: state.error,
-        authSession: state.data.authSession,
-        savedLocalAccount: state.data.savedLocalAccount,
-        canWrite: isWriteEnabled(state.data.authSession),
-        canEncrypt: isEncryptionEnabled(state.data.authSession),
-        canDirectMessages: isDirectMessagesEnabled(state.data.authSession),
+        authSession,
+        savedLocalAccount,
+        canWrite: sessionController.canWrite,
+        canEncrypt: sessionController.canEncrypt,
+        canDirectMessages: sessionController.canDirectMessages,
         ownerPubkey: state.data.ownerPubkey,
         ownerProfile: state.data.ownerProfile,
         ownerBuildingIndex: state.data.ownerBuildingIndex,
