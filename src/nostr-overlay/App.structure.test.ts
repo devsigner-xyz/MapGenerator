@@ -8,7 +8,7 @@ const overlayRoutesSource = readFileSync(join(process.cwd(), 'src/nostr-overlay/
 const appExtractedModulePaths = [
     './shell/OverlayAppShell',
     './shell/use-overlay-route-state',
-    './shell/use-map-bridge-controller',
+    './shell/OverlayMapInteractionLayer',
     './hooks/useEasterEggDiscoveryController',
     './controllers/use-wallet-zap-controller',
     './app.selectors',
@@ -28,6 +28,9 @@ const extractedRouteModulePaths = [
 
 const movedHelperNames = [
     'OverlayAppShell',
+    'OverlayMapInteractionLayer',
+    'OccupiedBuildingContextMenuState',
+    'encodePubkeyAsNpub',
     'useOverlayRouteState',
     'normalizeHashtag',
     'activeAgoraHashtagFromLocation',
@@ -102,9 +105,12 @@ describe('Nostr overlay App shell structure', () => {
         }
     });
 
-    it('gates map controls while the login gate is visible', () => {
-        expect(appSource).toMatch(/\{isMapRoute\s*&&\s*!showLoginGate\s*\?\s*\(\s*<MapZoomControls/);
-        expect(appSource).toMatch(/\{isMapRoute\s*&&\s*!showLoginGate\s*\?\s*\(\s*<MapDisplayToggleControls/);
+    it('delegates map interaction UI to the extracted map layer', () => {
+        expect(appSource).toMatch(/<OverlayMapInteractionLayer\b/);
+        expect(appSource).not.toMatch(/<MapZoomControls\b/);
+        expect(appSource).not.toMatch(/<MapDisplayToggleControls\b/);
+        expect(appSource).not.toMatch(/onOccupiedBuildingContextMenu/);
+        expect(appSource).not.toMatch(/onSpecialBuildingClick/);
     });
 
     it('does not own the route tree inline', () => {

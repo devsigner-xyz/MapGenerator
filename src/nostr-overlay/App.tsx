@@ -9,8 +9,6 @@ import {
     type UiSettingsState,
 } from '../nostr/ui-settings';
 import { loadZapSettings, type ZapSettingsState } from '../nostr/zap-settings';
-import { profileHasZapEndpoint } from '../nostr/zaps';
-import { encodeHexToNpub } from '../nostr/npub';
 import { MapPresenceLayer } from './components/MapPresenceLayer';
 import { OccupantProfileDialog } from './components/OccupantProfileDialog';
 import { EasterEggDialog } from './components/EasterEggDialog';
@@ -21,12 +19,9 @@ import {
     OVERLAY_SIDEBAR_COLLAPSED_WIDTH,
     OVERLAY_SIDEBAR_EXPANDED_WIDTH,
 } from './components/OverlaySidebar';
-import { MapZoomControls } from './components/MapZoomControls';
-import { MapDisplayToggleControls } from './components/MapDisplayToggleControls';
 import { SocialComposeDialog } from './components/SocialComposeDialog';
 import { LoginGateScreen } from './components/LoginGateScreen';
 import { UiSettingsDialog } from './components/UiSettingsDialog';
-import { PersonContextMenuItems } from './components/PersonContextMenuItems';
 import { useNostrOverlay } from './hooks/useNostrOverlay';
 import { useNip05Verification } from './hooks/useNip05Verification';
 import { useOverlaySocialFeedController } from './controllers/use-overlay-social-feed-controller';
@@ -55,10 +50,9 @@ import {
     type OptimisticZapEntry,
 } from './app.selectors';
 import type { MentionDraft } from './mention-serialization';
-import type { MapBridge, OccupiedBuildingContextPayload } from './map-bridge';
+import type { MapBridge } from './map-bridge';
 import { extractStreetLabelUsernames } from './domain/street-label-users';
 import { getEasterEggEntry } from './easter-eggs/catalog';
-import { getSpecialBuildingEntry } from './special-buildings/catalog';
 import { EASTER_EGG_MISSIONS } from './easter-eggs/missions';
 import {
     addRelay,
@@ -70,24 +64,12 @@ import {
 import type { NostrEvent } from '../nostr/types';
 import { useRelayConnectionSummary } from './hooks/useRelayConnectionSummary';
 import { useOverlayTheme } from './hooks/useOverlayTheme';
-import { resolveNostrCityMapPreset } from './map-colour-schemes';
 import { OverlayAppShell } from './shell/OverlayAppShell';
-import { useMapBridgeController } from './shell/use-map-bridge-controller';
+import { OverlayMapInteractionLayer } from './shell/OverlayMapInteractionLayer';
 import { normalizeHashtag, useOverlayRouteState } from './shell/use-overlay-route-state';
 import { OverlayRoutes } from './routes/OverlayRoutes';
 import type { NoteCardModel } from './components/note-card-model';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { Spinner } from '@/components/ui/spinner';
-import {
-    ContextMenu,
-    ContextMenuContent,
-    ContextMenuItem,
-    ContextMenuSeparator,
-    ContextMenuSub,
-    ContextMenuSubContent,
-    ContextMenuSubTrigger,
-    ContextMenuTrigger,
-} from '@/components/ui/context-menu';
 import { Toaster, toast } from 'sonner';
 import { translate } from '@/i18n/translate';
 import { SITE_THEME_CHANGE_EVENT } from '@/site/theme-preference';
@@ -96,10 +78,6 @@ import type { OverlayServices } from './services/overlay-services';
 interface AppProps {
     mapBridge: MapBridge | null;
     services: OverlayServices;
-}
-
-interface OccupiedBuildingContextMenuState extends OccupiedBuildingContextPayload {
-    nonce: number;
 }
 
 interface SocialComposeState {
@@ -143,11 +121,8 @@ export function App({ mapBridge, services }: AppProps) {
         () => selectRelaySetKey(relaySettingsSnapshot.byType.search),
         [relaySettingsSnapshot.byType.search]
     );
-    const [buildingContextMenu, setBuildingContextMenu] = useState<OccupiedBuildingContextMenuState | null>(null);
     const [eventReferencesById, setEventReferencesById] = useState<Record<string, NostrEvent>>({});
     const isMobile = useIsMobile();
-    const contextMenuTriggerRef = useRef<HTMLSpanElement | null>(null);
-    const contextMenuNonceRef = useRef(0);
     const lastTrafficParticlesCountRef = useRef(
         Math.max(
             1,
@@ -225,21 +200,11 @@ export function App({ mapBridge, services }: AppProps) {
         occupancyByBuildingIndex: overlay.occupancyByBuildingIndex,
         verificationByPubkey,
     }), [uiSettings.verifiedBuildingsOverlayEnabled, overlay.occupancyByBuildingIndex, verificationByPubkey]);
-    const mapBridgeController = useMapBridgeController({
-        mapBridge,
-        viewportInsetLeft: isMobile
-            ? 0
-            : sidebarOpen
-                ? OVERLAY_SIDEBAR_EXPANDED_WIDTH
-                : OVERLAY_SIDEBAR_COLLAPSED_WIDTH,
-        showLoginGate,
-        streetLabelsEnabled: uiSettings.streetLabelsEnabled,
-        streetLabelsZoomLevel: uiSettings.streetLabelsZoomLevel,
-        streetLabelUsernames,
-        trafficParticlesCount: uiSettings.trafficParticlesCount,
-        trafficParticlesSpeed: uiSettings.trafficParticlesSpeed,
-        verifiedBuildingIndexes,
-    });
+    const mapViewportInsetLeft = isMobile
+        ? 0
+        : sidebarOpen
+            ? OVERLAY_SIDEBAR_EXPANDED_WIDTH
+            : OVERLAY_SIDEBAR_COLLAPSED_WIDTH;
     const {
         easterEggProgress,
         activeEasterEgg,
@@ -278,75 +243,6 @@ export function App({ mapBridge, services }: AppProps) {
         lastErrorToastRef.current = overlay.error;
         toast.error(overlay.error, { duration: 2200 });
     }, [overlay.status, overlay.error]);
-
-    useEffect(() => {
-        if (!mapBridge) {
-            return;
-        }
-
-        return mapBridge.onOccupiedBuildingContextMenu((payload) => {
-            if (showLoginGate) {
-                return;
-            }
-
-            contextMenuNonceRef.current += 1;
-            setBuildingContextMenu({
-                ...payload,
-                nonce: contextMenuNonceRef.current,
-            });
-        });
-    }, [mapBridge, showLoginGate]);
-
-    useEffect(() => {
-        if (!mapBridge) {
-            return;
-        }
-
-        return mapBridge.onSpecialBuildingClick((payload) => {
-            if (showLoginGate) {
-                return;
-            }
-
-            const entry = getSpecialBuildingEntry(payload.specialBuildingId);
-            if (entry.action === 'open_agora') {
-                navigate('/agora');
-            }
-        });
-    }, [mapBridge, navigate, showLoginGate]);
-
-    useEffect(() => {
-        if (showLoginGate) {
-            setBuildingContextMenu(null);
-        }
-    }, [showLoginGate]);
-
-    useEffect(() => {
-        if (!buildingContextMenu || !contextMenuTriggerRef.current) {
-            return;
-        }
-
-        const target = contextMenuTriggerRef.current;
-        const timer = window.setTimeout(() => {
-            target.dispatchEvent(new MouseEvent('contextmenu', {
-                bubbles: true,
-                cancelable: true,
-                clientX: buildingContextMenu.clientX,
-                clientY: buildingContextMenu.clientY,
-            }));
-        }, 0);
-
-        return () => {
-            window.clearTimeout(timer);
-        };
-    }, [buildingContextMenu]);
-
-    const encodePubkeyAsNpub = (pubkey: string): string => {
-        try {
-            return encodeHexToNpub(pubkey);
-        } catch {
-            return pubkey;
-        }
-    };
 
     const {
         chatState,
@@ -470,10 +366,6 @@ export function App({ mapBridge, services }: AppProps) {
         : undefined;
 
     useEffect(() => {
-        mapBridge?.setColourScheme?.(resolveNostrCityMapPreset(resolvedOverlayTheme));
-    }, [mapBridge, resolvedOverlayTheme]);
-
-    useEffect(() => {
         setRelaySettingsSnapshot(loadRelaySettings(
             relaySettingsOwnerPubkey ? { ownerPubkey: relaySettingsOwnerPubkey } : undefined
         ));
@@ -522,7 +414,7 @@ export function App({ mapBridge, services }: AppProps) {
             return;
         }
 
-        mapBridgeController.focusBuilding(overlay.ownerBuildingIndex);
+        mapBridge.focusBuilding(overlay.ownerBuildingIndex);
     };
 
     const locateFollowingOnMap = (pubkey: string): void => {
@@ -544,7 +436,7 @@ export function App({ mapBridge, services }: AppProps) {
             navigate('/');
         }
 
-        mapBridgeController.focusBuilding(buildingIndex);
+        mapBridge.focusBuilding(buildingIndex);
     };
 
     const selectSidebarPerson = (pubkey: string): void => {
@@ -589,10 +481,6 @@ export function App({ mapBridge, services }: AppProps) {
 
         const savedRelaySettings = saveRelaySettings(nextRelaySettings, ownerInput);
         setRelaySettingsSnapshot(savedRelaySettings);
-    };
-
-    const closeOccupiedContextMenu = (): void => {
-        setBuildingContextMenu(null);
     };
 
     const openChatList = (): void => {
@@ -989,113 +877,56 @@ export function App({ mapBridge, services }: AppProps) {
             ) : null}
             mapControls={(
                 <>
+                    <OverlayMapInteractionLayer
+                        mapBridge={mapBridge}
+                        isMapRoute={isMapRoute}
+                        showLoginGate={showLoginGate}
+                        viewportInsetLeft={mapViewportInsetLeft}
+                        resolvedOverlayTheme={resolvedOverlayTheme}
+                        mapLoaderText={mapLoaderText}
+                        language={uiSettings.language}
+                        streetLabelsEnabled={uiSettings.streetLabelsEnabled}
+                        streetLabelsZoomLevel={uiSettings.streetLabelsZoomLevel}
+                        streetLabelUsernames={streetLabelUsernames}
+                        trafficParticlesCount={uiSettings.trafficParticlesCount}
+                        trafficParticlesSpeed={uiSettings.trafficParticlesSpeed}
+                        verifiedBuildingIndexes={verifiedBuildingIndexes}
+                        specialMarkersEnabled={uiSettings.specialMarkersEnabled}
+                        profiles={overlay.profiles}
+                        followerProfiles={overlay.followerProfiles}
+                        {...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {})}
+                        {...(overlay.ownerProfile ? { ownerProfile: overlay.ownerProfile } : {})}
+                        canWrite={overlay.canWrite}
+                        canAccessDirectMessages={canAccessDirectMessages}
+                        zapAmounts={zapSettings.amounts}
+                        onRegenerateMap={overlay.regenerateMap}
+                        onThemeChange={setThemeQuickToggle}
+                        onCarsEnabledChange={setCarsQuickToggle}
+                        onStreetLabelsEnabledChange={setStreetLabelsQuickToggle}
+                        onSpecialMarkersEnabledChange={setSpecialMarkersQuickToggle}
+                        onCopyNpub={copyOwnerIdentifier}
+                        onOpenDirectMessage={openDmFromContextMenu}
+                        onOpenProfile={overlay.openActiveProfile}
+                        onRequestZapPayment={requestZapPayment}
+                        onConfigureZapAmounts={() => openSettingsPage('zaps')}
+                        onOpenAgora={() => navigate('/agora')}
+                    />
 
-            {isMapRoute && !showLoginGate ? (
-                <MapZoomControls
-                    mapBridge={mapBridge}
-                    onRegenerateMap={overlay.regenerateMap}
-                    theme={resolvedOverlayTheme}
-                    onThemeChange={setThemeQuickToggle}
-                />
-            ) : null}
-            {isMapRoute && !showLoginGate ? (
-                <MapDisplayToggleControls
-                    carsEnabled={uiSettings.trafficParticlesCount > 0}
-                    streetLabelsEnabled={uiSettings.streetLabelsEnabled}
-                    specialMarkersEnabled={uiSettings.specialMarkersEnabled}
-                    onCarsEnabledChange={setCarsQuickToggle}
-                    onStreetLabelsEnabledChange={setStreetLabelsQuickToggle}
-                    onSpecialMarkersEnabledChange={setSpecialMarkersQuickToggle}
-                />
-            ) : null}
+                    <Toaster richColors position="bottom-center" closeButton={false} theme={resolvedOverlayTheme} />
 
-            {buildingContextMenu ? (
-                <div
-                    className="nostr-context-anchor"
-                    style={{
-                        left: `${buildingContextMenu.clientX}px`,
-                        top: `${buildingContextMenu.clientY}px`,
-                    }}
-                >
-                    <ContextMenu
-                        key={buildingContextMenu.nonce}
-                    >
-                        <ContextMenuTrigger asChild>
-                            <span ref={contextMenuTriggerRef} className="nostr-context-anchor-trigger" aria-hidden="true" />
-                        </ContextMenuTrigger>
-                        <ContextMenuContent className="w-48">
-                            <PersonContextMenuItems
-                                testIdPrefix="context"
-                                onCopyNpub={() => copyOwnerIdentifier(encodePubkeyAsNpub(buildingContextMenu.pubkey))}
-                                {...(canAccessDirectMessages
-                                    ? { onSendMessage: () => openDmFromContextMenu(buildingContextMenu.pubkey) }
-                                    : {})}
-                                onViewDetails={() => overlay.openActiveProfile(buildingContextMenu.pubkey, buildingContextMenu.buildingIndex)}
-                                closeMenu={closeOccupiedContextMenu}
-                            />
+                    <UiSettingsDialog
+                        open={isUiSettingsDialogOpen}
+                        uiSettings={uiSettings}
+                        onPersistUiSettings={persistUiSettings}
+                        onOpenChange={(open) => {
+                            if (open) {
+                                openUiSettingsDialog();
+                                return;
+                            }
 
-                            {overlay.canWrite && profileHasZapEndpoint(
-                                overlay.profiles[buildingContextMenu.pubkey]
-                                ?? overlay.followerProfiles[buildingContextMenu.pubkey]
-                                ?? (overlay.ownerPubkey === buildingContextMenu.pubkey ? overlay.ownerProfile : undefined)
-                            ) ? (
-                                <ContextMenuSub>
-                                    <ContextMenuSubTrigger data-testid="context-zap-submenu">Zap</ContextMenuSubTrigger>
-                                    <ContextMenuSubContent className="w-44">
-                                        {zapSettings.amounts.map((amount) => (
-                                            <ContextMenuItem
-                                                data-testid={`context-zap-${amount}`}
-                                                key={`zap-${amount}`}
-                                                onSelect={() => {
-                                                    closeOccupiedContextMenu();
-                                                    void requestZapPayment({ targetPubkey: buildingContextMenu.pubkey, amount });
-                                                }}
-                                            >
-                                                {`${amount} sats`}
-                                            </ContextMenuItem>
-                                        ))}
-                                        <ContextMenuSeparator />
-                                        <ContextMenuItem
-                                            data-testid="context-zap-configure"
-                                            onSelect={() => {
-                                                closeOccupiedContextMenu();
-                                                openSettingsPage('zaps');
-                                            }}
-                                        >
-                                            Configurar cantidades
-                                        </ContextMenuItem>
-                                    </ContextMenuSubContent>
-                                </ContextMenuSub>
-                            ) : null}
-                        </ContextMenuContent>
-                    </ContextMenu>
-                </div>
-            ) : null}
-
-            {mapLoaderText && !showLoginGate ? (
-                <div className="nostr-map-loader-overlay" role="status" aria-live="polite">
-                    <div className="nostr-map-loader-card">
-                        <Spinner />
-                        <p className="nostr-map-loader-text">{mapLoaderText}</p>
-                    </div>
-                </div>
-            ) : null}
-
-            <Toaster richColors position="bottom-center" closeButton={false} theme={resolvedOverlayTheme} />
-
-            <UiSettingsDialog
-                open={isUiSettingsDialogOpen}
-                uiSettings={uiSettings}
-                onPersistUiSettings={persistUiSettings}
-                onOpenChange={(open) => {
-                    if (open) {
-                        openUiSettingsDialog();
-                        return;
-                    }
-
-                    closeUiSettingsDialog();
-                }}
-            />
+                            closeUiSettingsDialog();
+                        }}
+                    />
                 </>
             )}
             main={(
