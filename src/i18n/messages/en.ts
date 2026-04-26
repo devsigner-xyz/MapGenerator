@@ -536,6 +536,7 @@ export const enMessages = {
     'sidebar.showPanel': 'Show panel',
     'sidebar.hidePanel': 'Hide panel',
     'sidebar.platformSubtitle': 'Social platform',
+    'sidebar.platformAvatarAlt': 'Nostr City logo',
     'sidebar.openUserMenu': 'Open user menu',
     'sidebar.profileActions': 'Profile actions',
     'sidebar.profileAvatarAlt': 'Profile avatar',

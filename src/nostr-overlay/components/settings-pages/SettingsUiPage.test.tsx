@@ -59,6 +59,9 @@ describe('SettingsUiPage', () => {
         mounted.push(rendered);
 
         expect(rendered.container.querySelector('[data-testid="settings-page-body"]')).not.toBeNull();
+        expect(rendered.container.querySelector('[data-testid="settings-page-body"]')?.className).toContain('nostr-settings-body');
+        expect(rendered.container.querySelector('.nostr-settings-form')).not.toBeNull();
+        expect(rendered.container.querySelector('[data-testid="settings-ui-theme-row"]')?.className).toContain('nostr-settings-section');
         expect(rendered.container.querySelector('[data-testid="settings-ui-theme-row"]')).not.toBeNull();
         expect(rendered.container.querySelector('[data-testid="settings-ui-occupied-zoom-row"]')).not.toBeNull();
         expect(rendered.container.querySelector('[data-testid="settings-ui-street-labels-row"]')).not.toBeNull();
@@ -210,5 +213,13 @@ describe('SettingsUiPage', () => {
         expect(container.querySelector('[data-testid="settings-ui-language-row"]')).not.toBeNull();
         expect(container.textContent || '').toContain('Idioma');
         expect(container.textContent || '').toContain('Español');
+    });
+
+    test('does not render horizontal separators between ui setting sections', async () => {
+        const rendered = await renderPage();
+        mounted.push(rendered);
+
+        expect(rendered.container.querySelectorAll('[data-slot="separator"]')).toHaveLength(0);
+        expect(rendered.container.querySelectorAll('.nostr-settings-section').length).toBeGreaterThan(1);
     });
 });

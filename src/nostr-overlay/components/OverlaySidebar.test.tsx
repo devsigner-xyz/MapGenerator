@@ -11,7 +11,7 @@ interface RenderResult {
     root: Root;
 }
 
-async function renderSidebar(pathname = '/'): Promise<RenderResult> {
+async function renderSidebar({ pathname = '/', open = true, resolvedTheme = 'dark' }: { pathname?: string; open?: boolean; resolvedTheme?: 'light' | 'dark' } = {}): Promise<RenderResult> {
     const container = document.createElement('div');
     document.body.appendChild(container);
     const root = createRoot(container);
@@ -33,8 +33,9 @@ async function renderSidebar(pathname = '/'): Promise<RenderResult> {
         root.render(
             <MemoryRouter initialEntries={[pathname]}>
                 <OverlaySidebar
-                    open
+                    open={open}
                     onOpenChange={vi.fn()}
+                    resolvedTheme={resolvedTheme}
                     authSession={authSession}
                     ownerPubkey={'f'.repeat(64)}
                     ownerProfile={{ pubkey: 'f'.repeat(64), displayName: 'Nostr City', picture: 'https://example.com/avatar.png' }}
@@ -98,7 +99,7 @@ afterEach(async () => {
 
 describe('OverlaySidebar', () => {
     test('adds shared utility toolbar density on top of the legacy toolbar hook', async () => {
-        const rendered = await renderSidebar('/');
+        const rendered = await renderSidebar({ pathname: '/' });
         mounted.push(rendered);
 
         const mapButton = Array.from(rendered.container.querySelectorAll('button')).find((button) => (button.textContent || '').includes('Mapa'));
@@ -110,7 +111,7 @@ describe('OverlaySidebar', () => {
     });
 
     test('renders unread indicators through the shared unread slot marker', async () => {
-        const rendered = await renderSidebar('/');
+        const rendered = await renderSidebar({ pathname: '/' });
         mounted.push(rendered);
 
         const agoraButton = rendered.container.querySelector('button[aria-label="Abrir Agora"]');
@@ -126,7 +127,7 @@ describe('OverlaySidebar', () => {
     });
 
     test('keeps readonly state inside the shared badge primitive in the user menu', async () => {
-        const rendered = await renderSidebar('/');
+        const rendered = await renderSidebar({ pathname: '/' });
         mounted.push(rendered);
 
         const readonlyBadge = Array.from(rendered.container.querySelectorAll('[data-slot="badge"]')).find((badge) =>
@@ -137,7 +138,7 @@ describe('OverlaySidebar', () => {
     });
 
     test('renders wallet top-level entry above settings', async () => {
-        const rendered = await renderSidebar('/wallet');
+        const rendered = await renderSidebar({ pathname: '/wallet' });
         mounted.push(rendered);
 
         const panelButtons = Array.from(rendered.container.querySelectorAll('.nostr-panel-toolbar > [data-slot="sidebar-menu-item"] button'));
@@ -152,7 +153,7 @@ describe('OverlaySidebar', () => {
     test('renders english top-level labels when ui language is en', async () => {
         window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ language: 'en' }));
 
-        const rendered = await renderSidebar('/agora');
+        const rendered = await renderSidebar({ pathname: '/agora' });
         mounted.push(rendered);
 
         const text = rendered.container.textContent || '';
@@ -160,5 +161,28 @@ describe('OverlaySidebar', () => {
         expect(text).toContain('Chats');
         expect(text).toContain('Relays');
         expect(text).toContain('Social platform');
+    });
+
+    test('uses the resolved theme logo in the platform header avatar', async () => {
+        const rendered = await renderSidebar({ resolvedTheme: 'light' });
+        mounted.push(rendered);
+
+        const platformAvatar = rendered.container.querySelector('[data-testid="sidebar-platform-avatar"]');
+        const platformLogo = platformAvatar?.querySelector('[data-slot="avatar-image"]') as HTMLImageElement | null;
+
+        expect(platformLogo).not.toBeNull();
+        expect(platformLogo?.getAttribute('src')).toBe('/icon-light-48x48.png');
+        expect(platformLogo?.getAttribute('alt')).toBe('Logo de Nostr City');
+    });
+
+    test('keeps the header trigger out of the compact sidebar rail', async () => {
+        const rendered = await renderSidebar({ open: false });
+        mounted.push(rendered);
+
+        const collapsedSidebar = rendered.container.querySelector('[data-slot="sidebar"][data-state="collapsed"]');
+
+        expect(collapsedSidebar).not.toBeNull();
+        expect(collapsedSidebar?.querySelector('[data-slot="sidebar-header"] [data-slot="sidebar-trigger"]')).toBeNull();
+        expect(collapsedSidebar?.querySelector('[data-slot="sidebar-rail"]')).not.toBeNull();
     });
 });

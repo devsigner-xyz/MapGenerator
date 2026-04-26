@@ -53,7 +53,11 @@ describe('SettingsZapsPage', () => {
         mounted.push(rendered);
 
         expect(rendered.container.querySelector('[data-testid="settings-page-body"]')).not.toBeNull();
+        expect(rendered.container.querySelector('[data-testid="settings-page-body"]')?.className).toContain('nostr-settings-body');
+        expect(rendered.container.querySelector('.nostr-settings-form')).not.toBeNull();
+        expect(rendered.container.querySelector('.nostr-zap-list')?.className).toContain('nostr-settings-section');
         expect(rendered.container.querySelector('[data-testid="settings-zap-add-row"]')).not.toBeNull();
+        expect(rendered.container.querySelector('[data-testid="settings-zap-add-row"]')?.className).toContain('nostr-settings-row');
         expect(rendered.container.querySelector('input[aria-label="Nueva cantidad de zap"]')).not.toBeNull();
         expect(rendered.container.querySelector('input[aria-label="Cantidad por defecto de zap"]')).not.toBeNull();
         expect(Array.from(rendered.container.querySelectorAll('button')).some((button) => (button.textContent || '').includes('Agregar cantidad'))).toBe(true);

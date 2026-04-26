@@ -16,6 +16,13 @@ describe('map visual dark theme styles', () => {
         expect(styles).toMatch(/\.dark\s+\.nostr-map-zoom-level\s*\{[^}]*color:\s*#A2F0FE/s);
     });
 
+    test('keeps light map control surfaces translucent like dark mode', () => {
+        expect(styles).toMatch(/\.nostr-map-zoom-group\s*\{[^}]*background:\s*rgba\(255,\s*255,\s*255,\s*0\.88\)/s);
+        expect(styles).toMatch(/\.nostr-map-regenerate-button\s*\{[^}]*background:\s*rgba\(255,\s*255,\s*255,\s*0\.88\)/s);
+        expect(styles).toMatch(/\.nostr-map-display-toggle-group\s*\{[^}]*background:\s*rgba\(255,\s*255,\s*255,\s*0\.88\)/s);
+        expect(styles).toMatch(/\.nostr-map-theme-toggle-group\s*\{[^}]*background:\s*rgba\(255,\s*255,\s*255,\s*0\.88\)/s);
+    });
+
     test('uses surface-only map control wrappers without borders', () => {
         expect(styles).toMatch(/\.nostr-map-zoom-group\s*\{[^}]*border:\s*0;/s);
         expect(styles).toMatch(/\.nostr-map-display-toggle-group\s*\{[^}]*border:\s*0;/s);
@@ -44,5 +51,15 @@ describe('map visual dark theme styles', () => {
         expect(styles).toMatch(/\.dark\s+\.nostr-map-occupant-tag\s*\{[^}]*background:\s*rgba\(1,\s*21,\s*86,/s);
         expect(styles).toMatch(/\.dark\s+\.nostr-map-occupant-name\s*\{[^}]*color:\s*#FCFDFE/s);
         expect(styles).toMatch(/\.dark\s+\.nostr-map-owner-name\s*\{[^}]*color:\s*#FCFDFE/s);
+    });
+});
+
+describe('chat visual theme styles', () => {
+    test('uses semantic theme tokens for chat text and surfaces', () => {
+        expect(styles).toMatch(/\.nostr-chats-page-title\s*\{[^}]*color:\s*var\(--foreground\)/s);
+        expect(styles).toMatch(/\.nostr-chat-loading\s*\{[^}]*color:\s*var\(--muted-foreground\)/s);
+        expect(styles).toMatch(/\.nostr-chat-conversation-title\s*\{[^}]*color:\s*var\(--foreground\)/s);
+        expect(styles).toMatch(/\.nostr-chat-conversation-preview\s*\{[^}]*color:\s*var\(--muted-foreground\)/s);
+        expect(styles).toMatch(/\.nostr-chat-message\s*\{[^}]*border:\s*1px\s+solid\s+var\(--border\)[^}]*color:\s*var\(--card-foreground\)[^}]*background:\s*color-mix\(in\s+oklab,\s*var\(--card\)\s+96%,\s*transparent\)/s);
     });
 });

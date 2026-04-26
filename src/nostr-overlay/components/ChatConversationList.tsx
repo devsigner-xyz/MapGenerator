@@ -4,6 +4,7 @@ import { useI18n } from '@/i18n/useI18n';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/components/ui/item';
 import { Spinner } from '@/components/ui/spinner';
+import { cn } from '@/lib/utils';
 
 interface ChatConversationListProps {
     conversations: ChatConversationSummary[];
@@ -58,12 +59,15 @@ export function ChatConversationList({ conversations, loading, activeConversatio
                             variant="outline"
                             size="sm"
                             data-active={isActive ? 'true' : 'false'}
-                            className={`nostr-chat-conversation-item w-full min-w-0${isActive ? ' is-active' : ''}`}
+                            className={cn(
+                                'nostr-chat-conversation-item w-full min-w-0 gap-2 border-border/80 bg-card/90 text-card-foreground shadow-none transition-colors',
+                                'hover:bg-muted/70 data-[active=true]:bg-muted',
+                            )}
                         >
                             <button
                                 type="button"
                                 data-chat-conversation={conversation.id}
-                                className="nostr-chat-conversation-button"
+                                className="nostr-chat-conversation-button rounded-md focus-visible:ring-[3px] focus-visible:ring-ring/50"
                                 onClick={() => onOpenConversation(conversation.id)}
                             >
                                 <ItemMedia>

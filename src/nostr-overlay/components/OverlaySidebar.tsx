@@ -19,6 +19,7 @@ import {
 import { encodeHexToNpub } from '../../nostr/npub';
 import type { AuthSessionState } from '../../nostr/auth/session';
 import type { NostrProfile } from '../../nostr/types';
+import type { ResolvedOverlayTheme } from '../hooks/useOverlayTheme';
 import { settingsViewFromPathname, type SettingsRouteView } from '../settings/settings-routing';
 import { useLocation } from 'react-router';
 import { useI18n } from '@/i18n/useI18n';
@@ -59,6 +60,7 @@ type SettingsMenuView = SettingsRouteView | 'ui';
 interface OverlaySidebarProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    resolvedTheme: ResolvedOverlayTheme;
     authSession?: AuthSessionState;
     ownerPubkey?: string;
     ownerProfile?: NostrProfile;
@@ -124,7 +126,7 @@ function SidebarActionsMenu({
     relaysConnectedCount,
     relaysTotal,
     onOpenMissions,
-}: Omit<OverlaySidebarProps, 'open' | 'onOpenChange' | 'authSession' | 'ownerPubkey' | 'ownerProfile' | 'onCopyOwnerNpub' | 'onLocateOwner' | 'onViewOwnerDetails' | 'onLogout' | 'children'>) {
+}: Omit<OverlaySidebarProps, 'open' | 'onOpenChange' | 'resolvedTheme' | 'authSession' | 'ownerPubkey' | 'ownerProfile' | 'onCopyOwnerNpub' | 'onLocateOwner' | 'onViewOwnerDetails' | 'onLogout' | 'children'>) {
     const { t } = useI18n();
     const { state } = useSidebar();
     const location = useLocation();
@@ -388,22 +390,31 @@ function SidebarActionsMenu({
     );
 }
 
-function SidebarPlatformHeader() {
+function SidebarPlatformHeader({ resolvedTheme }: { resolvedTheme: ResolvedOverlayTheme }) {
     const { t } = useI18n();
     const { state } = useSidebar();
     const collapsed = state === 'collapsed';
+    const platformLogoSrc = resolvedTheme === 'dark' ? '/icon-dark-48x48.png' : '/icon-light-48x48.png';
 
     return (
         <SidebarHeader className="relative border-b border-sidebar-border/60 pb-2">
-            <SidebarTrigger
-                className="absolute top-2 right-2 z-10"
-                aria-label={collapsed ? t('sidebar.showPanel') : t('sidebar.hidePanel')}
-                title={collapsed ? t('sidebar.showPanel') : t('sidebar.hidePanel')}
-            />
+            {!collapsed ? (
+                <SidebarTrigger
+                    className="absolute top-2 right-2 z-10"
+                    aria-label={t('sidebar.hidePanel')}
+                    title={t('sidebar.hidePanel')}
+                />
+            ) : null}
             <SidebarMenu>
                 <SidebarMenuItem>
                     <SidebarMenuButton size="lg" className="pr-10 hover:bg-transparent active:bg-transparent">
-                        <Avatar className="h-8 w-8 rounded-lg">
+                        <Avatar className="size-8 rounded-lg" data-testid="sidebar-platform-avatar">
+                            <img
+                                data-slot="avatar-image"
+                                className="aspect-square size-full rounded-lg object-cover"
+                                src={platformLogoSrc}
+                                alt={t('sidebar.platformAvatarAlt')}
+                            />
                             <AvatarFallback className="rounded-lg">NC</AvatarFallback>
                         </Avatar>
                         <div className="grid flex-1 text-left text-sm leading-tight">
@@ -534,6 +545,7 @@ function SidebarSocialContent({ children }: { children: ReactNode }) {
 export function OverlaySidebar({
     open,
     onOpenChange,
+    resolvedTheme,
     authSession,
     ownerPubkey,
     ownerProfile,
@@ -574,7 +586,7 @@ export function OverlaySidebar({
     return (
         <SidebarProvider open={open} onOpenChange={onOpenChange} style={providerStyle}>
             <Sidebar collapsible="icon">
-                <SidebarPlatformHeader />
+                <SidebarPlatformHeader resolvedTheme={resolvedTheme} />
                 <SidebarContent>
                     <SidebarGroup className="min-h-0 flex-1 pt-1">
                         <SidebarSocialContent>{children}</SidebarSocialContent>

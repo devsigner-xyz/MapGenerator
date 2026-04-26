@@ -33,11 +33,11 @@ export function SettingsZapsPage({
                 title={t('settings.zaps.title')}
                 description={t('settings.zaps.description')}
             />
-            <div className="grid min-h-0 gap-2.5 overflow-x-hidden overflow-y-auto pr-px" data-testid="settings-page-body">
-                <div className="nostr-shortcuts-content">
+            <div className="nostr-settings-body grid min-h-0 overflow-x-hidden overflow-y-auto pr-px" data-testid="settings-page-body">
+                <div className="nostr-settings-form nostr-shortcuts-content">
                     <p>{t('settings.zaps.amounts')}</p>
 
-                    <div className="flex items-center gap-2" data-testid="settings-zap-default-row">
+                    <div className="nostr-settings-row flex items-center gap-3" data-testid="settings-zap-default-row">
                         <Input
                             type="number"
                             min={1}
@@ -49,7 +49,7 @@ export function SettingsZapsPage({
                         />
                     </div>
 
-                    <div className="nostr-zap-list">
+                    <div className="nostr-settings-section nostr-zap-list">
                         {zapSettings.amounts.map((amount, index) => (
                             <div key={`zap-${index}-${amount}`} className="nostr-zap-item">
                                 <span>{amount} sats</span>
@@ -82,7 +82,7 @@ export function SettingsZapsPage({
                         ))}
                     </div>
 
-                    <div className="flex items-center gap-2" data-testid="settings-zap-add-row">
+                    <div className="nostr-settings-row flex items-center gap-3" data-testid="settings-zap-add-row">
                         <Input
                             type="number"
                             min={1}

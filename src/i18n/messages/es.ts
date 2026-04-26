@@ -534,6 +534,7 @@ export const esMessages = {
     'sidebar.showPanel': 'Mostrar panel',
     'sidebar.hidePanel': 'Ocultar panel',
     'sidebar.platformSubtitle': 'Plataforma social',
+    'sidebar.platformAvatarAlt': 'Logo de Nostr City',
     'sidebar.openUserMenu': 'Abrir menu de usuario',
     'sidebar.profileActions': 'Acciones de perfil',
     'sidebar.profileAvatarAlt': 'Avatar de perfil',

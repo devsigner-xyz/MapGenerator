@@ -98,15 +98,15 @@ describe('resolveMapLabelColours', () => {
     test('uses colour scheme label overrides for dark presets', () => {
         const darkScheme: ColourScheme = {
             ...baseScheme,
-            streetLabelColour: '#A2F0FE',
-            waterLabelColour: '#2ABAFB',
-            parkLabelColour: '#C586F2',
+            streetLabelColour: '#010B2D',
+            waterLabelColour: '#BFEFFF',
+            parkLabelColour: '#F0D7FF',
         };
 
         expect(resolveMapLabelColours(darkScheme)).toEqual({
-            street: '#A2F0FE',
-            water: '#2ABAFB',
-            park: '#C586F2',
+            street: '#010B2D',
+            water: '#BFEFFF',
+            park: '#F0D7FF',
         });
     });
 });

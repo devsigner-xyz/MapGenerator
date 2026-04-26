@@ -1451,6 +1451,7 @@ export function App({ mapBridge, services }: AppProps) {
                 <OverlaySidebar
                     open={sidebarOpen}
                     onOpenChange={setSidebarOpen}
+                    resolvedTheme={resolvedOverlayTheme}
                     {...(overlay.authSession ? { authSession: overlay.authSession } : {})}
                     {...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {})}
                     {...(overlay.ownerProfile ? { ownerProfile: overlay.ownerProfile } : {})}
