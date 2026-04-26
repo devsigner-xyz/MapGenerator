@@ -101,6 +101,7 @@ export function ActiveProfileDialogContainer({
             hasMorePosts={activeProfileData.hasMorePosts}
             follows={activeProfileData.follows}
             followers={activeProfileData.followers}
+            {...(activeProfileData.followersError ? { followersError: activeProfileData.followersError } : {})}
             networkProfiles={activeProfileData.networkProfiles}
             profilesByPubkey={richContentProfilesByPubkey}
             networkLoading={activeProfileData.networkLoading}

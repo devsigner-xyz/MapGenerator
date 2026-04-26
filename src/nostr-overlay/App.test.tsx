@@ -8442,6 +8442,97 @@ describe('Nostr overlay App', () => {
         await waitFor(() => (rendered.container.textContent || '').includes(`User-${followerA.slice(0, 4)}`));
     });
 
+    test('keeps active profile following visible when followers request times out', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+        const followA = 'b'.repeat(64);
+        const followB = 'c'.repeat(64);
+        const loadFollows = vi
+            .fn()
+            .mockResolvedValueOnce({
+                ownerPubkey,
+                follows: [followedPubkey],
+                relayHints: [],
+            })
+            .mockResolvedValueOnce({
+                ownerPubkey: followedPubkey,
+                follows: [followA, followB],
+                relayHints: [],
+            });
+        const loadFollowers = vi
+            .fn()
+            .mockResolvedValueOnce({ followers: [], complete: true })
+            .mockRejectedValueOnce(new Error('Request timed out after 10000ms'));
+        const { bridge, triggerOccupiedBuildingClick } = createMapBridgeStub();
+
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async () => null,
+                        fetchEvents: async () => [],
+                    }),
+                    graphApiService: {
+                        loadFollows,
+                        loadFollowers,
+                        loadPosts: vi.fn().mockResolvedValue({ posts: [], hasMore: false }),
+                        loadProfileStats: vi.fn().mockResolvedValue({ followsCount: 2, followersCount: 0 }),
+                    },
+                    fetchProfilesFn: vi.fn().mockImplementation(async (pubkeys: string[]) => {
+                        const profiles: Record<string, { pubkey: string; displayName: string }> = {};
+                        for (const pubkey of pubkeys) {
+                            if (pubkey === ownerPubkey) {
+                                profiles[pubkey] = { pubkey, displayName: 'Owner' };
+                            }
+                            if (pubkey === followedPubkey) {
+                                profiles[pubkey] = { pubkey, displayName: 'Alice' };
+                            }
+                            if (pubkey === followA) {
+                                profiles[pubkey] = { pubkey, displayName: 'Bob' };
+                            }
+                            if (pubkey === followB) {
+                                profiles[pubkey] = { pubkey, displayName: 'Carol' };
+                            }
+                        }
+                        return profiles;
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+        const form = rendered.container.querySelector('form');
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
+            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        });
+
+        await waitFor(() => rendered.container.querySelector('[data-testid="login-gate-screen"]') === null);
+
+        await act(async () => {
+            triggerOccupiedBuildingClick({ buildingIndex: 4, pubkey: followedPubkey });
+        });
+
+        await selectActiveProfileDialogTab('Siguiendo');
+        await waitFor(() => (rendered.container.textContent || '').includes('Bob'));
+
+        const activePanel = rendered.container.querySelector('[data-slot="tabs-content"][data-state="active"]') as HTMLElement;
+        expect(activePanel.textContent || '').toContain('Bob');
+        expect(activePanel.textContent || '').toContain('Carol');
+        expect(activePanel.textContent || '').not.toContain('No se pudo cargar la red social');
+        expect(activePanel.textContent || '').not.toContain('Reintentar');
+    });
+
     test('sending message from active profile network menu closes profile dialog before opening chat', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const followedPubkey = 'a'.repeat(64);

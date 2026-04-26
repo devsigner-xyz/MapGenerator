@@ -20,6 +20,7 @@ export interface ActiveProfileStatsResult {
 export interface ActiveProfileNetworkResult {
     follows: string[];
     followers: string[];
+    followersError?: string;
     profiles: Record<string, NostrProfile>;
     relaySuggestionsByType: RelaySettingsByType;
 }
@@ -47,6 +48,7 @@ export interface ActiveProfileQueryState {
     statsError?: string;
     follows: string[];
     followers: string[];
+    followersError?: string;
     networkProfiles: Record<string, NostrProfile>;
     relaySuggestionsByType: RelaySettingsByType;
     networkLoading: boolean;
@@ -173,6 +175,7 @@ export function useActiveProfileQuery(input: UseActiveProfileQueryInput): Active
         ...(statsQuery.error ? { statsError: toErrorMessage(statsQuery.error, 'No se pudo cargar estadisticas del perfil') } : {}),
         follows: network.follows,
         followers: network.followers,
+        ...(network.followersError ? { followersError: network.followersError } : {}),
         networkProfiles: network.profiles,
         relaySuggestionsByType: network.relaySuggestionsByType,
         networkLoading: networkQuery.isPending,

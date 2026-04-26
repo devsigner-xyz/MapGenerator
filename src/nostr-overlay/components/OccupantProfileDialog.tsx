@@ -48,6 +48,7 @@ interface OccupantProfileDialogProps {
     hasMorePosts: boolean;
     follows: string[];
     followers: string[];
+    followersError?: string;
     networkProfiles: Record<string, NostrProfile>;
     profilesByPubkey?: Record<string, NostrProfile>;
     networkLoading: boolean;
@@ -191,6 +192,7 @@ export function OccupantProfileDialog({
     hasMorePosts,
     follows,
     followers,
+    followersError,
     networkProfiles,
     profilesByPubkey,
     networkLoading,
@@ -885,7 +887,7 @@ export function OccupantProfileDialog({
                                                 <EmptyDescription>{t('profile.followers.loadingDescription', { displayName })}</EmptyDescription>
                                             </EmptyHeader>
                                         </Empty>
-                                    ) : networkError && followers.length === 0 ? (
+                                    ) : (followersError || networkError) && followers.length === 0 ? (
                                         renderNetworkErrorState()
                                     ) : (
                                         <>
@@ -907,7 +909,7 @@ export function OccupantProfileDialog({
                                                     ))}
                                                 </ItemGroup>
                                             ) : null}
-                                            {networkError && followers.length > 0 ? renderNetworkErrorState() : null}
+                                            {(followersError || networkError) && followers.length > 0 ? renderNetworkErrorState() : null}
                                             <ListLoadingFooter loading={followersLoadingMore} />
                                         </>
                                     )}

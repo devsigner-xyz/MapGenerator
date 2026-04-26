@@ -36,6 +36,7 @@ interface ActiveProfileProbeState {
     statsError?: string;
     networkLoading: boolean;
     networkError?: string;
+    followersError?: string;
     retryNetwork: () => Promise<void>;
     followsCount: number;
     followersCount: number;
@@ -328,6 +329,33 @@ describe('useActiveProfileQuery', () => {
 
         await waitFor(() => latest?.follows.includes('p1') === true && latest?.followers.includes('p2') === true);
         expect(loadNetwork).toHaveBeenCalledTimes(2);
+    });
+
+    test('exposes partial follows without network error when followers fail', async () => {
+        const service: ActiveProfileQueryService = {
+            loadPosts: async () => page([]),
+            loadStats: async () => ({ followsCount: 2, followersCount: 0 }),
+            loadNetwork: async () => ({
+                ...network(['p1', 'p2'], []),
+                followersError: 'Request timed out after 10000ms',
+            }),
+        };
+
+        let latest: ActiveProfileProbeState | null = null;
+        const rendered = await renderElement(createElement(ActiveProfileProbe, {
+            pubkey: 'alice',
+            service,
+            onUpdate: (next: ActiveProfileProbeState) => {
+                latest = next;
+            },
+        }));
+        mounted.push(rendered);
+
+        await waitFor(() => latest?.follows.includes('p1') === true && latest?.follows.includes('p2') === true);
+
+        const current = latest as ActiveProfileProbeState | null;
+        expect(current?.networkError).toBeUndefined();
+        expect(current?.followersError).toBe('Request timed out after 10000ms');
     });
 
     test('returns relay suggestions provided by network query', async () => {

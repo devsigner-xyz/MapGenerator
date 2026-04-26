@@ -117,6 +117,13 @@ const DM_OUTBOX_RELAY_CAP = 8;
 const USER_SEARCH_LIMIT = 20;
 const EMPTY_SEARCH_RESULT = { pubkeys: [], profiles: {} };
 const RELAY_METADATA_TIMEOUT_MS = 4_000;
+const EMPTY_RELAY_SUGGESTIONS_BY_TYPE: RelaySettingsByType = {
+    nip65Both: [],
+    nip65Read: [],
+    nip65Write: [],
+    dmInbox: [],
+    search: [],
+};
 
 const missingGraphApiService: GraphApiService = {
     loadFollows: async (input) => ({ ownerPubkey: input.pubkey, follows: [], relayHints: [] }),
@@ -1658,37 +1665,23 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                         follows: [],
                         followers: [],
                         profiles: {},
-                        relaySuggestionsByType: {
-                            nip65Both: [],
-                            nip65Read: [],
-                            nip65Write: [],
-                            dmInbox: [],
-                            search: [],
-                        },
+                        relaySuggestionsByType: EMPTY_RELAY_SUGGESTIONS_BY_TYPE,
                     };
                 }
 
                 const primaryRelays = resolveOverlayRelays(current.data.relayHints);
                 const fallbackRelays = mergeRelaySets(primaryRelays, getBootstrapRelays());
                 const client = createClient(primaryRelays);
-                const relaySuggestionsByTypePromise = loadProfileRelaySuggestions({
+                const followsResult = await graphApiService.loadFollows({
+                    ownerPubkey,
                     pubkey,
-                    primaryClient: client,
-                    ...(!hasSameRelaySet(primaryRelays, fallbackRelays)
-                        ? { fallbackClient: createClient(fallbackRelays) }
-                        : {}),
-                    timeoutMs: RELAY_METADATA_TIMEOUT_MS,
+                    scopedReadRelays: resolveScopedReadRelays({
+                        relayHints: current.data.relayHints,
+                        suggestedRelaysByType: current.data.suggestedRelaysByType,
+                    }),
                 });
 
-                const [followsResult, followersResult, relaySuggestionsByType] = await Promise.all([
-                    graphApiService.loadFollows({
-                        ownerPubkey,
-                        pubkey,
-                        scopedReadRelays: resolveScopedReadRelays({
-                            relayHints: current.data.relayHints,
-                            suggestedRelaysByType: current.data.suggestedRelaysByType,
-                        }),
-                    }),
+                const [followersResult, relaySuggestionsByType] = await Promise.all([
                     graphApiService.loadFollowers({
                         ownerPubkey,
                         pubkey,
@@ -1697,8 +1690,19 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                             relayHints: current.data.relayHints,
                             suggestedRelaysByType: current.data.suggestedRelaysByType,
                         }),
-                    }),
-                    relaySuggestionsByTypePromise,
+                    }).catch((error: unknown) => ({
+                        followers: [],
+                        complete: false,
+                        error: error instanceof Error ? error.message : 'No se pudo cargar red social del perfil',
+                    })),
+                    loadProfileRelaySuggestions({
+                        pubkey,
+                        primaryClient: client,
+                        ...(!hasSameRelaySet(primaryRelays, fallbackRelays)
+                            ? { fallbackClient: createClient(fallbackRelays) }
+                            : {}),
+                        timeoutMs: RELAY_METADATA_TIMEOUT_MS,
+                    }).catch(() => EMPTY_RELAY_SUGGESTIONS_BY_TYPE),
                 ]);
 
                 const follows = dedupe(followsResult.follows);
@@ -1708,10 +1712,11 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                     ownerPubkey,
                     pubkeys: networkPubkeys,
                     legacyClient: client,
-                });
+                }).catch(() => ({}));
                 return {
                     follows,
                     followers,
+                    ...('error' in followersResult && followersResult.error ? { followersError: followersResult.error } : {}),
                     profiles,
                     relaySuggestionsByType,
                 };
