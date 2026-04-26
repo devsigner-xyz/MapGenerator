@@ -147,6 +147,16 @@ describe('nostr overlay query standards', () => {
         );
 
         expect(
+            nostrOverlayQueryKeys.articlesFeed({
+                ownerPubkey: 'owner',
+                follows: ['b', '', 'a', 'a'],
+                pageSize: 10,
+            })
+        ).toEqual(
+            ['nostr-overlay', 'social', 'articles-feed', { ownerPubkey: 'owner', follows: ['a', 'b'], pageSize: 10 }]
+        );
+
+        expect(
             nostrOverlayQueryKeys.nip05Batch({
                 ownerPubkey: 'owner',
                 checks: ['pubkey-b::b.example', 'pubkey-a::a.example', 'pubkey-a::a.example'],

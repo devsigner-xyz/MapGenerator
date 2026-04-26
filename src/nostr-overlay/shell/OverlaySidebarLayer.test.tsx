@@ -49,6 +49,7 @@ function createDefaultProps(overrides: Partial<ComponentProps<typeof OverlaySide
         onOpenRelays: vi.fn(),
         onOpenNotifications: vi.fn(),
         onOpenFollowingFeed: vi.fn(),
+        onOpenArticles: vi.fn(),
         onOpenGlobalSearch: vi.fn(),
         onOpenWallet: vi.fn(),
         onOpenPublish: vi.fn(),
@@ -176,6 +177,7 @@ describe('OverlaySidebarLayer', () => {
         const onOpenCityStats = vi.fn();
         const onOpenChat = vi.fn();
         const onOpenRelays = vi.fn();
+        const onOpenArticles = vi.fn();
         const onOpenGlobalSearch = vi.fn();
         const onOpenWallet = vi.fn();
         const onOpenSettings = vi.fn();
@@ -185,6 +187,7 @@ describe('OverlaySidebarLayer', () => {
             onOpenCityStats,
             onOpenChat,
             onOpenRelays,
+            onOpenArticles,
             onOpenGlobalSearch,
             onOpenWallet,
             onOpenSettings,
@@ -196,6 +199,7 @@ describe('OverlaySidebarLayer', () => {
         await clickButton(rendered.container, 'button[aria-label="Abrir estadisticas de la ciudad"]');
         await clickButton(rendered.container, 'button[aria-label="Abrir chats"]');
         await clickButton(rendered.container, 'button[aria-label="Abrir relays"]');
+        await clickButton(rendered.container, 'button[aria-label="Abrir articulos"]');
         await clickButton(rendered.container, 'button[aria-label="Abrir buscador global de usuarios"]');
         await clickButton(rendered.container, 'button[aria-label="Abrir wallet"]');
         await clickButton(rendered.container, 'button[aria-label="Abrir ajustes"]');
@@ -218,6 +222,7 @@ describe('OverlaySidebarLayer', () => {
         expect(onOpenCityStats).toHaveBeenCalledTimes(1);
         expect(onOpenChat).toHaveBeenCalledTimes(1);
         expect(onOpenRelays).toHaveBeenCalledTimes(1);
+        expect(onOpenArticles).toHaveBeenCalledTimes(1);
         expect(onOpenGlobalSearch).toHaveBeenCalledTimes(1);
         expect(onOpenWallet).toHaveBeenCalledTimes(1);
         expect(onOpenSettings).toHaveBeenCalledWith('ui');

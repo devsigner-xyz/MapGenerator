@@ -8,6 +8,9 @@ import type {
 } from '../../relay/relay-gateway.types';
 import { resolveRelaySets } from '../../relay/relay-resolver';
 import type {
+  ArticleParams,
+  ArticleResponseDto,
+  ArticlesFeedQuery,
   EngagementBody,
   EngagementResponseDto,
   FollowingFeedResponseDto,
@@ -20,6 +23,7 @@ import type {
 
 type ThreadRequest = ThreadQuery & ThreadParams;
 type EngagementRequest = EngagementBody;
+type ArticleRequest = ArticleParams;
 
 type NostrEventLike = {
   id: string;
@@ -39,6 +43,7 @@ const DEFAULT_BOOTSTRAP_RELAYS = [
 ];
 
 const SOCIAL_NOTE_KINDS = [1, 6];
+const LONG_FORM_ARTICLE_KIND = 30023;
 const ENGAGEMENT_QUERY_LIMIT = 5_000;
 
 const createEmptyEngagementTotals = () => ({
@@ -196,12 +201,22 @@ const paginateEvents = (
 
 export interface SocialServiceOptions {
   feedGateway?: RelayGateway<FollowingFeedQuery, FollowingFeedResponseDto>;
+  articlesFeedGateway?: RelayGateway<ArticlesFeedQuery, FollowingFeedResponseDto>;
+  articleGateway?: RelayGateway<ArticleRequest, ArticleResponseDto>;
   threadGateway?: RelayGateway<ThreadRequest, ThreadResponseDto>;
   engagementGateway?: RelayGateway<EngagementRequest, EngagementResponseDto>;
   fetchFollowingFeed?: (
     query: FollowingFeedQuery,
     context: RelayGatewayQueryContext,
   ) => Promise<FollowingFeedResponseDto>;
+  fetchArticlesFeed?: (
+    query: ArticlesFeedQuery,
+    context: RelayGatewayQueryContext,
+  ) => Promise<FollowingFeedResponseDto>;
+  fetchArticleById?: (
+    query: ArticleRequest,
+    context: RelayGatewayQueryContext,
+  ) => Promise<ArticleResponseDto>;
   fetchThread?: (
     query: ThreadRequest,
     context: RelayGatewayQueryContext,
@@ -217,6 +232,8 @@ export interface SocialServiceOptions {
 
 export interface SocialService {
   getFollowingFeed(query: FollowingFeedQuery): Promise<FollowingFeedResponseDto>;
+  getArticlesFeed(query: ArticlesFeedQuery): Promise<FollowingFeedResponseDto>;
+  getArticleById(query: ArticleRequest): Promise<ArticleResponseDto>;
   getThread(query: ThreadRequest): Promise<ThreadResponseDto>;
   getEngagement(query: EngagementRequest): Promise<EngagementResponseDto>;
 }
@@ -224,6 +241,8 @@ export interface SocialService {
 class GatewaySocialService implements SocialService {
   constructor(
     private readonly feedGateway: RelayGateway<FollowingFeedQuery, FollowingFeedResponseDto>,
+    private readonly articlesFeedGateway: RelayGateway<ArticlesFeedQuery, FollowingFeedResponseDto>,
+    private readonly articleGateway: RelayGateway<ArticleRequest, ArticleResponseDto>,
     private readonly threadGateway: RelayGateway<ThreadRequest, ThreadResponseDto>,
     private readonly engagementGateway: RelayGateway<EngagementRequest, EngagementResponseDto>,
   ) {}
@@ -231,6 +250,20 @@ class GatewaySocialService implements SocialService {
   async getFollowingFeed(query: FollowingFeedQuery): Promise<FollowingFeedResponseDto> {
     return this.feedGateway.query({
       key: `social:feed:${query.ownerPubkey}:${query.limit}:${query.until}:${query.hashtag ?? ''}`,
+      params: query,
+    });
+  }
+
+  async getArticlesFeed(query: ArticlesFeedQuery): Promise<FollowingFeedResponseDto> {
+    return this.articlesFeedGateway.query({
+      key: `social:articles:${query.ownerPubkey}:${query.limit}:${query.until}`,
+      params: query,
+    });
+  }
+
+  async getArticleById(query: ArticleRequest): Promise<ArticleResponseDto> {
+    return this.articleGateway.query({
+      key: `social:article:${query.eventId}`,
       params: query,
     });
   }
@@ -282,6 +315,14 @@ const createPoolFetchers = (options: {
     query: EngagementRequest,
     context: RelayGatewayQueryContext,
   ) => Promise<EngagementResponseDto>;
+  fetchArticlesFeed: (
+    query: ArticlesFeedQuery,
+    context: RelayGatewayQueryContext,
+  ) => Promise<FollowingFeedResponseDto>;
+  fetchArticleById: (
+    query: ArticleRequest,
+    context: RelayGatewayQueryContext,
+  ) => Promise<ArticleResponseDto>;
 } => {
   const queryWithFallback = async <T>(
     relaySets: ReturnType<typeof resolveRelaySets>,
@@ -360,6 +401,90 @@ const createPoolFetchers = (options: {
     };
 
     return queryWithFallback(relaySets, queryFeedOnRelays);
+  };
+
+  const fetchArticlesFeed = async (
+    query: ArticlesFeedQuery,
+    _context: RelayGatewayQueryContext,
+  ): Promise<FollowingFeedResponseDto> => {
+    const relaySets = resolveRelaySets({
+      scopedRelays: [],
+      userRelays: [],
+      bootstrapRelays: options.bootstrapRelays,
+    });
+
+    const queryArticlesOnRelays = async (relays: string[]): Promise<FollowingFeedResponseDto> => {
+      if (relays.length === 0) {
+        return {
+          items: [],
+          hasMore: false,
+          nextUntil: null,
+        };
+      }
+
+      const contactEvents = await options.pool.querySync(relays, {
+        authors: [query.ownerPubkey],
+        kinds: [3],
+        limit: 1,
+      });
+
+      const latestContactList = dedupeById(contactEvents).sort(byCreatedAtDesc)[0];
+      const follows = parseFollowsFromContactList(latestContactList);
+      if (follows.length === 0) {
+        return {
+          items: [],
+          hasMore: false,
+          nextUntil: null,
+        };
+      }
+
+      const events = await options.pool.querySync(relays, {
+        authors: follows,
+        kinds: [LONG_FORM_ARTICLE_KIND],
+        until: query.until,
+        limit: query.limit + 1,
+      });
+      const sorted = dedupeById(events).sort(byCreatedAtDesc);
+      const pagination = paginateEvents(sorted, query.limit);
+
+      return {
+        items: pagination.page.map(toEventDto),
+        hasMore: pagination.hasMore,
+        nextUntil: pagination.nextUntil,
+      };
+    };
+
+    return queryWithFallback(relaySets, queryArticlesOnRelays);
+  };
+
+  const fetchArticleById = async (
+    query: ArticleRequest,
+    _context: RelayGatewayQueryContext,
+  ): Promise<ArticleResponseDto> => {
+    const relaySets = resolveRelaySets({
+      scopedRelays: [],
+      userRelays: [],
+      bootstrapRelays: options.bootstrapRelays,
+    });
+
+    const queryArticleOnRelays = async (relays: string[]): Promise<ArticleResponseDto> => {
+      if (relays.length === 0) {
+        return { event: null };
+      }
+
+      const events = await options.pool.querySync(relays, {
+        ids: [query.eventId],
+        kinds: [LONG_FORM_ARTICLE_KIND],
+        limit: 1,
+      });
+      const event = dedupeById(events).find((candidate) => candidate.id === query.eventId && candidate.kind === LONG_FORM_ARTICLE_KIND);
+
+      return {
+        event: event ? toEventDto(event) : null,
+      };
+    };
+
+    return queryWithFallback(relaySets, queryArticleOnRelays);
   };
 
   const fetchThread = async (
@@ -507,6 +632,8 @@ const createPoolFetchers = (options: {
 
   return {
     fetchFollowingFeed,
+    fetchArticlesFeed,
+    fetchArticleById,
     fetchThread,
     fetchEngagement,
   };
@@ -524,6 +651,28 @@ export const createSocialService = (options: SocialServiceOptions = {}): SocialS
     options.feedGateway ??
     createRelayGateway<FollowingFeedQuery, FollowingFeedResponseDto>({
       queryFn: options.fetchFollowingFeed || fetchers.fetchFollowingFeed,
+      defaultTimeoutMs: options.defaultTimeoutMs,
+      cache: {
+        ttlMs: 15_000,
+        maxEntries: 300,
+      },
+    });
+
+  const articlesFeedGateway =
+    options.articlesFeedGateway ??
+    createRelayGateway<ArticlesFeedQuery, FollowingFeedResponseDto>({
+      queryFn: options.fetchArticlesFeed || fetchers.fetchArticlesFeed,
+      defaultTimeoutMs: options.defaultTimeoutMs,
+      cache: {
+        ttlMs: 15_000,
+        maxEntries: 300,
+      },
+    });
+
+  const articleGateway =
+    options.articleGateway ??
+    createRelayGateway<ArticleRequest, ArticleResponseDto>({
+      queryFn: options.fetchArticleById || fetchers.fetchArticleById,
       defaultTimeoutMs: options.defaultTimeoutMs,
       cache: {
         ttlMs: 15_000,
@@ -553,5 +702,5 @@ export const createSocialService = (options: SocialServiceOptions = {}): SocialS
       },
     });
 
-  return new GatewaySocialService(feedGateway, threadGateway, engagementGateway);
+  return new GatewaySocialService(feedGateway, articlesFeedGateway, articleGateway, threadGateway, engagementGateway);
 };

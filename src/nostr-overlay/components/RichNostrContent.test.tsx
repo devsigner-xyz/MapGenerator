@@ -40,6 +40,27 @@ afterEach(async () => {
 });
 
 describe('RichNostrContent', () => {
+    test('preserves line breaks in short note plaintext', async () => {
+        const rendered = await renderElement(<RichNostrContent content={'linea 1\nlinea 2'} />);
+        mounted.push(rendered);
+
+        const textContainer = rendered.container.querySelector('.nostr-rich-content-text');
+
+        expect(rendered.container.textContent).toContain('linea 1');
+        expect(rendered.container.textContent).toContain('linea 2');
+        expect(textContainer?.classList.contains('whitespace-pre-wrap')).toBe(true);
+    });
+
+    test('keeps markdown syntax literal for short notes', async () => {
+        const rendered = await renderElement(<RichNostrContent content={'# title\n\n**bold**'} />);
+        mounted.push(rendered);
+
+        expect(rendered.container.querySelector('h1')).toBeNull();
+        expect(rendered.container.querySelector('strong')).toBeNull();
+        expect(rendered.container.textContent).toContain('# title');
+        expect(rendered.container.textContent).toContain('**bold**');
+    });
+
     test('renders english fallbacks and actions when ui language is en', async () => {
         window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ language: 'en' }));
 

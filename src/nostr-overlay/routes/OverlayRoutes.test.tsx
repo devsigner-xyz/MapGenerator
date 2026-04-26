@@ -8,6 +8,14 @@ vi.mock('./AgoraRouteContainer', () => ({
     AgoraRouteContainer: () => <div data-testid="agora-route" />,
 }));
 
+vi.mock('./ArticlesRouteContainer', () => ({
+    ArticlesRouteContainer: () => <div data-testid="articles-route" />,
+}));
+
+vi.mock('./ArticleDetailRouteContainer', () => ({
+    ArticleDetailRouteContainer: () => <div data-testid="article-detail-route" />,
+}));
+
 vi.mock('./ChatsRouteContainer', () => ({
     ChatsRouteContainer: () => <div data-testid="chats-route" />,
 }));
@@ -116,6 +124,31 @@ function buildOverlayRoutesProps(overrides: Partial<OverlayRoutesProps> = {}): O
             zapAmounts: [],
             onConfigureZapAmounts: noop,
             onSearchUsers: async () => ({ pubkeys: [], profiles: {} }),
+        },
+        articles: {
+            items: [],
+            profilesByPubkey: {},
+            isLoading: false,
+            isRefreshing: false,
+            isLoadingMore: false,
+            error: null,
+            hasMore: false,
+            onRefresh: asyncNoop,
+            onLoadMore: asyncNoop,
+            onOpenArticle: noop,
+        },
+        articleDetail: {
+            items: [],
+            service: {
+                loadFollowingFeed: async () => ({ items: [], hasMore: false }),
+                loadArticlesFeed: async () => ({ items: [], hasMore: false }),
+                loadArticleById: async () => null,
+                loadHashtagFeed: async () => ({ items: [], hasMore: false }),
+                loadThread: async () => ({ root: null, replies: [], hasMore: false }),
+                loadEngagement: async () => ({}),
+            },
+            enabled: false,
+            onBack: noop,
         },
         cityStats: {
             buildingsCount: 0,
@@ -258,6 +291,28 @@ describe('OverlayRoutes', () => {
 
         expect(lastLocation(rendered.locations)).toBe('/login');
         expect(rendered.container.querySelector('[data-testid="agora-route"]')).toBeNull();
+    });
+
+    test('redirects protected article routes to login while login gate is visible', async () => {
+        const rendered = await renderOverlayRoutes('/agora/articles', { showLoginGate: true });
+        mounted.push(rendered);
+
+        await waitFor(() => lastLocation(rendered.locations) === '/login');
+
+        expect(lastLocation(rendered.locations)).toBe('/login');
+        expect(rendered.container.querySelector('[data-testid="articles-route"]')).toBeNull();
+    });
+
+    test('renders article list and detail routes when authenticated', async () => {
+        const list = await renderOverlayRoutes('/agora/articles');
+        mounted.push(list);
+
+        expect(list.container.querySelector('[data-testid="articles-route"]')).not.toBeNull();
+
+        const detail = await renderOverlayRoutes(`/agora/articles/${'a'.repeat(64)}`);
+        mounted.push(detail);
+
+        expect(detail.container.querySelector('[data-testid="article-detail-route"]')).not.toBeNull();
     });
 
     test('redirects login to map when authenticated', async () => {

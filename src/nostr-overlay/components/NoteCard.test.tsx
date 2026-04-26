@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
 import { nip19 } from 'nostr-tools';
 import { UI_SETTINGS_STORAGE_KEY } from '../../nostr/ui-settings';
+import { LONG_FORM_ARTICLE_KIND } from '../../nostr/articles';
 import { shortId, withoutNoteActions, type NoteCardModel } from './note-card-model';
 import { NoteCard } from './NoteCard';
 
@@ -155,6 +156,31 @@ describe('NoteCard', () => {
         expect(container.querySelector('button[aria-label="Sats recibidos: 210"]')).not.toBeNull();
         expect(container.querySelector('button[aria-label="Abrir acciones para la nota note-1"]')).not.toBeNull();
         expect(container.querySelector('button[aria-label="Copiar identificador de nota note-1"]')).toBeNull();
+    });
+
+    test('renders long-form article notes with the article preview path', async () => {
+        const { container } = await renderNoteCard({
+            ...withoutNoteActions(defaultNoteFixture),
+            id: 'article-note',
+            kindNumber: LONG_FORM_ARTICLE_KIND,
+            tags: [['title', 'Article title'], ['summary', 'Article summary']],
+            content: '# Article markdown body',
+        });
+
+        expect(container.textContent).toContain('Article title');
+        expect(container.textContent).toContain('Article summary');
+        expect(container.textContent).not.toContain('# Article markdown body');
+    });
+
+    test('continues rendering short notes through rich plaintext content', async () => {
+        const { container } = await renderNoteCard({
+            ...withoutNoteActions(defaultNoteFixture),
+            kindNumber: 1,
+            content: '# literal heading',
+        });
+
+        expect(container.querySelector('h1')).toBeNull();
+        expect(container.textContent).toContain('# literal heading');
     });
 
     test('opens note detail on card click when view detail is available', async () => {

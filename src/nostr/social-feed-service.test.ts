@@ -1,11 +1,13 @@
 import { describe, expect, expectTypeOf, test } from 'vitest';
 import type { NostrEvent, NostrFilter } from './types';
+import { LONG_FORM_ARTICLE_KIND } from './articles';
 import {
     extractTargetEventId,
     isMainFeedEvent,
     isReplyEvent,
     type SocialEngagementMetrics,
     type SocialFeedService,
+    toArticleFeedItem,
     toSocialFeedItem,
 } from './social-feed-service';
 
@@ -123,6 +125,24 @@ describe('social-feed-service domain helpers', () => {
         expect(isMainFeedEvent(reaction)).toBe(false);
         expect(toSocialFeedItem(reaction)).toBeNull();
     });
+
+    test('maps long-form articles to article feed items', () => {
+        const article = event({
+            id: 'article-1',
+            kind: LONG_FORM_ARTICLE_KIND,
+            content: 'Article body',
+        });
+
+        expect(toArticleFeedItem(article)).toMatchObject({
+            id: 'article-1',
+            kind: 'article',
+            eventKind: LONG_FORM_ARTICLE_KIND,
+        });
+    });
+
+    test('excludes short notes from article feed items', () => {
+        expect(toArticleFeedItem(event({ id: 'note-article-ignore', kind: 1 }))).toBeNull();
+    });
 });
 
 describe('social-feed-service contracts', () => {
@@ -155,6 +175,8 @@ describe('social-feed-service contracts', () => {
     test('exposes hashtag feed loading on social feed service', () => {
         expectTypeOf<SocialFeedService>().toEqualTypeOf<{
             loadFollowingFeed: SocialFeedService['loadFollowingFeed'];
+            loadArticlesFeed: SocialFeedService['loadArticlesFeed'];
+            loadArticleById: SocialFeedService['loadArticleById'];
             loadThread: SocialFeedService['loadThread'];
             loadEngagement: SocialFeedService['loadEngagement'];
             loadHashtagFeed: SocialFeedService['loadHashtagFeed'];

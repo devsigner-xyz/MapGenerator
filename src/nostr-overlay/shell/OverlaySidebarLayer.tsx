@@ -31,6 +31,7 @@ interface OverlaySidebarLayerProps {
     onOpenRelays: () => void;
     onOpenNotifications: () => void;
     onOpenFollowingFeed: () => void;
+    onOpenArticles: () => void;
     onOpenGlobalSearch: () => void;
     onOpenWallet: () => void;
     onOpenPublish: () => void;
@@ -83,6 +84,7 @@ export function OverlaySidebarLayer({
     onOpenRelays,
     onOpenNotifications,
     onOpenFollowingFeed,
+    onOpenArticles,
     onOpenGlobalSearch,
     onOpenWallet,
     onOpenPublish,
@@ -138,6 +140,7 @@ export function OverlaySidebarLayer({
             onOpenRelays={onOpenRelays}
             onOpenNotifications={onOpenNotifications}
             onOpenFollowingFeed={onOpenFollowingFeed}
+            onOpenArticles={onOpenArticles}
             onOpenGlobalSearch={onOpenGlobalSearch}
             onOpenWallet={onOpenWallet}
             onOpenPublish={onOpenPublish}

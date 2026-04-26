@@ -7,6 +7,7 @@ import { kindLabel } from './note-card-model';
 interface EmbeddedRepostInput {
     id: string;
     pubkey: string;
+    kind?: number;
     createdAt: number;
     content: string;
     tags: string[][];
@@ -35,6 +36,7 @@ export function fromPostPreview(post: NostrPostPreview, actions?: NoteActionStat
         createdAt: post.createdAt,
         content: post.content,
         tags: safeTags(post.rawEvent?.tags),
+        kindNumber: post.rawEvent?.kind ?? 1,
         variant: 'default',
         showCopyId: true,
         nestingLevel: 0,
@@ -55,6 +57,7 @@ export function fromFeedItem(item: SocialFeedItem, actions?: NoteActionState): N
         createdAt: item.createdAt,
         content: item.content || '',
         tags: safeTags(item.rawEvent?.tags),
+        kindNumber: item.eventKind ?? item.rawEvent?.kind ?? 1,
         variant: 'default',
         ...(label !== undefined ? { kindLabel: label } : {}),
         showCopyId: true,
@@ -80,6 +83,7 @@ export function fromThreadItem(
         createdAt: item.createdAt,
         content: item.content || '',
         tags: safeTags(item.rawEvent?.tags),
+        kindNumber: item.eventKind,
         variant,
         ...(label !== undefined ? { kindLabel: label } : {}),
         showCopyId: true,
@@ -99,6 +103,7 @@ export function fromResolvedReferenceEvent(event: NostrEvent, nestingLevel = 1):
         createdAt: event.created_at,
         content: event.content || '',
         tags: safeTags(event.tags),
+        kindNumber: event.kind,
         variant: 'nested',
         showCopyId: true,
         nestingLevel,
@@ -116,6 +121,7 @@ export function fromEmbeddedRepost(input: EmbeddedRepostInput, nestingLevel = 1,
         createdAt: input.createdAt,
         content: input.content || '',
         tags: safeTags(input.tags),
+        kindNumber: input.kind ?? 1,
         variant: 'nested',
         showCopyId: true,
         nestingLevel,

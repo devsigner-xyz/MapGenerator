@@ -133,6 +133,92 @@ describe('social service pagination', () => {
     expect(result.nextUntil).toBe(29);
   });
 
+  it('loads articles from followed authors with NIP-23 kind', async () => {
+    const pool = {
+      querySync: vi.fn(async (_relays: string[], filter: Record<string, unknown>) => {
+        if (Array.isArray(filter.kinds) && filter.kinds[0] === 3) {
+          return [
+            {
+              id: '1'.repeat(64),
+              pubkey: OWNER,
+              kind: 3,
+              created_at: 100,
+              tags: [['p', FOLLOW]],
+              content: '',
+            },
+          ];
+        }
+
+        return [
+          {
+            id: '2'.repeat(64),
+            pubkey: FOLLOW,
+            kind: 30023,
+            created_at: 30,
+            tags: [['title', 'Article']],
+            content: '# Article',
+          },
+        ];
+      }),
+    } as unknown as SimplePool;
+
+    const service = createSocialService({
+      pool,
+      bootstrapRelays: ['wss://relay.damus.io'],
+    });
+
+    const result = await service.getArticlesFeed({
+      ownerPubkey: OWNER,
+      limit: 2,
+      until: 999,
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]?.kind).toBe(30023);
+    expect(pool.querySync).toHaveBeenLastCalledWith(
+      ['wss://relay.damus.io'],
+      expect.objectContaining({
+        authors: [FOLLOW],
+        kinds: [30023],
+        until: 999,
+        limit: 3,
+      }),
+    );
+  });
+
+  it('loads article detail by id with NIP-23 kind guard', async () => {
+    const pool = {
+      querySync: vi.fn(async () => [
+        {
+          id: ROOT_EVENT_ID,
+          pubkey: FOLLOW,
+          kind: 30023,
+          created_at: 30,
+          tags: [['title', 'Article']],
+          content: '# Article',
+        },
+      ]),
+    } as unknown as SimplePool;
+
+    const service = createSocialService({
+      pool,
+      bootstrapRelays: ['wss://relay.damus.io'],
+    });
+
+    const result = await service.getArticleById({ eventId: ROOT_EVENT_ID });
+
+    expect(result.event?.id).toBe(ROOT_EVENT_ID);
+    expect(result.event?.kind).toBe(30023);
+    expect(pool.querySync).toHaveBeenCalledWith(
+      ['wss://relay.damus.io'],
+      {
+        ids: [ROOT_EVENT_ID],
+        kinds: [30023],
+        limit: 1,
+      },
+    );
+  });
+
   it('aggregates engagement counters by event id', async () => {
     const eventA = 'd'.repeat(64);
     const eventB = 'e'.repeat(64);

@@ -1,6 +1,11 @@
 import type { FastifyPluginAsync } from 'fastify';
 
 import {
+  articleParamsSchema,
+  articleResponseSchema,
+  articlesFeedQuerySchema,
+  type ArticleParams,
+  type ArticlesFeedQuery,
   engagementBodySchema,
   engagementResponseSchema,
   type EngagementBody,
@@ -39,6 +44,40 @@ export const socialRoutes: FastifyPluginAsync<SocialRoutesOptions> = async (
     },
     async (request) => {
       return service.getFollowingFeed(request.query);
+    },
+  );
+
+  app.get<{
+    Querystring: ArticlesFeedQuery;
+  }>(
+    '/social/feed/articles',
+    {
+      schema: {
+        querystring: articlesFeedQuerySchema,
+        response: {
+          200: followingFeedResponseSchema,
+        },
+      },
+    },
+    async (request) => {
+      return service.getArticlesFeed(request.query);
+    },
+  );
+
+  app.get<{
+    Params: ArticleParams;
+  }>(
+    '/social/articles/:eventId',
+    {
+      schema: {
+        params: articleParamsSchema,
+        response: {
+          200: articleResponseSchema,
+        },
+      },
+    },
+    async (request) => {
+      return service.getArticleById(request.params);
     },
   );
 

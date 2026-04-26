@@ -1,4 +1,5 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import type { NostrEvent } from '../../nostr/types';
 import type {
     SocialEngagementByEventId,
     SocialFeedPage,
@@ -20,6 +21,20 @@ interface UseFollowingFeedInfiniteQueryOptions {
     service: SocialFeedService;
     enabled: boolean;
     pageSize?: number;
+}
+
+interface UseArticlesFeedInfiniteQueryOptions {
+    ownerPubkey?: string;
+    follows: string[];
+    service: SocialFeedService;
+    enabled: boolean;
+    pageSize?: number;
+}
+
+interface UseArticleDetailQueryOptions {
+    eventId: string | null;
+    service: SocialFeedService;
+    enabled: boolean;
 }
 
 interface UseThreadInfiniteQueryOptions {
@@ -75,6 +90,40 @@ export function useFollowingFeedInfiniteQuery(options: UseFollowingFeedInfiniteQ
         enabled: options.enabled && (Boolean(hashtag) || follows.length > 0),
         initialPageParam: undefined,
         getNextPageParam: (lastPage: SocialFeedPage) => (lastPage.hasMore ? lastPage.nextUntil : undefined),
+    }));
+}
+
+export function useArticlesFeedInfiniteQuery(options: UseArticlesFeedInfiniteQueryOptions) {
+    const follows = normalizeEventIds(options.follows);
+    const pageSize = Math.max(1, options.pageSize ?? DEFAULT_FEED_PAGE_SIZE);
+
+    return useInfiniteQuery<SocialFeedPage, Error>(createSocialQueryOptions({
+        queryKey: nostrOverlayQueryKeys.articlesFeed({
+            ...(options.ownerPubkey ? { ownerPubkey: options.ownerPubkey } : {}),
+            follows,
+            pageSize,
+        }),
+        queryFn: ({ pageParam }: { pageParam: unknown }) => {
+            const until = typeof pageParam === 'number' ? pageParam : undefined;
+            return options.service.loadArticlesFeed({
+                authors: follows,
+                limit: pageSize,
+                ...(until !== undefined ? { until } : {}),
+            });
+        },
+        enabled: options.enabled && follows.length > 0,
+        initialPageParam: undefined,
+        getNextPageParam: (lastPage: SocialFeedPage) => (lastPage.hasMore ? lastPage.nextUntil : undefined),
+    }));
+}
+
+export function useArticleDetailQuery(options: UseArticleDetailQueryOptions) {
+    const eventId = options.eventId?.trim() || null;
+
+    return useQuery<NostrEvent | null, Error>(createSocialQueryOptions({
+        queryKey: nostrOverlayQueryKeys.articleDetail({ eventId: eventId ?? '__none__' }),
+        queryFn: () => eventId ? options.service.loadArticleById({ eventId }) : Promise.resolve(null),
+        enabled: options.enabled && Boolean(eventId),
     }));
 }
 

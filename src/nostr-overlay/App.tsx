@@ -12,6 +12,7 @@ import { loadZapSettings, type ZapSettingsState } from '../nostr/zap-settings';
 import { useNostrOverlay } from './hooks/useNostrOverlay';
 import { useNip05Verification } from './hooks/useNip05Verification';
 import { useOverlaySocialFeedController } from './controllers/use-overlay-social-feed-controller';
+import { useOverlayArticlesController } from './controllers/use-overlay-articles-controller';
 import { useOverlayNotificationsController } from './controllers/use-overlay-notifications-controller';
 import { useOverlayDmController } from './controllers/use-overlay-dm-controller';
 import { useWalletZapController, type ZapIntentInput } from './controllers/use-wallet-zap-controller';
@@ -84,6 +85,8 @@ export function App({ mapBridge, services }: AppProps) {
         activeAgoraHashtag,
         isMapRoute,
         isAgoraRoute,
+        isArticlesRoute,
+        isArticleDetailRoute,
         isChatsRoute,
         isNotificationsRoute,
         isUiSettingsDialogOpen,
@@ -282,6 +285,12 @@ export function App({ mapBridge, services }: AppProps) {
         service: overlay.socialFeedService,
         ...((overlay.socialPublisher ?? overlay.writeGateway) ? { writeGateway: overlay.socialPublisher ?? overlay.writeGateway } : {}),
         onFollowPerson: handleFollowPerson,
+    });
+    const articles = useOverlayArticlesController({
+        ...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {}),
+        follows: overlay.follows,
+        isArticlesRoute: isArticlesRoute || isArticleDetailRoute,
+        service: overlay.socialFeedService,
     });
     const followingFeed = socialFeed.followingFeed;
     const followPerson = socialFeed.followPerson;
@@ -516,6 +525,14 @@ export function App({ mapBridge, services }: AppProps) {
         }
 
         navigate('/agora');
+    };
+
+    const openArticles = (): void => {
+        if (!canAccessFollowingFeed) {
+            return;
+        }
+
+        navigate('/agora/articles');
     };
 
     const openPublishComposer = (): void => {
@@ -829,6 +846,7 @@ export function App({ mapBridge, services }: AppProps) {
                     onOpenRelays={openRelaysPage}
                     onOpenNotifications={openNotifications}
                     onOpenFollowingFeed={openFollowingFeed}
+                    onOpenArticles={openArticles}
                     onOpenGlobalSearch={openGlobalUserSearch}
                     onOpenWallet={() => navigate('/wallet')}
                     onOpenPublish={openPublishComposer}
@@ -959,6 +977,24 @@ export function App({ mapBridge, services }: AppProps) {
                         onSearchUsers: overlay.searchUsers,
                         ownerPubkey: overlay.ownerPubkey,
                         searchRelaySetKey: userSearchRelaySetKey,
+                    }}
+                    articles={{
+                        items: articles.items,
+                        profilesByPubkey: richContentProfilesByPubkey,
+                        isLoading: articles.isLoading,
+                        isRefreshing: articles.isRefreshing,
+                        isLoadingMore: articles.isLoadingMore,
+                        error: articles.error,
+                        hasMore: articles.hasMore,
+                        onRefresh: articles.refresh,
+                        onLoadMore: articles.loadMore,
+                        onOpenArticle: (eventId) => navigate(`/agora/articles/${eventId}`),
+                    }}
+                    articleDetail={{
+                        items: articles.items,
+                        service: overlay.socialFeedService,
+                        enabled: Boolean(overlay.ownerPubkey),
+                        onBack: () => navigate('/agora/articles'),
                     }}
                     cityStats={{
                         buildingsCount: overlay.buildingsCount,

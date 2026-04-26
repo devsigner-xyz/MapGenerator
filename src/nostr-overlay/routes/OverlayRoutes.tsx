@@ -7,6 +7,8 @@ import { SettingsAdvancedRoute } from '../components/settings-routes/SettingsAdv
 import { SettingsShortcutsRoute } from '../components/settings-routes/SettingsShortcutsRoute';
 import { SettingsZapsRoute } from '../components/settings-routes/SettingsZapsRoute';
 import { AgoraRouteContainer, type AgoraRouteContainerProps } from './AgoraRouteContainer';
+import { ArticleDetailRouteContainer, type ArticleDetailRouteContainerProps } from './ArticleDetailRouteContainer';
+import { ArticlesRouteContainer, type ArticlesRouteContainerProps } from './ArticlesRouteContainer';
 import { ChatsRouteContainer, type ChatsRouteContainerProps } from './ChatsRouteContainer';
 import { CityStatsRouteContainer, type CityStatsRouteContainerProps } from './CityStatsRouteContainer';
 import { DiscoverRouteContainer, type DiscoverRouteContainerProps } from './DiscoverRouteContainer';
@@ -20,6 +22,8 @@ export interface OverlayRoutesProps {
     sessionRestorationResolved: boolean;
     locationSearch: string;
     agora: AgoraRouteContainerProps;
+    articles: ArticlesRouteContainerProps;
+    articleDetail: ArticleDetailRouteContainerProps;
     cityStats: CityStatsRouteContainerProps;
     notifications: NotificationsRouteContainerProps;
     chats: ChatsRouteContainerProps;
@@ -36,6 +40,8 @@ export function OverlayRoutes({
     sessionRestorationResolved,
     locationSearch,
     agora,
+    articles,
+    articleDetail,
     cityStats,
     notifications,
     chats,
@@ -59,6 +65,8 @@ export function OverlayRoutes({
             ) : (
                 <>
                     <Route path="/agora" element={<AgoraRouteContainer {...agora} />} />
+                    <Route path="/agora/articles" element={<ArticlesRouteContainer {...articles} />} />
+                    <Route path="/agora/articles/:eventId" element={<ArticleDetailRouteContainer {...articleDetail} />} />
                     <Route path="/estadisticas" element={<CityStatsRouteContainer {...cityStats} />} />
                     <Route path="/notificaciones" element={<NotificationsRouteContainer {...notifications} />} />
                     <Route path="/chats" element={<ChatsRouteContainer {...chats} />} />

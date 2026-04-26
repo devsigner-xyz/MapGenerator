@@ -5,6 +5,16 @@ export interface FollowingFeedQuery {
   hashtag?: string;
 }
 
+export interface ArticlesFeedQuery {
+  ownerPubkey: string;
+  limit: number;
+  until: number;
+}
+
+export interface ArticleParams {
+  eventId: string;
+}
+
 export interface ThreadParams {
   rootEventId: string;
 }
@@ -33,6 +43,10 @@ export interface FollowingFeedResponseDto {
   items: SocialEventDto[];
   hasMore: boolean;
   nextUntil: number | null;
+}
+
+export interface ArticleResponseDto {
+  event: SocialEventDto | null;
 }
 
 export interface ThreadResponseDto {
@@ -80,6 +94,39 @@ export const followingFeedQuerySchema = {
       type: 'string',
       minLength: 1,
       maxLength: 64,
+    },
+  },
+} as const;
+
+export const articlesFeedQuerySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['ownerPubkey', 'limit', 'until'],
+  properties: {
+    ownerPubkey: {
+      type: 'string',
+      pattern: LOWER_HEX_64_PATTERN,
+    },
+    limit: {
+      type: 'integer',
+      minimum: 1,
+      maximum: 100,
+    },
+    until: {
+      type: 'integer',
+      minimum: 0,
+    },
+  },
+} as const;
+
+export const articleParamsSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['eventId'],
+  properties: {
+    eventId: {
+      type: 'string',
+      pattern: LOWER_HEX_64_PATTERN,
     },
   },
 } as const;
@@ -192,6 +239,17 @@ export const followingFeedResponseSchema = {
     nextUntil: {
       type: ['integer', 'null'],
       minimum: 0,
+    },
+  },
+} as const;
+
+export const articleResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['event'],
+  properties: {
+    event: {
+      anyOf: [socialEventSchema, { type: 'null' }],
     },
   },
 } as const;

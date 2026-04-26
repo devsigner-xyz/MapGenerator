@@ -16,6 +16,14 @@ describe('social routes', () => {
       hasMore: false,
       nextUntil: null,
     }),
+    getArticlesFeed: async () => ({
+      items: [],
+      hasMore: false,
+      nextUntil: null,
+    }),
+    getArticleById: async () => ({
+      event: null,
+    }),
     getThread: async () => ({
       root: null,
       replies: [],
@@ -58,6 +66,32 @@ describe('social routes', () => {
       items: [],
       hasMore: false,
       nextUntil: null,
+    });
+  });
+
+  it('returns articles feed envelope for valid query', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: `/v1/social/feed/articles?ownerPubkey=${VALID_PUBKEY}&limit=20&until=1719000000`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      items: [],
+      hasMore: false,
+      nextUntil: null,
+    });
+  });
+
+  it('returns article detail envelope for valid event id', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: `/v1/social/articles/${VALID_EVENT_ID}`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      event: null,
     });
   });
 
@@ -144,6 +178,20 @@ describe('social routes', () => {
     });
   });
 
+  it('returns 400 when articles query is missing ownerPubkey', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/v1/social/feed/articles?limit=20&until=1719000000',
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({
+      error: {
+        code: 'VALIDATION_ERROR',
+      },
+    });
+  });
+
   it('returns 400 when ownerPubkey is not lowercase hex', async () => {
     const response = await app.inject({
       method: 'GET',
@@ -218,6 +266,20 @@ describe('social routes', () => {
     const response = await app.inject({
       method: 'GET',
       url: '/v1/social/thread/not-a-valid-event-id?limit=20&until=1719000000',
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({
+      error: {
+        code: 'VALIDATION_ERROR',
+      },
+    });
+  });
+
+  it('returns 400 when article detail path param is invalid', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/v1/social/articles/not-a-valid-event-id',
     });
 
     expect(response.statusCode).toBe(400);

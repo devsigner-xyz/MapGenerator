@@ -1,7 +1,9 @@
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import { EllipsisVerticalIcon, HeartIcon, MessageCircleIcon, Repeat2Icon, ZapIcon } from 'lucide-react';
 import type { NostrEvent, NostrProfile } from '../../nostr/types';
+import { LONG_FORM_ARTICLE_KIND } from '../../nostr/articles';
 import { profileHasZapEndpoint } from '../../nostr/zaps';
+import { ArticlePreviewCard } from './ArticlePreviewCard';
 import { RichNostrContent } from './RichNostrContent';
 import { fromResolvedReferenceEvent } from './note-card-adapters';
 import type { NoteActionState, NoteCardModel } from './note-card-model';
@@ -61,6 +63,17 @@ function profileInitials(pubkey: string, profile: NostrProfile | undefined): str
     }
 
     return `${words[0]?.[0] || ''}${words[1]?.[0] || ''}`.toUpperCase();
+}
+
+function eventFromNote(note: NoteCardModel): NostrEvent {
+    return {
+        id: note.id,
+        pubkey: note.pubkey,
+        kind: note.kindNumber ?? 1,
+        created_at: note.createdAt,
+        tags: note.tags,
+        content: note.content,
+    };
 }
 
 function truncateTo140(content: string, _t: I18nContextValue['t']): string {
@@ -451,6 +464,8 @@ export function NoteCard({
                                 </Button>
                             ) : null}
                         </div>
+                    ) : note.kindNumber === LONG_FORM_ARTICLE_KIND ? (
+                        <ArticlePreviewCard event={eventFromNote(note)} authorLabel={profileDisplayName(note.pubkey, profile)} />
                     ) : (
                         <RichNostrContent
                             content={note.content}

@@ -703,8 +703,9 @@
 }
 
 .nostr-list-loading-footer {
-    display: inline-flex;
+    display: flex;
     align-items: center;
+    justify-content: center;
     gap: 0.35rem;
     color: #4a6270;
     font-size: 0.8rem;

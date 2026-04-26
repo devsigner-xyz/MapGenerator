@@ -7,6 +7,16 @@ export interface FollowingFeedQueryInput {
     pageSize?: number;
 }
 
+export interface ArticlesFeedQueryInput {
+    ownerPubkey?: string;
+    follows: string[];
+    pageSize?: number;
+}
+
+export interface ArticleDetailQueryInput {
+    eventId: string;
+}
+
 export interface ThreadQueryInput {
     rootEventId: string;
     pageSize?: number;

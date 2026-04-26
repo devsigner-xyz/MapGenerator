@@ -1,6 +1,7 @@
 import type { NostrEvent } from './types';
+import { isLongFormArticleEvent } from './articles';
 
-export type SocialFeedItemKind = 'note' | 'repost';
+export type SocialFeedItemKind = 'note' | 'repost' | 'article';
 
 export interface SocialFeedItem {
     id: string;
@@ -8,6 +9,7 @@ export interface SocialFeedItem {
     createdAt: number;
     content: string;
     kind: SocialFeedItemKind;
+    eventKind?: number;
     targetEventId?: string;
     rawEvent: NostrEvent;
 }
@@ -41,6 +43,16 @@ export interface LoadFollowingFeedInput {
     until?: number;
 }
 
+export interface LoadArticlesFeedInput {
+    authors: string[];
+    limit?: number;
+    until?: number;
+}
+
+export interface LoadArticleByIdInput {
+    eventId: string;
+}
+
 export interface LoadHashtagFeedInput {
     hashtag: string;
     limit?: number;
@@ -71,6 +83,8 @@ export type SocialEngagementByEventId = Record<string, SocialEngagementMetrics>;
 
 export interface SocialFeedService {
     loadFollowingFeed(input: LoadFollowingFeedInput): Promise<SocialFeedPage>;
+    loadArticlesFeed(input: LoadArticlesFeedInput): Promise<SocialFeedPage>;
+    loadArticleById(input: LoadArticleByIdInput): Promise<NostrEvent | null>;
     loadHashtagFeed(input: LoadHashtagFeedInput): Promise<SocialFeedPage>;
     loadThread(input: LoadThreadInput): Promise<SocialThreadPage>;
     loadEngagement(input: LoadEngagementInput): Promise<SocialEngagementByEventId>;
@@ -164,6 +178,7 @@ export function toSocialFeedItem(event: NostrEvent): SocialFeedItem | null {
         createdAt: event.created_at,
         content: event.content,
         kind: event.kind === 1 ? 'note' : 'repost',
+        eventKind: event.kind,
         rawEvent: event,
     };
 
@@ -173,6 +188,22 @@ export function toSocialFeedItem(event: NostrEvent): SocialFeedItem | null {
     }
 
     return item;
+}
+
+export function toArticleFeedItem(event: NostrEvent): SocialFeedItem | null {
+    if (!isLongFormArticleEvent(event)) {
+        return null;
+    }
+
+    return {
+        id: event.id,
+        pubkey: event.pubkey,
+        createdAt: event.created_at,
+        content: event.content,
+        kind: 'article',
+        eventKind: event.kind,
+        rawEvent: event,
+    };
 }
 
 export function toSocialThreadItem(event: NostrEvent): SocialThreadItem {

@@ -13,7 +13,7 @@ export function ListLoadingFooter({ loading, label = 'Cargando mas...' }: ListLo
     }
 
     return (
-        <div className="nostr-list-loading-footer" role="status" aria-live="polite">
+        <div className="nostr-list-loading-footer flex w-full justify-center" role="status" aria-live="polite">
             <Spinner />
             <span>{label === 'Cargando mas...' ? t('listLoadingFooter.default') : label}</span>
         </div>

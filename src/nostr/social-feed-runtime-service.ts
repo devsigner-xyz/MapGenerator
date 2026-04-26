@@ -1,4 +1,5 @@
 import { createLazyNdkDmTransport } from './lazy-ndk-client';
+import { LONG_FORM_ARTICLE_KIND } from './articles';
 import { resolveConservativeSocialRelaySets, hasSameRelaySet, normalizeRelaySet } from './relay-runtime';
 import { createTransportPool, type TransportPool } from './transport-pool';
 import type { DmTransport } from './dm-transport';
@@ -6,7 +7,10 @@ import {
     extractTargetEventId,
     isReplyEvent,
     isMainFeedEvent,
+    type LoadArticlesFeedInput,
+    type LoadArticleByIdInput,
     type LoadHashtagFeedInput,
+    toArticleFeedItem,
     toSocialFeedItem,
     toSocialThreadItem,
     type LoadEngagementInput,
@@ -22,6 +26,7 @@ import {
 import type { NostrEvent, NostrFilter } from './types';
 
 const MAIN_FEED_KINDS = [1, 6, 16] as const;
+const ARTICLE_FEED_KINDS = [LONG_FORM_ARTICLE_KIND] as const;
 const THREAD_REPLY_KINDS = [1] as const;
 const ENGAGEMENT_KINDS = [1, 6, 7, 16, 9735] as const;
 
@@ -486,6 +491,67 @@ export function createRuntimeSocialFeedService(
                 }
 
                 return result;
+            });
+        },
+
+        async loadArticlesFeed(input: LoadArticlesFeedInput): Promise<SocialFeedPage> {
+            const authors = [...new Set(input.authors.filter((pubkey) => typeof pubkey === 'string' && pubkey.length > 0))];
+            if (authors.length === 0) {
+                return {
+                    items: [],
+                    hasMore: false,
+                };
+            }
+
+            return withRelayFallback(async (transport) => {
+                const limit = clampLimit(input.limit, DEFAULT_FEED_LIMIT);
+                const queryLimit = resolveQueryLimit(limit);
+                const authorChunks = chunkAuthors(authors);
+                const batchEvents: NostrEvent[] = [];
+
+                for (const authorChunk of authorChunks) {
+                    const filter: NostrFilter = {
+                        authors: authorChunk,
+                        kinds: [...ARTICLE_FEED_KINDS],
+                        limit: queryLimit,
+                    };
+                    if (typeof input.until === 'number') {
+                        filter.until = input.until;
+                    }
+
+                    const events = await fetchBackfillWithTimeout(transport, [filter], backfillTimeoutMs);
+                    batchEvents.push(...events);
+                }
+
+                const sortedItems = sortAndDedupe(batchEvents)
+                    .map(toArticleFeedItem)
+                    .filter((item): item is NonNullable<typeof item> => item !== null)
+                    .sort((left, right) => right.createdAt - left.createdAt || left.id.localeCompare(right.id));
+
+                const pageItems = sortedItems.slice(0, limit);
+                const hasMore = sortedItems.length > limit;
+                const result: SocialFeedPage = { items: pageItems, hasMore };
+                const nextUntil = hasMore ? nextUntilFromItems(pageItems) : undefined;
+                if (typeof nextUntil === 'number') {
+                    result.nextUntil = nextUntil;
+                }
+                return result;
+            });
+        },
+
+        async loadArticleById(input: LoadArticleByIdInput): Promise<NostrEvent | null> {
+            const eventId = input.eventId.trim();
+            if (!eventId) {
+                return null;
+            }
+
+            return withRelayFallback(async (transport) => {
+                const events = await fetchBackfillWithTimeout(transport, [{
+                    ids: [eventId],
+                    kinds: [...ARTICLE_FEED_KINDS],
+                    limit: 1,
+                }], backfillTimeoutMs);
+                return sortAndDedupe(events).find((event) => event.id === eventId && event.kind === LONG_FORM_ARTICLE_KIND) ?? null;
             });
         },
 

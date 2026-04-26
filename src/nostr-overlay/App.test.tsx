@@ -256,6 +256,8 @@ function createSocialNotificationsServiceMock() {
 function createSocialFeedServiceMock() {
     const service: SocialFeedService = {
         loadFollowingFeed: vi.fn(async () => ({ items: [], hasMore: false })),
+        loadArticlesFeed: vi.fn(async () => ({ items: [], hasMore: false })),
+        loadArticleById: vi.fn(async () => null),
         loadHashtagFeed: vi.fn(async () => ({ items: [], hasMore: false })),
         loadThread: vi.fn(async () => ({ root: null, replies: [], hasMore: false })),
         loadEngagement: vi.fn(async () => ({})),

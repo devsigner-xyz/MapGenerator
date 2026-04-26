@@ -1,4 +1,5 @@
 import {
+    toArticleFeedItem,
     toSocialFeedItem,
     toSocialThreadItem,
     type SocialEngagementByEventId,
@@ -44,6 +45,10 @@ interface EngagementResponseDto {
     byEventId: Record<string, EngagementMetricsDto>;
 }
 
+interface ArticleDetailResponseDto {
+    event: SocialEventDto | null;
+}
+
 export interface CreateSocialFeedApiServiceOptions {
     client?: HttpClient;
     resolveOwnerPubkey?: () => string | undefined;
@@ -65,6 +70,23 @@ function toNostrEvent(dto: SocialEventDto): NostrEvent {
 function mapFeedResponse(dto: FollowingFeedResponseDto): SocialFeedPage {
     const items = dto.items
         .map((item) => toSocialFeedItem(toNostrEvent(item)))
+        .filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+    const page: SocialFeedPage = {
+        items,
+        hasMore: dto.hasMore,
+    };
+
+    if (typeof dto.nextUntil === 'number') {
+        page.nextUntil = dto.nextUntil;
+    }
+
+    return page;
+}
+
+function mapArticlesFeedResponse(dto: FollowingFeedResponseDto): SocialFeedPage {
+    const items = dto.items
+        .map((item) => toArticleFeedItem(toNostrEvent(item)))
         .filter((item): item is NonNullable<typeof item> => Boolean(item));
 
     const page: SocialFeedPage = {
@@ -139,6 +161,36 @@ export function createSocialFeedApiService(options: CreateSocialFeedApiServiceOp
             });
 
             return mapFeedResponse(response);
+        },
+
+        async loadArticlesFeed(input) {
+            if (!input.authors || input.authors.length === 0) {
+                return {
+                    items: [],
+                    hasMore: false,
+                };
+            }
+
+            const ownerPubkey = resolveOwnerPubkeyOrThrow(options.resolveOwnerPubkey);
+            const response = await client.getJson<FollowingFeedResponseDto>('/social/feed/articles', {
+                query: {
+                    ownerPubkey,
+                    limit: input.limit ?? 20,
+                    until: input.until ?? now(),
+                },
+            });
+
+            return mapArticlesFeedResponse(response);
+        },
+
+        async loadArticleById(input) {
+            const eventId = input.eventId.trim();
+            if (!eventId) {
+                return null;
+            }
+
+            const response = await client.getJson<ArticleDetailResponseDto>(`/social/articles/${encodeURIComponent(eventId)}`);
+            return response.event ? toNostrEvent(response.event) : null;
         },
 
         async loadThread(input) {

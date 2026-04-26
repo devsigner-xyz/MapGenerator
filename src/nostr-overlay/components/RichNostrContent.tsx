@@ -700,7 +700,7 @@ export function RichNostrContent({
     return (
         <div className="nostr-rich-content-stack">
             {normalizedContent && hasVisibleInlineToken ? (
-                <p className={textClassName || 'nostr-rich-content-text'}>
+                <p className={textClassName || 'nostr-rich-content-text whitespace-pre-wrap break-words'}>
                     {inlineNodes}
                 </p>
             ) : (!hasEventReferences ? (emptyFallback || null) : null)}

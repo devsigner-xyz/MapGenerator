@@ -29,6 +29,8 @@ export function useOverlayRouteState() {
 
     const isMapRoute = location.pathname === '/';
     const isAgoraRoute = location.pathname === '/agora';
+    const isArticlesRoute = location.pathname === '/agora/articles';
+    const isArticleDetailRoute = location.pathname.startsWith('/agora/articles/');
     const isChatsRoute = location.pathname === '/chats';
     const isNotificationsRoute = location.pathname === '/notificaciones';
 
@@ -83,6 +85,8 @@ export function useOverlayRouteState() {
         activeSettingsView,
         isMapRoute,
         isAgoraRoute,
+        isArticlesRoute,
+        isArticleDetailRoute,
         isChatsRoute,
         isNotificationsRoute,
         isUiSettingsDialogOpen,

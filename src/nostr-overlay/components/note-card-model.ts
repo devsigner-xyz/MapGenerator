@@ -26,6 +26,7 @@ export interface NoteCardModel {
     createdAt: number;
     content: string;
     tags: string[][];
+    kindNumber?: number;
     variant: NoteCardVariant;
     showCopyId: boolean;
     nestingLevel: number;

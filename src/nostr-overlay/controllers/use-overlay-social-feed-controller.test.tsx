@@ -18,6 +18,8 @@ const mountedRoots: RenderResult[] = [];
 
 const service: SocialFeedService = {
     loadFollowingFeed: async () => ({ items: [], hasMore: false }),
+    loadArticlesFeed: async () => ({ items: [], hasMore: false }),
+    loadArticleById: async () => null,
     loadHashtagFeed: async () => ({ items: [], hasMore: false }),
     loadThread: async () => ({ root: null, replies: [], hasMore: false }),
     loadEngagement: async () => ({}),

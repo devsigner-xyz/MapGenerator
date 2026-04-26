@@ -52,6 +52,7 @@ async function renderSidebar({ pathname = '/', open = true, resolvedTheme = 'dar
                     onOpenRelays={vi.fn()}
                     onOpenNotifications={vi.fn()}
                     onOpenFollowingFeed={vi.fn()}
+                    onOpenArticles={vi.fn()}
                     onOpenGlobalSearch={vi.fn()}
                     onOpenWallet={vi.fn()}
                     onOpenPublish={vi.fn()}
@@ -148,6 +149,17 @@ describe('OverlaySidebar', () => {
 
         expect(walletIndex).toBeGreaterThanOrEqual(0);
         expect(settingsIndex).toBeGreaterThan(walletIndex);
+    });
+
+    test('renders articles immediately below Agora as a separate top-level entry', async () => {
+        const rendered = await renderSidebar({ pathname: '/agora/articles' });
+        mounted.push(rendered);
+
+        const panelButtons = Array.from(rendered.container.querySelectorAll('.nostr-panel-toolbar > [data-slot="sidebar-menu-item"] button'));
+        const labels = panelButtons.map((button) => button.getAttribute('aria-label') || '').filter(Boolean);
+
+        expect(labels.slice(0, 4)).toEqual(['Abrir mapa', 'Abrir Agora', 'Abrir articulos', 'Abrir publicar']);
+        expect(rendered.container.querySelector('button[aria-label="Abrir articulos"]')).not.toBeNull();
     });
 
     test('renders english top-level labels when ui language is en', async () => {

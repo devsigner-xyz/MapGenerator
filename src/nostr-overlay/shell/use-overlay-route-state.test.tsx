@@ -53,6 +53,8 @@ function RouteStateProbe(): ReactElement {
             <span data-testid="active-agora-hashtag">{routeState.activeAgoraHashtag ?? 'none'}</span>
             <span data-testid="is-map-route">{String(routeState.isMapRoute)}</span>
             <span data-testid="is-agora-route">{String(routeState.isAgoraRoute)}</span>
+            <span data-testid="is-articles-route">{String(routeState.isArticlesRoute)}</span>
+            <span data-testid="is-article-detail-route">{String(routeState.isArticleDetailRoute)}</span>
             <span data-testid="is-chats-route">{String(routeState.isChatsRoute)}</span>
             <span data-testid="is-notifications-route">{String(routeState.isNotificationsRoute)}</span>
             <button type="button" onClick={() => routeState.navigate('/agora?tag=CityLife')}>open agora</button>
@@ -110,6 +112,26 @@ describe('useOverlayRouteState', () => {
         expect(text(container, 'is-map-route')).toBe('false');
         expect(text(container, 'is-agora-route')).toBe('true');
         expect(text(container, 'active-agora-hashtag')).toBe('citylife');
+    });
+
+    test('detects article list and detail routes without activating Agora hashtag filters', () => {
+        const list = renderRoute('/agora/articles?tag=nostr');
+
+        expect(text(list.container, 'is-articles-route')).toBe('true');
+        expect(text(list.container, 'is-article-detail-route')).toBe('false');
+        expect(text(list.container, 'active-agora-hashtag')).toBe('none');
+
+        act(() => {
+            list.root.unmount();
+        });
+        list.container.remove();
+        mounted = null;
+
+        const detail = renderRoute(`/agora/articles/${'a'.repeat(64)}`);
+
+        expect(text(detail.container, 'is-articles-route')).toBe('false');
+        expect(text(detail.container, 'is-article-detail-route')).toBe('true');
+        expect(text(detail.container, 'active-agora-hashtag')).toBe('none');
     });
 
     test('returns route state to the map default', () => {

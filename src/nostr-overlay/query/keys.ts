@@ -1,6 +1,8 @@
 import type {
     ActiveProfileByPubkeyQueryInput,
     ActiveProfilePostsQueryInput,
+    ArticleDetailQueryInput,
+    ArticlesFeedQueryInput,
     DirectMessagesConversationQueryInput,
     DirectMessagesListQueryInput,
     EngagementQueryInput,
@@ -46,6 +48,22 @@ export const nostrOverlayQueryKeys = {
             hashtag: normalizeHashtag(input.hashtag),
             pageSize: input.pageSize ?? 20,
         },
+    ] as const,
+    articlesFeed: (input: ArticlesFeedQueryInput) => [
+        ROOT_SCOPE,
+        SOCIAL_SCOPE,
+        'articles-feed',
+        {
+            ownerPubkey: input.ownerPubkey,
+            follows: normalizeValues(input.follows),
+            pageSize: input.pageSize ?? 20,
+        },
+    ] as const,
+    articleDetail: (input: ArticleDetailQueryInput) => [
+        ROOT_SCOPE,
+        SOCIAL_SCOPE,
+        'article-detail',
+        { eventId: input.eventId },
     ] as const,
     thread: (input: ThreadQueryInput) => [
         ROOT_SCOPE,

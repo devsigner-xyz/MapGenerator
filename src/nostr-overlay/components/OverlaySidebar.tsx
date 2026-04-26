@@ -8,6 +8,7 @@ import {
     LogOutIcon,
     MapPinIcon,
     MessageCircleIcon,
+    NewspaperIcon,
     PenSquareIcon,
     RadioTowerIcon,
     SearchIcon,
@@ -77,6 +78,7 @@ interface OverlaySidebarProps {
     onOpenRelays: () => void;
     onOpenNotifications: () => void;
     onOpenFollowingFeed: () => void;
+    onOpenArticles: () => void;
     onOpenGlobalSearch: () => void;
     onOpenWallet: () => void;
     onOpenPublish: () => void;
@@ -116,6 +118,7 @@ function SidebarActionsMenu({
     onOpenRelays,
     onOpenNotifications,
     onOpenFollowingFeed,
+    onOpenArticles,
     onOpenGlobalSearch,
     onOpenWallet,
     onOpenPublish,
@@ -182,6 +185,22 @@ function SidebarActionsMenu({
                                 <UsersIcon />
                                 <span>{t('sidebar.agora')}</span>
                                 {followingFeedHasUnread ? <OverlayUnreadIndicator variant="overlay" className="nostr-following-feed-unread-dot" srLabel={t('sidebar.agoraUnread')} /> : null}
+                            </button>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                ) : null}
+
+                {canAccessFollowingFeed ? (
+                    <SidebarMenuItem>
+                        <SidebarMenuButton asChild isActive={activePath === '/agora/articles' || activePath.startsWith('/agora/articles/')}>
+                            <button
+                                type="button"
+                                aria-label={t('sidebar.openArticles')}
+                                title={t('sidebar.articles')}
+                                onClick={onOpenArticles}
+                            >
+                                <NewspaperIcon />
+                                <span>{t('sidebar.articles')}</span>
                             </button>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -579,6 +598,7 @@ export function OverlaySidebar({
     onOpenRelays,
     onOpenNotifications,
     onOpenFollowingFeed,
+    onOpenArticles,
     onOpenGlobalSearch,
     onOpenWallet,
     onOpenPublish,
@@ -625,12 +645,13 @@ export function OverlaySidebar({
                         onOpenRelays={onOpenRelays}
                         onOpenNotifications={onOpenNotifications}
                         onOpenFollowingFeed={onOpenFollowingFeed}
+                        onOpenArticles={onOpenArticles}
                         onOpenGlobalSearch={onOpenGlobalSearch}
                         onOpenWallet={onOpenWallet}
                         onOpenPublish={onOpenPublish}
-                    onOpenSettings={onOpenSettings}
-                    isUiSettingsOpen={isUiSettingsOpen}
-                    missionsDiscoveredCount={missionsDiscoveredCount}
+                        onOpenSettings={onOpenSettings}
+                        isUiSettingsOpen={isUiSettingsOpen}
+                        missionsDiscoveredCount={missionsDiscoveredCount}
                         missionsTotal={missionsTotal}
                         relaysConnectedCount={relaysConnectedCount}
                         relaysTotal={relaysTotal}

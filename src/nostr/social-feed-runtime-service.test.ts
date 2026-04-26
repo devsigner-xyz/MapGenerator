@@ -1,4 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
+import { LONG_FORM_ARTICLE_KIND } from './articles';
 import { createRuntimeSocialFeedService } from './social-feed-runtime-service';
 import type { NostrEvent } from './types';
 import { createTransportPool } from './transport-pool';
@@ -268,6 +269,89 @@ describe('social-feed-runtime-service', () => {
                 until: 777,
             }),
         ]);
+    });
+
+    test('loads article feed with long-form article filters', async () => {
+        const transport = createTransportMock([
+            noteEvent({ id: 'article-1', pubkey: FOLLOW_A, kind: LONG_FORM_ARTICLE_KIND, createdAt: 500 }),
+        ]);
+        const service = createRuntimeSocialFeedService({
+            createTransport: () => transport as any,
+            resolveRelays: () => ['wss://relay.one'],
+        });
+
+        const page = await service.loadArticlesFeed({
+            authors: [FOLLOW_A, FOLLOW_B],
+            limit: 10,
+        });
+
+        expect(page.items.map((item) => item.kind)).toEqual(['article']);
+        expect(transport.fetchBackfill).toHaveBeenCalledWith([
+            expect.objectContaining({
+                authors: [FOLLOW_A, FOLLOW_B],
+                kinds: [LONG_FORM_ARTICLE_KIND],
+            }),
+        ]);
+    });
+
+    test('dedupes and sorts article feed items', async () => {
+        const transport = createTransportMock([
+            noteEvent({ id: 'article-old', pubkey: FOLLOW_A, kind: LONG_FORM_ARTICLE_KIND, createdAt: 300 }),
+            noteEvent({ id: 'article-new', pubkey: FOLLOW_A, kind: LONG_FORM_ARTICLE_KIND, createdAt: 500 }),
+            noteEvent({ id: 'article-new', pubkey: FOLLOW_A, kind: LONG_FORM_ARTICLE_KIND, createdAt: 500 }),
+            noteEvent({ id: 'note-ignore', pubkey: FOLLOW_A, kind: 1, createdAt: 600 }),
+        ]);
+        const service = createRuntimeSocialFeedService({
+            createTransport: () => transport as any,
+            resolveRelays: () => ['wss://relay.one'],
+        });
+
+        const page = await service.loadArticlesFeed({
+            authors: [FOLLOW_A],
+            limit: 10,
+        });
+
+        expect(page.items.map((item) => item.id)).toEqual(['article-new', 'article-old']);
+    });
+
+    test('sets article feed cursor when more items are available', async () => {
+        const transport = createTransportMock([
+            noteEvent({ id: 'article-new', pubkey: FOLLOW_A, kind: LONG_FORM_ARTICLE_KIND, createdAt: 500 }),
+            noteEvent({ id: 'article-old', pubkey: FOLLOW_A, kind: LONG_FORM_ARTICLE_KIND, createdAt: 300 }),
+        ]);
+        const service = createRuntimeSocialFeedService({
+            createTransport: () => transport as any,
+            resolveRelays: () => ['wss://relay.one'],
+        });
+
+        const page = await service.loadArticlesFeed({
+            authors: [FOLLOW_A],
+            limit: 1,
+            until: 777,
+        });
+
+        expect(page.items.map((item) => item.id)).toEqual(['article-new']);
+        expect(page.hasMore).toBe(true);
+        expect(page.nextUntil).toBe(499);
+        expect(transport.fetchBackfill).toHaveBeenCalledWith([
+            expect.objectContaining({ until: 777 }),
+        ]);
+    });
+
+    test('returns empty article feed when authors are empty', async () => {
+        const transport = createTransportMock([
+            noteEvent({ id: 'article-1', pubkey: FOLLOW_A, kind: LONG_FORM_ARTICLE_KIND, createdAt: 500 }),
+        ]);
+        const service = createRuntimeSocialFeedService({
+            createTransport: () => transport as any,
+            resolveRelays: () => ['wss://relay.one'],
+        });
+
+        await expect(service.loadArticlesFeed({ authors: [], limit: 10 })).resolves.toEqual({
+            items: [],
+            hasMore: false,
+        });
+        expect(transport.fetchBackfill).not.toHaveBeenCalled();
     });
 
     test('loads thread root and paginated replies by #e', async () => {
