@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Navigate, Route, Routes } from 'react-router';
 import {
     DEFAULT_STREET_LABELS_ZOOM_LEVEL,
     getDefaultUiSettings,
@@ -16,7 +15,6 @@ import { MapPresenceLayer } from './components/MapPresenceLayer';
 import { OccupantProfileDialog } from './components/OccupantProfileDialog';
 import { EasterEggDialog } from './components/EasterEggDialog';
 import { EasterEggFireworks } from './components/EasterEggFireworks';
-import { DiscoverPage } from './components/DiscoverPage';
 import { SocialSidebar } from './components/SocialSidebar';
 import {
     OverlaySidebar,
@@ -25,21 +23,8 @@ import {
 } from './components/OverlaySidebar';
 import { MapZoomControls } from './components/MapZoomControls';
 import { MapDisplayToggleControls } from './components/MapDisplayToggleControls';
-import { CityStatsPage } from './components/CityStatsPage';
-import { ChatsPage } from './components/ChatsPage';
-import { NotificationsPage } from './components/NotificationsPage';
-import { FollowingFeedSurface } from './components/FollowingFeedSurface';
 import { SocialComposeDialog } from './components/SocialComposeDialog';
-import { SettingsPage } from './components/SettingsPage';
-import { UserSearchPage } from './components/UserSearchPage';
-import { WalletPage } from './components/WalletPage';
-import { RelayDetailRoute } from './components/RelayDetailRoute';
-import { RelaysRoute } from './components/RelaysRoute';
 import { LoginGateScreen } from './components/LoginGateScreen';
-import { SettingsAboutRoute } from './components/settings-routes/SettingsAboutRoute';
-import { SettingsAdvancedRoute } from './components/settings-routes/SettingsAdvancedRoute';
-import { SettingsShortcutsRoute } from './components/settings-routes/SettingsShortcutsRoute';
-import { SettingsZapsRoute } from './components/settings-routes/SettingsZapsRoute';
 import { UiSettingsDialog } from './components/UiSettingsDialog';
 import { PersonContextMenuItems } from './components/PersonContextMenuItems';
 import { useNostrOverlay } from './hooks/useNostrOverlay';
@@ -89,6 +74,7 @@ import { resolveNostrCityMapPreset } from './map-colour-schemes';
 import { OverlayAppShell } from './shell/OverlayAppShell';
 import { useMapBridgeController } from './shell/use-map-bridge-controller';
 import { normalizeHashtag, useOverlayRouteState } from './shell/use-overlay-route-state';
+import { OverlayRoutes } from './routes/OverlayRoutes';
 import type { NoteCardModel } from './components/note-card-model';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Spinner } from '@/components/ui/spinner';
@@ -1113,234 +1099,146 @@ export function App({ mapBridge, services }: AppProps) {
                 </>
             )}
             main={(
-            <Routes>
-                {showLoginGate ? (
-                    <>
-                        <Route path="/login" element={null} />
-                        <Route
-                            path="*"
-                            element={sessionRestorationResolved ? <Navigate to="/login" replace /> : null}
-                        />
-                    </>
-                ) : (
-                    <>
-                <Route
-                    path="/agora"
-                    element={(
-                        <FollowingFeedSurface
-                            agoraFeedLayout={uiSettings.agoraFeedLayout}
-                            onAgoraFeedLayoutChange={setAgoraFeedLayout}
-                            items={followingFeed.items}
-                            pendingNewCount={followingFeed.pendingNewCount}
-                            hasPendingNewItems={followingFeed.hasPendingNewItems}
-                            hasFollows={followingFeed.hasFollows}
-                            profilesByPubkey={richContentProfilesByPubkey}
-                            engagementByEventId={followingFeedEngagementByEventId}
-                            {...(followingFeed.activeHashtag ? { activeHashtag: followingFeed.activeHashtag } : {})}
-                            {...(followingFeed.activeHashtag ? { onClearHashtag: clearFollowingFeedHashtagFilter } : {})}
-                            onSelectHashtag={selectFollowingFeedHashtag}
-                            onSelectProfile={openMentionedProfile}
-                            onResolveProfiles={resolveMentionProfiles}
-                            onSelectEventReference={openReferencedEventFromFeed}
-                            onResolveEventReferences={resolveEventReferences}
-                            eventReferencesById={eventReferencesById}
-                            onCopyNoteId={(noteId) => {
-                                void copyNoteIdentifier(noteId);
-                            }}
-                            isLoadingFeed={followingFeed.isLoadingFeed}
-                            isRefreshingFeed={followingFeed.isRefreshingFeed}
-                            feedError={followingFeed.feedError}
-                            hasMoreFeed={followingFeed.hasMoreFeed}
-                            activeThread={followingFeed.activeThread}
-                            canWrite={overlay.canWrite}
-                            isPublishingPost={followingFeed.isPublishingPost}
-                            isPublishingReply={followingFeed.isPublishingReply}
-                            publishError={followingFeed.publishError}
-                            reactionByEventId={followingFeed.reactionByEventId}
-                            repostByEventId={followingFeed.repostByEventId}
-                            pendingReactionByEventId={followingFeed.pendingReactionByEventId}
-                            pendingRepostByEventId={followingFeed.pendingRepostByEventId}
-                            onLoadMoreFeed={followingFeed.loadNextFeedPage}
-                            onApplyPendingNewItems={followingFeed.applyPendingNewItems}
-                            onRefreshFeed={followingFeed.refreshFeed}
-                            onOpenThread={followingFeed.openThread}
-                            onCloseThread={followingFeed.closeThread}
-                            onLoadMoreThread={followingFeed.loadNextThreadPage}
-                            onPublishPost={followingFeed.publishPost}
-                            onPublishReply={followingFeed.publishReply}
-                            onSearchUsers={overlay.searchUsers}
-                            ownerPubkey={overlay.ownerPubkey}
-                            searchRelaySetKey={userSearchRelaySetKey}
-                            onToggleReaction={followingFeed.toggleReaction}
-                            onToggleRepost={handleToggleRepost}
-                            onOpenQuoteComposer={openQuoteComposer}
-                            onZap={({ eventId, eventKind, targetPubkey, amount }) => requestZapPayment({
-                                targetPubkey: targetPubkey || '',
-                                amount,
-                                eventId,
-                                ...(typeof eventKind === 'number' ? { eventKind } : {}),
-                            })}
-                            zapAmounts={zapSettings.amounts}
-                            onConfigureZapAmounts={() => openSettingsPage('zaps')}
-                        />
-                    )}
+                <OverlayRoutes
+                    showLoginGate={showLoginGate}
+                    sessionRestorationResolved={sessionRestorationResolved}
+                    locationSearch={location.search}
+                    agora={{
+                        agoraFeedLayout: uiSettings.agoraFeedLayout,
+                        onAgoraFeedLayoutChange: setAgoraFeedLayout,
+                        followingFeed: {
+                            items: followingFeed.items,
+                            pendingNewCount: followingFeed.pendingNewCount,
+                            hasPendingNewItems: followingFeed.hasPendingNewItems,
+                            hasFollows: followingFeed.hasFollows,
+                            ...(followingFeed.activeHashtag ? { activeHashtag: followingFeed.activeHashtag } : {}),
+                            isLoadingFeed: followingFeed.isLoadingFeed,
+                            isRefreshingFeed: followingFeed.isRefreshingFeed,
+                            feedError: followingFeed.feedError,
+                            hasMoreFeed: followingFeed.hasMoreFeed,
+                            activeThread: followingFeed.activeThread,
+                            isPublishingPost: followingFeed.isPublishingPost,
+                            isPublishingReply: followingFeed.isPublishingReply,
+                            publishError: followingFeed.publishError,
+                            reactionByEventId: followingFeed.reactionByEventId,
+                            repostByEventId: followingFeed.repostByEventId,
+                            pendingReactionByEventId: followingFeed.pendingReactionByEventId,
+                            pendingRepostByEventId: followingFeed.pendingRepostByEventId,
+                            loadNextFeedPage: followingFeed.loadNextFeedPage,
+                            applyPendingNewItems: followingFeed.applyPendingNewItems,
+                            refreshFeed: followingFeed.refreshFeed,
+                            openThread: followingFeed.openThread,
+                            closeThread: followingFeed.closeThread,
+                            loadNextThreadPage: followingFeed.loadNextThreadPage,
+                            publishPost: followingFeed.publishPost,
+                            publishReply: followingFeed.publishReply,
+                            toggleReaction: followingFeed.toggleReaction,
+                        },
+                        profilesByPubkey: richContentProfilesByPubkey,
+                        engagementByEventId: followingFeedEngagementByEventId,
+                        onClearHashtag: clearFollowingFeedHashtagFilter,
+                        onSelectHashtag: selectFollowingFeedHashtag,
+                        onSelectProfile: openMentionedProfile,
+                        onResolveProfiles: resolveMentionProfiles,
+                        onSelectEventReference: openReferencedEventFromFeed,
+                        onResolveEventReferences: resolveEventReferences,
+                        eventReferencesById,
+                        onCopyNoteId: copyNoteIdentifier,
+                        canWrite: overlay.canWrite,
+                        onToggleRepost: handleToggleRepost,
+                        onOpenQuoteComposer: openQuoteComposer,
+                        requestZapPayment,
+                        zapAmounts: zapSettings.amounts,
+                        onConfigureZapAmounts: () => openSettingsPage('zaps'),
+                        onSearchUsers: overlay.searchUsers,
+                        ownerPubkey: overlay.ownerPubkey,
+                        searchRelaySetKey: userSearchRelaySetKey,
+                    }}
+                    cityStats={{
+                        buildingsCount: overlay.buildingsCount,
+                        occupiedBuildingsCount: overlay.assignedCount,
+                        assignedResidentsCount: overlay.assignedCount,
+                        followsCount: overlay.followsCount,
+                        followersCount: overlay.followersCount,
+                        parkCount: overlay.parkCount,
+                        unhousedResidentsCount: overlay.unassignedCount,
+                    }}
+                    notifications={{
+                        hasUnread: socialState.hasUnread,
+                        pendingSnapshot: socialState.pendingSnapshot,
+                        items: socialState.items,
+                        profilesByPubkey: overlay.profiles,
+                        eventReferencesById,
+                        onResolveProfiles: resolveMentionProfiles,
+                        onResolveEventReferences: resolveEventReferences,
+                        onOpenThread: openNotificationThread,
+                        onOpenProfile: (pubkey) => overlay.openActiveProfile(pubkey),
+                    }}
+                    chats={{
+                        hasUnreadGlobal: chatState.hasUnreadGlobal,
+                        isLoadingConversations: chatState.isBootstrapping,
+                        conversations: chatConversations,
+                        messages: chatMessages,
+                        activeConversationId: chatActiveConversationId,
+                        ...(chatComposerFocusKey ? { composerAutoFocusKey: chatComposerFocusKey } : {}),
+                        canSendChatMessages,
+                        ...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {}),
+                        canDirectMessages: overlay.canDirectMessages,
+                        onOpenConversation: (conversationId) => openChatConversation(conversationId),
+                        sendMessage: async (conversationId, plaintext) => {
+                            await chatState.sendMessage(conversationId, plaintext);
+                        },
+                    }}
+                    relays={{
+                        ...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {}),
+                        suggestedRelays: overlay.suggestedRelays,
+                        suggestedRelaysByType: overlay.suggestedRelaysByType,
+                        onRelaySettingsChange: setRelaySettingsSnapshot,
+                    }}
+                    relayDetail={{
+                        ...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {}),
+                        suggestedRelays: overlay.suggestedRelays,
+                        suggestedRelaysByType: overlay.suggestedRelaysByType,
+                    }}
+                    discover={{
+                        discoveredIds: easterEggProgress.discoveredIds,
+                    }}
+                    wallet={{
+                        walletSettings,
+                        walletActivity,
+                        walletNwcUriInput,
+                        setWalletNwcUriInput,
+                        connectNwcWallet,
+                        connectWebLnWallet,
+                        disconnectWallet,
+                        refreshWallet,
+                    }}
+                    userSearch={{
+                        onClose: closeGlobalUserSearch,
+                        onSearch: overlay.searchUsers,
+                        searchRelaySetKey: userSearchRelaySetKey,
+                        onOpenActiveProfile: (pubkey) => {
+                            overlay.openActiveProfile(pubkey);
+                        },
+                        ownerPubkey: overlay.ownerPubkey,
+                        followedPubkeys: overlay.follows,
+                        verificationByPubkey,
+                        canWrite: overlay.canWrite,
+                        onFollowUser: followPerson,
+                        canAccessDirectMessages,
+                        onMessageUser: openDmFromContextMenu,
+                    }}
+                    settings={{
+                        mapBridge,
+                        suggestedRelays: overlay.suggestedRelays,
+                        suggestedRelaysByType: overlay.suggestedRelaysByType,
+                        onUiSettingsChange: persistUiSettings,
+                        ...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {}),
+                        zapSettings,
+                        onZapSettingsChange: setZapSettings,
+                        onClose: () => navigate('/'),
+                    }}
                 />
-                <Route
-                    path="/estadisticas"
-                    element={(
-                        <CityStatsPage
-                            buildingsCount={overlay.buildingsCount}
-                            occupiedBuildingsCount={overlay.assignedCount}
-                            assignedResidentsCount={overlay.assignedCount}
-                            followsCount={overlay.followsCount}
-                            followersCount={overlay.followersCount}
-                            parkCount={overlay.parkCount}
-                            unhousedResidentsCount={overlay.unassignedCount}
-                        />
-                    )}
-                />
-                <Route
-                    path="/notificaciones"
-                    element={(
-                        <NotificationsPage
-                            hasUnread={socialState.hasUnread}
-                            newNotifications={socialState.pendingSnapshot}
-                            recentNotifications={socialState.items}
-                            profilesByPubkey={overlay.profiles}
-                            eventReferencesById={eventReferencesById}
-                            onResolveProfiles={resolveMentionProfiles}
-                            onResolveEventReferences={resolveEventReferences}
-                            onOpenThread={openNotificationThread}
-                            onOpenProfile={(pubkey) => overlay.openActiveProfile(pubkey)}
-                        />
-                    )}
-                />
-                <Route
-                    path="/chats"
-                    element={(
-                        <ChatsPage
-                            hasUnreadGlobal={chatState.hasUnreadGlobal}
-                            isLoadingConversations={chatState.isBootstrapping}
-                            conversations={chatConversations}
-                            messages={chatMessages}
-                            activeConversationId={chatActiveConversationId}
-                            composerAutoFocusKey={chatComposerFocusKey}
-                            canSend={canSendChatMessages}
-                            {...(!overlay.ownerPubkey
-                                ? { disabledReason: 'Inicia sesión para enviar mensajes privados.' }
-                                : !overlay.canDirectMessages
-                                    ? { disabledReason: 'Tu sesión no permite mensajería privada (requiere firma y NIP-44).' }
-                                    : {})}
-                            onOpenConversation={(conversationId) => openChatConversation(conversationId)}
-                            onSendMessage={async (plaintext) => {
-                                if (!chatActiveConversationId || !canSendChatMessages) {
-                                    return;
-                                }
-
-                                await chatState.sendMessage(chatActiveConversationId, plaintext);
-                            }}
-                        />
-                    )}
-                />
-                <Route
-                    path="/relays"
-                    element={(
-                        <RelaysRoute
-                            {...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {})}
-                            suggestedRelays={overlay.suggestedRelays}
-                            suggestedRelaysByType={overlay.suggestedRelaysByType}
-                            onRelaySettingsChange={setRelaySettingsSnapshot}
-                        />
-                    )}
-                />
-                <Route
-                    path="/relays/detail"
-                    element={(
-                        <RelayDetailRoute
-                            {...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {})}
-                            suggestedRelays={overlay.suggestedRelays}
-                            suggestedRelaysByType={overlay.suggestedRelaysByType}
-                        />
-                    )}
-                />
-                <Route
-                    path="/descubre"
-                    element={(
-                        <DiscoverPage
-                            discoveredIds={easterEggProgress.discoveredIds}
-                        />
-                    )}
-                />
-                <Route
-                    path="/wallet"
-                    element={(
-                        <WalletPage
-                            walletState={walletSettings}
-                            walletActivity={walletActivity}
-                            nwcUriInput={walletNwcUriInput}
-                            onNwcUriInputChange={setWalletNwcUriInput}
-                            onConnectNwc={() => {
-                                void connectNwcWallet();
-                            }}
-                            onConnectWebLn={() => {
-                                void connectWebLnWallet();
-                            }}
-                            onDisconnect={disconnectWallet}
-                            onRefresh={() => {
-                                void refreshWallet();
-                            }}
-                        />
-                    )}
-                />
-                <Route
-                    path="/buscar-usuarios"
-                    element={(
-                        <UserSearchPage
-                            onClose={closeGlobalUserSearch}
-                            onSearch={overlay.searchUsers}
-                            searchRelaySetKey={userSearchRelaySetKey}
-                            onSelectUser={(pubkey) => {
-                                overlay.openActiveProfile(pubkey);
-                            }}
-                            {...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {})}
-                            followedPubkeys={overlay.follows}
-                            verificationByPubkey={verificationByPubkey}
-                            {...(overlay.canWrite ? { onFollowUser: followPerson } : {})}
-                            {...(canAccessDirectMessages ? { onMessageUser: openDmFromContextMenu } : {})}
-                        />
-                    )}
-                />
-                <Route
-                    path="/settings"
-                    element={(
-                        <SettingsPage
-                            mapBridge={mapBridge}
-                            suggestedRelays={overlay.suggestedRelays}
-                            suggestedRelaysByType={overlay.suggestedRelaysByType}
-                            onUiSettingsChange={persistUiSettings}
-                            {...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {})}
-                            zapSettings={zapSettings}
-                            onZapSettingsChange={setZapSettings}
-                            onClose={() => navigate('/')}
-                        />
-                    )}
-                    >
-                        <Route index element={<Navigate to="zaps" replace />} />
-                        <Route path="shortcuts" element={<SettingsShortcutsRoute />} />
-                        <Route path="zaps" element={<SettingsZapsRoute />} />
-                        <Route path="about" element={<SettingsAboutRoute />} />
-                        <Route path="advanced" element={<SettingsAdvancedRoute />} />
-                        <Route path="*" element={<Navigate to="zaps" replace />} />
-                    </Route>
-                    <Route path="/settings/relays" element={<Navigate to="/relays" replace />} />
-                    <Route path="/settings/relays/detail" element={<Navigate to={`/relays/detail${location.search}`} replace />} />
-                    <Route path="/settings/:view" element={<Navigate to="/settings/zaps" replace />} />
-                    <Route path="/login" element={<Navigate to="/" replace />} />
-                    <Route path="/" element={null} />
-                    <Route path="*" element={<Navigate to="/" replace />} />
-                    </>
-                )}
-            </Routes>
             )}
             dialogs={(
                 <>

@@ -3,14 +3,27 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const appSource = readFileSync(join(process.cwd(), 'src/nostr-overlay/App.tsx'), 'utf8');
+const overlayRoutesSource = readFileSync(join(process.cwd(), 'src/nostr-overlay/routes/OverlayRoutes.tsx'), 'utf8');
 
-const extractedModulePaths = [
+const appExtractedModulePaths = [
     './shell/OverlayAppShell',
     './shell/use-overlay-route-state',
     './shell/use-map-bridge-controller',
     './hooks/useEasterEggDiscoveryController',
     './controllers/use-wallet-zap-controller',
     './app.selectors',
+    './routes/OverlayRoutes',
+];
+
+const extractedRouteModulePaths = [
+    './AgoraRouteContainer',
+    './ChatsRouteContainer',
+    './WalletRouteContainer',
+    './NotificationsRouteContainer',
+    './CityStatsRouteContainer',
+    './UserSearchRouteContainer',
+    './DiscoverRouteContainer',
+    './SettingsRouteContainer',
 ];
 
 const movedHelperNames = [
@@ -43,14 +56,23 @@ const movedHelperNames = [
     'selectChatConversationSummaries',
     'selectChatDetailMessages',
     'selectMapLoaderStageLabel',
+    'OverlayRoutes',
+    'AgoraRouteContainer',
+    'ChatsRouteContainer',
+    'WalletRouteContainer',
+    'NotificationsRouteContainer',
+    'CityStatsRouteContainer',
+    'UserSearchRouteContainer',
+    'DiscoverRouteContainer',
+    'SettingsRouteContainer',
 ];
 
 function escapeRegExp(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function importedModulePaths(): string[] {
-    return [...appSource.matchAll(/\bimport\s+(?:[\s\S]*?\s+from\s+)?['"]([^'"]+)['"]\s*;?/g)]
+function importedModulePaths(source: string): string[] {
+    return [...source.matchAll(/\bimport\s+(?:[\s\S]*?\s+from\s+)?['"]([^'"]+)['"]\s*;?/g)]
         .map((match) => match[1])
         .filter((modulePath): modulePath is string => Boolean(modulePath));
 }
@@ -65,7 +87,11 @@ function inlineDefinitionPatternsFor(helperName: string): RegExp[] {
 
 describe('Nostr overlay App shell structure', () => {
     it('imports the extracted shell modules used to keep App focused on wiring', () => {
-        expect(importedModulePaths()).toEqual(expect.arrayContaining(extractedModulePaths));
+        expect(importedModulePaths(appSource)).toEqual(expect.arrayContaining(appExtractedModulePaths));
+    });
+
+    it('keeps extracted route containers behind OverlayRoutes', () => {
+        expect(importedModulePaths(overlayRoutesSource)).toEqual(expect.arrayContaining(extractedRouteModulePaths));
     });
 
     it('does not redefine helpers that belong to extracted shell modules', () => {
@@ -79,5 +105,11 @@ describe('Nostr overlay App shell structure', () => {
     it('gates map controls while the login gate is visible', () => {
         expect(appSource).toMatch(/\{isMapRoute\s*&&\s*!showLoginGate\s*\?\s*\(\s*<MapZoomControls/);
         expect(appSource).toMatch(/\{isMapRoute\s*&&\s*!showLoginGate\s*\?\s*\(\s*<MapDisplayToggleControls/);
+    });
+
+    it('does not own the route tree inline', () => {
+        expect(appSource).not.toMatch(/\bimport\s+\{[^}]*\bRoutes\b/);
+        expect(appSource).not.toMatch(/\bimport\s+\{[^}]*\bRoute\b/);
+        expect(appSource).not.toMatch(/\b<Route\b/);
     });
 });
