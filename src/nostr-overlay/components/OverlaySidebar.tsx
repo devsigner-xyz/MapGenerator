@@ -413,7 +413,6 @@ function SidebarPlatformHeader({ resolvedTheme }: { resolvedTheme: ResolvedOverl
                                 src={platformLogoSrc}
                                 alt={t('sidebar.platformAvatarAlt')}
                             />
-                            <AvatarFallback className="rounded-lg">NC</AvatarFallback>
                         </Avatar>
                         <div className="grid flex-1 text-left text-sm leading-tight">
                             <span className="truncate font-semibold">Nostr City</span>

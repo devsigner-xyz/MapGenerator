@@ -1,4 +1,6 @@
 import { act, type ReactElement } from 'react';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
 import { nip19 } from 'nostr-tools';
@@ -8,6 +10,8 @@ import { OccupantProfileDialog } from './OccupantProfileDialog';
 const { toastSuccessMock } = vi.hoisted(() => ({
     toastSuccessMock: vi.fn(),
 }));
+
+const overlayStyles = readFileSync(join(process.cwd(), 'src', 'nostr-overlay', 'styles.css'), 'utf8');
 
 vi.mock('sonner', () => ({
     toast: {
@@ -176,6 +180,9 @@ describe('OccupantProfileDialog', () => {
         const closeButton = document.body.querySelector('button.absolute.top-2.right-2') as HTMLButtonElement | null;
         expect(closeButton).not.toBeNull();
         expect(closeButton?.className).toContain('absolute top-2 right-2');
+        expect(closeButton?.className).toContain('bg-background/95');
+        expect(closeButton?.className).toContain('border-border');
+        expect(closeButton?.className).toContain('shadow-md');
         expect(closeButton?.className).not.toContain('nostr-dialog-close');
     });
 
@@ -500,6 +507,19 @@ describe('OccupantProfileDialog', () => {
         expect(text).toContain('NIP-65 read');
         expect(text).toContain('NIP-65 write');
         expect(text).toContain('NIP-17 DM inbox');
+
+        const relaySectionTitle = Array.from(document.body.querySelectorAll('.nostr-profile-info-section h5'))
+            .find((node) => (node.textContent || '').trim() === 'Relays declarados') as HTMLElement | undefined;
+        expect(relaySectionTitle?.className).toContain('nostr-profile-info-section-title');
+
+        const relayUrlTitle = Array.from(document.body.querySelectorAll('.nostr-profile-info-section [data-slot="item-title"]'))
+            .find((node) => (node.textContent || '').includes('wss://relay.both.example')) as HTMLElement | undefined;
+        expect(relayUrlTitle?.className).toContain('nostr-profile-info-section-value');
+    });
+
+    test('keeps declared relay section typography aligned with information rows', () => {
+        expect(overlayStyles).toMatch(/\.nostr-profile-info\s+\.nostr-profile-info-section-title\s*\{[^}]*font-size:\s*0\.75rem;[^}]*font-weight:\s*500;[^}]*color:\s*var\(--muted-foreground\)/s);
+        expect(overlayStyles).toMatch(/\.nostr-profile-info\s+\.nostr-profile-info-section-value\s*\{[^}]*font-size:\s*0\.82rem;[^}]*font-weight:\s*400;[^}]*line-height:\s*1\.45;[^}]*color:\s*var\(--card-foreground\)/s);
     });
 
     test('fires callbacks to add one relay or all relay suggestions', async () => {

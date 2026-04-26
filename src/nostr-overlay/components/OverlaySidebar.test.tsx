@@ -173,6 +173,7 @@ describe('OverlaySidebar', () => {
         expect(platformLogo).not.toBeNull();
         expect(platformLogo?.getAttribute('src')).toBe('/icon-light-48x48.png');
         expect(platformLogo?.getAttribute('alt')).toBe('Logo de Nostr City');
+        expect(platformAvatar?.querySelector('[data-slot="avatar-fallback"]')).toBeNull();
     });
 
     test('keeps the header trigger out of the compact sidebar rail', async () => {

@@ -2364,12 +2364,27 @@
     color: var(--muted-foreground);
 }
 
+.nostr-profile-info .nostr-profile-info-section-title {
+    margin: 0;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--muted-foreground);
+}
+
 .nostr-profile-info-list dd {
     margin: 0.18rem 0 0;
     font-size: 0.82rem;
     line-height: 1.45;
     color: var(--card-foreground);
     word-break: break-word;
+}
+
+.nostr-profile-info .nostr-profile-info-section-value {
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 400;
+    line-height: 1.45;
+    color: var(--card-foreground);
 }
 
 .nostr-profile-info-link {

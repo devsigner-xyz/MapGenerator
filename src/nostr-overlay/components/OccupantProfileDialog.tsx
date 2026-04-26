@@ -627,7 +627,7 @@ export function OccupantProfileDialog({
                         type="button"
                         variant="ghost"
                         size="icon-sm"
-                        className="absolute top-2 right-2"
+                        className="absolute top-2 right-2 border-border bg-background/95 text-foreground shadow-md backdrop-blur supports-[backdrop-filter]:bg-background/80 hover:bg-background dark:bg-background/90 dark:hover:bg-background"
                         aria-label={t('profile.dialog.close')}
                         title={t('profile.dialog.close')}
                     >
@@ -717,7 +717,7 @@ export function OccupantProfileDialog({
 
                                     <section className="nostr-profile-info-section">
                                         <div className="nostr-profile-info-section-header">
-                                            <h5>{t('profile.relays.declared')}</h5>
+                                            <h5 className="nostr-profile-info-section-title">{t('profile.relays.declared')}</h5>
                                             {canAddAllRelaySuggestions ? (
                                                 <Button
                                                     type="button"
@@ -739,7 +739,7 @@ export function OccupantProfileDialog({
                                                     <div key={relayRow.relayUrl} className="nostr-profile-network-item-wrap">
                                                         <Item variant="outline" size="sm" className="gap-2">
                                                             <ItemContent className="min-w-0 flex-1">
-                                                                <ItemTitle>
+                                                                <ItemTitle className="nostr-profile-info-section-value">
                                                                     <span className="truncate">{relayRow.relayUrl}</span>
                                                                 </ItemTitle>
                                                                 <ItemDescription>
