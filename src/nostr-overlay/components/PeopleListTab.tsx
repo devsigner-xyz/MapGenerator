@@ -52,6 +52,7 @@ interface PeopleListTabProps {
     verificationByPubkey?: Record<string, Nip05ValidationResult | undefined>;
     followedPubkeys?: string[];
     onFollowPerson?: (pubkey: string) => void | Promise<void>;
+    followActionPlacement?: 'inline' | 'context';
 }
 
 function personName(pubkey: string, profile: NostrProfile | undefined): string {
@@ -117,6 +118,7 @@ export function PeopleListTab({
     verificationByPubkey = {},
     followedPubkeys = [],
     onFollowPerson,
+    followActionPlacement = 'inline',
 }: PeopleListTabProps) {
     const { t } = useI18n();
     const hasSearch = typeof onSearchQueryChange === 'function';
@@ -269,6 +271,8 @@ export function PeopleListTab({
             ...(canSendMessage ? { onSendMessage: () => onSendMessage?.(pubkey) } : {}),
             ...(canViewDetails ? { onViewDetails: () => onViewDetails?.(pubkey) } : {}),
         };
+        const showInlineFollowAction = canFollow && followActionPlacement === 'inline';
+        const showContextUnfollowAction = canFollow && followActionPlacement === 'context' && isFollowed;
 
         return (
             <Item
@@ -324,7 +328,7 @@ export function PeopleListTab({
                     </>
                 )}
 
-                {canFollow ? (
+                {showInlineFollowAction ? (
                     <Button
                         type="button"
                         variant={isFollowed ? 'secondary' : 'outline'}
@@ -355,6 +359,14 @@ export function PeopleListTab({
                         <ContextMenuContent className="w-48">
                             <ContextMenuGroup>
                                 <PersonContextMenuItems {...contextMenuActionProps} />
+                                {showContextUnfollowAction ? (
+                                    <ContextMenuItem
+                                        disabled={followDisabled}
+                                        onSelect={() => followPerson(pubkey)}
+                                    >
+                                        {t('peopleList.unfollow', { displayName: display })}
+                                    </ContextMenuItem>
+                                ) : null}
                             </ContextMenuGroup>
                             <ContextMenuSeparator />
                             {canZapProfile ? (

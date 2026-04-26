@@ -398,13 +398,11 @@ function SidebarPlatformHeader({ resolvedTheme }: { resolvedTheme: ResolvedOverl
 
     return (
         <SidebarHeader className="relative border-b border-sidebar-border/60 pb-2">
-            {!collapsed ? (
-                <SidebarTrigger
-                    className="absolute top-2 right-2 z-10"
-                    aria-label={t('sidebar.hidePanel')}
-                    title={t('sidebar.hidePanel')}
-                />
-            ) : null}
+            <SidebarTrigger
+                className="absolute top-2 right-2 z-10"
+                aria-label={collapsed ? t('sidebar.showPanel') : t('sidebar.hidePanel')}
+                title={collapsed ? t('sidebar.showPanel') : t('sidebar.hidePanel')}
+            />
             <SidebarMenu>
                 <SidebarMenuItem>
                     <SidebarMenuButton size="lg" className="pr-10 hover:bg-transparent active:bg-transparent">

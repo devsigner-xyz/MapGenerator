@@ -521,6 +521,45 @@ describe('PeopleListTab', () => {
         expect((followAliceButton.textContent || '').trim()).toBe('Siguiendo');
     });
 
+    test('moves followed person action into the context menu when requested', async () => {
+        const bob = makePubkey(2);
+        const onFollowPerson = vi.fn();
+
+        const rendered = await renderElement(
+            <PeopleListTab
+                people={[bob]}
+                profiles={{
+                    [bob]: { pubkey: bob, displayName: 'Bob' },
+                }}
+                emptyText="Sin resultados"
+                loading={false}
+                followedPubkeys={[bob]}
+                onFollowPerson={onFollowPerson}
+                followActionPlacement="context"
+            />
+        );
+        mounted.push(rendered);
+
+        expect(rendered.container.querySelector('button[aria-label="Dejar de seguir a Bob"]')).toBeNull();
+
+        const actionsButton = rendered.container.querySelector('button[aria-label="Abrir acciones para Bob"]') as HTMLButtonElement;
+        await act(async () => {
+            actionsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        await waitFor(() => (document.body.textContent || '').includes('Dejar de seguir a Bob'));
+        const unfollowItem = Array.from(document.body.querySelectorAll('[data-slot="context-menu-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Dejar de seguir a Bob'
+        ) as HTMLElement;
+
+        await act(async () => {
+            unfollowItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+
+        expect(onFollowPerson).toHaveBeenCalledTimes(1);
+        expect(onFollowPerson).toHaveBeenCalledWith(bob);
+    });
+
     test('renders bordered people rows without separators', async () => {
         const people = [makePubkey(1), makePubkey(2), makePubkey(3)];
         const rendered = await renderElement(

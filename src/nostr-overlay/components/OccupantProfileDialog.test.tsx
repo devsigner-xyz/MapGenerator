@@ -136,10 +136,12 @@ describe('OccupantProfileDialog', () => {
         const tabLabels = Array.from(document.body.querySelectorAll('[data-slot="tabs-trigger"]'))
             .map((node) => (node.textContent || '').trim());
 
-        expect(tabLabels).toContain('Información');
-        expect(tabLabels).toContain('Feed');
-        expect(tabLabels).toContain('Seguidores (1)');
-        expect(tabLabels).toContain('Siguiendo (2)');
+        expect(tabLabels.slice(0, 4)).toEqual([
+            'Información',
+            'Feed',
+            'Siguiendo (2)',
+            'Seguidores (1)',
+        ]);
 
         expect(document.body.textContent || '').not.toContain('Cargando estadisticas...');
 
@@ -212,10 +214,12 @@ describe('OccupantProfileDialog', () => {
         const tabLabels = Array.from(document.body.querySelectorAll('[data-slot="tabs-trigger"]'))
             .map((node) => (node.textContent || '').trim());
 
-        expect(tabLabels).toContain('Info');
-        expect(tabLabels).toContain('Feed');
-        expect(tabLabels).toContain('Followers (1)');
-        expect(tabLabels).toContain('Following (2)');
+        expect(tabLabels.slice(0, 4)).toEqual([
+            'Info',
+            'Feed',
+            'Following (2)',
+            'Followers (1)',
+        ]);
         expect(document.body.querySelector('button[aria-label="Copy npub"]')).not.toBeNull();
     });
 

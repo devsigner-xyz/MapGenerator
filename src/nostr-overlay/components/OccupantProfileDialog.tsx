@@ -11,7 +11,7 @@ import { Nip05Identifier } from './Nip05Identifier';
 import { fromPostPreview } from './note-card-adapters';
 import type { NoteCardModel } from './note-card-model';
 import { withoutNoteActions } from './note-card-model';
-import { EllipsisVerticalIcon } from 'lucide-react';
+import { EllipsisVerticalIcon, XIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -20,7 +20,7 @@ import {
     ContextMenuGroup,
     ContextMenuTrigger,
 } from '@/components/ui/context-menu';
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
 import { Separator } from '@/components/ui/separator';
@@ -613,6 +613,7 @@ export function OccupantProfileDialog({
         }}>
             <DialogContent
                 className="nostr-dialog nostr-profile-dialog"
+                showCloseButton={false}
                 style={{
                     width: '640px',
                     maxWidth: 'calc(100vw - 32px)',
@@ -621,6 +622,19 @@ export function OccupantProfileDialog({
             >
                 <DialogTitle className="sr-only">{t('profile.dialog.title')}</DialogTitle>
                 <DialogDescription className="sr-only">{t('profile.dialog.description')}</DialogDescription>
+                <DialogClose asChild>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="absolute top-2 right-2"
+                        aria-label={t('profile.dialog.close')}
+                        title={t('profile.dialog.close')}
+                    >
+                        <XIcon />
+                        <span className="sr-only">{t('profile.dialog.close')}</span>
+                    </Button>
+                </DialogClose>
 
                 <div className="nostr-profile-dialog-body">
                     <div className={`nostr-profile-dialog-banner-shell${profile?.banner ? '' : ' is-placeholder'}`}>
@@ -685,8 +699,8 @@ export function OccupantProfileDialog({
                         <TabsList variant="line" className="grid h-auto w-full grid-cols-4" aria-label={t('profile.dialog.tabs')}>
                             <TabsTrigger value="info">{t('profile.dialog.tabInfo')}</TabsTrigger>
                             <TabsTrigger value="feed">{t('profile.dialog.tabFeed')}</TabsTrigger>
-                            <TabsTrigger value="followers">{t('profile.dialog.tabFollowers', { count: String(followers.length) })}</TabsTrigger>
                             <TabsTrigger value="following">{t('profile.dialog.tabFollowing', { count: String(follows.length) })}</TabsTrigger>
+                            <TabsTrigger value="followers">{t('profile.dialog.tabFollowers', { count: String(followers.length) })}</TabsTrigger>
                         </TabsList>
 
                         <TabsContent value="info" className="nostr-profile-tab-panel">

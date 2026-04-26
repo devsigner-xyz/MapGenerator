@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
+import { UserRoundIcon, UsersIcon } from 'lucide-react';
 import { encodeHexToNpub } from '../../nostr/npub';
 import type { Nip05ValidationResult } from '../../nostr/nip05';
 import type { NostrProfile } from '../../nostr/types';
 import { useI18n } from '@/i18n/useI18n';
 import { PeopleListTab } from './PeopleListTab';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { SidebarMenu, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 
 type SocialTab = 'following' | 'followers';
 
@@ -46,7 +48,7 @@ export function SocialSidebar({
     verificationByPubkey = {},
 }: SocialSidebarProps) {
     const { t } = useI18n();
-    const [activeTab, setActiveTab] = useState<SocialTab>('following');
+    const [activeDialog, setActiveDialog] = useState<SocialTab | null>(null);
     const [followingSearch, setFollowingSearch] = useState('');
     const [followersSearch, setFollowersSearch] = useState('');
 
@@ -86,67 +88,100 @@ export function SocialSidebar({
 
         return followerPeople.filter((pubkey) => matchesSearch(pubkey, followerProfiles[pubkey], query));
     }, [followerPeople, followerProfiles, followersSearch]);
+    const dialogTitle = activeDialog === 'followers' ? t('social.followersList') : t('social.followingList');
+    const dialogDescription = activeDialog === 'followers' ? t('social.followersDialogDescription') : t('social.followingDialogDescription');
+
     return (
         <div className="nostr-social-sidebar" aria-label={t('social.panel')}>
-            <Tabs
-                value={activeTab}
-                onValueChange={(value) => setActiveTab(value as SocialTab)}
-                className="nostr-social-tabs"
-                aria-label={t('social.tabs')}
-            >
-                <TabsList variant="line" className="grid h-auto w-full grid-cols-2" aria-label={t('social.tabs')}>
-                    <TabsTrigger value="following">{t('social.following', { count: followingPeople.length })}</TabsTrigger>
-                    <TabsTrigger value="followers">{t('social.followers', { count: followerPeople.length })}</TabsTrigger>
-                </TabsList>
+            <SidebarMenu className="nostr-social-list-menu gap-1.5">
+                <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                        <button
+                            type="button"
+                            aria-label={t('social.openFollowingList')}
+                            title={t('social.followingList')}
+                            onClick={() => setActiveDialog('following')}
+                        >
+                            <UserRoundIcon />
+                            <span>{t('social.followingList')}</span>
+                        </button>
+                    </SidebarMenuButton>
+                    <SidebarMenuBadge>{followingPeople.length}</SidebarMenuBadge>
+                </SidebarMenuItem>
 
-                <TabsContent value="following" className="nostr-tab-panel">
-                    <PeopleListTab
-                        people={filteredFollowingPeople}
-                        profiles={profiles}
-                        emptyText={followingSearch ? t('social.emptyFollowingSearch') : t('social.emptyFollowing')}
-                        loading={false}
-                        {...(selectedFollowingPubkey !== undefined ? { selectedPubkey: selectedFollowingPubkey } : {})}
-                        {...(onSelectFollowing ? { onSelectPerson: onSelectFollowing } : {})}
-                        {...(onLocateFollowing ? { onLocatePerson: onLocateFollowing } : {})}
-                        {...(onCopyOwnerNpub ? { onCopyNpub: onCopyOwnerNpub } : {})}
-                        {...(onMessagePerson ? { onSendMessage: onMessagePerson } : {})}
-                        {...(onViewPersonDetails ? { onViewDetails: onViewPersonDetails } : {})}
-                        zapAmounts={zapAmounts}
-                        {...(onZapPerson ? { onZapPerson } : {})}
-                        {...(onConfigureZapAmounts ? { onConfigureZapAmounts } : {})}
-                        {...(followingPeople.length > 0 ? { searchQuery: followingSearch } : {})}
-                        {...(followingPeople.length > 0 ? { onSearchQueryChange: setFollowingSearch } : {})}
-                        {...(followingPeople.length > 0 ? { searchAriaLabel: t('social.searchFollowing') } : {})}
-                        followedPubkeys={followingPeople}
-                        {...(onFollowPerson ? { onFollowPerson } : {})}
-                        verificationByPubkey={verificationByPubkey}
-                    />
-                </TabsContent>
+                <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                        <button
+                            type="button"
+                            aria-label={t('social.openFollowersList')}
+                            title={t('social.followersList')}
+                            onClick={() => setActiveDialog('followers')}
+                        >
+                            <UsersIcon />
+                            <span>{t('social.followersList')}</span>
+                        </button>
+                    </SidebarMenuButton>
+                    <SidebarMenuBadge>{followerPeople.length}</SidebarMenuBadge>
+                </SidebarMenuItem>
+            </SidebarMenu>
 
-                <TabsContent value="followers" className="nostr-tab-panel">
-                    <PeopleListTab
-                        people={filteredFollowerPeople}
-                        profiles={followerProfiles}
-                        emptyText={followersSearch ? t('social.emptyFollowersSearch') : t('social.emptyFollowers')}
-                        loading={followersLoading}
-                        {...(selectedFollowingPubkey !== undefined ? { selectedPubkey: selectedFollowingPubkey } : {})}
-                        {...(onSelectFollowing ? { onSelectPerson: onSelectFollowing } : {})}
-                        {...(onLocateFollowing ? { onLocatePerson: onLocateFollowing } : {})}
-                        {...(onCopyOwnerNpub ? { onCopyNpub: onCopyOwnerNpub } : {})}
-                        {...(onMessagePerson ? { onSendMessage: onMessagePerson } : {})}
-                        {...(onViewPersonDetails ? { onViewDetails: onViewPersonDetails } : {})}
-                        zapAmounts={zapAmounts}
-                        {...(onZapPerson ? { onZapPerson } : {})}
-                        {...(onConfigureZapAmounts ? { onConfigureZapAmounts } : {})}
-                        followedPubkeys={followingPeople}
-                        {...(onFollowPerson ? { onFollowPerson } : {})}
-                        {...(followerPeople.length > 0 ? { searchQuery: followersSearch } : {})}
-                        {...(followerPeople.length > 0 ? { onSearchQueryChange: setFollowersSearch } : {})}
-                        {...(followerPeople.length > 0 ? { searchAriaLabel: t('social.searchFollowers') } : {})}
-                        verificationByPubkey={verificationByPubkey}
-                    />
-                </TabsContent>
-            </Tabs>
+            <Dialog open={activeDialog !== null} onOpenChange={(open) => setActiveDialog(open ? activeDialog : null)}>
+                <DialogContent className="nostr-social-list-dialog flex h-[min(72vh,42rem)] max-w-2xl flex-col gap-3 overflow-hidden">
+                    <div className="flex flex-col gap-1 pr-8">
+                        <DialogTitle>{dialogTitle}</DialogTitle>
+                        <DialogDescription>{dialogDescription}</DialogDescription>
+                    </div>
+
+                    <div className="min-h-0 flex-1">
+                        {activeDialog === 'followers' ? (
+                            <PeopleListTab
+                                people={filteredFollowerPeople}
+                                profiles={followerProfiles}
+                                emptyText={followersSearch ? t('social.emptyFollowersSearch') : t('social.emptyFollowers')}
+                                loading={followersLoading}
+                                {...(selectedFollowingPubkey !== undefined ? { selectedPubkey: selectedFollowingPubkey } : {})}
+                                {...(onSelectFollowing ? { onSelectPerson: onSelectFollowing } : {})}
+                                {...(onLocateFollowing ? { onLocatePerson: onLocateFollowing } : {})}
+                                {...(onCopyOwnerNpub ? { onCopyNpub: onCopyOwnerNpub } : {})}
+                                {...(onMessagePerson ? { onSendMessage: onMessagePerson } : {})}
+                                {...(onViewPersonDetails ? { onViewDetails: onViewPersonDetails } : {})}
+                                zapAmounts={zapAmounts}
+                                {...(onZapPerson ? { onZapPerson } : {})}
+                                {...(onConfigureZapAmounts ? { onConfigureZapAmounts } : {})}
+                                followedPubkeys={followingPeople}
+                                {...(onFollowPerson ? { onFollowPerson } : {})}
+                                {...(followerPeople.length > 0 ? { searchQuery: followersSearch } : {})}
+                                {...(followerPeople.length > 0 ? { onSearchQueryChange: setFollowersSearch } : {})}
+                                {...(followerPeople.length > 0 ? { searchAriaLabel: t('social.searchFollowers') } : {})}
+                                verificationByPubkey={verificationByPubkey}
+                            />
+                        ) : (
+                            <PeopleListTab
+                                people={filteredFollowingPeople}
+                                profiles={profiles}
+                                emptyText={followingSearch ? t('social.emptyFollowingSearch') : t('social.emptyFollowing')}
+                                loading={false}
+                                {...(selectedFollowingPubkey !== undefined ? { selectedPubkey: selectedFollowingPubkey } : {})}
+                                {...(onSelectFollowing ? { onSelectPerson: onSelectFollowing } : {})}
+                                {...(onLocateFollowing ? { onLocatePerson: onLocateFollowing } : {})}
+                                {...(onCopyOwnerNpub ? { onCopyNpub: onCopyOwnerNpub } : {})}
+                                {...(onMessagePerson ? { onSendMessage: onMessagePerson } : {})}
+                                {...(onViewPersonDetails ? { onViewDetails: onViewPersonDetails } : {})}
+                                zapAmounts={zapAmounts}
+                                {...(onZapPerson ? { onZapPerson } : {})}
+                                {...(onConfigureZapAmounts ? { onConfigureZapAmounts } : {})}
+                                {...(followingPeople.length > 0 ? { searchQuery: followingSearch } : {})}
+                                {...(followingPeople.length > 0 ? { onSearchQueryChange: setFollowingSearch } : {})}
+                                {...(followingPeople.length > 0 ? { searchAriaLabel: t('social.searchFollowing') } : {})}
+                                followedPubkeys={followingPeople}
+                                {...(onFollowPerson ? { onFollowPerson } : {})}
+                                followActionPlacement="context"
+                                verificationByPubkey={verificationByPubkey}
+                            />
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
