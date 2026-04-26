@@ -91,6 +91,15 @@ For Playwright smoke tests, CI installs Chromium with `pnpm exec playwright inst
 - For Tailwind CSS v4 and shadcn/ui changes, keep theme variables in the existing CSS architecture and verify dark mode when relevant.
 - For React UI work, follow existing component patterns. Do not add `useMemo` or `useCallback` by default; use them only when there is a clear performance or referential-stability reason already aligned with nearby code.
 
+## Complexity And Module Boundaries
+
+- Keep files focused on one primary responsibility. Avoid adding new behavior to files that already mix rendering, data fetching, state orchestration, domain rules, and side effects.
+- For React, keep components primarily responsible for rendering and interaction wiring. Move reusable state orchestration into hooks, domain transformations into pure functions, and external I/O into services or controllers.
+- For backend routes, keep handlers thin: validate input, call a service, and return a response. Put business rules in services and persistence or integration details behind injected dependencies.
+- When touching a large or hard-to-reason-about file, prefer a small extraction related to the current change instead of adding more branching, unrelated state, or responsibilities.
+- Use these refactoring triggers: long functions, deeply nested conditionals, duplicated feature logic, mixed UI/data/domain concerns, broad imports from unrelated areas, and tests that require excessive setup.
+- Do not create speculative abstractions. Extract only when it reduces current complexity, improves testability, isolates a responsibility being changed now, or removes duplication that has appeared at least three times.
+
 ## Frontend And UI Guidance
 
 - Landing code lives in `src/landing`; overlay app code lives in `src/nostr-overlay`; shared UI primitives live in `src/components/ui`.
@@ -98,6 +107,15 @@ For Playwright smoke tests, CI installs Chromium with `pnpm exec playwright inst
 - Keep keyboard navigation, focus states, screen-reader names, reduced-motion behavior, and mobile breakpoints in scope for UI changes.
 - For visible copy changes, update both supported locales and preserve key naming by feature namespace.
 - For route or shell changes in the overlay, check `src/nostr-overlay/shell` and route-related tests before changing top-level `App.tsx` behavior.
+
+## Styling Policy
+
+- Prefer shadcn/ui components, Radix primitives, Tailwind utility classes, and existing design tokens before adding custom CSS.
+- Avoid growing global or page-level `styles.css` files. New custom CSS should be rare, localized, and justified by a limitation that Tailwind or shadcn/ui cannot reasonably solve.
+- Custom CSS is acceptable for Tailwind v4 theme variables, global base styles, map or canvas rendering constraints, complex animations, third-party library overrides, and browser-specific fixes.
+- Do not introduce new visual tokens directly in component CSS. Add semantic tokens to the existing Tailwind/theme CSS architecture and consume them through utilities.
+- Prefer component variants, `cn()`, and shadcn-compatible composition over bespoke class systems.
+- If a style can be expressed clearly with Tailwind utilities, do not add it to a CSS file.
 
 ## Backend Guidance
 
@@ -122,6 +140,14 @@ For Playwright smoke tests, CI installs Chromium with `pnpm exec playwright inst
 - If landing or docs links change, check `src/site/app-url.ts`, `src/site/docs-url.ts`, and their tests.
 - Architecture/spec work commonly lives in `docs/superpowers/specs`.
 
+## Before Finishing Code Changes
+
+- Confirm changed files still have a clear primary responsibility.
+- If a touched file grew significantly, check whether a focused extraction would reduce future maintenance cost.
+- Confirm UI changes use shadcn/ui and Tailwind utilities before custom CSS.
+- Confirm new user-visible copy is localized through `src/i18n`.
+- Run the closest relevant lint, typecheck, and tests before claiming completion.
+
 ## Agent Workflow
 
 - Before implementing or answering, check whether a project skill applies and load it with the `skill` tool.
@@ -132,13 +158,23 @@ For Playwright smoke tests, CI installs Chromium with `pnpm exec playwright inst
 - When elaborating plans, always include recommended skills for each chunk of the task.
 - Do not commit, amend, reset, checkout, or push unless the user explicitly asks.
 
+## Agent Selection Policy
+
+- Use `frontend-specialist` for React implementation, shadcn/ui composition, Tailwind utility styling, frontend tests, and routine UI code changes.
+- Use `ui-ux-designer` for visual strategy, UX critique, layout direction, and design handoff only. Do not use it as the default implementation agent.
+- Use `refactoring-expert` for focused behavior-preserving refactors in large files, mixed-responsibility modules, duplicated logic, or hard-to-test code.
+- Use `project-orchestrator` only for project briefs or tasks spanning multiple independent domains. Do not invoke it for single-area fixes.
+- Prefer one primary specialist per task. Add secondary specialists only when their domain is truly required, such as `accessibility-auditor` for formal a11y review or `i18n-specialist` for translation architecture.
+- If two agents appear applicable, choose the one closest to the file being changed and the outcome requested; avoid parallel agents that would edit the same files.
+
 ## Recommended Skills By Work Type
 
 | Work type | Recommended skills |
 | --- | --- |
 | AGENTS.md or agent guidance | `create-agentsmd`, `writing-skills` if editing or fixing skills themselves. |
 | Nostr protocol, relays, auth, DMs, zaps, NWC, WebLN | `nostr-specialist`, plus `bitcoin-bips-development` for Bitcoin-level compatibility. |
-| React UI or landing/overlay UX | `frontend-design`, `shadcn`, `tailwind-v4-shadcn`, `tailwind-css-patterns`, `accessibility`. |
+| React UI implementation or landing/overlay UX | `frontend-specialist`, `shadcn`, `tailwind-v4-shadcn`, `tailwind-css-patterns`, `accessibility`. |
+| Visual strategy or UX critique | `ui-ux-designer`, `web-design-guidelines`, `accessibility`. |
 | React performance or composition | `vercel-react-best-practices`, `vercel-composition-patterns`, `react-best-practices`. |
 | Fastify BFF or Node backend | `fastify-best-practices`, `nodejs-backend-patterns`, `nodejs-best-practices`. |
 | Tests | `vitest` for unit tests, `playwright-best-practices` for smoke/e2e tests. |

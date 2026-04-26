@@ -1,7 +1,6 @@
 ---
 name: tailwind-css-patterns
-description: Provides comprehensive Tailwind CSS utility-first styling patterns including responsive design, layout utilities, flexbox, grid, spacing, typography, colors, and modern CSS best practices. Use when styling React/Vue/Svelte components, building responsive layouts, implementing design systems, or optimizing CSS workflow.
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash
+description: Use when styling components with Tailwind CSS utilities, building responsive layouts, reducing custom CSS, or applying this repository's Tailwind v4 utility-first workflow.
 ---
 
 # Tailwind CSS Development Patterns
@@ -57,8 +56,8 @@ Provides actionable patterns for responsive, accessible UIs with Tailwind CSS v4
 1. **Start Mobile-First**: Write base styles for mobile, add responsive prefixes (`sm:`, `md:`, `lg:`) for larger screens
 2. **Use Design Tokens**: Leverage Tailwind's spacing, color, and typography scales
 3. **Compose Utilities**: Combine multiple utilities for complex styles
-4. **Extract Components**: Create reusable component classes for repeated patterns
-5. **Configure Theme**: Customize design tokens in `tailwind.config.js` or using `@theme`
+4. **Extract Components**: Prefer reusable React components, shadcn/ui variants, or `cn()` composition for repeated patterns
+5. **Configure Theme**: In this repository, use Tailwind v4 CSS-first tokens and `@theme inline`; do not add `tailwind.config.*` theme customization
 6. **Verify Changes**: Test at each breakpoint using DevTools responsive mode. Check for visual regressions and accessibility issues before committing.
 
 ## Examples
@@ -81,11 +80,11 @@ function ProductCard({ product }: { product: Product }) {
 }
 ```
 
-### Dark Mode Toggle
+### Semantic Dark Mode
 
 ```html
-<div class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
-  <h1 class="dark:text-white">Title</h1>
+<div class="bg-background text-foreground">
+  <h1 class="text-foreground">Title</h1>
 </div>
 ```
 
@@ -101,19 +100,19 @@ function ProductCard({ product }: { product: Product }) {
 ## Best Practices
 
 1. **Consistent Spacing**: Use Tailwind's spacing scale (4, 8, 12, 16, etc.)
-2. **Color Palette**: Stick to Tailwind's color system for consistency
+2. **Color Palette**: Prefer existing semantic tokens such as `background`, `foreground`, `primary`, `muted`, and `border`
 3. **Component Extraction**: Extract repeated patterns into reusable components
 4. **Utility Composition**: Prefer utility classes over `@apply` for maintainability
 5. **Semantic HTML**: Use proper HTML elements with Tailwind classes
-6. **Performance**: Ensure content paths include all template files for optimal purging
+6. **Performance**: Keep class usage explicit and avoid broad custom CSS that bypasses Tailwind's generated utilities
 7. **Accessibility**: Include focus styles, ARIA labels, and respect user preferences (reduced-motion)
 
 ## Troubleshooting
 
 ### Classes Not Applying
-- **Check content paths**: Ensure all template files are included in `content: []` in config
-- **Verify build**: Run `npm run build` to regenerate purged CSS
-- **Dev mode**: Use `npx tailwindcss -o` with `--watch` flag for live updates
+- **Check v4 setup**: Confirm the CSS entry imports Tailwind and maps tokens through `@theme inline`
+- **Verify build**: Run the project's build command to confirm generated CSS
+- **Use project tooling**: Prefer existing Vite/Tailwind integration instead of ad-hoc CLI generation
 
 ### Responsive Styles Not Working
 - **Order matters**: Responsive prefixes must come before non-responsive (e.g., `md:flex` not `flex md:flex`)
@@ -121,17 +120,17 @@ function ProductCard({ product }: { product: Product }) {
 - **DevTools**: Use browser DevTools responsive mode to test at each breakpoint
 
 ### Dark Mode Issues
-- **Verify config**: Ensure `darkMode: 'class'` or `'media'` is set correctly
-- **Toggle implementation**: Use `document.documentElement.classList.toggle('dark')` for class strategy
-- **Initial flash**: Add `dark` class to `<html>` before body renders
+- **Verify tokens**: Use semantic classes (`bg-background`, `text-foreground`) instead of duplicating `dark:` color variants
+- **Toggle implementation**: Follow the existing theme provider or shell behavior
+- **Initial flash**: Preserve the existing app-level theme initialization pattern
 
 ## Constraints and Warnings
 
 - **Class Proliferation**: Long class strings reduce readability; extract into components
-- **Content Paths**: Misconfigured paths cause classes to be purged in production
+- **Tailwind v4 Architecture**: Do not add `tailwind.config.*` for this repo's theme tokens
 - **Arbitrary Values**: Use sparingly; prefer design tokens for consistency
 - **Specificity Issues**: Avoid `@apply` with complex selectors
-- **Dark Mode**: Requires correct configuration (`class` or `media` strategy)
+- **Dark Mode**: Prefer semantic tokens that switch automatically with the active theme
 - **Browser Support**: Check Tailwind docs for compatibility notes
 
 ## References

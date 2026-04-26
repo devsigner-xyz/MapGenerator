@@ -1,6 +1,6 @@
 ---
 name: solid
-description: Use this skill when writing code, implementing features, refactoring, planning architecture, designing systems, reviewing code, or debugging. This skill transforms junior-level code into senior-engineer quality software through SOLID principles, TDD, clean code practices, and professional software design.
+description: Use when planning architecture, refactoring complex code, reviewing maintainability, designing module boundaries, or implementing behavior where testability and separation of concerns are central concerns.
 ---
 
 # Solid Skills: Professional Software Engineering
@@ -9,14 +9,14 @@ You are now operating as a senior software engineer. Every line of code you writ
 
 ## When This Skill Applies
 
-**ALWAYS use this skill when:**
-- Writing ANY code (features, fixes, utilities)
-- Refactoring existing code
-- Planning or designing architecture
-- Reviewing code quality
-- Debugging issues
-- Creating tests
-- Making design decisions
+Use this skill when:
+- Refactoring existing code with mixed responsibilities or high complexity
+- Planning architecture or module boundaries
+- Reviewing code quality and maintainability
+- Designing behavior where testability and separation of concerns matter
+- Adding tests around non-trivial domain or orchestration logic
+
+Do not use it as a reason to over-engineer small UI changes, trivial fixes, or code that is clearer without new abstractions.
 
 ## Core Philosophy
 
@@ -26,9 +26,9 @@ The goal of software: Enable developers to **discover, understand, add, change, 
 
 ## The Non-Negotiable Process
 
-### 1. ALWAYS Start with Tests (TDD)
+### 1. Start With Behavior And Tests When Risk Warrants It
 
-**Red-Green-Refactor is not optional:**
+Prefer Red-Green-Refactor for new behavior, bug fixes, and risky refactors:
 
 ```
 1. RED    - Write a failing test that describes the behavior
@@ -36,12 +36,14 @@ The goal of software: Enable developers to **discover, understand, add, change, 
 3. REFACTOR - Clean up, remove duplication (Rule of Three)
 ```
 
-**The Three Laws of TDD:**
+**The Three Laws of TDD for non-trivial behavior:**
 1. You cannot write production code unless it makes a failing test pass
 2. You cannot write more test code than is sufficient to fail
 3. You cannot write more production code than is sufficient to pass
 
-**Design happens during REFACTORING, not during coding.**
+For mechanical, documentation-only, or very small safe edits, use judgment: preserve behavior, keep the change minimal, and run the closest relevant verification.
+
+Design should emerge during refactoring rather than speculative upfront abstraction.
 
 See: [references/tdd.md](references/tdd.md)
 
@@ -72,21 +74,21 @@ See: [references/solid-principles.md](references/solid-principles.md)
 - One level of indentation per method
 - No `else` keyword when possible (early returns)
 - When validating untrusted strings against an object/map, use `Object.hasOwn(...)` (or `Object.prototype.hasOwnProperty.call(...)`) — do not use the `in` operator, which matches prototype keys
-- **ALWAYS wrap primitives in domain objects** - IDs, emails, money amounts, etc.
-- First-class collections (wrap arrays in classes)
+- Consider value objects for domain concepts that need validation, invariants, or behavior, such as IDs crossing trust boundaries, emails, money amounts, and protocol identifiers.
+- Consider first-class collections when array operations repeat or invariants matter.
 - One dot per line (Law of Demeter)
 - Keep entities small (< 50 lines for classes, < 10 for methods)
 - No more than two instance variables per class
 
-**Value Objects are MANDATORY for:**
+**Value Objects are useful for:**
 ```typescript
-// ALWAYS create value objects for:
+// Consider value objects when invariants matter:
 class UserId { constructor(private readonly value: string) {} }
 class Email { constructor(private readonly value: string) { /* validate */ } }
 class Money { constructor(private readonly amount: number, private readonly currency: string) {} }
 class OrderId { constructor(private readonly value: string) {} }
 
-// NEVER use raw primitives for domain concepts:
+// Avoid raw primitives when they hide validation or units:
 // BAD: function createOrder(userId: string, email: string)
 // GOOD: function createOrder(userId: UserId, email: Email)
 ```
