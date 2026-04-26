@@ -73,7 +73,7 @@ class Main {
     private canvas: HTMLCanvasElement;
     private tensorCanvas: DefaultCanvasWrapper;
     private _style!: Style;
-    private colourScheme: string = "Google";  // See colour_schemes.json
+    private colourScheme: string = "Nostr City Light";  // See colour_schemes.json
     private zoomBuildings: boolean = false;  // Show buildings only when zoomed in?
     private buildingModels: boolean = false;  // Draw pseudo-3D buildings?
     private showFrame: boolean = false;
@@ -128,8 +128,6 @@ class Main {
 
         // Style setup
         const guiBindings = this as unknown as Record<string, unknown>;
-
-        this.styleFolder.add(guiBindings, 'colourScheme', Object.keys(ColourSchemes)).onChange((val: string) => this.changeColourScheme(val));
 
         this.styleFolder.add(guiBindings, 'zoomBuildings').onChange((val: boolean) => {
             // Force redraw
@@ -327,6 +325,18 @@ class Main {
         return this.mainGui.focusBuilding(index);
     }
 
+    setColourScheme(scheme: string): void {
+        this.changeColourScheme(scheme);
+    }
+
+    getColourScheme(): string {
+        return this.colourScheme;
+    }
+
+    getColourSchemes(): string[] {
+        return Object.keys(ColourSchemes);
+    }
+
     getParkCount(): number {
         return this.mainGui.getParkCount();
     }
@@ -417,6 +427,7 @@ class Main {
             return;
         }
 
+        this.colourScheme = scheme;
         this.zoomBuildings = Boolean(colourScheme.zoomBuildings);
         this.buildingModels = Boolean(colourScheme.buildingModels);
         Util.updateGui(this.styleFolder);

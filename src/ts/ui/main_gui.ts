@@ -404,17 +404,21 @@ export default class MainGUI {
             pool: this.labelNamePool.park,
             seed: this.getStreetLabelSeed(),
         });
+        const labelColours = style.getMapLabelColours();
 
         style.streetLabels = [
-            ...streetLabels,
+            ...streetLabels.map((label) => ({
+                ...label,
+                color: labelColours.street,
+            })),
             ...(waterLabel ? [{
                 ...waterLabel,
-                color: 'rgb(67, 120, 207)',
+                color: labelColours.water,
                 fontScale: 1.35,
             }] : []),
             ...bigParkLabels.map((label) => ({
                 ...label,
-                color: 'rgb(59, 139, 74)',
+                color: labelColours.park,
                 fontScale: 1.2,
             })),
         ];

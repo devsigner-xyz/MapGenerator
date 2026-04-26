@@ -80,6 +80,7 @@ import {
 import type { NostrEvent } from '../nostr/types';
 import { useRelayConnectionSummary } from './hooks/useRelayConnectionSummary';
 import { useOverlayTheme } from './hooks/useOverlayTheme';
+import { resolveNostrCityMapPreset } from './map-colour-schemes';
 import { OverlayAppShell } from './shell/OverlayAppShell';
 import { useMapBridgeController } from './shell/use-map-bridge-controller';
 import { normalizeHashtag, useOverlayRouteState } from './shell/use-overlay-route-state';
@@ -708,6 +709,10 @@ export function App({ mapBridge, services }: AppProps) {
     const activeProfileVerification = overlay.activeProfilePubkey
         ? verificationByPubkey[overlay.activeProfilePubkey]
         : undefined;
+
+    useEffect(() => {
+        mapBridge?.setColourScheme?.(resolveNostrCityMapPreset(resolvedOverlayTheme));
+    }, [mapBridge, resolvedOverlayTheme]);
 
     useEffect(() => {
         setRelaySettingsSnapshot(loadRelaySettings(
@@ -1944,6 +1949,7 @@ export function App({ mapBridge, services }: AppProps) {
                     savedLocalAccount={overlay.savedLocalAccount}
                     disabled={loginDisabled || !sessionRestorationResolved}
                     mapLoaderText={mapLoaderText}
+                    overlayTheme={resolvedOverlayTheme}
                     restoringSession={!sessionRestorationResolved}
                     onStartSession={overlay.startSession}
                 />

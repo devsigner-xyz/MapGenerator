@@ -12,13 +12,13 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
-import loginCover from '../assets/cover.png';
 
 interface LoginGateScreenProps {
     authSession?: AuthSessionState | undefined;
     savedLocalAccount?: { pubkey: string; mode: 'device' | 'passphrase' } | undefined;
     disabled?: boolean;
     mapLoaderText?: string | null;
+    overlayTheme: 'light' | 'dark';
     restoringSession?: boolean;
     onStartSession: (method: LoginMethod, input: ProviderResolveInput) => Promise<void> | void;
 }
@@ -28,6 +28,7 @@ export function LoginGateScreen({
     savedLocalAccount,
     disabled = false,
     mapLoaderText,
+    overlayTheme,
     restoringSession = false,
     onStartSession,
 }: LoginGateScreenProps) {
@@ -53,14 +54,15 @@ export function LoginGateScreen({
     const lockedLocalPubkey = authSession?.method === 'local' && authSession.locked ? authSession.pubkey : undefined;
     const [savedLocalPassphrase, setSavedLocalPassphrase] = useState('');
     const restorationSubtitle = mapLoaderText && mapLoaderText.trim().length > 0 ? mapLoaderText : t('auth.login.preparingAccess');
+    const loginLogo = overlayTheme === 'dark' ? '/logo-v2-dark.png' : '/logo-v2-light.png';
 
     return (
         <div className="nostr-login-screen nostr-login-screen-dialog" data-testid="login-gate-screen" role="main" aria-label={t('auth.login.screen')}>
             <div className="nostr-login-screen-center">
                 <Card variant="elevated" className="nostr-login-screen-card gap-0 py-0">
-                    <CardContent className="flex flex-col gap-6 p-5 sm:p-6">
+                    <CardContent className="flex flex-col gap-4 p-5 sm:p-6">
                         <div className="nostr-login-cover-wrap">
-                            <img src={loginCover} alt={t('auth.login.coverAlt')} className="nostr-login-cover" />
+                            <img src={loginLogo} alt={t('auth.login.coverAlt')} className="nostr-login-cover h-auto w-auto max-w-full" />
                         </div>
 
                         {restoringSession ? (

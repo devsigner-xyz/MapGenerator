@@ -81,20 +81,15 @@
     justify-content: center;
 }
 
-.nostr-login-screen-card {
-    width: min(100%, 34rem);
-}
-
 .nostr-login-cover-wrap {
     display: flex;
     justify-content: center;
 }
 
 .nostr-login-cover {
-    width: 100%;
+    max-width: 400px;
     height: auto;
-    object-fit: cover;
-    border-radius: 14px;
+    object-fit: contain;
     display: block;
 }
 
@@ -264,6 +259,33 @@
     min-width: 30px;
     height: 30px;
     padding: 0;
+}
+
+.dark .nostr-map-zoom-group {
+    border-color: rgba(162, 240, 254, 0.52);
+    background: rgba(1, 4, 50, 0.88);
+    box-shadow: 0 14px 28px rgba(1, 4, 50, 0.48), 0 0 18px rgba(42, 186, 251, 0.16);
+}
+
+.dark .nostr-map-regenerate-button {
+    border-color: rgba(162, 240, 254, 0.52);
+    background: rgba(1, 4, 50, 0.88);
+    box-shadow: 0 14px 28px rgba(1, 4, 50, 0.48), 0 0 18px rgba(42, 186, 251, 0.16);
+}
+
+.dark .nostr-map-zoom-button,
+.dark .nostr-map-regenerate-button {
+    color: #FCFDFE;
+}
+
+.dark .nostr-map-zoom-button:hover,
+.dark .nostr-map-regenerate-button:hover {
+    background: rgba(35, 60, 181, 0.52);
+    color: #A2F0FE;
+}
+
+.dark .nostr-map-zoom-level {
+    color: #A2F0FE;
 }
 
 .nostr-toast {
@@ -2482,6 +2504,54 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.dark .nostr-map-occupant-tag {
+    border-color: rgba(162, 240, 254, 0.48);
+    background: rgba(1, 21, 86, 0.9);
+    box-shadow: 0 10px 22px rgba(1, 4, 50, 0.5), 0 0 18px rgba(42, 186, 251, 0.2);
+}
+
+.dark .nostr-map-occupant-avatar,
+.dark .nostr-map-owner-avatar {
+    border-color: rgba(162, 240, 254, 0.7);
+}
+
+.dark .nostr-map-occupant-avatar-fallback,
+.dark .nostr-map-owner-avatar-fallback {
+    background: rgba(35, 60, 181, 0.95);
+    color: #A2F0FE;
+}
+
+.dark .nostr-map-occupant-name {
+    color: #FCFDFE;
+}
+
+.dark .nostr-map-owner-badge {
+    border-color: rgba(219, 95, 247, 0.74);
+    background: rgba(76, 31, 174, 0.92);
+    color: #FCFDFE;
+    box-shadow: 0 10px 22px rgba(1, 4, 50, 0.5), 0 0 18px rgba(219, 95, 247, 0.18);
+}
+
+.dark .nostr-map-owner-name {
+    color: #FCFDFE;
+    background: rgba(1, 21, 86, 0.9);
+    border-color: rgba(162, 240, 254, 0.48);
+}
+
+.dark .nostr-map-easter-egg-marker {
+    border-color: rgba(219, 95, 247, 0.82);
+    color: #FCFDFE;
+    background: rgba(76, 31, 174, 0.94);
+    box-shadow: 0 10px 22px rgba(1, 4, 50, 0.5), 0 0 18px rgba(219, 95, 247, 0.22);
+}
+
+.dark .nostr-map-special-building-marker {
+    border-color: rgba(162, 240, 254, 0.7);
+    color: #FCFDFE;
+    background: rgba(35, 60, 181, 0.94);
+    box-shadow: 0 10px 22px rgba(1, 4, 50, 0.5), 0 0 18px rgba(42, 186, 251, 0.22);
 }
 
 @media (max-width: 720px) {

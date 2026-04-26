@@ -4,6 +4,10 @@ import type { UiTheme } from '../../nostr/ui-settings';
 export type ResolvedOverlayTheme = 'light' | 'dark';
 
 const SYSTEM_THEME_QUERY = '(prefers-color-scheme: dark)';
+const FAVICON_BY_THEME: Record<ResolvedOverlayTheme, string> = {
+    light: '/icon-light-32x32.png',
+    dark: '/icon-dark-32x32.png',
+};
 
 function readSystemTheme(): ResolvedOverlayTheme {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
@@ -56,6 +60,15 @@ export function useOverlayTheme(theme: UiTheme): ResolvedOverlayTheme {
 
         document.documentElement.classList.toggle('dark', resolvedTheme === 'dark');
         document.documentElement.style.colorScheme = resolvedTheme;
+
+        const iconHref = FAVICON_BY_THEME[resolvedTheme];
+        const iconLink = document.head.querySelector<HTMLLinkElement>('link[rel="icon"]') || document.createElement('link');
+        iconLink.rel = 'icon';
+        iconLink.type = 'image/png';
+        iconLink.href = iconHref;
+        if (!iconLink.parentElement) {
+            document.head.appendChild(iconLink);
+        }
     }, [resolvedTheme]);
 
     return resolvedTheme;

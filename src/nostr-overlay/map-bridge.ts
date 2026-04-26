@@ -55,6 +55,9 @@ export interface MapMainApi {
     setStreetLabelUsernames?(usernames: string[]): void;
     setTrafficParticlesCount?(count: number): void;
     setTrafficParticlesSpeed?(speed: number): void;
+    setColourScheme?(scheme: string): void;
+    getColourScheme?(): string;
+    getColourSchemes?(): string[];
     mountSettingsPanel(container: HTMLElement | null): void;
     focusBuilding(index: number): boolean | void;
     getParkCount(): number;
@@ -85,6 +88,9 @@ export interface MapBridge {
     setStreetLabelUsernames(usernames: string[]): void;
     setTrafficParticlesCount(count: number): void;
     setTrafficParticlesSpeed(speed: number): void;
+    setColourScheme?(scheme: string): void;
+    getColourScheme?(): string | undefined;
+    listColourSchemes?(): string[];
     mountSettingsPanel(container: HTMLElement | null): void;
     focusBuilding(index: number): void;
     getParkCount(): number;
@@ -178,6 +184,18 @@ export function createMapBridge(mainApi: MapMainApi): MapBridge {
 
         setTrafficParticlesSpeed(speed: number): void {
             mainApi.setTrafficParticlesSpeed?.(speed);
+        },
+
+        setColourScheme(scheme: string): void {
+            mainApi.setColourScheme?.(scheme);
+        },
+
+        getColourScheme(): string | undefined {
+            return mainApi.getColourScheme?.();
+        },
+
+        listColourSchemes(): string[] {
+            return mainApi.getColourSchemes?.() ?? [];
         },
 
         mountSettingsPanel(container: HTMLElement | null): void {

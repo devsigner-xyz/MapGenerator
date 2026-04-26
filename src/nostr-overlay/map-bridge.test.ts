@@ -19,6 +19,9 @@ function createMainApiStub(overrides: Partial<MapMainApi> = {}): MapMainApi {
         setStreetLabelUsernames: vi.fn(),
         setTrafficParticlesCount: vi.fn(),
         setTrafficParticlesSpeed: vi.fn(),
+        setColourScheme: vi.fn(),
+        getColourScheme: vi.fn().mockReturnValue('Nostr City Light'),
+        getColourSchemes: vi.fn().mockReturnValue(['Nostr City Light', 'Nostr City Dark']),
         mountSettingsPanel: vi.fn(),
         focusBuilding: vi.fn().mockReturnValue(true),
         getParkCount: vi.fn().mockReturnValue(3),
@@ -194,6 +197,18 @@ describe('createMapBridge', () => {
 
         expect(api.setTrafficParticlesCount).toHaveBeenCalledWith(18);
         expect(api.setTrafficParticlesSpeed).toHaveBeenCalledWith(1.6);
+    });
+
+    test('colour scheme settings delegate to map api', () => {
+        const api = createMainApiStub();
+        const bridge = createMapBridge(api);
+
+        expect(typeof bridge.setColourScheme).toBe('function');
+        bridge.setColourScheme?.('Nostr City Dark');
+
+        expect(api.setColourScheme).toHaveBeenCalledWith('Nostr City Dark');
+        expect(bridge.getColourScheme?.()).toBe('Nostr City Light');
+        expect(bridge.listColourSchemes?.()).toEqual(['Nostr City Light', 'Nostr City Dark']);
     });
 
     test('getZoom delegates to map api', () => {

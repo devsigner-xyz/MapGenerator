@@ -30,6 +30,13 @@ interface ResolvedColourScheme {
     buildingModels: boolean;
     frameColour: string;
     frameTextColour: string;
+    occupiedBuildingColour: string | undefined;
+    occupiedBuildingStroke: string | undefined;
+    hoveredBuildingColour: string | undefined;
+    hoveredBuildingStroke: string | undefined;
+    streetLabelColour: string | undefined;
+    waterLabelColour: string | undefined;
+    parkLabelColour: string | undefined;
 }
 
 export interface ColourScheme {
@@ -54,6 +61,13 @@ export interface ColourScheme {
     buildingModels?: boolean;
     frameColour?: string;
     frameTextColour?: string;
+    occupiedBuildingColour?: string | undefined;
+    occupiedBuildingStroke?: string | undefined;
+    hoveredBuildingColour?: string | undefined;
+    hoveredBuildingStroke?: string | undefined;
+    streetLabelColour?: string | undefined;
+    waterLabelColour?: string | undefined;
+    parkLabelColour?: string | undefined;
 }
 
 export type BuildingRenderState = 'empty' | 'occupied' | 'verified' | 'hovered' | 'selected' | 'easter_egg_debug';
@@ -61,6 +75,12 @@ export type BuildingRenderState = 'empty' | 'occupied' | 'verified' | 'hovered' 
 export interface BuildingRenderColours {
     fill: string;
     stroke: string;
+}
+
+export interface MapLabelColours {
+    street: string;
+    water: string;
+    park: string;
 }
 
 export interface TrafficParticleRenderState {
@@ -186,6 +206,21 @@ function resolveColourScheme(colourScheme: ColourScheme): ResolvedColourScheme {
         buildingModels,
         frameColour,
         frameTextColour,
+        occupiedBuildingColour: colourScheme.occupiedBuildingColour,
+        occupiedBuildingStroke: colourScheme.occupiedBuildingStroke,
+        hoveredBuildingColour: colourScheme.hoveredBuildingColour,
+        hoveredBuildingStroke: colourScheme.hoveredBuildingStroke,
+        streetLabelColour: colourScheme.streetLabelColour,
+        waterLabelColour: colourScheme.waterLabelColour,
+        parkLabelColour: colourScheme.parkLabelColour,
+    };
+}
+
+export function resolveMapLabelColours(colourScheme: ColourScheme): MapLabelColours {
+    return {
+        street: colourScheme.streetLabelColour || 'rgb(72,72,72)',
+        water: colourScheme.waterLabelColour || 'rgb(67, 120, 207)',
+        park: colourScheme.parkLabelColour || 'rgb(59, 139, 74)',
     };
 }
 
@@ -203,15 +238,15 @@ export function resolveBuildingRenderColours(
 
     if (state === 'hovered') {
         return {
-            fill: 'rgb(255,151,66)',
-            stroke: 'rgb(229,94,24)',
+            fill: colourScheme.hoveredBuildingColour || 'rgb(255,151,66)',
+            stroke: colourScheme.hoveredBuildingStroke || 'rgb(229,94,24)',
         };
     }
 
     if (state === 'occupied') {
         return {
-            fill: 'rgb(247,240,206)',
-            stroke: 'rgb(228,202,120)',
+            fill: colourScheme.occupiedBuildingColour || 'rgb(247,240,206)',
+            stroke: colourScheme.occupiedBuildingStroke || 'rgb(228,202,120)',
         };
     }
 
@@ -283,6 +318,10 @@ export default abstract class Style {
 
     public get showBuildingModels(): boolean {
         return this.colourScheme.buildingModels;
+    }
+
+    public getMapLabelColours(): MapLabelColours {
+        return resolveMapLabelColours(this.colourScheme);
     }
 
     public set canvasScale(scale: number) {

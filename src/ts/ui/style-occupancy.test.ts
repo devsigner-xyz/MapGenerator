@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from 'vitest';
 import DomainController from './domain_controller';
 import Vector from '../vector';
-import { DefaultStyle, resolveBuildingRenderColours, type ColourScheme } from './style';
+import { DefaultStyle, resolveBuildingRenderColours, resolveMapLabelColours, type ColourScheme } from './style';
 import type { BuildingModel } from './buildings';
 
 const baseScheme: ColourScheme = {
@@ -63,6 +63,50 @@ describe('resolveBuildingRenderColours', () => {
         expect(colours).toEqual({
             fill: 'rgb(255,151,66)',
             stroke: 'rgb(229,94,24)',
+        });
+    });
+
+    test('uses colour scheme overrides for occupied and hovered buildings', () => {
+        const darkScheme: ColourScheme = {
+            ...baseScheme,
+            occupiedBuildingColour: '#2ABAFB',
+            occupiedBuildingStroke: '#233CB5',
+            hoveredBuildingColour: '#DB5FF7',
+            hoveredBuildingStroke: '#FCFDFE',
+        };
+
+        expect(resolveBuildingRenderColours('occupied', darkScheme)).toEqual({
+            fill: '#2ABAFB',
+            stroke: '#233CB5',
+        });
+        expect(resolveBuildingRenderColours('hovered', darkScheme)).toEqual({
+            fill: '#DB5FF7',
+            stroke: '#FCFDFE',
+        });
+    });
+});
+
+describe('resolveMapLabelColours', () => {
+    test('uses light label defaults when scheme has no overrides', () => {
+        expect(resolveMapLabelColours(baseScheme)).toEqual({
+            street: 'rgb(72,72,72)',
+            water: 'rgb(67, 120, 207)',
+            park: 'rgb(59, 139, 74)',
+        });
+    });
+
+    test('uses colour scheme label overrides for dark presets', () => {
+        const darkScheme: ColourScheme = {
+            ...baseScheme,
+            streetLabelColour: '#A2F0FE',
+            waterLabelColour: '#2ABAFB',
+            parkLabelColour: '#C586F2',
+        };
+
+        expect(resolveMapLabelColours(darkScheme)).toEqual({
+            street: '#A2F0FE',
+            water: '#2ABAFB',
+            park: '#C586F2',
         });
     });
 });

@@ -8,6 +8,13 @@ export default defineConfig({
   title: 'Nostr City',
   description: 'Centro de ayuda de Nostr City',
   base: '/docs/',
+  head: [
+    ['link', { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/icon-light-32x32.png' }],
+    ['link', { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/icon-light-32x32.png', media: '(prefers-color-scheme: light)' }],
+    ['link', { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/icon-dark-32x32.png', media: '(prefers-color-scheme: dark)' }],
+    ['link', { rel: 'apple-touch-icon', sizes: '180x180', href: '/icon-light-180x180.png' }],
+    ['link', { rel: 'manifest', href: '/site.webmanifest' }],
+  ],
   cleanUrls: true,
   lastUpdated: true,
   outDir: '../dist/docs',

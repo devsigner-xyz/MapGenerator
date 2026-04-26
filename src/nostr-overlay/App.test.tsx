@@ -164,6 +164,9 @@ function createMapBridgeStub(buildingsCount = 0): MapBridgeStub {
         setStreetLabelUsernames: vi.fn(),
         setTrafficParticlesCount: vi.fn(),
         setTrafficParticlesSpeed: vi.fn(),
+        setColourScheme: vi.fn(),
+        getColourScheme: vi.fn().mockReturnValue('Nostr City Light'),
+        listColourSchemes: vi.fn().mockReturnValue(['Nostr City Light', 'Nostr City Dark']),
         mountSettingsPanel: vi.fn(),
         focusBuilding: vi.fn(),
         listEasterEggBuildings: vi.fn().mockReturnValue([]),
@@ -7002,6 +7005,7 @@ describe('Nostr overlay App', () => {
         });
 
         await waitFor(() => document.documentElement.classList.contains('dark'));
+        await waitFor(() => (bridge.setColourScheme as any).mock.calls.some((call: [string]) => call[0] === 'Nostr City Dark'));
         const storedUiSettings = JSON.parse(window.localStorage.getItem(UI_SETTINGS_STORAGE_KEY) || '{}') as { theme?: string };
         expect(storedUiSettings.theme).toBe('dark');
     });

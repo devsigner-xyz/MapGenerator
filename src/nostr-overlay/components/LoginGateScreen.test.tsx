@@ -15,6 +15,7 @@ async function renderScreen(options: {
     authSession?: AuthSessionState;
     savedLocalAccount?: { pubkey: string; mode: 'device' | 'passphrase' };
     mapLoaderText?: string;
+    overlayTheme?: 'light' | 'dark';
     restoringSession?: boolean;
 } = {}): Promise<RenderResult> {
     const container = document.createElement('div');
@@ -28,6 +29,7 @@ async function renderScreen(options: {
                 {...(options.savedLocalAccount === undefined ? {} : { savedLocalAccount: options.savedLocalAccount })}
                 disabled={options.disabled ?? false}
                 {...(options.mapLoaderText === undefined ? {} : { mapLoaderText: options.mapLoaderText })}
+                overlayTheme={options.overlayTheme ?? 'light'}
                 restoringSession={options.restoringSession ?? false}
                 onStartSession={vi.fn()}
             />
@@ -89,22 +91,51 @@ describe('LoginGateScreen', () => {
         expect(content).toContain('Crear cuenta');
     });
 
-    test('renders english cover alt text when ui language is en', async () => {
+    test('renders the light logo in the default theme', async () => {
+        const rendered = await renderScreen();
+        mounted.push(rendered);
+
+        const logo = rendered.container.querySelector('img.nostr-login-cover') as HTMLImageElement | null;
+        expect(logo?.getAttribute('src')).toBe('/logo-v2-light.png');
+    });
+
+    test('keeps the logo from reserving a full-width rectangular box', async () => {
+        const rendered = await renderScreen();
+        mounted.push(rendered);
+
+        const content = rendered.container.querySelector('[data-slot="card-content"]');
+        const logo = rendered.container.querySelector('img.nostr-login-cover') as HTMLImageElement | null;
+
+        expect(content?.className).toContain('gap-4');
+        expect(logo?.className).toContain('h-auto');
+        expect(logo?.className).toContain('w-auto');
+        expect(logo?.className).toContain('max-w-full');
+    });
+
+    test('renders the dark logo when the overlay theme is dark', async () => {
+        const rendered = await renderScreen({ overlayTheme: 'dark' });
+        mounted.push(rendered);
+
+        const logo = rendered.container.querySelector('img.nostr-login-cover') as HTMLImageElement | null;
+        expect(logo?.getAttribute('src')).toBe('/logo-v2-dark.png');
+    });
+
+    test('renders english logo alt text when ui language is en', async () => {
         window.localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ language: 'en' }));
 
         const rendered = await renderScreen();
         mounted.push(rendered);
 
         const cover = rendered.container.querySelector('img.nostr-login-cover') as HTMLImageElement | null;
-        expect(cover?.getAttribute('alt')).toBe('Nostr City cover');
+        expect(cover?.getAttribute('alt')).toBe('Nostr City logo');
     });
 
-    test('renders spanish cover alt text by default', async () => {
+    test('renders spanish logo alt text by default', async () => {
         const rendered = await renderScreen();
         mounted.push(rendered);
 
         const cover = rendered.container.querySelector('img.nostr-login-cover') as HTMLImageElement | null;
-        expect(cover?.getAttribute('alt')).toBe('Portada de Nostr City');
+        expect(cover?.getAttribute('alt')).toBe('Logotipo de Nostr City');
     });
 
     test('groups login selector and create account entry point in the main login container', async () => {
@@ -202,6 +233,7 @@ describe('LoginGateScreen', () => {
             root.render(
                 <LoginGateScreen
                     authSession={lockedSession}
+                    overlayTheme="light"
                     onStartSession={onStartSession}
                 />
             );
@@ -239,6 +271,7 @@ describe('LoginGateScreen', () => {
             root.render(
                 <LoginGateScreen
                     savedLocalAccount={{ pubkey: 'f'.repeat(64), mode: 'device' }}
+                    overlayTheme="light"
                     onStartSession={onStartSession}
                 />
             );
@@ -283,6 +316,7 @@ describe('LoginGateScreen', () => {
             root.render(
                 <LoginGateScreen
                     savedLocalAccount={{ pubkey: 'f'.repeat(64), mode: 'passphrase' }}
+                    overlayTheme="light"
                     onStartSession={onStartSession}
                 />
             );

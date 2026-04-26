@@ -25,6 +25,22 @@ let mounted: RenderResult[] = [];
 
 beforeAll(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+    if (!Element.prototype.scrollIntoView) {
+        Element.prototype.scrollIntoView = () => {};
+    }
+
+    if (!Element.prototype.hasPointerCapture) {
+        Element.prototype.hasPointerCapture = () => false;
+    }
+
+    if (!Element.prototype.setPointerCapture) {
+        Element.prototype.setPointerCapture = () => {};
+    }
+
+    if (!Element.prototype.releasePointerCapture) {
+        Element.prototype.releasePointerCapture = () => {};
+    }
 });
 
 afterEach(async () => {
@@ -123,6 +139,52 @@ describe('SettingsUiPage', () => {
             ...getDefaultUiSettings(),
             agoraFeedLayout: 'masonry',
         });
+    });
+
+    test('renders map preset selector and emits selected preset', async () => {
+        const onMapColourSchemeChange = vi.fn();
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+        const root = createRoot(container);
+
+        await act(async () => {
+            root.render(
+                <SettingsUiPage
+                    uiSettings={getDefaultUiSettings()}
+                    onPersistUiSettings={vi.fn()}
+                    mapColourScheme="Nostr City Light"
+                    mapColourSchemeNames={['Nostr City Light', 'Nostr City Dark']}
+                    onMapColourSchemeChange={onMapColourSchemeChange}
+                />
+            );
+        });
+
+        mounted.push({ container, root });
+
+        const row = container.querySelector('[data-testid="settings-ui-map-preset-row"]');
+        expect(row).not.toBeNull();
+        expect(row?.textContent || '').toContain('Preset del mapa');
+        expect(row?.textContent || '').toContain('Nostr City Light');
+
+        const trigger = row?.querySelector('[data-slot="select-trigger"]') as HTMLButtonElement | null;
+        expect(trigger).toBeDefined();
+
+        await act(async () => {
+            trigger?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+            trigger?.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+        });
+
+        const darkOption = Array.from(document.body.querySelectorAll('[data-slot="select-item"]')).find((item) =>
+            (item.textContent || '').trim() === 'Nostr City Dark'
+        ) as HTMLElement | undefined;
+        expect(darkOption).toBeDefined();
+
+        await act(async () => {
+            darkOption?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+            darkOption?.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+        });
+
+        expect(onMapColourSchemeChange).toHaveBeenCalledWith('Nostr City Dark');
     });
 
     test('renders language selector row for choosing spanish or english', async () => {

@@ -18,10 +18,20 @@ import { OverlayPageHeader } from '../OverlayPageHeader';
 interface SettingsUiPageProps {
     uiSettings: UiSettingsState;
     onPersistUiSettings: (nextState: UiSettingsState) => void;
+    mapColourScheme?: string | undefined;
+    mapColourSchemeNames?: string[] | undefined;
+    onMapColourSchemeChange?: (scheme: string) => void;
 }
 
-export function SettingsUiPage({ uiSettings, onPersistUiSettings }: SettingsUiPageProps) {
+export function SettingsUiPage({
+    uiSettings,
+    onPersistUiSettings,
+    mapColourScheme,
+    mapColourSchemeNames = [],
+    onMapColourSchemeChange,
+}: SettingsUiPageProps) {
     const { t } = useI18n();
+    const canSelectMapPreset = mapColourSchemeNames.length > 0 && mapColourScheme !== undefined;
 
     return (
         <>
@@ -95,6 +105,39 @@ export function SettingsUiPage({ uiSettings, onPersistUiSettings }: SettingsUiPa
                     </div>
 
                     <Separator className="nostr-divider" />
+
+                    {canSelectMapPreset ? (
+                        <>
+                            <div className="grid gap-2" data-testid="settings-ui-map-preset-row">
+                                <div className="flex items-center justify-between gap-2">
+                                    <Label htmlFor="nostr-map-colour-scheme">{t('settings.ui.mapPreset')}</Label>
+                                </div>
+                                <Select
+                                    value={mapColourScheme}
+                                    onValueChange={(value) => {
+                                        if (!mapColourSchemeNames.includes(value)) {
+                                            return;
+                                        }
+
+                                        onMapColourSchemeChange?.(value);
+                                    }}
+                                >
+                                    <SelectTrigger id="nostr-map-colour-scheme" className="w-full">
+                                        <SelectValue placeholder={t('settings.ui.mapPreset')} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectGroup>
+                                            {mapColourSchemeNames.map((scheme) => (
+                                                <SelectItem key={scheme} value={scheme}>{scheme}</SelectItem>
+                                            ))}
+                                        </SelectGroup>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <Separator className="nostr-divider" />
+                        </>
+                    ) : null}
 
                     <p>{t('settings.ui.occupiedIntro')}</p>
                     <div className="flex items-center justify-between gap-2" data-testid="settings-ui-occupied-zoom-row">
