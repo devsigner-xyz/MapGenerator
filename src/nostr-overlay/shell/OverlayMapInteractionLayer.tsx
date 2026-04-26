@@ -257,7 +257,7 @@ export function OverlayMapInteractionLayer({
                                                     void onRequestZapPayment({ targetPubkey: buildingContextMenu.pubkey, amount });
                                                 }}
                                             >
-                                                {`${amount} sats`}
+                                                {translate(language, 'zaps.amountSats', { amount: String(amount) })}
                                             </ContextMenuItem>
                                         ))}
                                         <ContextMenuSeparator />

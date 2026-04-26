@@ -380,7 +380,7 @@ export function PeopleListTab({
                                                     void onZapPerson?.(pubkey, amount);
                                                 }}
                                             >
-                                                {`${amount} sats`}
+                                                {t('zaps.amountSats', { amount: String(amount) })}
                                             </ContextMenuItem>
                                         ))}
                                         <ContextMenuSeparator />

@@ -269,10 +269,10 @@ export function App({ mapBridge, services }: AppProps) {
         try {
             await overlay.followPerson(pubkey);
         } catch (error) {
-            const message = error instanceof Error ? error.message : 'No se pudo actualizar el seguimiento de esta cuenta';
+            const message = error instanceof Error ? error.message : translate(uiSettings.language, 'app.toast.followUpdateFailed');
             toast.error(message, { duration: 2200 });
         }
-    }, [overlay.canWrite, overlay.followPerson]);
+    }, [overlay.canWrite, overlay.followPerson, uiSettings.language]);
     const socialFeed = useOverlaySocialFeedController({
         ...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {}),
         follows: overlay.follows,
@@ -394,11 +394,11 @@ export function App({ mapBridge, services }: AppProps) {
     };
 
     const copyOwnerIdentifier = async (value: string): Promise<void> => {
-        await copyText(value, 'npub copiada');
+        await copyText(value, translate(uiSettings.language, 'profile.toast.npubCopied'));
     };
 
     const copyNoteIdentifier = async (value: string): Promise<void> => {
-        await copyText(value, 'ID de nota copiado');
+        await copyText(value, translate(uiSettings.language, 'profile.toast.noteIdCopied'));
     };
 
     const locateOwnerOnMap = (): void => {
@@ -576,13 +576,13 @@ export function App({ mapBridge, services }: AppProps) {
         const succeeded = await followingFeed.toggleRepost(input);
 
         if (succeeded) {
-            toast.success(wasActive ? 'Repost eliminado' : 'Repost publicado', { duration: 1800 });
+            toast.success(translate(uiSettings.language, wasActive ? 'feed.toast.repostRemoved' : 'feed.toast.repostPublished'), { duration: 1800 });
             return true;
         }
 
-        toast.error(wasActive ? 'No se pudo eliminar el repost' : 'No se pudo publicar el repost', { duration: 2200 });
+        toast.error(translate(uiSettings.language, wasActive ? 'feed.toast.repostRemoveFailed' : 'feed.toast.repostPublishFailed'), { duration: 2200 });
         return false;
-    }, [followingFeed.repostByEventId, followingFeed.toggleRepost]);
+    }, [followingFeed.repostByEventId, followingFeed.toggleRepost, uiSettings.language]);
 
     const submitSocialCompose = useCallback(async (content: MentionDraft): Promise<void> => {
         if (!socialComposeState) {
@@ -594,18 +594,18 @@ export function App({ mapBridge, services }: AppProps) {
             if (socialComposeState.mode === 'post') {
                 const succeeded = await followingFeed.publishPost(content);
                 if (succeeded) {
-                    toast.success('Publicacion enviada', { duration: 1800 });
+                    toast.success(translate(uiSettings.language, 'feed.toast.postPublished'), { duration: 1800 });
                     setSocialComposeState(null);
                     return;
                 }
 
-                toast.error('No se pudo publicar la nota', { duration: 2200 });
+                toast.error(translate(uiSettings.language, 'feed.toast.postPublishFailed'), { duration: 2200 });
                 return;
             }
 
             const quoteTarget = socialComposeState.quoteTarget;
             if (!quoteTarget) {
-                toast.error('No se pudo publicar la cita', { duration: 2200 });
+                toast.error(translate(uiSettings.language, 'feed.toast.quotePublishFailed'), { duration: 2200 });
                 return;
             }
 
@@ -616,16 +616,16 @@ export function App({ mapBridge, services }: AppProps) {
             });
 
             if (succeeded) {
-                toast.success('Cita publicada', { duration: 1800 });
+                toast.success(translate(uiSettings.language, 'feed.toast.quotePublished'), { duration: 1800 });
                 setSocialComposeState(null);
                 return;
             }
 
-            toast.error('No se pudo publicar la cita', { duration: 2200 });
+            toast.error(translate(uiSettings.language, 'feed.toast.quotePublishFailed'), { duration: 2200 });
         } finally {
             setIsSubmittingSocialCompose(false);
         }
-    }, [followingFeed.publishPost, followingFeed.publishQuote, socialComposeState]);
+    }, [followingFeed.publishPost, followingFeed.publishQuote, socialComposeState, uiSettings.language]);
 
     const openMentionedProfile = (pubkey: string): void => {
         if (!pubkey) {

@@ -262,6 +262,46 @@ describe('useWalletZapController', () => {
         expect(latest?.walletNwcUriInput).toBe('');
     });
 
+    test('connectWebLnWallet shows localized english connection toasts', async () => {
+        window.webln = {
+            enable: vi.fn().mockResolvedValue(undefined),
+            sendPayment: vi.fn().mockResolvedValue({ preimage: 'preimage' }),
+        };
+        let latest: WalletZapController | undefined;
+
+        await renderProbe(
+            <ControllerProbe
+                input={{ ownerPubkey: 'owner-a', language: 'en' }}
+                onController={(controller) => { latest = controller; }}
+            />,
+        );
+        await flushEffects();
+
+        await act(async () => {
+            await latest?.connectWebLnWallet();
+        });
+
+        expect(toastSuccessMock).toHaveBeenCalledWith('Wallet connected', { duration: 1800 });
+    });
+
+    test('connectWebLnWallet shows localized english unavailable errors', async () => {
+        let latest: WalletZapController | undefined;
+
+        await renderProbe(
+            <ControllerProbe
+                input={{ ownerPubkey: 'owner-a', language: 'en' }}
+                onController={(controller) => { latest = controller; }}
+            />,
+        );
+        await flushEffects();
+
+        await act(async () => {
+            await latest?.connectWebLnWallet();
+        });
+
+        expect(toastErrorMock).toHaveBeenCalledWith('WebLN is not available in this browser.', { duration: 2200 });
+    });
+
     test('connectWebLnWallet does not show a stale failure toast after owner changes', async () => {
         let rejectEnable: (error: Error) => void = () => undefined;
         window.webln = {
@@ -525,6 +565,84 @@ describe('useWalletZapController', () => {
                 }),
             ]);
             expect(onRecordOptimisticZap).not.toHaveBeenCalled();
+        } finally {
+            globalThis.fetch = originalFetch;
+        }
+    });
+
+    test('handleZapIntent records localized english payment failure activity', async () => {
+        const targetPubkey = 'target-a';
+        const sendPayment = vi.fn().mockRejectedValue(new Error('payment rejected'));
+        window.webln = {
+            enable: vi.fn().mockResolvedValue(undefined),
+            sendPayment,
+        };
+        const writeGateway = {
+            publishEvent: vi.fn().mockResolvedValue({
+                id: 'zap-request-a',
+                pubkey: 'owner-a',
+                kind: 9734,
+                created_at: 1,
+                tags: [],
+                content: '',
+            }),
+        };
+        const fetchMock = vi.fn<(input: RequestInfo | URL) => Promise<Response>>()
+            .mockResolvedValueOnce(new Response(JSON.stringify({
+                callback: 'https://ln.example/callback',
+                allowsNostr: true,
+                nostrPubkey: 'f'.repeat(64),
+                minSendable: 1,
+                maxSendable: 100_000,
+            }), { status: 200 }))
+            .mockResolvedValueOnce(new Response(JSON.stringify({ pr: 'lnbc1invoice' }), { status: 200 }));
+        const originalFetch = globalThis.fetch;
+        globalThis.fetch = fetchMock as typeof fetch;
+        let latest: WalletZapController | undefined;
+
+        try {
+            await renderProbe(
+                <ControllerProbe
+                    input={{
+                        ownerPubkey: 'owner-a',
+                        location: { pathname: '/profile/alice', search: '' },
+                        navigate: vi.fn(),
+                        language: 'en',
+                        profiles: {
+                            [targetPubkey]: { pubkey: targetPubkey, lud16: 'alice@ln.example' },
+                        },
+                        relaySettingsSnapshot: {
+                            relays: ['wss://relay-write.example'],
+                            byType: {
+                                nip65Both: ['wss://relay-write.example'],
+                                nip65Read: [],
+                                nip65Write: [],
+                                dmInbox: [],
+                                search: [],
+                            },
+                        },
+                        writeGateway,
+                    }}
+                    onController={(controller) => { latest = controller; }}
+                />,
+            );
+            await flushEffects();
+            await act(async () => {
+                await latest?.connectWebLnWallet();
+            });
+            toastSuccessMock.mockClear();
+
+            await act(async () => {
+                await latest?.handleZapIntent({ targetPubkey, amount: 21 });
+            });
+
+            expect(toastErrorMock).toHaveBeenCalledWith('Could not complete the payment.', { duration: 2200 });
+            expect(latest?.walletActivity.items).toEqual([
+                expect.objectContaining({
+                    status: 'failed',
+                    errorMessage: 'Could not complete the payment.',
+                }),
+            ]);
         } finally {
             globalThis.fetch = originalFetch;
         }

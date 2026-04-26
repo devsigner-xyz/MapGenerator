@@ -204,6 +204,7 @@ export function useWalletZapController(input: UseWalletZapControllerInput): Wall
         }
 
         const zapUnavailableMessage = translate(language, 'app.toast.zapUnavailable');
+        const paymentFailedMessage = translate(language, 'wallet.toast.paymentFailed');
 
         if (!input.writeGateway) {
             toast.error(zapUnavailableMessage, { duration: 2200 });
@@ -278,15 +279,15 @@ export function useWalletZapController(input: UseWalletZapControllerInput): Wall
                 if (zapIntent.eventId) {
                     input.onRecordOptimisticZap?.({ eventId: zapIntent.eventId, amount: zapIntent.amount });
                 }
-                toast.success('Pago enviado.', { duration: 1800 });
+                toast.success(translate(language, 'wallet.toast.paymentSent'), { duration: 1800 });
                 return 'success';
             } catch {
                 if (!isCurrentOwnerScope()) {
                     return 'retryable_failure';
                 }
 
-                persistWalletActivity(markWalletActivityFailed(loadWalletActivity(walletStorageOptions), activityId, 'No se pudo completar el pago.'));
-                toast.error('No se pudo completar el pago.', { duration: 2200 });
+                persistWalletActivity(markWalletActivityFailed(loadWalletActivity(walletStorageOptions), activityId, paymentFailedMessage));
+                toast.error(paymentFailedMessage, { duration: 2200 });
                 return 'retryable_failure';
             }
         } catch {
@@ -294,7 +295,7 @@ export function useWalletZapController(input: UseWalletZapControllerInput): Wall
                 return 'retryable_failure';
             }
 
-            persistWalletActivity(markWalletActivityFailed(loadWalletActivity(walletStorageOptions), activityId, 'No se puede enviar este zap.'));
+            persistWalletActivity(markWalletActivityFailed(loadWalletActivity(walletStorageOptions), activityId, zapUnavailableMessage));
             toast.error(zapUnavailableMessage, { duration: 2200 });
             return 'definitive_failure';
         }
@@ -324,7 +325,7 @@ export function useWalletZapController(input: UseWalletZapControllerInput): Wall
         const provider = detectWebLnProvider();
         if (!provider) {
             if (!options.silent) {
-                toast.error('WebLN no está disponible en este navegador.', { duration: 2200 });
+                toast.error(translate(language, 'wallet.toast.weblnUnavailable'), { duration: 2200 });
             }
             return false;
         }
@@ -336,7 +337,7 @@ export function useWalletZapController(input: UseWalletZapControllerInput): Wall
                 return false;
             }
             if (!options.silent) {
-                toast.error('No se pudo reconectar la wallet WebLN.', { duration: 2200 });
+                toast.error(translate(language, 'wallet.toast.weblnReconnectFailed'), { duration: 2200 });
             }
             return false;
         }
@@ -347,7 +348,7 @@ export function useWalletZapController(input: UseWalletZapControllerInput): Wall
         const capabilities = resolveWebLnCapabilities(provider);
         if (!capabilities.payInvoice) {
             if (!options.silent) {
-                toast.error('El provider WebLN no soporta pagos.', { duration: 2200 });
+                toast.error(translate(language, 'wallet.toast.weblnPaymentsUnsupported'), { duration: 2200 });
             }
             return false;
         }
@@ -361,13 +362,13 @@ export function useWalletZapController(input: UseWalletZapControllerInput): Wall
         });
         setWalletNwcUriInput('');
         if (!options.silent) {
-            toast.success('Wallet conectada', { duration: 1800 });
+            toast.success(translate(language, 'wallet.toast.connected'), { duration: 1800 });
         }
         if (pendingZapIntent?.ownerScope === ownerScope && pendingZapIntent.phase === 'paused' && input.location?.pathname === '/wallet') {
             setPendingZapIntent({ ...pendingZapIntent, phase: 'ready' });
         }
         return true;
-    }, [input.location?.pathname, ownerScope, pendingZapIntent, persistWalletSettings]);
+    }, [input.location?.pathname, language, ownerScope, pendingZapIntent, persistWalletSettings]);
 
     const connectNwcWallet = useCallback(async (): Promise<void> => {
         const actionOwnerScope = currentOwnerScopeRef.current;
@@ -391,7 +392,7 @@ export function useWalletZapController(input: UseWalletZapControllerInput): Wall
                 },
             });
             setWalletNwcUriInput('');
-            toast.success('Wallet conectada', { duration: 1800 });
+            toast.success(translate(language, 'wallet.toast.connected'), { duration: 1800 });
             if (pendingZapIntent?.ownerScope === ownerScope && pendingZapIntent.phase === 'paused' && input.location?.pathname === '/wallet') {
                 setPendingZapIntent({ ...pendingZapIntent, phase: 'ready' });
             }
@@ -399,10 +400,10 @@ export function useWalletZapController(input: UseWalletZapControllerInput): Wall
             if (currentOwnerScopeRef.current !== actionOwnerScope) {
                 return;
             }
-            const message = error instanceof Error ? error.message : 'No se pudo conectar la wallet NWC.';
+            const message = error instanceof Error ? error.message : translate(language, 'wallet.toast.nwcConnectFailed');
             toast.error(message, { duration: 2200 });
         }
-    }, [input.createClient, input.location?.pathname, ownerScope, pendingZapIntent, persistWalletSettings, walletNwcUriInput]);
+    }, [input.createClient, input.location?.pathname, language, ownerScope, pendingZapIntent, persistWalletSettings, walletNwcUriInput]);
 
     const disconnectWallet = useCallback((): void => {
         persistWalletSettings({ activeConnection: null });

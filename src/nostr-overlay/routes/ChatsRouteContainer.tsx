@@ -1,4 +1,5 @@
 import type { ComponentProps } from 'react';
+import { useI18n } from '@/i18n/useI18n';
 import { ChatsPage } from '../components/ChatsPage';
 
 type ChatsPageProps = ComponentProps<typeof ChatsPage>;
@@ -30,10 +31,11 @@ export function ChatsRouteContainer({
     onOpenConversation,
     sendMessage,
 }: ChatsRouteContainerProps) {
+    const { t } = useI18n();
     const disabledReason = !ownerPubkey
-        ? 'Inicia sesión para enviar mensajes privados.'
+        ? t('chats.disabled.loginRequired')
         : !canDirectMessages
-            ? 'Tu sesión no permite mensajería privada (requiere firma y NIP-44).'
+            ? t('chats.disabled.nip44Required')
             : undefined;
 
     return (

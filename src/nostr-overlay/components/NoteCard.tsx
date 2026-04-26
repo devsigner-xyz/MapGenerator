@@ -289,7 +289,7 @@ function NoteActionGroup({ actions, t }: NoteActionGroupProps) {
                                 <ContextMenuItem key={`note-zap-${amount}`} onSelect={() => {
                                     void actions.onZap?.(amount);
                                 }}>
-                                    {`${amount} sats`}
+                                    {t('zaps.amountSats', { amount: String(amount) })}
                                 </ContextMenuItem>
                             ))}
                             <ContextMenuSeparator />

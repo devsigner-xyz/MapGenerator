@@ -52,7 +52,7 @@ export function SettingsZapsPage({
                     <div className="nostr-settings-section nostr-zap-list">
                         {zapSettings.amounts.map((amount, index) => (
                             <div key={`zap-${index}-${amount}`} className="nostr-zap-item">
-                                <span>{amount} sats</span>
+                                <span>{t('zaps.amountSats', { amount: String(amount) })}</span>
                                 <div className="nostr-zap-item-actions">
                                     <Input
                                         type="number"

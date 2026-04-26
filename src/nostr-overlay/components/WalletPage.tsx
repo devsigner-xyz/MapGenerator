@@ -19,10 +19,6 @@ interface WalletPageProps {
     onRefresh: () => void;
 }
 
-function formatActivityAmount(amountMsats: number): string {
-    return `${Math.round(amountMsats / 1000)} sats`;
-}
-
 export function WalletPage({
     walletState,
     walletActivity,
@@ -43,6 +39,20 @@ export function WalletPage({
             ? (connection.restoreState === 'connected' ? t('wallet.status.connectedWebln') : t('wallet.status.reconnectWebln'))
             : t('wallet.status.disconnected');
     const reconnectAction = connection?.method === 'webln' ? onConnectWebLn : undefined;
+    const formatActivityAmount = (amountMsats: number): string => t('wallet.activity.amountSats', {
+        amount: String(Math.round(amountMsats / 1000)),
+    });
+    const activityStatusLabel = (status: WalletActivityState['items'][number]['status']): string => {
+        if (status === 'pending') {
+            return t('wallet.activity.status.pending');
+        }
+
+        if (status === 'succeeded') {
+            return t('wallet.activity.status.succeeded');
+        }
+
+        return t('wallet.activity.status.failed');
+    };
 
     return (
         <OverlaySurface ariaLabel={t('wallet.title')}>
@@ -123,7 +133,7 @@ export function WalletPage({
                                         {walletActivity.items.map((item) => (
                                             <li key={item.id} className="flex items-center justify-between gap-2 text-sm">
                                                 <span>{formatActivityAmount(item.amountMsats)}</span>
-                                                <Badge variant={item.status === 'failed' ? 'destructive' : 'secondary'}>{item.status}</Badge>
+                                                <Badge variant={item.status === 'failed' ? 'destructive' : 'secondary'}>{activityStatusLabel(item.status)}</Badge>
                                             </li>
                                         ))}
                                     </ul>
