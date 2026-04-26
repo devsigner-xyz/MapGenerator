@@ -100,7 +100,7 @@ const colourSchemes = {
         "occupiedBuildingColour": "#2ABAFB",
         "occupiedBuildingStroke": "#233CB5",
         "hoveredBuildingColour": "#DB5FF7",
-        "hoveredBuildingStroke": "#FCFDFE",
+        "hoveredBuildingStroke": "#A2F0FE",
         "streetLabelColour": "#A2F0FE",
         "waterLabelColour": "#2ABAFB",
         "parkLabelColour": "#C586F2",

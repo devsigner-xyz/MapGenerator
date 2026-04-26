@@ -1144,6 +1144,13 @@ export function App({ mapBridge, services }: AppProps) {
         toast.success(translate(uiSettings.language, enabled ? 'app.toast.carsEnabled' : 'app.toast.carsDisabled'), { duration: 1800 });
     };
 
+    const setThemeQuickToggle = (theme: Extract<UiTheme, 'light' | 'dark'>): void => {
+        setUiSettings((currentSettings) => saveUiSettings({
+            ...currentSettings,
+            theme,
+        }));
+    };
+
     const setAgoraFeedLayout = (layout: UiSettingsState['agoraFeedLayout']): void => {
         setUiSettings((currentSettings) => saveUiSettings({
             ...currentSettings,
@@ -1506,6 +1513,8 @@ export function App({ mapBridge, services }: AppProps) {
                 <MapZoomControls
                     mapBridge={mapBridge}
                     onRegenerateMap={overlay.regenerateMap}
+                    theme={resolvedOverlayTheme}
+                    onThemeChange={setThemeQuickToggle}
                 />
             ) : null}
             {isMapRoute ? (

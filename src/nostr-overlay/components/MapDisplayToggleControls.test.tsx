@@ -60,4 +60,13 @@ describe('MapDisplayToggleControls', () => {
         expect(rendered.container.querySelector('button[aria-label="Toggle street labels"]')).not.toBeNull();
         expect(rendered.container.querySelector('button[aria-label="Toggle special icons"]')).not.toBeNull();
     });
+
+    test('separates toggle group items with shadcn spacing', async () => {
+        const rendered = await renderElement();
+        mounted.push(rendered);
+
+        const toggleGroup = rendered.container.querySelector('[data-slot="toggle-group"]');
+
+        expect(toggleGroup?.getAttribute('data-spacing')).toBe('1');
+    });
 });

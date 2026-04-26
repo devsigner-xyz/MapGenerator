@@ -36,6 +36,8 @@ describe('colour schemes defaults', () => {
             frameTextColour: '#FCFDFE',
             occupiedBuildingColour: '#2ABAFB',
             occupiedBuildingStroke: '#233CB5',
+            hoveredBuildingColour: '#DB5FF7',
+            hoveredBuildingStroke: '#A2F0FE',
             zoomBuildings: true,
             buildingModels: false,
             outlineSize: 2,

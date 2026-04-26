@@ -56,6 +56,7 @@ export function MapDisplayToggleControls({
                 type="multiple"
                 variant="outline"
                 size="sm"
+                spacing={1}
                 value={activeValues}
                 onValueChange={onValueChange}
                 className="nostr-map-display-toggle-group"
