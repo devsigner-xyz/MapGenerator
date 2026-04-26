@@ -11,6 +11,7 @@ import { buildOccupancyState } from '../../nostr/domain/occupancy';
 import { fetchFollowersBestEffort } from '../../nostr/followers';
 import { fetchFollowsByNpub, fetchFollowsByPubkey } from '../../nostr/follows';
 import { fetchLatestPostsByPubkey } from '../../nostr/posts';
+import { loadProfileRelaySuggestions } from '../../nostr/profile-relay-discovery';
 import { fetchProfileStats } from '../../nostr/profile-stats';
 import { fetchProfiles } from '../../nostr/profiles';
 import { searchUsers as searchUsersDomain } from '../../nostr/user-search';
@@ -1667,33 +1668,16 @@ export function useNostrOverlay({ mapBridge, services }: UseNostrOverlayOptions)
                     };
                 }
 
-                const client = createClient(resolveOverlayRelays(current.data.relayHints));
-
-                const relaySuggestionsByTypePromise = Promise.all([
-                    withTimeout(
-                        client.fetchLatestReplaceableEvent(pubkey, 10002),
-                        RELAY_METADATA_TIMEOUT_MS,
-                        'Relay timeout while fetching active profile relay list (kind 10002)',
-                    ),
-                    withTimeout(
-                        client.fetchLatestReplaceableEvent(pubkey, 10050),
-                        RELAY_METADATA_TIMEOUT_MS,
-                        'Relay timeout while fetching active profile DM relay list (kind 10050)',
-                    ),
-                ]).then(([relayListEvent, dmInboxRelayListEvent]) => {
-                    return {
-                        ...relaySuggestionsByTypeFromKind10002Event(relayListEvent),
-                        dmInbox: dmInboxRelayListFromKind10050Event(dmInboxRelayListEvent),
-                        search: [],
-                    };
-                }).catch(() => {
-                    return {
-                        nip65Both: [],
-                        nip65Read: [],
-                        nip65Write: [],
-                        dmInbox: [],
-                        search: [],
-                    };
+                const primaryRelays = resolveOverlayRelays(current.data.relayHints);
+                const fallbackRelays = mergeRelaySets(primaryRelays, getBootstrapRelays());
+                const client = createClient(primaryRelays);
+                const relaySuggestionsByTypePromise = loadProfileRelaySuggestions({
+                    pubkey,
+                    primaryClient: client,
+                    ...(!hasSameRelaySet(primaryRelays, fallbackRelays)
+                        ? { fallbackClient: createClient(fallbackRelays) }
+                        : {}),
+                    timeoutMs: RELAY_METADATA_TIMEOUT_MS,
                 });
 
                 const [followsResult, followersResult, relaySuggestionsByType] = await Promise.all([

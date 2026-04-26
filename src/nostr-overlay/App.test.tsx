@@ -8621,6 +8621,168 @@ describe('Nostr overlay App', () => {
         expect(stored.byType.dmInbox).toContain('wss://relay.dm.example');
     });
 
+    test('loads active profile relay suggestions from fallback discovery relays', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+        const bootstrapRelay = getBootstrapRelays()[0] ?? 'wss://relay.damus.io';
+        window.localStorage.setItem(
+            RELAY_SETTINGS_STORAGE_KEY,
+            JSON.stringify({
+                relays: ['wss://relay.configured-only.example'],
+                byType: {
+                    nip65Both: ['wss://relay.configured-only.example'],
+                    nip65Read: [],
+                    nip65Write: [],
+                    dmInbox: [],
+                    search: [],
+                },
+            })
+        );
+        const { bridge, triggerOccupiedBuildingClick } = createMapBridgeStub();
+        const createClient = vi.fn((relays?: string[]): NostrClient => ({
+            connect: async () => {},
+            fetchLatestReplaceableEvent: async (pubkey: string, kind: number) => {
+                const relaySet = relays ?? [];
+                const isFallbackClient = relaySet.includes(bootstrapRelay);
+                if (!isFallbackClient || pubkey !== followedPubkey || kind !== 10002) {
+                    return null;
+                }
+
+                return {
+                    id: 'relay-list-active-profile-fallback',
+                    pubkey,
+                    kind: 10002,
+                    created_at: 321,
+                    tags: [['r', 'wss://relay.profile-fallback.example']],
+                    content: '',
+                };
+            },
+            fetchEvents: async () => [],
+        }));
+
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient,
+                    fetchFollowsByNpubFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [followedPubkey],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockImplementation(async (pubkeys: string[]) => {
+                        const profiles: Record<string, { pubkey: string; displayName: string }> = {};
+                        for (const pubkey of pubkeys) {
+                            profiles[pubkey] = { pubkey, displayName: `User-${pubkey.slice(0, 4)}` };
+                        }
+                        return profiles;
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+        const form = rendered.container.querySelector('form');
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
+            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('User-ffff'));
+
+        await act(async () => {
+            triggerOccupiedBuildingClick({ buildingIndex: 4, pubkey: followedPubkey });
+        });
+
+        await selectActiveProfileDialogTab('Información');
+        await waitFor(() => (rendered.container.textContent || '').includes('relay.profile-fallback.example'));
+    });
+
+    test('keeps active profile NIP-65 relays when DM relay metadata fails', async () => {
+        const ownerPubkey = 'f'.repeat(64);
+        const followedPubkey = 'a'.repeat(64);
+        const { bridge, triggerOccupiedBuildingClick } = createMapBridgeStub();
+
+        const rendered = await renderApp(
+            <App
+                mapBridge={bridge}
+                services={{
+                    createClient: () => ({
+                        connect: async () => {},
+                        fetchLatestReplaceableEvent: async (pubkey: string, kind: number) => {
+                            if (pubkey !== followedPubkey) {
+                                return null;
+                            }
+
+                            if (kind === 10002) {
+                                return {
+                                    id: 'relay-list-active-profile-partial',
+                                    pubkey,
+                                    kind: 10002,
+                                    created_at: 321,
+                                    tags: [['r', 'wss://relay.profile.example']],
+                                    content: '',
+                                };
+                            }
+
+                            if (kind === 10050) {
+                                throw new Error('dm relay failed');
+                            }
+
+                            return null;
+                        },
+                        fetchEvents: async () => [],
+                    }),
+                    fetchFollowsByNpubFn: vi.fn().mockResolvedValue({
+                        ownerPubkey,
+                        follows: [followedPubkey],
+                        relayHints: [],
+                    }),
+                    fetchProfilesFn: vi.fn().mockImplementation(async (pubkeys: string[]) => {
+                        const profiles: Record<string, { pubkey: string; displayName: string }> = {};
+                        for (const pubkey of pubkeys) {
+                            profiles[pubkey] = { pubkey, displayName: `User-${pubkey.slice(0, 4)}` };
+                        }
+                        return profiles;
+                    }),
+                }}
+            />
+        );
+        mounted.push(rendered);
+
+        const npubInput = rendered.container.querySelector('input[name="npub"]') as HTMLInputElement;
+        const form = rendered.container.querySelector('form');
+
+        await act(async () => {
+            const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            valueSetter?.call(npubInput, 'npub1lllllllllllllllllllllllllllllllllllllllllllllllllllsq7lrjw');
+            npubInput.dispatchEvent(new Event('input', { bubbles: true }));
+            npubInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        await act(async () => {
+            form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        });
+
+        await waitFor(() => (rendered.container.textContent || '').includes('User-ffff'));
+
+        await act(async () => {
+            triggerOccupiedBuildingClick({ buildingIndex: 4, pubkey: followedPubkey });
+        });
+
+        await selectActiveProfileDialogTab('Información');
+        await waitFor(() => (rendered.container.textContent || '').includes('relay.profile.example'));
+        expect(rendered.container.textContent || '').not.toContain('Sin relays declarados');
+    });
+
     test('shows NIP-65 suggested relays in settings', async () => {
         const ownerPubkey = 'f'.repeat(64);
         const followedPubkey = 'a'.repeat(64);
