@@ -398,11 +398,13 @@ function SidebarPlatformHeader({ resolvedTheme }: { resolvedTheme: ResolvedOverl
 
     return (
         <SidebarHeader className="relative border-b border-sidebar-border/60 pb-2">
-            <SidebarTrigger
-                className="absolute top-2 right-2 z-10"
-                aria-label={collapsed ? t('sidebar.showPanel') : t('sidebar.hidePanel')}
-                title={collapsed ? t('sidebar.showPanel') : t('sidebar.hidePanel')}
-            />
+            {!collapsed ? (
+                <SidebarTrigger
+                    className="absolute top-2 right-2 z-10"
+                    aria-label={t('sidebar.hidePanel')}
+                    title={t('sidebar.hidePanel')}
+                />
+            ) : null}
             <SidebarMenu>
                 <SidebarMenuItem>
                     <SidebarMenuButton size="lg" className="pr-10 hover:bg-transparent active:bg-transparent">
@@ -422,6 +424,24 @@ function SidebarPlatformHeader({ resolvedTheme }: { resolvedTheme: ResolvedOverl
                 </SidebarMenuItem>
             </SidebarMenu>
         </SidebarHeader>
+    );
+}
+
+function SidebarCollapsedTrigger() {
+    const { t } = useI18n();
+    const { state } = useSidebar();
+
+    if (state !== 'collapsed') {
+        return null;
+    }
+
+    return (
+        <div className="flex px-2 pt-2">
+            <SidebarTrigger
+                aria-label={t('sidebar.showPanel')}
+                title={t('sidebar.showPanel')}
+            />
+        </div>
     );
 }
 
@@ -584,6 +604,7 @@ export function OverlaySidebar({
         <SidebarProvider open={open} onOpenChange={onOpenChange} style={providerStyle}>
             <Sidebar collapsible="icon">
                 <SidebarPlatformHeader resolvedTheme={resolvedTheme} />
+                <SidebarCollapsedTrigger />
                 <SidebarContent>
                     <SidebarGroup className="min-h-0 flex-1 pt-1">
                         <SidebarSocialContent>{children}</SidebarSocialContent>

@@ -4,10 +4,13 @@ import { describe, expect, it } from 'vitest';
 
 const appSource = readFileSync(join(process.cwd(), 'src/nostr-overlay/App.tsx'), 'utf8');
 const overlayRoutesSource = readFileSync(join(process.cwd(), 'src/nostr-overlay/routes/OverlayRoutes.tsx'), 'utf8');
+const overlayDialogLayerSource = readFileSync(join(process.cwd(), 'src/nostr-overlay/shell/OverlayDialogLayer.tsx'), 'utf8');
 
 const appExtractedModulePaths = [
     './shell/OverlayAppShell',
     './shell/use-overlay-route-state',
+    './shell/OverlaySidebarLayer',
+    './shell/OverlayDialogLayer',
     './shell/OverlayMapInteractionLayer',
     './hooks/useEasterEggDiscoveryController',
     './controllers/use-wallet-zap-controller',
@@ -28,6 +31,9 @@ const extractedRouteModulePaths = [
 
 const movedHelperNames = [
     'OverlayAppShell',
+    'OverlaySidebarLayer',
+    'OverlayDialogLayer',
+    'ActiveProfileDialogContainer',
     'OverlayMapInteractionLayer',
     'OccupiedBuildingContextMenuState',
     'encodePubkeyAsNpub',
@@ -97,6 +103,10 @@ describe('Nostr overlay App shell structure', () => {
         expect(importedModulePaths(overlayRoutesSource)).toEqual(expect.arrayContaining(extractedRouteModulePaths));
     });
 
+    it('keeps active profile dialog mapping behind the dialog layer', () => {
+        expect(importedModulePaths(overlayDialogLayerSource)).toContain('./ActiveProfileDialogContainer');
+    });
+
     it('does not redefine helpers that belong to extracted shell modules', () => {
         for (const helperName of movedHelperNames) {
             for (const pattern of inlineDefinitionPatternsFor(helperName)) {
@@ -111,6 +121,18 @@ describe('Nostr overlay App shell structure', () => {
         expect(appSource).not.toMatch(/<MapDisplayToggleControls\b/);
         expect(appSource).not.toMatch(/onOccupiedBuildingContextMenu/);
         expect(appSource).not.toMatch(/onSpecialBuildingClick/);
+    });
+
+    it('delegates sidebar and dialog UI to extracted layers', () => {
+        expect(appSource).toMatch(/<OverlaySidebarLayer\b/);
+        expect(appSource).toMatch(/<OverlayDialogLayer\b/);
+        expect(appSource).not.toMatch(/<SocialSidebar\b/);
+        expect(appSource).not.toMatch(/<OverlaySidebar\b/);
+        expect(appSource).not.toMatch(/<OccupantProfileDialog\b/);
+        expect(appSource).not.toMatch(/<SocialComposeDialog\b/);
+        expect(appSource).not.toMatch(/<LoginGateScreen\b/);
+        expect(appSource).not.toMatch(/<MapPresenceLayer\b/);
+        expect(appSource).not.toMatch(/<UiSettingsDialog\b/);
     });
 
     it('does not own the route tree inline', () => {

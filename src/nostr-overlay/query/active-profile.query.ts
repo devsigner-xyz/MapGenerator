@@ -36,7 +36,7 @@ interface UseActiveProfileQueryInput {
     pageSize?: number;
 }
 
-interface ActiveProfileQueryState {
+export interface ActiveProfileQueryState {
     posts: NostrPostPreview[];
     postsLoading: boolean;
     postsError?: string;

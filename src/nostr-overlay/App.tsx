@@ -9,19 +9,6 @@ import {
     type UiSettingsState,
 } from '../nostr/ui-settings';
 import { loadZapSettings, type ZapSettingsState } from '../nostr/zap-settings';
-import { MapPresenceLayer } from './components/MapPresenceLayer';
-import { OccupantProfileDialog } from './components/OccupantProfileDialog';
-import { EasterEggDialog } from './components/EasterEggDialog';
-import { EasterEggFireworks } from './components/EasterEggFireworks';
-import { SocialSidebar } from './components/SocialSidebar';
-import {
-    OverlaySidebar,
-    OVERLAY_SIDEBAR_COLLAPSED_WIDTH,
-    OVERLAY_SIDEBAR_EXPANDED_WIDTH,
-} from './components/OverlaySidebar';
-import { SocialComposeDialog } from './components/SocialComposeDialog';
-import { LoginGateScreen } from './components/LoginGateScreen';
-import { UiSettingsDialog } from './components/UiSettingsDialog';
 import { useNostrOverlay } from './hooks/useNostrOverlay';
 import { useNip05Verification } from './hooks/useNip05Verification';
 import { useOverlaySocialFeedController } from './controllers/use-overlay-social-feed-controller';
@@ -52,7 +39,6 @@ import {
 import type { MentionDraft } from './mention-serialization';
 import type { MapBridge } from './map-bridge';
 import { extractStreetLabelUsernames } from './domain/street-label-users';
-import { getEasterEggEntry } from './easter-eggs/catalog';
 import { EASTER_EGG_MISSIONS } from './easter-eggs/missions';
 import {
     addRelay,
@@ -65,6 +51,12 @@ import type { NostrEvent } from '../nostr/types';
 import { useRelayConnectionSummary } from './hooks/useRelayConnectionSummary';
 import { useOverlayTheme } from './hooks/useOverlayTheme';
 import { OverlayAppShell } from './shell/OverlayAppShell';
+import {
+    OverlaySidebarLayer,
+    OVERLAY_SIDEBAR_COLLAPSED_WIDTH,
+    OVERLAY_SIDEBAR_EXPANDED_WIDTH,
+} from './shell/OverlaySidebarLayer';
+import { OverlayDialogLayer } from './shell/OverlayDialogLayer';
 import { OverlayMapInteractionLayer } from './shell/OverlayMapInteractionLayer';
 import { normalizeHashtag, useOverlayRouteState } from './shell/use-overlay-route-state';
 import { OverlayRoutes } from './routes/OverlayRoutes';
@@ -815,8 +807,9 @@ export function App({ mapBridge, services }: AppProps) {
 
     return (
         <OverlayAppShell
-            sidebar={!showLoginGate ? (
-                <OverlaySidebar
+            sidebar={(
+                <OverlaySidebarLayer
+                    showLoginGate={showLoginGate}
                     open={sidebarOpen}
                     onOpenChange={setSidebarOpen}
                     resolvedTheme={resolvedOverlayTheme}
@@ -854,27 +847,23 @@ export function App({ mapBridge, services }: AppProps) {
                     relaysConnectedCount={relayConnectionSummary.connectedRelays}
                     relaysTotal={relayConnectionSummary.totalRelays}
                     onOpenMissions={() => navigate('/descubre')}
-                >
-                    <SocialSidebar
-                        follows={overlay.follows}
-                        profiles={overlay.profiles}
-                        followers={overlay.followers}
-                        followerProfiles={overlay.followerProfiles}
-                        followersLoading={overlay.followersLoading}
-                        {...(overlay.selectedPubkey ? { selectedFollowingPubkey: overlay.selectedPubkey } : {})}
-                        onSelectFollowing={selectSidebarPerson}
-                        onLocateFollowing={locateFollowingOnMap}
-                        {...(canAccessDirectMessages ? { onMessagePerson: openDmFromContextMenu } : {})}
-                        {...(overlay.canWrite ? { onFollowPerson: followPerson } : {})}
-                        onViewPersonDetails={(pubkey) => overlay.openActiveProfile(pubkey)}
-                        zapAmounts={zapSettings.amounts}
-                        {...(overlay.canWrite ? { onZapPerson: (pubkey: string, amount: number) => requestZapPayment({ targetPubkey: pubkey, amount }) } : {})}
-                        onConfigureZapAmounts={() => openSettingsPage('zaps')}
-                        onCopyOwnerNpub={copyOwnerIdentifier}
-                        verificationByPubkey={verificationByPubkey}
-                    />
-                </OverlaySidebar>
-            ) : null}
+                    follows={overlay.follows}
+                    profiles={overlay.profiles}
+                    followers={overlay.followers}
+                    followerProfiles={overlay.followerProfiles}
+                    followersLoading={overlay.followersLoading}
+                    {...(overlay.selectedPubkey ? { selectedPubkey: overlay.selectedPubkey } : {})}
+                    onSelectFollowing={selectSidebarPerson}
+                    onLocateFollowing={locateFollowingOnMap}
+                    {...(canAccessDirectMessages ? { onMessagePerson: openDmFromContextMenu } : {})}
+                    {...(overlay.canWrite ? { onFollowPerson: followPerson } : {})}
+                    onViewPersonDetails={(pubkey) => overlay.openActiveProfile(pubkey)}
+                    zapAmounts={zapSettings.amounts}
+                    {...(overlay.canWrite ? { onZapPerson: (pubkey: string, amount: number) => requestZapPayment({ targetPubkey: pubkey, amount }) } : {})}
+                    onConfigureZapAmounts={() => openSettingsPage('zaps')}
+                    verificationByPubkey={verificationByPubkey}
+                />
+            )}
             mapControls={(
                 <>
                     <OverlayMapInteractionLayer
@@ -913,20 +902,6 @@ export function App({ mapBridge, services }: AppProps) {
                     />
 
                     <Toaster richColors position="bottom-center" closeButton={false} theme={resolvedOverlayTheme} />
-
-                    <UiSettingsDialog
-                        open={isUiSettingsDialogOpen}
-                        uiSettings={uiSettings}
-                        onPersistUiSettings={persistUiSettings}
-                        onOpenChange={(open) => {
-                            if (open) {
-                                openUiSettingsDialog();
-                                return;
-                            }
-
-                            closeUiSettingsDialog();
-                        }}
-                    />
                 </>
             )}
             main={(
@@ -1072,122 +1047,72 @@ export function App({ mapBridge, services }: AppProps) {
                 />
             )}
             dialogs={(
-                <>
-            <MapPresenceLayer
-                mapBridge={mapBridge}
-                occupancyByBuildingIndex={overlay.occupancyByBuildingIndex}
-                discoveredEasterEggIds={easterEggProgress.discoveredIds}
-                profiles={overlay.profiles}
-                {...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {})}
-                {...(overlay.ownerProfile ? { ownerProfile: overlay.ownerProfile } : {})}
-                {...(overlay.ownerBuildingIndex !== undefined ? { ownerBuildingIndex: overlay.ownerBuildingIndex } : {})}
-                occupiedLabelsZoomLevel={uiSettings.occupiedLabelsZoomLevel}
-                alwaysVisiblePubkeys={overlay.alwaysVisiblePubkeys}
-                specialMarkersEnabled={uiSettings.specialMarkersEnabled}
-            />
-
-            {overlay.activeProfilePubkey ? (
-                <OccupantProfileDialog
+                <OverlayDialogLayer
+                    mapBridge={mapBridge}
+                    showLoginGate={showLoginGate}
+                    occupancyByBuildingIndex={overlay.occupancyByBuildingIndex}
+                    discoveredEasterEggIds={easterEggProgress.discoveredIds}
+                    profiles={overlay.profiles}
                     {...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {})}
-                    pubkey={overlay.activeProfilePubkey}
-                    {...(overlay.activeProfile ? { profile: overlay.activeProfile } : {})}
-                    followsCount={activeProfileData.followsCount}
-                    followersCount={activeProfileData.followersCount}
-                    statsLoading={activeProfileData.statsLoading}
-                    {...(activeProfileData.statsError ? { statsError: activeProfileData.statsError } : {})}
-                    posts={activeProfileData.posts}
-                    engagementByEventId={activeProfileEngagementWithOptimisticByEventId}
-                    postsLoading={activeProfileData.postsLoading}
-                    {...(activeProfileData.postsError ? { postsError: activeProfileData.postsError } : {})}
-                    hasMorePosts={activeProfileData.hasMorePosts}
-                    follows={activeProfileData.follows}
-                    followers={activeProfileData.followers}
-                    networkProfiles={activeProfileData.networkProfiles}
-                    profilesByPubkey={richContentProfilesByPubkey}
-                    networkLoading={activeProfileData.networkLoading}
-                    {...(activeProfileData.networkError ? { networkError: activeProfileData.networkError } : {})}
-                    {...(activeProfileVerification !== undefined
-                        ? { verification: activeProfileVerification }
-                        : {})}
+                    {...(overlay.ownerProfile ? { ownerProfile: overlay.ownerProfile } : {})}
+                    {...(overlay.ownerBuildingIndex !== undefined ? { ownerBuildingIndex: overlay.ownerBuildingIndex } : {})}
+                    occupiedLabelsZoomLevel={uiSettings.occupiedLabelsZoomLevel}
+                    alwaysVisiblePubkeys={overlay.alwaysVisiblePubkeys}
+                    specialMarkersEnabled={uiSettings.specialMarkersEnabled}
+                    activeProfilePubkey={overlay.activeProfilePubkey}
+                    {...(overlay.activeProfile ? { activeProfile: overlay.activeProfile } : {})}
+                    activeProfileData={activeProfileData}
+                    activeProfileEngagementByEventId={activeProfileEngagementWithOptimisticByEventId}
+                    richContentProfilesByPubkey={richContentProfilesByPubkey}
+                    {...(activeProfileVerification !== undefined ? { activeProfileVerification } : {})}
                     verificationByPubkey={verificationByPubkey}
-                    onLoadMorePosts={activeProfileData.loadMorePosts}
-                    onRetryNetwork={activeProfileData.retryNetwork}
-                    onSelectHashtag={selectProfilePostHashtag}
-                    onSelectProfile={openMentionedProfile}
-                    onCopyNpub={copyOwnerIdentifier}
+                    eventReferencesById={eventReferencesById}
                     ownerFollows={overlay.follows}
-                    relaySuggestionsByType={activeProfileData.relaySuggestionsByType}
-                    onAddRelaySuggestion={addRelaySuggestionToSettings}
-                    onAddAllRelaySuggestions={addAllRelaySuggestionsToSettings}
-                    {...(overlay.canWrite ? { onFollowProfile: followPerson } : {})}
-                    {...(canAccessDirectMessages ? { onSendMessage: openDmFromContextMenu } : {})}
                     canWrite={overlay.canWrite}
+                    canAccessDirectMessages={canAccessDirectMessages}
                     reactionByEventId={followingFeed.reactionByEventId}
                     repostByEventId={followingFeed.repostByEventId}
                     pendingReactionByEventId={followingFeed.pendingReactionByEventId}
                     pendingRepostByEventId={followingFeed.pendingRepostByEventId}
+                    onCloseActiveProfile={overlay.closeActiveProfileDialog}
                     onOpenThread={openThreadFromProfileDialog}
+                    onSelectHashtag={selectProfilePostHashtag}
+                    onSelectProfile={openMentionedProfile}
+                    onCopyNpub={copyOwnerIdentifier}
+                    onAddRelaySuggestion={addRelaySuggestionToSettings}
+                    onAddAllRelaySuggestions={addAllRelaySuggestionsToSettings}
+                    onFollowProfile={followPerson}
+                    onSendMessage={openDmFromContextMenu}
                     onToggleReaction={followingFeed.toggleReaction}
                     onToggleRepost={handleToggleRepost}
                     onOpenQuoteComposer={openQuoteComposer}
-                    onZap={({ eventId, eventKind, targetPubkey, amount }) => requestZapPayment({
-                        targetPubkey: targetPubkey || '',
-                        amount,
-                        eventId,
-                        ...(typeof eventKind === 'number' ? { eventKind } : {}),
-                    })}
+                    onRequestZapPayment={requestZapPayment}
                     zapAmounts={zapSettings.amounts}
                     onConfigureZapAmounts={() => openSettingsPage('zaps')}
                     onResolveProfiles={resolveMentionProfiles}
                     onResolveEventReferences={resolveEventReferences}
-                    eventReferencesById={eventReferencesById}
-                    onClose={overlay.closeActiveProfileDialog}
-                    onRetryPosts={activeProfileData.retryPosts}
-                />
-            ) : null}
-
-            {activeEasterEgg ? (
-                <EasterEggDialog
-                    key={activeEasterEgg.nonce}
-                    buildingIndex={activeEasterEgg.buildingIndex}
-                    entry={getEasterEggEntry(activeEasterEgg.easterEggId)}
-                    onClose={closeActiveEasterEgg}
-                />
-            ) : null}
-
-            <EasterEggFireworks nonce={easterEggCelebrationNonce} />
-
-            {socialComposeState ? (
-                <SocialComposeDialog
-                    open
-                    mode={socialComposeState.mode}
-                    {...(socialComposeState.quoteTarget ? { quoteTarget: socialComposeState.quoteTarget } : {})}
-                    profilesByPubkey={richContentProfilesByPubkey}
-                    isSubmitting={isSubmittingSocialCompose}
+                    activeEasterEgg={activeEasterEgg}
+                    easterEggCelebrationNonce={easterEggCelebrationNonce}
+                    onCloseActiveEasterEgg={closeActiveEasterEgg}
+                    socialComposeState={socialComposeState}
+                    isSubmittingSocialCompose={isSubmittingSocialCompose}
                     onSearchUsers={overlay.searchUsers}
-                    ownerPubkey={overlay.ownerPubkey}
-                    searchRelaySetKey={userSearchRelaySetKey}
-                    onOpenChange={(open) => {
-                        if (!open) {
-                            closeSocialCompose();
-                        }
-                    }}
-                    onSubmit={submitSocialCompose}
-                />
-            ) : null}
-
-            {showLoginGate ? (
-                <LoginGateScreen
-                    authSession={overlay.authSession}
-                    savedLocalAccount={overlay.savedLocalAccount}
-                    disabled={loginDisabled || !sessionRestorationResolved}
+                    userSearchRelaySetKey={userSearchRelaySetKey}
+                    onCloseSocialCompose={closeSocialCompose}
+                    onSubmitSocialCompose={submitSocialCompose}
+                    {...(overlay.authSession ? { authSession: overlay.authSession } : {})}
+                    {...(overlay.savedLocalAccount ? { savedLocalAccount: overlay.savedLocalAccount } : {})}
+                    loginDisabled={loginDisabled}
+                    sessionRestorationResolved={sessionRestorationResolved}
                     mapLoaderText={mapLoaderText}
-                    overlayTheme={resolvedOverlayTheme}
-                    restoringSession={!sessionRestorationResolved}
+                    resolvedOverlayTheme={resolvedOverlayTheme}
                     onStartSession={overlay.startSession}
+                    isUiSettingsDialogOpen={isUiSettingsDialogOpen}
+                    uiSettings={uiSettings}
+                    onPersistUiSettings={persistUiSettings}
+                    onOpenUiSettingsDialog={openUiSettingsDialog}
+                    onCloseUiSettingsDialog={closeUiSettingsDialog}
                 />
-            ) : null}
-                </>
             )}
         />
     );

@@ -187,9 +187,7 @@ describe('Nostr overlay selection map interaction', () => {
         });
         await flush();
 
-        const followingTab = Array.from(rendered.container.querySelectorAll('button')).find(button =>
-            (button.textContent || '').includes('Sigues (2)')
-        );
+        const followingTab = rendered.container.querySelector('button[aria-label="Abrir lista de seguidos"]');
         expect(followingTab).toBeDefined();
 
         await act(async () => {
@@ -274,9 +272,7 @@ describe('Nostr overlay selection map interaction', () => {
         });
         await flush();
 
-        const followingTab = Array.from(rendered.container.querySelectorAll('button')).find(button =>
-            (button.textContent || '').includes('Sigues (2)')
-        );
+        const followingTab = rendered.container.querySelector('button[aria-label="Abrir lista de seguidos"]');
         expect(followingTab).toBeDefined();
 
         await act(async () => {

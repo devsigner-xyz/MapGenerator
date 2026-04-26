@@ -10,12 +10,12 @@ interface RenderResult {
   root: Root;
 }
 
-function mockSystemTheme(matches: boolean): void {
+function mockSystemTheme(matches: boolean, reducedMotion = false): void {
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,
     writable: true,
     value: vi.fn().mockImplementation((query: string) => ({
-      matches,
+      matches: query.includes('prefers-reduced-motion') ? reducedMotion : matches,
       media: query,
       onchange: null,
       addEventListener: vi.fn(),
@@ -106,5 +106,43 @@ describe('LandingPage theme selector', () => {
     expect(stored).toEqual({ language: 'es', theme: 'light' });
     expect(rendered.container.querySelector('.landing-shell')?.getAttribute('data-theme')).toBe('light');
     expect(logo?.getAttribute('src')).toBe('/logo-v2-light.png');
+  });
+
+  test('labels the map preview with the active Nostr City preset', async () => {
+    mockSystemTheme(false);
+
+    const rendered = await renderLanding();
+    mounted.push(rendered);
+
+    const preview = rendered.container.querySelector('[data-testid="landing-map-preview"]');
+    expect(preview?.getAttribute('aria-label')).toBe('Vista previa del preset Nostr City Light');
+    expect(rendered.container.querySelector('[data-active-preset="Nostr City Light"]')?.textContent).toContain('Nostr City Light');
+
+    const darkButton = Array.from(rendered.container.querySelectorAll('.theme-toggle button')).find((button) =>
+      (button.textContent || '').includes('Oscuro'),
+    ) as HTMLButtonElement | undefined;
+    expect(darkButton).toBeDefined();
+
+    await act(async () => {
+      darkButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(preview?.getAttribute('aria-label')).toBe('Vista previa del preset Nostr City Dark');
+    expect(rendered.container.querySelector('[data-active-preset="Nostr City Dark"]')?.textContent).toContain('Nostr City Dark');
+  });
+
+  test('uses native in-page links for section navigation', async () => {
+    mockSystemTheme(false, true);
+
+    const rendered = await renderLanding();
+    mounted.push(rendered);
+
+    const howLink = rendered.container.querySelector('a[href="#como-funciona"]');
+    const featuresLink = rendered.container.querySelector('a[href="#features"]');
+
+    expect(howLink).not.toBeNull();
+    expect(featuresLink).not.toBeNull();
+    expect(howLink?.textContent).toContain('Ver como funciona');
+    expect(featuresLink?.textContent).toContain('Features');
   });
 });
