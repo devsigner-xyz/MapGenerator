@@ -988,11 +988,11 @@ export function App({ mapBridge, services }: AppProps) {
                     cityStats={{
                         buildingsCount: overlay.buildingsCount,
                         occupiedBuildingsCount: overlay.assignedCount,
-                        assignedResidentsCount: overlay.assignedCount,
-                        followsCount: overlay.followsCount,
-                        followersCount: overlay.followersCount,
+                        followedPubkeys: overlay.follows,
+                        followerPubkeys: overlay.followers,
+                        profilesByPubkey: overlay.profiles,
+                        verificationByPubkey,
                         parkCount: overlay.parkCount,
-                        unhousedResidentsCount: overlay.unassignedCount,
                     }}
                     notifications={{
                         hasUnread: socialState.hasUnread,

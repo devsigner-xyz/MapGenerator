@@ -6,31 +6,31 @@ type CityStatsPageProps = ComponentProps<typeof CityStatsPage>;
 export interface CityStatsRouteContainerProps {
     buildingsCount: CityStatsPageProps['buildingsCount'];
     occupiedBuildingsCount: CityStatsPageProps['occupiedBuildingsCount'];
-    assignedResidentsCount: CityStatsPageProps['assignedResidentsCount'];
-    followsCount: CityStatsPageProps['followsCount'];
-    followersCount: CityStatsPageProps['followersCount'];
+    followedPubkeys: CityStatsPageProps['followedPubkeys'];
+    followerPubkeys: CityStatsPageProps['followerPubkeys'];
+    profilesByPubkey: CityStatsPageProps['profilesByPubkey'];
+    verificationByPubkey: CityStatsPageProps['verificationByPubkey'];
     parkCount: CityStatsPageProps['parkCount'];
-    unhousedResidentsCount: CityStatsPageProps['unhousedResidentsCount'];
 }
 
 export function CityStatsRouteContainer({
     buildingsCount,
     occupiedBuildingsCount,
-    assignedResidentsCount,
-    followsCount,
-    followersCount,
+    followedPubkeys,
+    followerPubkeys,
+    profilesByPubkey,
+    verificationByPubkey,
     parkCount,
-    unhousedResidentsCount,
 }: CityStatsRouteContainerProps) {
     return (
         <CityStatsPage
             buildingsCount={buildingsCount}
             occupiedBuildingsCount={occupiedBuildingsCount}
-            assignedResidentsCount={assignedResidentsCount}
-            followsCount={followsCount}
-            followersCount={followersCount}
+            followedPubkeys={followedPubkeys}
+            followerPubkeys={followerPubkeys}
+            profilesByPubkey={profilesByPubkey}
+            verificationByPubkey={verificationByPubkey}
             parkCount={parkCount}
-            unhousedResidentsCount={unhousedResidentsCount}
         />
     );
 }

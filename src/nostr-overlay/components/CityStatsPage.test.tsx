@@ -46,23 +46,47 @@ describe('CityStatsPage', () => {
             <CityStatsPage
                 buildingsCount={100}
                 occupiedBuildingsCount={60}
-                assignedResidentsCount={80}
-                followsCount={40}
-                followersCount={55}
+                followedPubkeys={['verified', 'lightning', 'bot', 'mutual']}
+                followerPubkeys={['mutual', 'follower-only']}
+                profilesByPubkey={{
+                    verified: { pubkey: 'verified', nip05: 'verified@example.com' },
+                    lightning: { pubkey: 'lightning', lud16: 'pay@example.com' },
+                    bot: { pubkey: 'bot', bot: true },
+                    mutual: { pubkey: 'mutual', lud06: 'lnurl1example' },
+                }}
+                verificationByPubkey={{
+                    verified: { status: 'verified', identifier: 'verified@example.com', checkedAt: 1 },
+                }}
                 parkCount={7}
-                unhousedResidentsCount={12}
             />
         );
         mounted.push(rendered);
 
         const text = rendered.container.textContent || '';
         expect(text).toContain('City stats');
-        expect(text).toContain('Housing and assigned population overview for the current map.');
+        expect(text).toContain('Map capacity and Nostr identity signals for the people you follow.');
         expect(text).toContain('Total homes');
         expect(text).toContain('Occupied buildings');
-        expect(text).toContain('Detected followers');
-        expect(text).toContain('Current residential coverage');
-        expect(rendered.container.querySelectorAll('[data-testid="city-stats-kpi-card"]')).toHaveLength(8);
+        expect(text).toContain('NIP-05 identity verified');
+        expect(text).toContain('Mutual follows');
+        expect(text).toContain('Followed profile quality');
+        expect(text).not.toContain('Unhoused demand');
+        expect(text).not.toContain('Occupancy demographics');
+        expect(text).not.toContain('Demographic network');
+        expect(rendered.container.querySelectorAll('[data-testid="city-stats-kpi-card"]')).toHaveLength(10);
         expect(rendered.container.querySelectorAll('[data-testid="city-stats-chart-card"]')).toHaveLength(3);
+
+        const cardValue = (label: string): string | undefined => Array.from(rendered.container.querySelectorAll('[data-testid="city-stats-kpi-card"]'))
+            .find((card) => (card.textContent || '').includes(label))
+            ?.querySelector('p')
+            ?.textContent
+            ?.trim();
+
+        expect(cardValue('Following')).toBe('4');
+        expect(cardValue('NIP-05 identity verified')).toBe('1 (25.0%)');
+        expect(cardValue('Mutual follows')).toBe('1 (25.0%)');
+        expect(cardValue('Lightning profiles')).toBe('2 (50.0%)');
+        expect(cardValue('Profiles loaded')).toBe('4 (100.0%)');
+        expect(cardValue('Declared bots')).toBe('1 (25.0%)');
     });
 });

@@ -120,11 +120,11 @@ function buildOverlayRoutesProps(overrides: Partial<OverlayRoutesProps> = {}): O
         cityStats: {
             buildingsCount: 0,
             occupiedBuildingsCount: 0,
-            assignedResidentsCount: 0,
-            followsCount: 0,
-            followersCount: 0,
+            followedPubkeys: [],
+            followerPubkeys: [],
+            profilesByPubkey: {},
+            verificationByPubkey: {},
             parkCount: 0,
-            unhousedResidentsCount: 0,
         },
         notifications: {
             hasUnread: false,
