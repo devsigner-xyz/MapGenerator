@@ -9,6 +9,8 @@ const extractedModulePaths = [
     './shell/use-overlay-route-state',
     './shell/use-map-bridge-controller',
     './hooks/useEasterEggDiscoveryController',
+    './controllers/use-wallet-zap-controller',
+    './app.selectors',
 ];
 
 const movedHelperNames = [
@@ -18,6 +20,29 @@ const movedHelperNames = [
     'activeAgoraHashtagFromLocation',
     'useMapBridgeController',
     'useEasterEggDiscoveryController',
+    'useWalletZapController',
+    'connectWebLnWallet',
+    'connectNwcWallet',
+    'executeZapIntent',
+    'handleZapIntent',
+    'fetchNwcInfo',
+    'withNwcClient',
+    'isWalletReadyForPayments',
+    'applyOptimisticZapMetrics',
+    'selectRelaySetKey',
+    'selectDiscoveredMissionsCount',
+    'selectPostEventIds',
+    'selectEngagementWithFallback',
+    'selectOptimisticZapBaseByEventId',
+    'pruneCaughtUpOptimisticZapEntries',
+    'addOptimisticZapEntry',
+    'selectVerificationProfilesByPubkey',
+    'selectRichContentProfilesByPubkey',
+    'selectVerificationTargetPubkeys',
+    'selectVerifiedBuildingIndexes',
+    'selectChatConversationSummaries',
+    'selectChatDetailMessages',
+    'selectMapLoaderStageLabel',
 ];
 
 function escapeRegExp(value: string): string {
@@ -34,7 +59,7 @@ function inlineDefinitionPatternsFor(helperName: string): RegExp[] {
     const escapedName = escapeRegExp(helperName);
     return [
         new RegExp(`\\bfunction\\s+${escapedName}\\s*\\(`),
-        new RegExp(`\\b(?:const|let|var)\\s+${escapedName}\\s*=`),
+        new RegExp(`\\b(?:const|let|var)\\s+${escapedName}\\s*(?::[^=]+)?=`),
     ];
 }
 

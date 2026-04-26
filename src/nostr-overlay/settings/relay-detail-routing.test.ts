@@ -39,6 +39,14 @@ describe('relay-detail-routing', () => {
         });
     });
 
+    test('parses legacy relay query param as configured nip65Both detail params', () => {
+        expect(parseRelayDetailSearch('?relay=wss%3A%2F%2Frelay.example')).toEqual({
+            relayUrl: 'wss://relay.example',
+            source: 'configured',
+            relayType: 'nip65Both',
+        });
+    });
+
     test('returns null for missing or invalid params', () => {
         expect(parseRelayDetailSearch('')).toBeNull();
         expect(parseRelayDetailSearch('?url=wss%3A%2F%2Frelay.one&source=bad&type=nip65Both')).toBeNull();

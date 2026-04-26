@@ -24,6 +24,18 @@ export function parseRelayDetailSearch(search: string): RelayDetailRouteParams |
     const source = query.get('source')?.trim() ?? '';
     const relayType = query.get('type')?.trim() ?? '';
 
+    if (!relayUrl && !source && !relayType) {
+        const legacyRelayUrl = query.get('relay')?.trim() ?? '';
+
+        if (legacyRelayUrl) {
+            return {
+                relayUrl: legacyRelayUrl,
+                source: 'configured',
+                relayType: 'nip65Both',
+            };
+        }
+    }
+
     if (!relayUrl || !RELAY_SOURCE_SET.has(source as RelaySource) || !RELAY_TYPE_SET.has(relayType as RelayType)) {
         return null;
     }

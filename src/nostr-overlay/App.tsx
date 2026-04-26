@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { verifyEvent } from 'nostr-tools/pure';
 import { Navigate, Route, Routes } from 'react-router';
 import {
     DEFAULT_STREET_LABELS_ZOOM_LEVEL,
@@ -10,20 +9,7 @@ import {
     type UiSettingsState,
 } from '../nostr/ui-settings';
 import { loadZapSettings, type ZapSettingsState } from '../nostr/zap-settings';
-import { loadWalletSettings, saveWalletSettings } from '../nostr/wallet-settings';
-import {
-    addWalletActivity,
-    loadWalletActivity,
-    markWalletActivityFailed,
-    markWalletActivitySucceeded,
-    saveWalletActivity,
-} from '../nostr/wallet-activity';
-import type { WalletActivityState, WalletSettingsState } from '../nostr/wallet-types';
-import { detectWebLnProvider, resolveWebLnCapabilities } from '../nostr/webln';
-import { requestEventZapInvoice } from '../nostr/zaps';
-import { requestProfileZapInvoice } from '../nostr/zaps';
 import { profileHasZapEndpoint } from '../nostr/zaps';
-import { createNwcClient, createNwcRelayIo, parseNwcConnectionUri, resolveNwcEncryptionMode, resolveNwcInfoCapabilities } from '../nostr/nwc';
 import { encodeHexToNpub } from '../nostr/npub';
 import { MapPresenceLayer } from './components/MapPresenceLayer';
 import { OccupantProfileDialog } from './components/OccupantProfileDialog';
@@ -39,7 +25,7 @@ import {
 import { MapZoomControls } from './components/MapZoomControls';
 import { MapDisplayToggleControls } from './components/MapDisplayToggleControls';
 import { CityStatsPage } from './components/CityStatsPage';
-import { ChatsPage, type ChatConversationSummary, type ChatDetailMessage } from './components/ChatsPage';
+import { ChatsPage } from './components/ChatsPage';
 import { NotificationsPage } from './components/NotificationsPage';
 import { FollowingFeedSurface } from './components/FollowingFeedSurface';
 import { SocialComposeDialog } from './components/SocialComposeDialog';
@@ -55,15 +41,33 @@ import { SettingsShortcutsRoute } from './components/settings-routes/SettingsSho
 import { SettingsZapsRoute } from './components/settings-routes/SettingsZapsRoute';
 import { UiSettingsDialog } from './components/UiSettingsDialog';
 import { PersonContextMenuItems } from './components/PersonContextMenuItems';
-import { useNostrOverlay, type MapLoaderStage } from './hooks/useNostrOverlay';
+import { useNostrOverlay } from './hooks/useNostrOverlay';
 import { useNip05Verification } from './hooks/useNip05Verification';
 import { useOverlaySocialFeedController } from './controllers/use-overlay-social-feed-controller';
 import { useOverlayNotificationsController } from './controllers/use-overlay-notifications-controller';
 import { useOverlayDmController } from './controllers/use-overlay-dm-controller';
+import { useWalletZapController, type ZapIntentInput } from './controllers/use-wallet-zap-controller';
 import { useEasterEggDiscoveryController } from './hooks/useEasterEggDiscoveryController';
 import { useFollowingFeedEngagementQuery } from './query/following-feed.query';
-import { applyEngagementDeltas, createEmptyEngagementByEventIds } from './query/following-feed.selectors';
 import { useActiveProfileQuery } from './query/active-profile.query';
+import {
+    addOptimisticZapEntry,
+    applyOptimisticZapMetrics,
+    pruneCaughtUpOptimisticZapEntries,
+    selectChatConversationSummaries,
+    selectChatDetailMessages,
+    selectDiscoveredMissionsCount,
+    selectEngagementWithFallback,
+    selectMapLoaderStageLabel,
+    selectOptimisticZapBaseByEventId,
+    selectPostEventIds,
+    selectRelaySetKey,
+    selectRichContentProfilesByPubkey,
+    selectVerificationProfilesByPubkey,
+    selectVerificationTargetPubkeys,
+    selectVerifiedBuildingIndexes,
+    type OptimisticZapEntry,
+} from './app.selectors';
 import type { MentionDraft } from './mention-serialization';
 import type { MapBridge, OccupiedBuildingContextPayload } from './map-bridge';
 import { extractStreetLabelUsernames } from './domain/street-label-users';
@@ -85,7 +89,6 @@ import { OverlayAppShell } from './shell/OverlayAppShell';
 import { useMapBridgeController } from './shell/use-map-bridge-controller';
 import { normalizeHashtag, useOverlayRouteState } from './shell/use-overlay-route-state';
 import type { NoteCardModel } from './components/note-card-model';
-import type { SocialEngagementByEventId } from '../nostr/social-feed-service';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Spinner } from '@/components/ui/spinner';
 import {
@@ -111,95 +114,9 @@ interface OccupiedBuildingContextMenuState extends OccupiedBuildingContextPayloa
     nonce: number;
 }
 
-interface PendingZapIntent {
-    targetPubkey: string;
-    amount: number;
-    eventId?: string;
-    eventKind?: number;
-    originPath: string;
-    phase: 'navigating' | 'ready' | 'paused';
-}
-
-interface ZapIntentInput {
-    targetPubkey: string;
-    amount: number;
-    eventId?: string;
-    eventKind?: number;
-}
-
-type ZapExecutionResult = 'success' | 'retryable_failure' | 'definitive_failure';
-
-interface OptimisticZapEntry {
-    baselineZaps: number;
-    baselineZapSats: number;
-    deltaZaps: number;
-    deltaZapSats: number;
-}
-
-function applyOptimisticZapMetrics(
-    baseByEventId: SocialEngagementByEventId,
-    optimisticByEventId: Record<string, OptimisticZapEntry>,
-): SocialEngagementByEventId {
-    const eventIds = [...new Set([...Object.keys(baseByEventId), ...Object.keys(optimisticByEventId)])];
-    if (eventIds.length === 0) {
-        return baseByEventId;
-    }
-
-    const deltaByEventId: SocialEngagementByEventId = {};
-    for (const eventId of Object.keys(optimisticByEventId)) {
-        const optimistic = optimisticByEventId[eventId];
-        if (!optimistic) {
-            continue;
-        }
-
-        const base = baseByEventId[eventId] ?? {
-            replies: 0,
-            reposts: 0,
-            reactions: 0,
-            zaps: 0,
-            zapSats: 0,
-        };
-        const hasCaughtUp = base.zaps >= optimistic.baselineZaps + optimistic.deltaZaps
-            && base.zapSats >= optimistic.baselineZapSats + optimistic.deltaZapSats;
-        if (hasCaughtUp) {
-            continue;
-        }
-
-        deltaByEventId[eventId] = {
-            replies: 0,
-            reposts: 0,
-            reactions: 0,
-            zaps: optimistic.deltaZaps,
-            zapSats: optimistic.deltaZapSats,
-        };
-    }
-
-    return applyEngagementDeltas({
-        eventIds,
-        baseByEventId,
-        deltaByEventId,
-    });
-}
-
 interface SocialComposeState {
     mode: 'post' | 'quote';
     quoteTarget?: NoteCardModel;
-}
-
-function mapLoaderStageLabel(stage: MapLoaderStage | null, language: UiSettingsState['language']): string | null {
-    if (stage === 'connecting_relay') {
-        return translate(language, 'app.loader.connectingRelay');
-    }
-
-    if (stage === 'fetching_data') {
-        return translate(language, 'app.loader.fetchingData');
-    }
-
-    if (stage === 'building_map') {
-        return translate(language, 'app.loader.buildingMap');
-    }
-
-    return null;
 }
 
 export function App({ mapBridge, services }: AppProps) {
@@ -231,72 +148,13 @@ export function App({ mapBridge, services }: AppProps) {
     ));
     const [uiSettings, setUiSettings] = useState<UiSettingsState>(() => loadUiSettings());
     const [zapSettings, setZapSettings] = useState<ZapSettingsState>(() => loadZapSettings());
-    const [walletSettings, setWalletSettings] = useState<WalletSettingsState>(() => loadWalletSettings());
-    const [walletActivity, setWalletActivity] = useState<WalletActivityState>(() => loadWalletActivity());
-    const [walletNwcUriInput, setWalletNwcUriInput] = useState('');
-    const [pendingZapIntent, setPendingZapIntent] = useState<PendingZapIntent | null>(null);
     const [optimisticZapByEventId, setOptimisticZapByEventId] = useState<Record<string, OptimisticZapEntry>>({});
-    const [resumingZap, setResumingZap] = useState(false);
     const [socialComposeState, setSocialComposeState] = useState<SocialComposeState | null>(null);
     const [isSubmittingSocialCompose, setIsSubmittingSocialCompose] = useState(false);
     const userSearchRelaySetKey = useMemo(
-        () => [...new Set(relaySettingsSnapshot.byType.search)].sort((left, right) => left.localeCompare(right)).join('|'),
+        () => selectRelaySetKey(relaySettingsSnapshot.byType.search),
         [relaySettingsSnapshot.byType.search]
     );
-    const shouldAutoRestoreRememberedWebLnRef = useRef(
-        walletSettings.activeConnection?.method === 'webln' && walletSettings.activeConnection.restoreState === 'reconnect-required'
-    );
-
-    const fetchNwcInfo = async (connection: {
-        walletServicePubkey: string;
-        relays: string[];
-    }): Promise<{ capabilities: ReturnType<typeof resolveNwcInfoCapabilities>; encryption: 'nip44_v2' | 'nip04' }> => {
-        const client = services.createClient(connection.relays);
-
-        await client.connect();
-        const infoEvent = await client.fetchLatestReplaceableEvent(connection.walletServicePubkey, 13194);
-        if (!infoEvent) {
-            throw new Error('NWC info event was not found');
-        }
-        if (!verifyEvent(infoEvent as Parameters<typeof verifyEvent>[0])) {
-            throw new Error('NWC info event signature is invalid');
-        }
-
-        const capabilities = resolveNwcInfoCapabilities(infoEvent.content);
-        if (!capabilities.payInvoice) {
-            throw new Error('NWC wallet does not support pay_invoice');
-        }
-
-        return {
-            capabilities,
-            encryption: resolveNwcEncryptionMode(infoEvent.tags),
-        };
-    };
-
-    const withNwcClient = async <T,>(
-        connection: Extract<NonNullable<WalletSettingsState['activeConnection']>, { method: 'nwc' }>,
-        operation: (client: ReturnType<typeof createNwcClient>) => Promise<T>
-    ): Promise<T> => {
-        const io = createNwcRelayIo(connection.relays);
-        const client = createNwcClient({ connection, io });
-        try {
-            return await operation(client);
-        } finally {
-            io.close?.();
-        }
-    };
-
-    const isWalletReadyForPayments = (connection: WalletSettingsState['activeConnection']): boolean => {
-        if (!connection?.capabilities.payInvoice) {
-            return false;
-        }
-
-        if (connection.method === 'webln' || connection.method === 'nwc') {
-            return connection.restoreState === 'connected';
-        }
-
-        return true;
-    };
     const [buildingContextMenu, setBuildingContextMenu] = useState<OccupiedBuildingContextMenuState | null>(null);
     const [eventReferencesById, setEventReferencesById] = useState<Record<string, NostrEvent>>({});
     const isMobile = useIsMobile();
@@ -311,7 +169,7 @@ export function App({ mapBridge, services }: AppProps) {
         )
     );
     const loginDisabled = overlay.status !== 'idle' && overlay.status !== 'success' && overlay.status !== 'error';
-    const mapLoaderText = mapLoaderStageLabel(overlay.mapLoaderStage, uiSettings.language);
+    const mapLoaderText = selectMapLoaderStageLabel(overlay.mapLoaderStage, uiSettings.language);
     const sessionRestorationResolved = overlay.sessionRestorationResolved;
 
     const isAppReady = Boolean(overlay.authSession) && overlay.status === 'success' && !overlay.authSession?.locked;
@@ -321,23 +179,15 @@ export function App({ mapBridge, services }: AppProps) {
         occupancyByBuildingIndex: overlay.occupancyByBuildingIndex,
         profiles: overlay.profiles,
     }), [overlay.occupancyByBuildingIndex, overlay.profiles]);
-    const verificationProfilesByPubkey = useMemo(() => {
-        const merged = {
-            ...overlay.profiles,
-            ...overlay.followerProfiles,
-            ...activeProfileData.networkProfiles,
-        };
-
-        if (overlay.ownerPubkey && overlay.ownerProfile) {
-            merged[overlay.ownerPubkey] = overlay.ownerProfile;
-        }
-
-        if (overlay.activeProfilePubkey && overlay.activeProfile) {
-            merged[overlay.activeProfilePubkey] = overlay.activeProfile;
-        }
-
-        return merged;
-    }, [
+    const verificationProfilesByPubkey = useMemo(() => selectVerificationProfilesByPubkey({
+        profiles: overlay.profiles,
+        followerProfiles: overlay.followerProfiles,
+        networkProfiles: activeProfileData.networkProfiles,
+        ...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {}),
+        ...(overlay.ownerProfile ? { ownerProfile: overlay.ownerProfile } : {}),
+        ...(overlay.activeProfilePubkey ? { activeProfilePubkey: overlay.activeProfilePubkey } : {}),
+        ...(overlay.activeProfile ? { activeProfile: overlay.activeProfile } : {}),
+    }), [
         overlay.profiles,
         overlay.followerProfiles,
         activeProfileData.networkProfiles,
@@ -346,16 +196,13 @@ export function App({ mapBridge, services }: AppProps) {
         overlay.activeProfilePubkey,
         overlay.activeProfile,
     ]);
-    const verificationTargetPubkeys = useMemo(() => {
-        const occupiedPubkeys = Object.values(overlay.occupancyByBuildingIndex);
-        return [...new Set([
-            ...(overlay.ownerPubkey ? [overlay.ownerPubkey] : []),
-            ...overlay.follows,
-            ...overlay.followers,
-            ...occupiedPubkeys,
-            ...(overlay.activeProfilePubkey ? [overlay.activeProfilePubkey] : []),
-        ])];
-    }, [
+    const verificationTargetPubkeys = useMemo(() => selectVerificationTargetPubkeys({
+        ...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {}),
+        follows: overlay.follows,
+        followers: overlay.followers,
+        occupancyByBuildingIndex: overlay.occupancyByBuildingIndex,
+        ...(overlay.activeProfilePubkey ? { activeProfilePubkey: overlay.activeProfilePubkey } : {}),
+    }), [
         overlay.ownerPubkey,
         overlay.follows,
         overlay.followers,
@@ -367,16 +214,11 @@ export function App({ mapBridge, services }: AppProps) {
         profilesByPubkey: verificationProfilesByPubkey,
         targetPubkeys: verificationTargetPubkeys,
     });
-    const verifiedBuildingIndexes = useMemo(() => {
-        if (!uiSettings.verifiedBuildingsOverlayEnabled) {
-            return [] as number[];
-        }
-
-        return Object.entries(overlay.occupancyByBuildingIndex)
-            .filter(([, pubkey]) => verificationByPubkey[pubkey]?.status === 'verified')
-            .map(([buildingIndex]) => Number(buildingIndex))
-            .filter((value) => Number.isInteger(value) && value >= 0);
-    }, [uiSettings.verifiedBuildingsOverlayEnabled, overlay.occupancyByBuildingIndex, verificationByPubkey]);
+    const verifiedBuildingIndexes = useMemo(() => selectVerifiedBuildingIndexes({
+        enabled: uiSettings.verifiedBuildingsOverlayEnabled,
+        occupancyByBuildingIndex: overlay.occupancyByBuildingIndex,
+        verificationByPubkey,
+    }), [uiSettings.verifiedBuildingsOverlayEnabled, overlay.occupancyByBuildingIndex, verificationByPubkey]);
     const mapBridgeController = useMapBridgeController({
         mapBridge,
         viewportInsetLeft: isMobile
@@ -403,7 +245,7 @@ export function App({ mapBridge, services }: AppProps) {
         ...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {}),
     });
     const discoveredMissionsCount = useMemo(
-        () => new Set(easterEggProgress.discoveredIds).size,
+        () => selectDiscoveredMissionsCount(easterEggProgress.discoveredIds),
         [easterEggProgress.discoveredIds]
     );
 
@@ -550,7 +392,7 @@ export function App({ mapBridge, services }: AppProps) {
     const followingFeed = socialFeed.followingFeed;
     const followPerson = socialFeed.followPerson;
     const activeProfilePostEventIds = useMemo(
-        () => activeProfileData.posts.map((post) => post.id),
+        () => selectPostEventIds(activeProfileData.posts),
         [activeProfileData.posts]
     );
     const activeProfileEngagementQuery = useFollowingFeedEngagementQuery({
@@ -558,17 +400,10 @@ export function App({ mapBridge, services }: AppProps) {
         service: overlay.socialFeedService,
         enabled: Boolean(overlay.activeProfilePubkey),
     });
-    const activeProfileEngagementByEventId = useMemo(() => {
-        const fallback = createEmptyEngagementByEventIds(activeProfilePostEventIds);
-        if (!activeProfileEngagementQuery.data) {
-            return fallback;
-        }
-
-        return {
-            ...fallback,
-            ...activeProfileEngagementQuery.data,
-        };
-    }, [activeProfileEngagementQuery.data, activeProfilePostEventIds]);
+    const activeProfileEngagementByEventId = useMemo(() => selectEngagementWithFallback({
+        eventIds: activeProfilePostEventIds,
+        ...(activeProfileEngagementQuery.data ? { data: activeProfileEngagementQuery.data } : {}),
+    }), [activeProfileEngagementQuery.data, activeProfilePostEventIds]);
     const activeProfileEngagementWithOptimisticByEventId = useMemo(
         () => applyOptimisticZapMetrics(activeProfileEngagementByEventId, optimisticZapByEventId),
         [activeProfileEngagementByEventId, optimisticZapByEventId],
@@ -577,50 +412,21 @@ export function App({ mapBridge, services }: AppProps) {
         () => applyOptimisticZapMetrics(followingFeed.engagementByEventId, optimisticZapByEventId),
         [followingFeed.engagementByEventId, optimisticZapByEventId],
     );
-    const optimisticZapBaseByEventId = useMemo(
-        () => ({
-            ...activeProfileEngagementByEventId,
-            ...followingFeed.engagementByEventId,
-        }),
-        [activeProfileEngagementByEventId, followingFeed.engagementByEventId],
-    );
+    const optimisticZapBaseByEventId = useMemo(() => selectOptimisticZapBaseByEventId({
+        activeProfileEngagementByEventId,
+        followingFeedEngagementByEventId: followingFeed.engagementByEventId,
+    }), [activeProfileEngagementByEventId, followingFeed.engagementByEventId]);
     useEffect(() => {
-        setOptimisticZapByEventId((current) => {
-            let changed = false;
-            const next: Record<string, OptimisticZapEntry> = {};
-
-            for (const [eventId, optimistic] of Object.entries(current)) {
-                const base = optimisticZapBaseByEventId[eventId] ?? {
-                    replies: 0,
-                    reposts: 0,
-                    reactions: 0,
-                    zaps: 0,
-                    zapSats: 0,
-                };
-                const hasCaughtUp = base.zaps >= optimistic.baselineZaps + optimistic.deltaZaps
-                    && base.zapSats >= optimistic.baselineZapSats + optimistic.deltaZapSats;
-
-                if (hasCaughtUp) {
-                    changed = true;
-                    continue;
-                }
-
-                next[eventId] = optimistic;
-            }
-
-            return changed ? next : current;
-        });
+        setOptimisticZapByEventId((current) => pruneCaughtUpOptimisticZapEntries(current, optimisticZapBaseByEventId));
     }, [optimisticZapBaseByEventId]);
-    const richContentProfilesByPubkey = useMemo(() => ({
-        ...overlay.followerProfiles,
-        ...overlay.profiles,
-        ...activeProfileData.networkProfiles,
-        ...(overlay.ownerPubkey && overlay.ownerProfile
-            ? { [overlay.ownerPubkey]: overlay.ownerProfile }
-            : {}),
-        ...(overlay.activeProfilePubkey && overlay.activeProfile
-            ? { [overlay.activeProfilePubkey]: overlay.activeProfile }
-            : {}),
+    const richContentProfilesByPubkey = useMemo(() => selectRichContentProfilesByPubkey({
+        profiles: overlay.profiles,
+        followerProfiles: overlay.followerProfiles,
+        networkProfiles: activeProfileData.networkProfiles,
+        ...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {}),
+        ...(overlay.ownerProfile ? { ownerProfile: overlay.ownerProfile } : {}),
+        ...(overlay.activeProfilePubkey ? { activeProfilePubkey: overlay.activeProfilePubkey } : {}),
+        ...(overlay.activeProfile ? { activeProfile: overlay.activeProfile } : {}),
     }), [
         activeProfileData.networkProfiles,
         overlay.activeProfile,
@@ -631,71 +437,18 @@ export function App({ mapBridge, services }: AppProps) {
         overlay.profiles,
     ]);
 
-    const chatConversations = useMemo<ChatConversationSummary[]>(() => {
-        const summaries = Object.values(chatState.conversations)
-            .map((conversation) => {
-                const lastMessage = conversation.messages[conversation.messages.length - 1];
-                const profile = overlay.profiles[conversation.id] || overlay.followerProfiles[conversation.id];
-                const verification = verificationByPubkey[conversation.id];
-                const title = profile?.displayName ?? profile?.name ?? `${conversation.id.slice(0, 10)}...${conversation.id.slice(-6)}`;
+    const chatConversations = useMemo(() => selectChatConversationSummaries({
+        conversations: chatState.conversations,
+        profiles: overlay.profiles,
+        followerProfiles: overlay.followerProfiles,
+        verificationByPubkey,
+        pinnedConversationId: chatPinnedConversationId,
+    }), [chatState.conversations, overlay.profiles, overlay.followerProfiles, chatPinnedConversationId, verificationByPubkey]);
 
-                return {
-                    id: conversation.id,
-                    peerPubkey: conversation.id,
-                    title,
-                    ...(profile ? { profile } : {}),
-                    ...(verification !== undefined
-                        ? { verification }
-                        : {}),
-                    lastMessagePreview: lastMessage?.plaintext || '',
-                    lastMessageAt: lastMessage?.createdAt || 0,
-                    hasUnread: conversation.hasUnread,
-                };
-            })
-            .sort((left, right) => right.lastMessageAt - left.lastMessageAt);
-
-        if (chatPinnedConversationId && !summaries.some((conversation) => conversation.id === chatPinnedConversationId)) {
-            const profile = overlay.profiles[chatPinnedConversationId] || overlay.followerProfiles[chatPinnedConversationId];
-            const verification = verificationByPubkey[chatPinnedConversationId];
-            const title = profile?.displayName ?? profile?.name ?? `${chatPinnedConversationId.slice(0, 10)}...${chatPinnedConversationId.slice(-6)}`;
-            summaries.unshift({
-                id: chatPinnedConversationId,
-                peerPubkey: chatPinnedConversationId,
-                title,
-                ...(profile ? { profile } : {}),
-                ...(verification !== undefined
-                    ? { verification }
-                    : {}),
-                lastMessagePreview: '',
-                lastMessageAt: 0,
-                hasUnread: false,
-            });
-        }
-
-        return summaries;
-    }, [chatState, overlay.profiles, overlay.followerProfiles, chatPinnedConversationId, verificationByPubkey]);
-
-    const chatMessages = useMemo<ChatDetailMessage[]>(() => {
-        if (!chatActiveConversationId) {
-            return [];
-        }
-
-        const conversation = chatState.conversations[chatActiveConversationId];
-        if (!conversation) {
-            return [];
-        }
-
-        return conversation.messages.map((message) => ({
-            id: message.id,
-            direction: message.direction,
-            plaintext: message.plaintext,
-            createdAt: message.createdAt,
-            deliveryState: message.deliveryState,
-            ...(message.isUndecryptable !== undefined
-                ? { isUndecryptable: message.isUndecryptable }
-                : {}),
-        }));
-    }, [chatState, chatActiveConversationId]);
+    const chatMessages = useMemo(() => selectChatDetailMessages({
+        conversations: chatState.conversations,
+        activeConversationId: chatActiveConversationId,
+    }), [chatState.conversations, chatActiveConversationId]);
 
     const canAccessFollowingFeed = socialFeed.canAccessFollowingFeed;
     const relayStatusTargets = relaySettingsSnapshot.relays;
@@ -723,47 +476,6 @@ export function App({ mapBridge, services }: AppProps) {
     useEffect(() => {
         setEventReferencesById({});
     }, [overlay.ownerPubkey]);
-
-    useEffect(() => {
-        const nextWalletSettings = loadWalletSettings(
-            overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : undefined
-        );
-        shouldAutoRestoreRememberedWebLnRef.current = Boolean(
-            nextWalletSettings.activeConnection?.method === 'webln'
-            && nextWalletSettings.activeConnection.restoreState === 'reconnect-required'
-        );
-        setWalletSettings(nextWalletSettings);
-        setWalletActivity(loadWalletActivity(
-            overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : undefined
-        ));
-    }, [overlay.ownerPubkey]);
-
-    useEffect(() => {
-        if (!shouldAutoRestoreRememberedWebLnRef.current) {
-            return;
-        }
-        if (walletSettings.activeConnection?.method !== 'webln' || walletSettings.activeConnection.restoreState !== 'reconnect-required') {
-            shouldAutoRestoreRememberedWebLnRef.current = false;
-            return;
-        }
-
-        shouldAutoRestoreRememberedWebLnRef.current = false;
-        void connectWebLnWallet({ silent: true });
-    }, [walletSettings.activeConnection]);
-
-    const walletStorageOptions = overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : undefined;
-
-    const persistWalletSettings = (nextState: WalletSettingsState): WalletSettingsState => {
-        const saved = saveWalletSettings(nextState, walletStorageOptions);
-        setWalletSettings(saved);
-        return saved;
-    };
-
-    const persistWalletActivity = (nextState: WalletActivityState): WalletActivityState => {
-        const saved = saveWalletActivity(nextState, walletStorageOptions);
-        setWalletActivity(saved);
-        return saved;
-    };
 
     const copyText = async (value: string, successMessage: string): Promise<void> => {
         if (!value) {
@@ -1172,232 +884,33 @@ export function App({ mapBridge, services }: AppProps) {
     };
 
     const recordOptimisticZap = useCallback((input: { eventId?: string; amount: number }) => {
-        const eventId = input.eventId;
-        if (!eventId) {
-            return;
-        }
-
-        setOptimisticZapByEventId((current) => {
-            const base = optimisticZapBaseByEventId[eventId] ?? {
-                replies: 0,
-                reposts: 0,
-                reactions: 0,
-                zaps: 0,
-                zapSats: 0,
-            };
-            const existing = current[eventId];
-
-            return {
-                ...current,
-                [eventId]: {
-                    baselineZaps: existing?.baselineZaps ?? base.zaps,
-                    baselineZapSats: existing?.baselineZapSats ?? base.zapSats,
-                    deltaZaps: (existing?.deltaZaps ?? 0) + 1,
-                    deltaZapSats: (existing?.deltaZapSats ?? 0) + input.amount,
-                },
-            };
-        });
+        setOptimisticZapByEventId((current) => addOptimisticZapEntry(current, optimisticZapBaseByEventId, input));
     }, [optimisticZapBaseByEventId]);
 
-    const executeZapIntent = useCallback(async (
-        input: ZapIntentInput,
-        connectionOverride: WalletSettingsState['activeConnection'] = walletSettings.activeConnection
-    ): Promise<ZapExecutionResult> => {
-        if (!connectionOverride) {
-            return 'retryable_failure';
-        }
-
-        if (!overlay.writeGateway) {
-            toast.error(translate(uiSettings.language, 'app.toast.zapUnavailable'), { duration: 2200 });
-            return 'definitive_failure';
-        }
-
-        const profile = overlay.profiles[input.targetPubkey]
-            ?? overlay.followerProfiles[input.targetPubkey]
-            ?? (overlay.ownerPubkey === input.targetPubkey ? overlay.ownerProfile : undefined);
-        const writeRelays = [...new Set([
-            ...relaySettingsSnapshot.byType.nip65Both,
-            ...relaySettingsSnapshot.byType.nip65Write,
-        ])];
-        if (writeRelays.length === 0) {
-            toast.error(translate(uiSettings.language, 'app.toast.zapUnavailable'), { duration: 2200 });
-            return 'definitive_failure';
-        }
-        const activityId = `zap-${input.eventId ?? input.targetPubkey}-${Date.now()}`;
-        persistWalletActivity(addWalletActivity(walletActivity, {
-            id: activityId,
-            status: 'pending',
-            actionType: 'zap-payment',
-            amountMsats: input.amount * 1000,
-            createdAt: Date.now(),
-            targetType: input.eventId ? 'event' : 'profile',
-            targetId: input.eventId ?? input.targetPubkey,
-            provider: connectionOverride.method,
-        }));
-
-        try {
-            const invoice = input.eventId
-                ? await requestEventZapInvoice({
-                    amountSats: input.amount,
-                    eventId: input.eventId,
-                    ...(typeof input.eventKind === 'number' ? { eventKind: input.eventKind } : {}),
-                    profilePubkey: input.targetPubkey,
-                    profile,
-                    relays: writeRelays,
-                    writeGateway: overlay.writeGateway,
-                })
-                : await requestProfileZapInvoice({
-                    amountSats: input.amount,
-                    profilePubkey: input.targetPubkey,
-                    profile,
-                    relays: writeRelays,
-                    writeGateway: overlay.writeGateway,
-                });
-            try {
-                if (connectionOverride.method === 'webln') {
-                    const provider = detectWebLnProvider();
-                    if (!provider?.sendPayment) {
-                        throw new Error('WebLN sendPayment is not available');
-                    }
-                    await provider.sendPayment(invoice);
-                } else {
-                    await withNwcClient(connectionOverride, async (client) => {
-                        await client.payInvoice(invoice);
-                    });
-                }
-                persistWalletActivity(markWalletActivitySucceeded(loadWalletActivity(walletStorageOptions), activityId));
-                recordOptimisticZap({ ...(input.eventId ? { eventId: input.eventId } : {}), amount: input.amount });
-                toast.success('Pago enviado.', { duration: 1800 });
-                return 'success';
-            } catch {
-                persistWalletActivity(markWalletActivityFailed(loadWalletActivity(walletStorageOptions), activityId, 'No se pudo completar el pago.'));
-                toast.error('No se pudo completar el pago.', { duration: 2200 });
-                return 'retryable_failure';
-            }
-        } catch {
-            persistWalletActivity(markWalletActivityFailed(loadWalletActivity(walletStorageOptions), activityId, 'No se puede enviar este zap.'));
-            toast.error('No se puede enviar este zap.', { duration: 2200 });
-            return 'definitive_failure';
-        }
-    }, [walletSettings.activeConnection, overlay.writeGateway, overlay.profiles, overlay.followerProfiles, overlay.ownerPubkey, overlay.ownerProfile, relaySettingsSnapshot.byType.nip65Both, relaySettingsSnapshot.byType.nip65Write, walletActivity, walletStorageOptions, recordOptimisticZap]);
-
-    const handleZapIntent = async (input: ZapIntentInput): Promise<void> => {
-        if (!isWalletReadyForPayments(walletSettings.activeConnection)) {
-            setPendingZapIntent({
-                ...input,
-                originPath: `${location.pathname}${location.search}`,
-                phase: 'navigating',
-            });
-            navigate('/wallet');
-            return;
-        }
-
-        await executeZapIntent(input);
-    };
-
-    const connectWebLnWallet = async (options: { silent?: boolean } = {}): Promise<boolean> => {
-        const provider = detectWebLnProvider();
-        if (!provider) {
-            if (!options.silent) {
-                toast.error('WebLN no está disponible en este navegador.', { duration: 2200 });
-            }
-            return false;
-        }
-
-        try {
-            await provider.enable?.();
-        } catch {
-            if (!options.silent) {
-                toast.error('No se pudo reconectar la wallet WebLN.', { duration: 2200 });
-            }
-            return false;
-        }
-
-        const capabilities = resolveWebLnCapabilities(provider);
-        if (!capabilities.payInvoice) {
-            if (!options.silent) {
-                toast.error('El provider WebLN no soporta pagos.', { duration: 2200 });
-            }
-            return false;
-        }
-
-        const nextConnection = {
-            method: 'webln',
-            capabilities,
-            restoreState: 'connected',
-        } as const;
-        persistWalletSettings({ activeConnection: nextConnection });
-        setWalletNwcUriInput('');
-        if (!options.silent) {
-            toast.success('Wallet conectada', { duration: 1800 });
-        }
-        if (pendingZapIntent?.phase === 'paused' && location.pathname === '/wallet') {
-            setPendingZapIntent({ ...pendingZapIntent, phase: 'ready' });
-        }
-        return true;
-    };
-
-    const connectNwcWallet = async (): Promise<void> => {
-        try {
-            const parsed = parseNwcConnectionUri(walletNwcUriInput);
-            const info = await fetchNwcInfo(parsed);
-
-            const nextConnection = {
-                method: 'nwc',
-                uri: parsed.uri,
-                walletServicePubkey: parsed.walletServicePubkey,
-                relays: parsed.relays,
-                secret: parsed.secret,
-                encryption: info.encryption,
-                capabilities: info.capabilities,
-                restoreState: 'connected',
-            } as const;
-            persistWalletSettings({ activeConnection: nextConnection });
-            setWalletNwcUriInput('');
-            toast.success('Wallet conectada', { duration: 1800 });
-            if (pendingZapIntent?.phase === 'paused' && location.pathname === '/wallet') {
-                setPendingZapIntent({ ...pendingZapIntent, phase: 'ready' });
-            }
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'No se pudo conectar la wallet NWC.';
-            toast.error(message, { duration: 2200 });
-        }
-    };
-
-    const disconnectWallet = (): void => {
-        persistWalletSettings({ activeConnection: null });
-        setWalletNwcUriInput('');
-    };
-
-    const refreshWallet = async (): Promise<void> => {
-        if (!walletSettings.activeConnection) {
-            return;
-        }
-
-        if (walletSettings.activeConnection.method === 'webln') {
-            const revalidated = await connectWebLnWallet({ silent: true });
-            if (!revalidated) {
-                const provider = detectWebLnProvider();
-                persistWalletSettings({
-                    activeConnection: {
-                        ...walletSettings.activeConnection,
-                        capabilities: resolveWebLnCapabilities(provider),
-                        restoreState: 'reconnect-required',
-                    },
-                });
-            }
-            return;
-        }
-
-        const info = await fetchNwcInfo(walletSettings.activeConnection);
-        persistWalletSettings({
-            activeConnection: {
-                ...walletSettings.activeConnection,
-                capabilities: info.capabilities,
-                encryption: info.encryption,
-            },
-        });
-    };
+    const walletZapController = useWalletZapController({
+        ...(overlay.ownerPubkey ? { ownerPubkey: overlay.ownerPubkey } : {}),
+        location,
+        navigate,
+        language: uiSettings.language,
+        createClient: services.createClient,
+        relaySettingsSnapshot,
+        profiles: overlay.profiles,
+        followerProfiles: overlay.followerProfiles,
+        ...(overlay.ownerProfile ? { ownerProfile: overlay.ownerProfile } : {}),
+        ...(overlay.writeGateway ? { writeGateway: overlay.writeGateway } : {}),
+        onRecordOptimisticZap: recordOptimisticZap,
+    });
+    const {
+        walletSettings,
+        walletActivity,
+        walletNwcUriInput,
+        setWalletNwcUriInput,
+        connectWebLnWallet,
+        connectNwcWallet,
+        disconnectWallet,
+        refreshWallet,
+    } = walletZapController;
+    const requestZapPayment: (input: ZapIntentInput) => Promise<void> = walletZapController.handleZapIntent;
 
     const handleLogout = async (): Promise<void> => {
         await overlay.logoutSession?.();
@@ -1405,45 +918,6 @@ export function App({ mapBridge, services }: AppProps) {
         setZapSettings(loadZapSettings());
         navigate('/');
     };
-
-    useEffect(() => {
-        if (!pendingZapIntent || location.pathname !== '/wallet' || pendingZapIntent.phase !== 'navigating') {
-            return;
-        }
-
-        setPendingZapIntent((current) => current ? { ...current, phase: 'ready' } : current);
-    }, [pendingZapIntent, location.pathname]);
-
-    useEffect(() => {
-        if (!pendingZapIntent || pendingZapIntent.phase !== 'ready' || !isWalletReadyForPayments(walletSettings.activeConnection) || location.pathname !== '/wallet' || resumingZap) {
-            return;
-        }
-
-        setResumingZap(true);
-        void executeZapIntent(pendingZapIntent)
-            .then((result) => {
-                if (result === 'success' || result === 'definitive_failure') {
-                    setPendingZapIntent(null);
-                } else {
-                    setPendingZapIntent((current) => current ? { ...current, phase: 'paused' } : current);
-                }
-
-                if (result === 'success') {
-                    navigate(pendingZapIntent.originPath || '/', { replace: true });
-                }
-            })
-            .finally(() => {
-                setResumingZap(false);
-            });
-    }, [pendingZapIntent, walletSettings.activeConnection, location.pathname, resumingZap, executeZapIntent, navigate]);
-
-    useEffect(() => {
-        if (!pendingZapIntent || pendingZapIntent.phase !== 'ready' || location.pathname === '/wallet') {
-            return;
-        }
-
-        setPendingZapIntent(null);
-    }, [pendingZapIntent, location.pathname]);
 
     return (
         <OverlayAppShell
@@ -1500,7 +974,7 @@ export function App({ mapBridge, services }: AppProps) {
                         {...(overlay.canWrite ? { onFollowPerson: followPerson } : {})}
                         onViewPersonDetails={(pubkey) => overlay.openActiveProfile(pubkey)}
                         zapAmounts={zapSettings.amounts}
-                        {...(overlay.canWrite ? { onZapPerson: (pubkey: string, amount: number) => handleZapIntent({ targetPubkey: pubkey, amount }) } : {})}
+                        {...(overlay.canWrite ? { onZapPerson: (pubkey: string, amount: number) => requestZapPayment({ targetPubkey: pubkey, amount }) } : {})}
                         onConfigureZapAmounts={() => openSettingsPage('zaps')}
                         onCopyOwnerNpub={copyOwnerIdentifier}
                         verificationByPubkey={verificationByPubkey}
@@ -1568,7 +1042,7 @@ export function App({ mapBridge, services }: AppProps) {
                                                 key={`zap-${amount}`}
                                                 onSelect={() => {
                                                     closeOccupiedContextMenu();
-                                                    void handleZapIntent({ targetPubkey: buildingContextMenu.pubkey, amount });
+                                                    void requestZapPayment({ targetPubkey: buildingContextMenu.pubkey, amount });
                                                 }}
                                             >
                                                 {`${amount} sats`}
@@ -1680,7 +1154,7 @@ export function App({ mapBridge, services }: AppProps) {
                             onToggleReaction={followingFeed.toggleReaction}
                             onToggleRepost={handleToggleRepost}
                             onOpenQuoteComposer={openQuoteComposer}
-                            onZap={({ eventId, eventKind, targetPubkey, amount }) => handleZapIntent({
+                            onZap={({ eventId, eventKind, targetPubkey, amount }) => requestZapPayment({
                                 targetPubkey: targetPubkey || '',
                                 amount,
                                 eventId,
@@ -1907,7 +1381,7 @@ export function App({ mapBridge, services }: AppProps) {
                     onToggleReaction={followingFeed.toggleReaction}
                     onToggleRepost={handleToggleRepost}
                     onOpenQuoteComposer={openQuoteComposer}
-                    onZap={({ eventId, eventKind, targetPubkey, amount }) => handleZapIntent({
+                    onZap={({ eventId, eventKind, targetPubkey, amount }) => requestZapPayment({
                         targetPubkey: targetPubkey || '',
                         amount,
                         eventId,
